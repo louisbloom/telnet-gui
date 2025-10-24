@@ -1,0 +1,20 @@
+# Build artifacts
+build/
+*.o
+*.a
+*.exe
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# MSYS2/MinGW
+*.dll
+*.so
