@@ -20,6 +20,7 @@ A minimal, embeddable LISP interpreter library written in C, designed to be inte
 - **Quote Syntax**: `'expr` as syntactic sugar for `(quote expr)`
 - **Truthy/Falsy**: JavaScript-like behavior (nil and empty strings are falsy)
 - **Memory Management**: Automatic garbage collection with Boehm GC
+- **Regex Support**: Powerful PCRE2 regex functions for pattern matching
 
 ## Building
 
@@ -27,9 +28,10 @@ A minimal, embeddable LISP interpreter library written in C, designed to be inte
 - GCC compiler (4.9+)
 - GNU Make
 - Boehm GC library
-- **Linux**: `libgc-dev` package
-- **macOS**: `bdw-gc` via Homebrew or `boehmgc` via MacPorts
-- **Windows**: MSYS2 with `mingw-w64-ucrt-x86_64-gc` package
+- PCRE2 library
+- **Linux**: `libgc-dev libpcre2-dev` packages
+- **macOS**: `bdw-gc pcre2` via Homebrew or `boehmgc pcre2` via MacPorts
+- **Windows**: MSYS2 with `mingw-w64-ucrt-x86_64-gc mingw-w64-ucrt-x86_64-pcre2` packages
 
 ### Build Instructions
 
@@ -193,6 +195,35 @@ int main() {
 (string-match "hello" "h*o")         ; => 1
 ```
 
+### Regex Operations
+
+```lisp
+; Basic regex matching
+(regex-match "\\d+" "hello123")      ; => 1
+(regex-match "^hello$" "hello")      ; => 1
+
+; Finding matches
+(regex-find "\\d+" "abc123def")      ; => "123"
+(regex-find-all "[a-z]+" "hello world")  ; => ("hello" "world")
+
+; Extracting capture groups
+(regex-extract "(\\d+)-(\\d+)-(\\d+)" "2025-10-24")  ; => ("2025" "10" "24")
+
+; Replacing text
+(regex-replace "\\d+" "X" "a1b2c3")  ; => "aXb2c3"
+(regex-replace-all "\\s+" "_" "hello  world")  ; => "hello_world"
+
+; Splitting by regex
+(regex-split "," "apple,banana,cherry")  ; => ("apple" "banana" "cherry")
+
+; Escaping special characters
+(regex-escape "test.string*")        ; => "test\\.string\\*"
+
+; Validating patterns
+(regex-valid? "\\d+")               ; => 1
+(regex-valid? "[invalid")           ; => nil
+```
+
 ### Boolean Operations
 
 ```lisp
@@ -297,16 +328,37 @@ Following JavaScript-like semantics:
 
 ## Pattern Matching
 
-The `split` and `string-match` functions support simple wildcard patterns:
+The `split` and `string-match` functions support enhanced wildcard patterns:
 - `*` - Matches zero or more characters
 - `?` - Matches exactly one character
+- `[abc]` - Matches any character in set
+- `[a-z]` - Matches character ranges
+- `[!abc]` - Matches anything NOT in set
 
 Examples:
 ```lisp
 (string-match "hello" "h*o")         ; => 1
 (string-match "hello" "h?llo")       ; => 1
 (string-match "hello" "h??lo")       ; => 1
+(string-match "hello" "h[aeiou]llo") ; => 1
+(string-match "hello" "h[a-z]llo")   ; => 1
 ```
+
+## Regex Support
+
+Telnet LISP includes powerful PCRE2 regex functions for advanced pattern matching:
+
+- `regex-match` - Test if string matches regex pattern
+- `regex-find` - Find first regex match
+- `regex-find-all` - Find all regex matches
+- `regex-extract` - Extract capture groups
+- `regex-replace` - Replace first match with backreferences
+- `regex-replace-all` - Replace all matches
+- `regex-split` - Split by regex pattern
+- `regex-escape` - Escape special regex characters
+- `regex-valid?` - Validate regex patterns
+
+See the `examples/regex.lisp` file for comprehensive examples.
 
 ## License
 
@@ -318,7 +370,7 @@ Potential additions for future versions:
 - More data types (integers, booleans, vectors)
 - Macros
 - Tail call optimization
-- Garbage collection
 - More string operations
 - File I/O operations
 - Error recovery and better error messages
+- More regex features (lookahead, lookbehind)

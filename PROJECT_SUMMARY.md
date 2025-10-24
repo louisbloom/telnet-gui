@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-A complete, embeddable LISP interpreter library written in C, designed for integration into GUI applications. The implementation follows traditional LISP naming conventions and includes a fully functional REPL for testing and demonstration.
+A complete, embeddable LISP interpreter library written in C, designed for integration into GUI applications. The implementation follows traditional LISP naming conventions and includes a fully functional REPL for testing and demonstration. Features automatic garbage collection with Boehm GC and powerful regex support with PCRE2.
 
 ## Project Structure
 
@@ -16,14 +16,16 @@ telnet-lisp/
 │   ├── eval.c              # Expression evaluator
 │   ├── env.c               # Environment/variable bindings
 │   ├── builtins.c          # Built-in functions
-│   └── print.c             # Object printer
+│   ├── print.c             # Object printer
+│   └── regex.c             # PCRE2 regex integration
 ├── repl/
 │   └── main.c              # REPL application
 ├── examples/
 │   ├── demo.lisp           # Comprehensive demo
 │   ├── factorial.lisp      # Recursive function example
 │   ├── arithmetic.lisp     # Arithmetic examples
-│   └── strings.lisp        # String operation examples
+│   ├── strings.lisp        # String operation examples
+│   └── regex.lisp          # Regex and pattern matching examples
 ├── build/
 │   └── liblisp.a           # Static library (generated)
 ├── Makefile                # Cross-platform GNU Make build
@@ -92,16 +94,23 @@ telnet-lisp/
 - ✅ `null` (test for nil)
 - ✅ `atom` (test for non-list)
 
-### Pattern Matching
-- ✅ Wildcard support in `split` and `string-match`
-  - `*` matches zero or more characters
-  - `?` matches exactly one character
+### Regex and Pattern Matching
+- ✅ `regex-match` (test if string matches regex pattern)
+- ✅ `regex-find` (find first regex match)
+- ✅ `regex-find-all` (find all regex matches)
+- ✅ `regex-extract` (extract capture groups)
+- ✅ `regex-replace` (replace first match with backreferences)
+- ✅ `regex-replace-all` (replace all matches)
+- ✅ `regex-split` (split by regex pattern)
+- ✅ `regex-escape` (escape special regex characters)
+- ✅ `regex-valid?` (validate regex patterns)
+- ✅ Enhanced wildcard support: `[abc]`, `[a-z]`, `[!abc]`
 
 ## API Design
 
 ### Simple API (for basic use)
 ```c
-lisp_init()                    // Initialize interpreter
+lisp_init()                    // Initialize interpreter (includes GC)
 lisp_eval_string(code, env)    // Evaluate a string
 lisp_cleanup()                 // Free resources
 ```
@@ -134,9 +143,10 @@ env_free(env)
 
 ## Build System
 
-- **Build Tool**: GNU Make
+- **Build Tool**: GNU Make (cross-platform) + CMake (alternative)
 - **Compiler**: GCC with `-std=c99 -pedantic`
-- **Target**: MSYS2 UCRT64 environment
+- **Target**: Linux, macOS, Windows (MSYS2 UCRT64)
+- **Dependencies**: Boehm GC, PCRE2
 - **Output**: Static library (`liblisp.a`) + REPL executable
 
 ## Testing
@@ -154,6 +164,9 @@ All features have been tested and verified:
 - ✅ Quote syntax
 - ✅ File loading
 - ✅ Interactive REPL
+- ✅ Regex operations (PCRE2)
+- ✅ Enhanced wildcard matching
+- ✅ Memory management (GC)
 
 ## Example Usage
 
@@ -162,14 +175,14 @@ All features have been tested and verified:
 #include "lisp.h"
 
 int main() {
-    lisp_init();
+    lisp_init();  // Initializes GC automatically
     Environment* env = env_create_global();
 
     // Evaluate expressions
     LispObject* result = lisp_eval_string("(+ 2 3)", env);
     char* output = lisp_print(result);
     printf("Result: %s\n", output);
-    free(output);
+    // No need to free output - GC handles it
 
     // Load a file
     lisp_load_file("script.lisp", env);
@@ -201,48 +214,57 @@ int main() {
 
 ; Pattern matching
 (string-match "test123" "test*")  ; => 1
+
+; Regex operations
+(regex-match "\\d+" "hello123")  ; => 1
+(regex-find-all "[a-z]+" "hello world")  ; => ("hello" "world")
+(regex-extract "(\\d+)-(\\d+)-(\\d+)" "2025-10-24")  ; => ("2025" "10" "24")
 ```
 
 ## Design Decisions
 
 1. **Tagged Union**: All LISP objects use a tagged union for type safety
 2. **Lexical Scoping**: Lambdas capture their environment
-3. **No Garbage Collection**: Manual memory management (suitable for embedding)
+3. **Automatic Garbage Collection**: Boehm GC for robust memory management
 4. **Truthy/Falsy**: JavaScript-like semantics for intuitive conditionals
 5. **Error Objects**: Errors are first-class objects that propagate
 6. **Static Library**: Easy to embed without runtime dependencies
+7. **Cross-Platform**: Supports Linux, macOS, and Windows
+8. **PCRE2 Integration**: Industry-standard regex support
 
 ## Performance Characteristics
 
 - **Parser**: Single-pass recursive descent
 - **Evaluator**: Tree-walking interpreter
 - **Environment**: Linked list (simple, suitable for small programs)
-- **Memory**: Manual allocation (no GC overhead)
+- **Memory**: Automatic GC (no manual memory management)
+- **Regex**: PCRE2 for high-performance pattern matching
 
 ## Limitations and Future Enhancements
 
 Current limitations:
-- No garbage collection (manual memory management required)
 - No tail call optimization
 - Simple environment implementation (linked list)
 - No macro system
 - No module/package system
 
 Potential enhancements:
-- Reference counting or GC
 - Tail call optimization
 - Hash table environments
 - More data types (vectors, hash tables)
 - Macro system
 - File I/O operations
 - Better error messages with line numbers
+- More regex features (lookahead, lookbehind)
 
 ## Conclusion
 
-The Mini LISP Interpreter is a complete, working implementation suitable for:
+The Telnet LISP Interpreter is a complete, working implementation suitable for:
 - Embedding in GUI applications
 - Scripting and configuration
 - Learning LISP implementation
 - Extending with custom built-in functions
+- Text processing with regex support
+- Cross-platform development
 
-All planned features have been implemented and tested successfully.
+All planned features have been implemented and tested successfully, including advanced regex and pattern matching capabilities.

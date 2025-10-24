@@ -102,7 +102,7 @@ int main() {
 
 Compile with:
 ```bash
-gcc myapp.c -Iinclude -Lbuild -llisp -lm -lgc -o myapp.exe
+gcc myapp.c -Iinclude -Lbuild -llisp -lm -lgc -lpcre2-8 -o myapp.exe
 ```
 
 ## REPL Commands
@@ -120,10 +120,23 @@ gcc myapp.c -Iinclude -Lbuild -llisp -lm -lgc -o myapp.exe
 Use wildcards in `split` and `string-match`:
 - `*` matches zero or more characters
 - `?` matches exactly one character
+- `[abc]` matches any character in set
+- `[a-z]` matches character ranges
+- `[!abc]` matches anything NOT in set
 
 ```lisp
 (string-match "hello" "h*o")   ; => 1
 (split "a*b*c" "*")            ; => ("a" "b" "c")
+```
+
+## Regex Support
+
+Powerful PCRE2 regex functions:
+```lisp
+(regex-match "\\d+" "hello123")  ; => 1
+(regex-find-all "[a-z]+" "hello world")  ; => ("hello" "world")
+(regex-extract "(\\d+)-(\\d+)-(\\d+)" "2025-10-24")  ; => ("2025" "10" "24")
+(regex-replace-all "\\s+" "_" "hello  world")  ; => "hello_world"
 ```
 
 ## All Built-in Functions
@@ -133,6 +146,8 @@ Use wildcards in `split` and `string-match`:
 **Comparisons**: `>`, `<`, `=`, `>=`, `<=`
 
 **String ops**: `concat`, `split`, `string=`, `string<`, `string>`, `string<=`, `string>=`, `string-contains`, `string-match`
+
+**Regex**: `regex-match`, `regex-find`, `regex-find-all`, `regex-extract`, `regex-replace`, `regex-replace-all`, `regex-split`, `regex-escape`, `regex-valid?`
 
 **Boolean**: `and`, `or`, `not`
 
@@ -149,3 +164,4 @@ See the `examples/` directory for more complete examples:
 - `examples/factorial.lisp` - Recursive factorial function
 - `examples/strings.lisp` - String manipulation examples
 - `examples/arithmetic.lisp` - Basic arithmetic operations
+- `examples/regex.lisp` - Regex and pattern matching examples
