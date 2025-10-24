@@ -5,6 +5,9 @@
 #include <stddef.h>
 #include <gc.h>
 
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include <pcre2.h>
+
 /* Forward declarations */
 typedef struct LispObject LispObject;
 typedef struct Environment Environment;
@@ -96,5 +99,12 @@ Environment* env_create_global(void);
 /* List utilities */
 LispObject* lisp_car(LispObject* obj);
 LispObject* lisp_cdr(LispObject* obj);
+
+/* Regex helper functions */
+pcre2_code* compile_regex_pattern(const char* pattern, char** error_msg);
+pcre2_match_data* execute_regex(pcre2_code* re, const char* subject);
+char* extract_capture(pcre2_match_data* match_data, const char* subject, int capture_num);
+int get_capture_count(pcre2_code* re);
+void free_regex_resources(pcre2_code* re, pcre2_match_data* match_data);
 
 #endif /* LISP_H */

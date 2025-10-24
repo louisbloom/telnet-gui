@@ -5,64 +5,64 @@
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
     OS := Linux
-    LDFLAGS := -lm -lgc
+    LDFLAGS := -lm -lgc -lpcre2-8
     EXE_EXT :=
 endif
 ifeq ($(UNAME_S),Darwin)
     OS := macOS
-    LDFLAGS := -lm -lgc
+    LDFLAGS := -lm -lgc -lpcre2-8
     EXE_EXT :=
 endif
 ifeq ($(OS),Windows_NT)
     OS := Windows
-    LDFLAGS := -lm -lgc
+    LDFLAGS := -lm -lgc -lpcre2-8
     EXE_EXT := .exe
 endif
 ifeq ($(UNAME_S),MINGW32_NT-6.1)
     OS := Windows
-    LDFLAGS := -lm -lgc
+    LDFLAGS := -lm -lgc -lpcre2-8
     EXE_EXT := .exe
 endif
 ifeq ($(UNAME_S),MINGW32_NT-6.2)
     OS := Windows
-    LDFLAGS := -lm -lgc
+    LDFLAGS := -lm -lgc -lpcre2-8
     EXE_EXT := .exe
 endif
 ifeq ($(UNAME_S),MINGW32_NT-6.3)
     OS := Windows
-    LDFLAGS := -lm -lgc
+    LDFLAGS := -lm -lgc -lpcre2-8
     EXE_EXT := .exe
 endif
 ifeq ($(UNAME_S),MINGW32_NT-10.0)
     OS := Windows
-    LDFLAGS := -lm -lgc
+    LDFLAGS := -lm -lgc -lpcre2-8
     EXE_EXT := .exe
 endif
 ifeq ($(UNAME_S),CYGWIN_NT-6.1)
     OS := Windows
-    LDFLAGS := -lm -lgc
+    LDFLAGS := -lm -lgc -lpcre2-8
     EXE_EXT := .exe
 endif
 ifeq ($(UNAME_S),CYGWIN_NT-6.2)
     OS := Windows
-    LDFLAGS := -lm -lgc
+    LDFLAGS := -lm -lgc -lpcre2-8
     EXE_EXT := .exe
 endif
 ifeq ($(UNAME_S),CYGWIN_NT-6.3)
     OS := Windows
-    LDFLAGS := -lm -lgc
+    LDFLAGS := -lm -lgc -lpcre2-8
     EXE_EXT := .exe
 endif
 ifeq ($(UNAME_S),CYGWIN_NT-10.0)
     OS := Windows
-    LDFLAGS := -lm -lgc
+    LDFLAGS := -lm -lgc -lpcre2-8
     EXE_EXT := .exe
 endif
 
 # Default to Linux if not detected
 ifeq ($(OS),)
     OS := Linux
-    LDFLAGS := -lm -lgc
+    LDFLAGS := -lm -lgc -lpcre2-8
     EXE_EXT :=
 endif
 
@@ -78,9 +78,9 @@ BUILD_DIR = build
 
 # Library sources and objects
 LIB_SOURCES = $(SRC_DIR)/lisp.c $(SRC_DIR)/reader.c $(SRC_DIR)/eval.c \
-              $(SRC_DIR)/env.c $(SRC_DIR)/builtins.c $(SRC_DIR)/print.c
+              $(SRC_DIR)/env.c $(SRC_DIR)/builtins.c $(SRC_DIR)/print.c $(SRC_DIR)/regex.c
 LIB_OBJECTS = $(BUILD_DIR)/lisp.o $(BUILD_DIR)/reader.o $(BUILD_DIR)/eval.o \
-              $(BUILD_DIR)/env.o $(BUILD_DIR)/builtins.o $(BUILD_DIR)/print.o
+              $(BUILD_DIR)/env.o $(BUILD_DIR)/builtins.o $(BUILD_DIR)/print.o $(BUILD_DIR)/regex.o
 
 # REPL sources and objects
 REPL_SOURCES = $(REPL_DIR)/main.c
@@ -122,6 +122,9 @@ $(BUILD_DIR)/builtins.o: $(SRC_DIR)/builtins.c $(INCLUDE_DIR)/lisp.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/print.o: $(SRC_DIR)/print.c $(INCLUDE_DIR)/lisp.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/regex.o: $(SRC_DIR)/regex.c $(INCLUDE_DIR)/lisp.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Compile REPL

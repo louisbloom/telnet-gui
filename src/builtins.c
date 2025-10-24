@@ -42,7 +42,19 @@ static LispObject* builtin_list(LispObject* args, Environment* env);
 static LispObject* builtin_null(LispObject* args, Environment* env);
 static LispObject* builtin_atom(LispObject* args, Environment* env);
 
+/* Regex operations */
+static LispObject* builtin_regex_match(LispObject* args, Environment* env);
+static LispObject* builtin_regex_find(LispObject* args, Environment* env);
+static LispObject* builtin_regex_find_all(LispObject* args, Environment* env);
+static LispObject* builtin_regex_extract(LispObject* args, Environment* env);
+static LispObject* builtin_regex_replace(LispObject* args, Environment* env);
+static LispObject* builtin_regex_replace_all(LispObject* args, Environment* env);
+static LispObject* builtin_regex_split(LispObject* args, Environment* env);
+static LispObject* builtin_regex_escape(LispObject* args, Environment* env);
+static LispObject* builtin_regex_valid(LispObject* args, Environment* env);
+
 /* Helper for wildcard matching */
+static int match_char_class(const char** pattern, char c);
 static int wildcard_match(const char* pattern, const char* str);
 
 void register_builtins(Environment* env) {
@@ -78,6 +90,16 @@ void register_builtins(Environment* env) {
 
     env_define(env, "null", lisp_make_builtin(builtin_null, "null"));
     env_define(env, "atom", lisp_make_builtin(builtin_atom, "atom"));
+
+    env_define(env, "regex-match", lisp_make_builtin(builtin_regex_match, "regex-match"));
+    env_define(env, "regex-find", lisp_make_builtin(builtin_regex_find, "regex-find"));
+    env_define(env, "regex-find-all", lisp_make_builtin(builtin_regex_find_all, "regex-find-all"));
+    env_define(env, "regex-extract", lisp_make_builtin(builtin_regex_extract, "regex-extract"));
+    env_define(env, "regex-replace", lisp_make_builtin(builtin_regex_replace, "regex-replace"));
+    env_define(env, "regex-replace-all", lisp_make_builtin(builtin_regex_replace_all, "regex-replace-all"));
+    env_define(env, "regex-split", lisp_make_builtin(builtin_regex_split, "regex-split"));
+    env_define(env, "regex-escape", lisp_make_builtin(builtin_regex_escape, "regex-escape"));
+    env_define(env, "regex-valid?", lisp_make_builtin(builtin_regex_valid, "regex-valid?"));
 }
 
 /* Arithmetic operations */
@@ -291,6 +313,39 @@ static LispObject* builtin_concat(LispObject* args, Environment* env) {
     return obj;
 }
 
+static int match_char_class(const char** pattern, char c) {
+    const char* p = *pattern + 1; /* Skip '[' */
+    int negate = 0;
+    int match = 0;
+
+    if (*p == '!') {
+        negate = 1;
+        p++;
+    }
+
+    while (*p && *p != ']') {
+        if (*(p + 1) == '-' && *(p + 2) != ']' && *(p + 2) != '\0') {
+            /* Range */
+            if (c >= *p && c <= *(p + 2)) {
+                match = 1;
+            }
+            p += 3;
+        } else {
+            /* Single character */
+            if (c == *p) {
+                match = 1;
+            }
+            p++;
+        }
+    }
+
+    if (*p == ']') {
+        *pattern = p + 1;
+    }
+
+    return negate ? !match : match;
+}
+
 static int wildcard_match(const char* pattern, const char* str) {
     while (*pattern && *str) {
         if (*pattern == '*') {
@@ -301,7 +356,16 @@ static int wildcard_match(const char* pattern, const char* str) {
                 str++;
             }
             return 0;
-        } else if (*pattern == '?' || *pattern == *str) {
+        } else if (*pattern == '?') {
+            pattern++;
+            str++;
+        } else if (*pattern == '[') {
+            if (match_char_class(&pattern, *str)) {
+                str++;
+            } else {
+                return 0;
+            }
+        } else if (*pattern == *str) {
             pattern++;
             str++;
         } else {
@@ -619,4 +683,410 @@ static LispObject* builtin_atom(LispObject* args, Environment* env) {
 
     LispObject* arg = lisp_car(args);
     return (arg->type != LISP_CONS) ? lisp_make_number(1) : NIL;
+}
+
+/* Regex functions */
+static LispObject* builtin_regex_match(LispObject* args, Environment* env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("regex-match requires 2 arguments");
+    }
+
+    LispObject* pattern_obj = lisp_car(args);
+    LispObject* string_obj = lisp_car(lisp_cdr(args));
+
+    if (pattern_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
+        return lisp_make_error("regex-match requires strings");
+    }
+
+    char* error_msg = NULL;
+    pcre2_code* re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
+
+    if (re == NULL) {
+        char error[512];
+        snprintf(error, sizeof(error), "regex-match: %s", error_msg);
+        return lisp_make_error(error);
+    }
+
+    pcre2_match_data* match_data = execute_regex(re, string_obj->value.string);
+    int result = (match_data != NULL);
+
+    free_regex_resources(re, match_data);
+
+    return result ? lisp_make_number(1) : NIL;
+}
+
+static LispObject* builtin_regex_find(LispObject* args, Environment* env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("regex-find requires 2 arguments");
+    }
+
+    LispObject* pattern_obj = lisp_car(args);
+    LispObject* string_obj = lisp_car(lisp_cdr(args));
+
+    if (pattern_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
+        return lisp_make_error("regex-find requires strings");
+    }
+
+    char* error_msg = NULL;
+    pcre2_code* re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
+
+    if (re == NULL) {
+        char error[512];
+        snprintf(error, sizeof(error), "regex-find: %s", error_msg);
+        return lisp_make_error(error);
+    }
+
+    pcre2_match_data* match_data = execute_regex(re, string_obj->value.string);
+
+    if (match_data == NULL) {
+        free_regex_resources(re, NULL);
+        return NIL;
+    }
+
+    char* matched = extract_capture(match_data, string_obj->value.string, 0);
+    LispObject* result = matched ? lisp_make_string(matched) : NIL;
+
+    free_regex_resources(re, match_data);
+
+    return result;
+}
+
+static LispObject* builtin_regex_find_all(LispObject* args, Environment* env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("regex-find-all requires 2 arguments");
+    }
+
+    LispObject* pattern_obj = lisp_car(args);
+    LispObject* string_obj = lisp_car(lisp_cdr(args));
+
+    if (pattern_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
+        return lisp_make_error("regex-find-all requires strings");
+    }
+
+    char* error_msg = NULL;
+    pcre2_code* re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
+
+    if (re == NULL) {
+        char error[512];
+        snprintf(error, sizeof(error), "regex-find-all: %s", error_msg);
+        return lisp_make_error(error);
+    }
+
+    LispObject* result = NIL;
+    LispObject* tail = NULL;
+
+    const char* subject = string_obj->value.string;
+    size_t offset = 0;
+    size_t subject_len = strlen(subject);
+
+    while (offset < subject_len) {
+        pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(re, NULL);
+
+        int rc = pcre2_match(
+            re,
+            (PCRE2_SPTR)subject,
+            subject_len,
+            offset,
+            0,
+            match_data,
+            NULL
+        );
+
+        if (rc < 0) {
+            pcre2_match_data_free(match_data);
+            break;
+        }
+
+        char* matched = extract_capture(match_data, subject, 0);
+        if (matched) {
+            LispObject* match_obj = lisp_make_string(matched);
+            LispObject* new_cons = lisp_make_cons(match_obj, NIL);
+
+            if (result == NIL) {
+                result = new_cons;
+                tail = new_cons;
+            } else {
+                tail->value.cons.cdr = new_cons;
+                tail = new_cons;
+            }
+        }
+
+        PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
+        offset = ovector[1];
+
+        pcre2_match_data_free(match_data);
+
+        if (offset == ovector[0]) {
+            offset++; /* Avoid infinite loop on zero-length match */
+        }
+    }
+
+    pcre2_code_free(re);
+
+    return result;
+}
+
+static LispObject* builtin_regex_extract(LispObject* args, Environment* env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("regex-extract requires 2 arguments");
+    }
+
+    LispObject* pattern_obj = lisp_car(args);
+    LispObject* string_obj = lisp_car(lisp_cdr(args));
+
+    if (pattern_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
+        return lisp_make_error("regex-extract requires strings");
+    }
+
+    char* error_msg = NULL;
+    pcre2_code* re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
+
+    if (re == NULL) {
+        char error[512];
+        snprintf(error, sizeof(error), "regex-extract: %s", error_msg);
+        return lisp_make_error(error);
+    }
+
+    pcre2_match_data* match_data = execute_regex(re, string_obj->value.string);
+
+    if (match_data == NULL) {
+        free_regex_resources(re, NULL);
+        return NIL;
+    }
+
+    int capture_count = get_capture_count(re);
+    LispObject* result = NIL;
+    LispObject* tail = NULL;
+
+    /* Extract capture groups (skip group 0 which is the whole match) */
+    for (int i = 1; i <= capture_count; i++) {
+        char* captured = extract_capture(match_data, string_obj->value.string, i);
+        if (captured) {
+            LispObject* cap_obj = lisp_make_string(captured);
+            LispObject* new_cons = lisp_make_cons(cap_obj, NIL);
+
+            if (result == NIL) {
+                result = new_cons;
+                tail = new_cons;
+            } else {
+                tail->value.cons.cdr = new_cons;
+                tail = new_cons;
+            }
+        }
+    }
+
+    free_regex_resources(re, match_data);
+
+    return result;
+}
+
+static LispObject* builtin_regex_replace(LispObject* args, Environment* env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL || lisp_cdr(lisp_cdr(args)) == NIL) {
+        return lisp_make_error("regex-replace requires 3 arguments");
+    }
+
+    LispObject* pattern_obj = lisp_car(args);
+    LispObject* replacement_obj = lisp_car(lisp_cdr(args));
+    LispObject* string_obj = lisp_car(lisp_cdr(lisp_cdr(args)));
+
+    if (pattern_obj->type != LISP_STRING || replacement_obj->type != LISP_STRING ||
+        string_obj->type != LISP_STRING) {
+        return lisp_make_error("regex-replace requires strings");
+    }
+
+    char* error_msg = NULL;
+    pcre2_code* re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
+
+    if (re == NULL) {
+        char error[512];
+        snprintf(error, sizeof(error), "regex-replace: %s", error_msg);
+        return lisp_make_error(error);
+    }
+
+    size_t output_len = strlen(string_obj->value.string) * 2 + 256;
+    PCRE2_UCHAR* output = GC_malloc(output_len);
+
+    int rc = pcre2_substitute(
+        re,
+        (PCRE2_SPTR)string_obj->value.string,
+        PCRE2_ZERO_TERMINATED,
+        0,  /* start offset */
+        PCRE2_SUBSTITUTE_GLOBAL,  /* options - replace all */
+        NULL,  /* match data */
+        NULL,  /* match context */
+        (PCRE2_SPTR)replacement_obj->value.string,
+        PCRE2_ZERO_TERMINATED,
+        output,
+        &output_len
+    );
+
+    pcre2_code_free(re);
+
+    if (rc < 0) {
+        return lisp_make_error("regex-replace: substitution failed");
+    }
+
+    return lisp_make_string((char*)output);
+}
+
+static LispObject* builtin_regex_replace_all(LispObject* args, Environment* env) {
+    /* Same as regex-replace since we use PCRE2_SUBSTITUTE_GLOBAL */
+    return builtin_regex_replace(args, env);
+}
+
+static LispObject* builtin_regex_split(LispObject* args, Environment* env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("regex-split requires 2 arguments");
+    }
+
+    LispObject* pattern_obj = lisp_car(args);
+    LispObject* string_obj = lisp_car(lisp_cdr(args));
+
+    if (pattern_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
+        return lisp_make_error("regex-split requires strings");
+    }
+
+    char* error_msg = NULL;
+    pcre2_code* re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
+
+    if (re == NULL) {
+        char error[512];
+        snprintf(error, sizeof(error), "regex-split: %s", error_msg);
+        return lisp_make_error(error);
+    }
+
+    LispObject* result = NIL;
+    LispObject* tail = NULL;
+
+    const char* subject = string_obj->value.string;
+    size_t offset = 0;
+    size_t last_end = 0;
+    size_t subject_len = strlen(subject);
+
+    while (offset <= subject_len) {
+        pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(re, NULL);
+
+        int rc = pcre2_match(
+            re,
+            (PCRE2_SPTR)subject,
+            subject_len,
+            offset,
+            0,
+            match_data,
+            NULL
+        );
+
+        if (rc < 0) {
+            pcre2_match_data_free(match_data);
+            break;
+        }
+
+        PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
+        size_t match_start = ovector[0];
+        size_t match_end = ovector[1];
+
+        /* Add substring before match */
+        size_t part_len = match_start - last_end;
+        char* part = GC_malloc(part_len + 1);
+        strncpy(part, subject + last_end, part_len);
+        part[part_len] = '\0';
+
+        LispObject* part_obj = lisp_make_string(part);
+        LispObject* new_cons = lisp_make_cons(part_obj, NIL);
+
+        if (result == NIL) {
+            result = new_cons;
+            tail = new_cons;
+        } else {
+            tail->value.cons.cdr = new_cons;
+            tail = new_cons;
+        }
+
+        last_end = match_end;
+        offset = match_end;
+
+        pcre2_match_data_free(match_data);
+
+        if (offset == match_start) {
+            offset++; /* Avoid infinite loop */
+        }
+    }
+
+    /* Add remaining substring */
+    if (last_end <= subject_len) {
+        char* part = GC_malloc(subject_len - last_end + 1);
+        strcpy(part, subject + last_end);
+
+        LispObject* part_obj = lisp_make_string(part);
+        LispObject* new_cons = lisp_make_cons(part_obj, NIL);
+
+        if (result == NIL) {
+            result = new_cons;
+        } else {
+            tail->value.cons.cdr = new_cons;
+        }
+    }
+
+    pcre2_code_free(re);
+
+    return result;
+}
+
+static LispObject* builtin_regex_escape(LispObject* args, Environment* env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("regex-escape requires 1 argument");
+    }
+
+    LispObject* string_obj = lisp_car(args);
+
+    if (string_obj->type != LISP_STRING) {
+        return lisp_make_error("regex-escape requires a string");
+    }
+
+    const char* str = string_obj->value.string;
+    size_t len = strlen(str);
+    char* escaped = GC_malloc(len * 2 + 1);
+    size_t j = 0;
+
+    const char* special = ".^$*+?()[]{}|\\";
+
+    for (size_t i = 0; i < len; i++) {
+        if (strchr(special, str[i])) {
+            escaped[j++] = '\\';
+        }
+        escaped[j++] = str[i];
+    }
+    escaped[j] = '\0';
+
+    return lisp_make_string(escaped);
+}
+
+static LispObject* builtin_regex_valid(LispObject* args, Environment* env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("regex-valid? requires 1 argument");
+    }
+
+    LispObject* pattern_obj = lisp_car(args);
+
+    if (pattern_obj->type != LISP_STRING) {
+        return lisp_make_error("regex-valid? requires a string");
+    }
+
+    char* error_msg = NULL;
+    pcre2_code* re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
+
+    if (re == NULL) {
+        return NIL;
+    }
+
+    pcre2_code_free(re);
+    return lisp_make_number(1);
 }

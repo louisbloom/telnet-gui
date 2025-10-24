@@ -15,6 +15,7 @@ set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
 # Find required packages
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GC REQUIRED libgc)
+pkg_check_modules(PCRE2 REQUIRED libpcre2-8)
 
 # Include directories
 include_directories(include)
@@ -27,20 +28,21 @@ set(LIB_SOURCES
     src/env.c
     src/builtins.c
     src/print.c
+    src/regex.c
 )
 
 # Create static library
 add_library(liblisp STATIC ${LIB_SOURCES})
 
 # Link libraries
-target_link_libraries(liblisp ${GC_LIBRARIES} m)
+target_link_libraries(liblisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
 
 # Include directories for library
 target_include_directories(liblisp PUBLIC include)
 
 # REPL executable
 add_executable(lisp-repl repl/main.c)
-target_link_libraries(lisp-repl liblisp ${GC_LIBRARIES} m)
+target_link_libraries(lisp-repl liblisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
 
 # Installation
 install(TARGETS lisp-repl liblisp
