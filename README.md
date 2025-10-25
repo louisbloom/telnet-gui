@@ -24,14 +24,53 @@ A minimal, embeddable LISP interpreter library written in C, designed to be inte
 
 ## Building
 
-### Requirements
-- GCC compiler (4.9+)
-- GNU Make
-- Boehm GC library
-- PCRE2 library
-- **Linux**: `libgc-dev libpcre2-dev` packages
-- **macOS**: `bdw-gc pcre2` via Homebrew or `boehmgc pcre2` via MacPorts
-- **Windows**: MSYS2 with `mingw-w64-ucrt-x86_64-gc mingw-w64-ucrt-x86_64-pcre2` packages
+## Windows Development
+
+### MSYS2 UCRT64 Environment
+
+This project is built for MSYS2 UCRT64 on Windows. Use the following commands:
+
+**⚠️ CRITICAL REQUIREMENT**: The final executable must NOT depend on `msys-2.0.dll`
+
+**Interactive Shell:**
+```bash
+C:\Users\tchristensen\scoop\apps\msys2\current\msys2_shell.cmd -defterm -here -no-start -ucrt64
+```
+
+**PowerShell Commands with UCRT64 Tools:**
+```powershell
+C:\Users\tchristensen\scoop\apps\msys2\current\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "<command>"
+```
+
+**Example Build Commands:**
+```powershell
+# Install dependencies
+C:\Users\tchristensen\scoop\apps\msys2\current\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "pacman -S mingw-w64-ucrt-x86_64-gc mingw-w64-ucrt-x86_64-pcre2"
+
+# Build project
+C:\Users\tchristensen\scoop\apps\msys2\current\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "make"
+
+# Generate compile_commands.json for clangd
+C:\Users\tchristensen\scoop\apps\msys2\current\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "mkdir -p build && cd build && cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+```
+
+### Dependencies
+
+Install required packages:
+```bash
+pacman -S mingw-w64-ucrt-x86_64-gc mingw-w64-ucrt-x86_64-pcre2 mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake
+```
+
+### Verification
+
+After building, verify the executable has no `msys-2.0.dll` dependency:
+```bash
+# Check dependencies (should NOT show msys-2.0.dll)
+ldd lisp-repl.exe
+
+# Or use objdump
+objdump -p lisp-repl.exe | grep DLL
+```
 
 ### Build Instructions
 

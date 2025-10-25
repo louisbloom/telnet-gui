@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
 project(TelnetLisp VERSION 1.0.0 LANGUAGES C)
 
+# Export compile commands for clangd
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Set C standard
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -12,9 +15,19 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -pedantic")
 set(CMAKE_C_FLAGS_DEBUG "-g -O0")
 set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
 
+# For Windows UCRT64, prefer static linking to avoid msys-2.0.dll
+if(WIN32)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc")
+    # Add UCRT64 system include paths for clangd
+    set(UCRT64_ROOT "C:/Users/tchristensen/scoop/apps/msys2/current/ucrt64")
+    include_directories(SYSTEM "${UCRT64_ROOT}/include")
+    include_directories(SYSTEM "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/15.2.0/include")
+    include_directories(SYSTEM "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/15.2.0/include-fixed")
+endif()
+
 # Find required packages
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(GC REQUIRED libgc)
+pkg_check_modules(GC REQUIRED bdw-gc)
 pkg_check_modules(PCRE2 REQUIRED libpcre2-8)
 
 # Include directories
@@ -40,9 +53,28 @@ target_link_libraries(liblisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
 # Include directories for library
 target_include_directories(liblisp PUBLIC include)
 
+# Add UCRT64 system include paths for clangd on Windows
+if(WIN32)
+    set(UCRT64_ROOT "C:/Users/tchristensen/scoop/apps/msys2/current/ucrt64")
+    target_include_directories(liblisp SYSTEM PUBLIC
+        "${UCRT64_ROOT}/include"
+        "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/15.2.0/include"
+        "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/15.2.0/include-fixed"
+    )
+endif()
+
 # REPL executable
 add_executable(lisp-repl repl/main.c)
 target_link_libraries(lisp-repl liblisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
+
+# Add UCRT64 system include paths for REPL executable on Windows
+if(WIN32)
+    target_include_directories(lisp-repl SYSTEM PRIVATE
+        "${UCRT64_ROOT}/include"
+        "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/15.2.0/include"
+        "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/15.2.0/include-fixed"
+    )
+endif()
 
 # Installation
 install(TARGETS lisp-repl liblisp
