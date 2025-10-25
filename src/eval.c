@@ -3,54 +3,54 @@
 #include <string.h>
 
 /* Forward declarations */
-static LispObject* eval_list(LispObject* list, Environment* env);
-static LispObject* eval_if(LispObject* args, Environment* env);
-static LispObject* eval_define(LispObject* args, Environment* env);
-static LispObject* eval_lambda(LispObject* args, Environment* env);
-static LispObject* eval_let(LispObject* args, Environment* env);
-static LispObject* apply(LispObject* func, LispObject* args, Environment* env);
+static LispObject *eval_list(LispObject *list, Environment *env);
+static LispObject *eval_if(LispObject *args, Environment *env);
+static LispObject *eval_define(LispObject *args, Environment *env);
+static LispObject *eval_lambda(LispObject *args, Environment *env);
+static LispObject *eval_let(LispObject *args, Environment *env);
+static LispObject *apply(LispObject *func, LispObject *args, Environment *env);
 
-LispObject* lisp_eval(LispObject* expr, Environment* env) {
+LispObject *lisp_eval(LispObject *expr, Environment *env) {
     if (expr == NULL || expr == NIL) {
         return NIL;
     }
 
     switch (expr->type) {
-        case LISP_NIL:
-            return NIL;
+    case LISP_NIL:
+        return NIL;
 
-        case LISP_NUMBER:
-        case LISP_STRING:
-        case LISP_BUILTIN:
-        case LISP_LAMBDA:
-            return expr;
+    case LISP_NUMBER:
+    case LISP_STRING:
+    case LISP_BUILTIN:
+    case LISP_LAMBDA:
+        return expr;
 
-        case LISP_ERROR:
-            return expr;
+    case LISP_ERROR:
+        return expr;
 
-        case LISP_SYMBOL: {
-            LispObject* value = env_lookup(env, expr->value.symbol);
-            if (value == NULL) {
-                char error[256];
-                snprintf(error, sizeof(error), "Undefined symbol: %s", expr->value.symbol);
-                return lisp_make_error(error);
-            }
-            return value;
+    case LISP_SYMBOL: {
+        LispObject *value = env_lookup(env, expr->value.symbol);
+        if (value == NULL) {
+            char error[256];
+            snprintf(error, sizeof(error), "Undefined symbol: %s", expr->value.symbol);
+            return lisp_make_error(error);
         }
+        return value;
+    }
 
-        case LISP_CONS:
-            return eval_list(expr, env);
+    case LISP_CONS:
+        return eval_list(expr, env);
     }
 
     return lisp_make_error("Unknown expression type");
 }
 
-static LispObject* eval_list(LispObject* list, Environment* env) {
+static LispObject *eval_list(LispObject *list, Environment *env) {
     if (list == NIL) {
         return NIL;
     }
 
-    LispObject* first = lisp_car(list);
+    LispObject *first = lisp_car(list);
     if (first == NULL) {
         return lisp_make_error("Empty list in function position");
     }
@@ -58,7 +58,7 @@ static LispObject* eval_list(LispObject* list, Environment* env) {
     /* Check for special forms */
     if (first->type == LISP_SYMBOL) {
         if (strcmp(first->value.symbol, "quote") == 0) {
-            LispObject* rest = lisp_cdr(list);
+            LispObject *rest = lisp_cdr(list);
             if (rest == NIL) {
                 return lisp_make_error("quote requires an argument");
             }
@@ -83,25 +83,25 @@ static LispObject* eval_list(LispObject* list, Environment* env) {
     }
 
     /* Function application */
-    LispObject* func = lisp_eval(first, env);
+    LispObject *func = lisp_eval(first, env);
     if (func->type == LISP_ERROR) {
         return func;
     }
 
     /* Evaluate arguments */
-    LispObject* evaled_args = NIL;
-    LispObject* tail = NULL;
-    LispObject* args = lisp_cdr(list);
+    LispObject *evaled_args = NIL;
+    LispObject *tail = NULL;
+    LispObject *args = lisp_cdr(list);
 
     while (args != NIL && args != NULL) {
-        LispObject* arg = lisp_car(args);
-        LispObject* evaled = lisp_eval(arg, env);
+        LispObject *arg = lisp_car(args);
+        LispObject *evaled = lisp_eval(arg, env);
 
         if (evaled->type == LISP_ERROR) {
             return evaled;
         }
 
-        LispObject* new_cons = lisp_make_cons(evaled, NIL);
+        LispObject *new_cons = lisp_make_cons(evaled, NIL);
         if (evaled_args == NIL) {
             evaled_args = new_cons;
             tail = new_cons;
@@ -116,23 +116,23 @@ static LispObject* eval_list(LispObject* list, Environment* env) {
     return apply(func, evaled_args, env);
 }
 
-static LispObject* eval_if(LispObject* args, Environment* env) {
+static LispObject *eval_if(LispObject *args, Environment *env) {
     if (args == NIL) {
         return lisp_make_error("if requires at least 2 arguments");
     }
 
-    LispObject* cond = lisp_car(args);
-    LispObject* rest = lisp_cdr(args);
+    LispObject *cond = lisp_car(args);
+    LispObject *rest = lisp_cdr(args);
 
     if (rest == NIL) {
         return lisp_make_error("if requires at least 2 arguments");
     }
 
-    LispObject* then_expr = lisp_car(rest);
-    LispObject* else_rest = lisp_cdr(rest);
-    LispObject* else_expr = (else_rest != NIL) ? lisp_car(else_rest) : NIL;
+    LispObject *then_expr = lisp_car(rest);
+    LispObject *else_rest = lisp_cdr(rest);
+    LispObject *else_expr = (else_rest != NIL) ? lisp_car(else_rest) : NIL;
 
-    LispObject* cond_val = lisp_eval(cond, env);
+    LispObject *cond_val = lisp_eval(cond, env);
     if (cond_val->type == LISP_ERROR) {
         return cond_val;
     }
@@ -144,23 +144,23 @@ static LispObject* eval_if(LispObject* args, Environment* env) {
     }
 }
 
-static LispObject* eval_define(LispObject* args, Environment* env) {
+static LispObject *eval_define(LispObject *args, Environment *env) {
     if (args == NIL) {
         return lisp_make_error("define requires 2 arguments");
     }
 
-    LispObject* name = lisp_car(args);
+    LispObject *name = lisp_car(args);
     if (name->type != LISP_SYMBOL) {
         return lisp_make_error("define requires a symbol as first argument");
     }
 
-    LispObject* rest = lisp_cdr(args);
+    LispObject *rest = lisp_cdr(args);
     if (rest == NIL) {
         return lisp_make_error("define requires 2 arguments");
     }
 
-    LispObject* value_expr = lisp_car(rest);
-    LispObject* value = lisp_eval(value_expr, env);
+    LispObject *value_expr = lisp_car(rest);
+    LispObject *value = lisp_eval(value_expr, env);
 
     if (value->type == LISP_ERROR) {
         return value;
@@ -170,60 +170,60 @@ static LispObject* eval_define(LispObject* args, Environment* env) {
     return value;
 }
 
-static LispObject* eval_lambda(LispObject* args, Environment* env) {
+static LispObject *eval_lambda(LispObject *args, Environment *env) {
     if (args == NIL) {
         return lisp_make_error("lambda requires at least 2 arguments");
     }
 
-    LispObject* params = lisp_car(args);
-    LispObject* rest = lisp_cdr(args);
+    LispObject *params = lisp_car(args);
+    LispObject *rest = lisp_cdr(args);
 
     if (rest == NIL) {
         return lisp_make_error("lambda requires a body");
     }
 
-    LispObject* body = lisp_car(rest);
+    LispObject *body = lisp_car(rest);
 
     return lisp_make_lambda(params, body, env);
 }
 
-static LispObject* eval_let(LispObject* args, Environment* env) {
+static LispObject *eval_let(LispObject *args, Environment *env) {
     if (args == NIL) {
         return lisp_make_error("let requires at least 2 arguments");
     }
 
-    LispObject* bindings = lisp_car(args);
-    LispObject* rest = lisp_cdr(args);
+    LispObject *bindings = lisp_car(args);
+    LispObject *rest = lisp_cdr(args);
 
     if (rest == NIL) {
         return lisp_make_error("let requires a body");
     }
 
-    LispObject* body = lisp_car(rest);
+    LispObject *body = lisp_car(rest);
 
     /* Create new environment */
-    Environment* new_env = env_create(env);
+    Environment *new_env = env_create(env);
 
     /* Process bindings */
     while (bindings != NIL && bindings != NULL) {
-        LispObject* binding = lisp_car(bindings);
+        LispObject *binding = lisp_car(bindings);
 
         if (binding->type != LISP_CONS) {
             return lisp_make_error("let binding must be a list");
         }
 
-        LispObject* name = lisp_car(binding);
+        LispObject *name = lisp_car(binding);
         if (name->type != LISP_SYMBOL) {
             return lisp_make_error("let binding name must be a symbol");
         }
 
-        LispObject* value_list = lisp_cdr(binding);
+        LispObject *value_list = lisp_cdr(binding);
         if (value_list == NIL) {
             return lisp_make_error("let binding requires a value");
         }
 
-        LispObject* value_expr = lisp_car(value_list);
-        LispObject* value = lisp_eval(value_expr, env);
+        LispObject *value_expr = lisp_car(value_list);
+        LispObject *value = lisp_eval(value_expr, env);
 
         if (value->type == LISP_ERROR) {
             return value;
@@ -236,25 +236,25 @@ static LispObject* eval_let(LispObject* args, Environment* env) {
     return lisp_eval(body, new_env);
 }
 
-static LispObject* apply(LispObject* func, LispObject* args, Environment* env) {
+static LispObject *apply(LispObject *func, LispObject *args, Environment *env) {
     if (func->type == LISP_BUILTIN) {
         return func->value.builtin.func(args, env);
     }
 
     if (func->type == LISP_LAMBDA) {
         /* Create new environment with closure as parent */
-        Environment* new_env = env_create(func->value.lambda.closure);
+        Environment *new_env = env_create(func->value.lambda.closure);
 
         /* Bind parameters */
-        LispObject* params = func->value.lambda.params;
-        LispObject* arg_list = args;
+        LispObject *params = func->value.lambda.params;
+        LispObject *arg_list = args;
 
         while (params != NIL && params != NULL) {
             if (params->type != LISP_CONS) {
                 return lisp_make_error("Invalid lambda parameter list");
             }
 
-            LispObject* param = lisp_car(params);
+            LispObject *param = lisp_car(params);
             if (param->type != LISP_SYMBOL) {
                 return lisp_make_error("Lambda parameter must be a symbol");
             }
@@ -263,7 +263,7 @@ static LispObject* apply(LispObject* func, LispObject* args, Environment* env) {
                 return lisp_make_error("Too few arguments to lambda");
             }
 
-            LispObject* arg = lisp_car(arg_list);
+            LispObject *arg = lisp_car(arg_list);
             env_define(new_env, param->value.symbol, arg);
 
             params = lisp_cdr(params);

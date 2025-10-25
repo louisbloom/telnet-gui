@@ -3,13 +3,13 @@
 #include <string.h>
 #include <ctype.h>
 
-static void skip_whitespace(const char** input);
-static LispObject* read_atom(const char** input);
-static LispObject* read_string(const char** input);
-static LispObject* read_list(const char** input);
-static LispObject* read_quote(const char** input);
+static void skip_whitespace(const char **input);
+static LispObject *read_atom(const char **input);
+static LispObject *read_string(const char **input);
+static LispObject *read_list(const char **input);
+static LispObject *read_quote(const char **input);
 
-static void skip_whitespace(const char** input) {
+static void skip_whitespace(const char **input) {
     while (**input && (isspace(**input) || **input == ';')) {
         if (**input == ';') {
             /* Skip comment until end of line */
@@ -17,21 +17,22 @@ static void skip_whitespace(const char** input) {
                 (*input)++;
             }
         }
-        if (**input) (*input)++;
+        if (**input)
+            (*input)++;
     }
 }
 
-static LispObject* read_string(const char** input) {
+static LispObject *read_string(const char **input) {
     (*input)++; /* Skip opening quote */
 
     size_t capacity = 64;
     size_t length = 0;
-    char* buffer = GC_malloc(capacity);
+    char *buffer = GC_malloc(capacity);
 
     while (**input && **input != '"') {
         if (length + 2 >= capacity) {
             capacity *= 2;
-            char* new_buffer = GC_malloc(capacity);
+            char *new_buffer = GC_malloc(capacity);
             memcpy(new_buffer, buffer, length);
             buffer = new_buffer;
         }
@@ -39,12 +40,24 @@ static LispObject* read_string(const char** input) {
         if (**input == '\\') {
             (*input)++;
             switch (**input) {
-                case 'n': buffer[length++] = '\n'; break;
-                case 't': buffer[length++] = '\t'; break;
-                case 'r': buffer[length++] = '\r'; break;
-                case '\\': buffer[length++] = '\\'; break;
-                case '"': buffer[length++] = '"'; break;
-                default: buffer[length++] = **input; break;
+            case 'n':
+                buffer[length++] = '\n';
+                break;
+            case 't':
+                buffer[length++] = '\t';
+                break;
+            case 'r':
+                buffer[length++] = '\r';
+                break;
+            case '\\':
+                buffer[length++] = '\\';
+                break;
+            case '"':
+                buffer[length++] = '"';
+                break;
+            default:
+                buffer[length++] = **input;
+                break;
             }
             (*input)++;
         } else {
@@ -58,19 +71,20 @@ static LispObject* read_string(const char** input) {
     }
 
     buffer[length] = '\0';
-    LispObject* obj = lisp_make_string(buffer);
+    LispObject *obj = lisp_make_string(buffer);
     return obj;
 }
 
-static LispObject* read_atom(const char** input) {
-    const char* start = *input;
+static LispObject *read_atom(const char **input) {
+    const char *start = *input;
 
     /* Check for number */
     int is_number = 1;
     int has_dot = 0;
-    const char* p = start;
+    const char *p = start;
 
-    if (*p == '-' || *p == '+') p++;
+    if (*p == '-' || *p == '+')
+        p++;
 
     if (!isdigit(*p)) {
         is_number = 0;
@@ -97,11 +111,11 @@ static LispObject* read_atom(const char** input) {
         (*input)++;
     }
 
-    char* token = GC_malloc(length + 1);
+    char *token = GC_malloc(length + 1);
     strncpy(token, start, length);
     token[length] = '\0';
 
-    LispObject* obj;
+    LispObject *obj;
     if (is_number && length > 0) {
         obj = lisp_make_number(atof(token));
     } else if (strcmp(token, "nil") == 0) {
@@ -113,7 +127,7 @@ static LispObject* read_atom(const char** input) {
     return obj;
 }
 
-static LispObject* read_list(const char** input) {
+static LispObject *read_list(const char **input) {
     (*input)++; /* Skip opening paren */
     skip_whitespace(input);
 
@@ -122,16 +136,16 @@ static LispObject* read_list(const char** input) {
         return NIL;
     }
 
-    LispObject* head = NULL;
-    LispObject* tail = NULL;
+    LispObject *head = NULL;
+    LispObject *tail = NULL;
 
     while (**input && **input != ')') {
-        LispObject* elem = lisp_read(input);
+        LispObject *elem = lisp_read(input);
         if (elem == NULL) {
             return lisp_make_error("Syntax error in list");
         }
 
-        LispObject* new_cons = lisp_make_cons(elem, NIL);
+        LispObject *new_cons = lisp_make_cons(elem, NIL);
 
         if (head == NULL) {
             head = new_cons;
@@ -153,20 +167,20 @@ static LispObject* read_list(const char** input) {
     return head;
 }
 
-static LispObject* read_quote(const char** input) {
+static LispObject *read_quote(const char **input) {
     (*input)++; /* Skip quote character */
-    LispObject* quoted = lisp_read(input);
+    LispObject *quoted = lisp_read(input);
     if (quoted == NULL) {
         return lisp_make_error("Nothing to quote");
     }
 
     /* Build (quote <quoted>) */
-    LispObject* quote_sym = lisp_make_symbol("quote");
-    LispObject* quoted_list = lisp_make_cons(quoted, NIL);
+    LispObject *quote_sym = lisp_make_symbol("quote");
+    LispObject *quoted_list = lisp_make_cons(quoted, NIL);
     return lisp_make_cons(quote_sym, quoted_list);
 }
 
-LispObject* lisp_read(const char** input) {
+LispObject *lisp_read(const char **input) {
     skip_whitespace(input);
 
     if (**input == '\0') {

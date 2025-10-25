@@ -4,60 +4,60 @@
 #include <math.h>
 
 /* Arithmetic operations */
-static LispObject* builtin_add(LispObject* args, Environment* env);
-static LispObject* builtin_subtract(LispObject* args, Environment* env);
-static LispObject* builtin_multiply(LispObject* args, Environment* env);
-static LispObject* builtin_divide(LispObject* args, Environment* env);
+static LispObject *builtin_add(LispObject *args, Environment *env);
+static LispObject *builtin_subtract(LispObject *args, Environment *env);
+static LispObject *builtin_multiply(LispObject *args, Environment *env);
+static LispObject *builtin_divide(LispObject *args, Environment *env);
 
 /* Number comparisons */
-static LispObject* builtin_gt(LispObject* args, Environment* env);
-static LispObject* builtin_lt(LispObject* args, Environment* env);
-static LispObject* builtin_eq(LispObject* args, Environment* env);
-static LispObject* builtin_gte(LispObject* args, Environment* env);
-static LispObject* builtin_lte(LispObject* args, Environment* env);
+static LispObject *builtin_gt(LispObject *args, Environment *env);
+static LispObject *builtin_lt(LispObject *args, Environment *env);
+static LispObject *builtin_eq(LispObject *args, Environment *env);
+static LispObject *builtin_gte(LispObject *args, Environment *env);
+static LispObject *builtin_lte(LispObject *args, Environment *env);
 
 /* String operations */
-static LispObject* builtin_concat(LispObject* args, Environment* env);
-static LispObject* builtin_split(LispObject* args, Environment* env);
-static LispObject* builtin_string_eq(LispObject* args, Environment* env);
-static LispObject* builtin_string_lt(LispObject* args, Environment* env);
-static LispObject* builtin_string_gt(LispObject* args, Environment* env);
-static LispObject* builtin_string_lte(LispObject* args, Environment* env);
-static LispObject* builtin_string_gte(LispObject* args, Environment* env);
-static LispObject* builtin_string_contains(LispObject* args, Environment* env);
-static LispObject* builtin_string_match(LispObject* args, Environment* env);
+static LispObject *builtin_concat(LispObject *args, Environment *env);
+static LispObject *builtin_split(LispObject *args, Environment *env);
+static LispObject *builtin_string_eq(LispObject *args, Environment *env);
+static LispObject *builtin_string_lt(LispObject *args, Environment *env);
+static LispObject *builtin_string_gt(LispObject *args, Environment *env);
+static LispObject *builtin_string_lte(LispObject *args, Environment *env);
+static LispObject *builtin_string_gte(LispObject *args, Environment *env);
+static LispObject *builtin_string_contains(LispObject *args, Environment *env);
+static LispObject *builtin_string_match(LispObject *args, Environment *env);
 
 /* Boolean operations */
-static LispObject* builtin_and(LispObject* args, Environment* env);
-static LispObject* builtin_or(LispObject* args, Environment* env);
-static LispObject* builtin_not(LispObject* args, Environment* env);
+static LispObject *builtin_and(LispObject *args, Environment *env);
+static LispObject *builtin_or(LispObject *args, Environment *env);
+static LispObject *builtin_not(LispObject *args, Environment *env);
 
 /* List operations */
-static LispObject* builtin_car(LispObject* args, Environment* env);
-static LispObject* builtin_cdr(LispObject* args, Environment* env);
-static LispObject* builtin_cons(LispObject* args, Environment* env);
-static LispObject* builtin_list(LispObject* args, Environment* env);
+static LispObject *builtin_car(LispObject *args, Environment *env);
+static LispObject *builtin_cdr(LispObject *args, Environment *env);
+static LispObject *builtin_cons(LispObject *args, Environment *env);
+static LispObject *builtin_list(LispObject *args, Environment *env);
 
 /* Predicates */
-static LispObject* builtin_null(LispObject* args, Environment* env);
-static LispObject* builtin_atom(LispObject* args, Environment* env);
+static LispObject *builtin_null(LispObject *args, Environment *env);
+static LispObject *builtin_atom(LispObject *args, Environment *env);
 
 /* Regex operations */
-static LispObject* builtin_regex_match(LispObject* args, Environment* env);
-static LispObject* builtin_regex_find(LispObject* args, Environment* env);
-static LispObject* builtin_regex_find_all(LispObject* args, Environment* env);
-static LispObject* builtin_regex_extract(LispObject* args, Environment* env);
-static LispObject* builtin_regex_replace(LispObject* args, Environment* env);
-static LispObject* builtin_regex_replace_all(LispObject* args, Environment* env);
-static LispObject* builtin_regex_split(LispObject* args, Environment* env);
-static LispObject* builtin_regex_escape(LispObject* args, Environment* env);
-static LispObject* builtin_regex_valid(LispObject* args, Environment* env);
+static LispObject *builtin_regex_match(LispObject *args, Environment *env);
+static LispObject *builtin_regex_find(LispObject *args, Environment *env);
+static LispObject *builtin_regex_find_all(LispObject *args, Environment *env);
+static LispObject *builtin_regex_extract(LispObject *args, Environment *env);
+static LispObject *builtin_regex_replace(LispObject *args, Environment *env);
+static LispObject *builtin_regex_replace_all(LispObject *args, Environment *env);
+static LispObject *builtin_regex_split(LispObject *args, Environment *env);
+static LispObject *builtin_regex_escape(LispObject *args, Environment *env);
+static LispObject *builtin_regex_valid(LispObject *args, Environment *env);
 
 /* Helper for wildcard matching */
-static int match_char_class(const char** pattern, char c);
-static int wildcard_match(const char* pattern, const char* str);
+static int match_char_class(const char **pattern, char c);
+static int wildcard_match(const char *pattern, const char *str);
 
-void register_builtins(Environment* env) {
+void register_builtins(Environment *env) {
     env_define(env, "+", lisp_make_builtin(builtin_add, "+"));
     env_define(env, "-", lisp_make_builtin(builtin_subtract, "-"));
     env_define(env, "*", lisp_make_builtin(builtin_multiply, "*"));
@@ -103,12 +103,12 @@ void register_builtins(Environment* env) {
 }
 
 /* Arithmetic operations */
-static LispObject* builtin_add(LispObject* args, Environment* env) {
+static LispObject *builtin_add(LispObject *args, Environment *env) {
     (void)env;
     double sum = 0;
 
     while (args != NIL && args != NULL) {
-        LispObject* arg = lisp_car(args);
+        LispObject *arg = lisp_car(args);
         if (arg->type != LISP_NUMBER) {
             return lisp_make_error("+ requires numbers");
         }
@@ -119,13 +119,13 @@ static LispObject* builtin_add(LispObject* args, Environment* env) {
     return lisp_make_number(sum);
 }
 
-static LispObject* builtin_subtract(LispObject* args, Environment* env) {
+static LispObject *builtin_subtract(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL) {
         return lisp_make_error("- requires at least one argument");
     }
 
-    LispObject* first = lisp_car(args);
+    LispObject *first = lisp_car(args);
     if (first->type != LISP_NUMBER) {
         return lisp_make_error("- requires numbers");
     }
@@ -138,7 +138,7 @@ static LispObject* builtin_subtract(LispObject* args, Environment* env) {
     }
 
     while (args != NIL && args != NULL) {
-        LispObject* arg = lisp_car(args);
+        LispObject *arg = lisp_car(args);
         if (arg->type != LISP_NUMBER) {
             return lisp_make_error("- requires numbers");
         }
@@ -149,12 +149,12 @@ static LispObject* builtin_subtract(LispObject* args, Environment* env) {
     return lisp_make_number(result);
 }
 
-static LispObject* builtin_multiply(LispObject* args, Environment* env) {
+static LispObject *builtin_multiply(LispObject *args, Environment *env) {
     (void)env;
     double product = 1;
 
     while (args != NIL && args != NULL) {
-        LispObject* arg = lisp_car(args);
+        LispObject *arg = lisp_car(args);
         if (arg->type != LISP_NUMBER) {
             return lisp_make_error("* requires numbers");
         }
@@ -165,13 +165,13 @@ static LispObject* builtin_multiply(LispObject* args, Environment* env) {
     return lisp_make_number(product);
 }
 
-static LispObject* builtin_divide(LispObject* args, Environment* env) {
+static LispObject *builtin_divide(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL) {
         return lisp_make_error("/ requires at least one argument");
     }
 
-    LispObject* first = lisp_car(args);
+    LispObject *first = lisp_car(args);
     if (first->type != LISP_NUMBER) {
         return lisp_make_error("/ requires numbers");
     }
@@ -187,7 +187,7 @@ static LispObject* builtin_divide(LispObject* args, Environment* env) {
     }
 
     while (args != NIL && args != NULL) {
-        LispObject* arg = lisp_car(args);
+        LispObject *arg = lisp_car(args);
         if (arg->type != LISP_NUMBER) {
             return lisp_make_error("/ requires numbers");
         }
@@ -202,14 +202,14 @@ static LispObject* builtin_divide(LispObject* args, Environment* env) {
 }
 
 /* Number comparisons */
-static LispObject* builtin_gt(LispObject* args, Environment* env) {
+static LispObject *builtin_gt(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("> requires at least 2 arguments");
     }
 
-    LispObject* a = lisp_car(args);
-    LispObject* b = lisp_car(lisp_cdr(args));
+    LispObject *a = lisp_car(args);
+    LispObject *b = lisp_car(lisp_cdr(args));
 
     if (a->type != LISP_NUMBER || b->type != LISP_NUMBER) {
         return lisp_make_error("> requires numbers");
@@ -218,14 +218,14 @@ static LispObject* builtin_gt(LispObject* args, Environment* env) {
     return (a->value.number > b->value.number) ? lisp_make_number(1) : NIL;
 }
 
-static LispObject* builtin_lt(LispObject* args, Environment* env) {
+static LispObject *builtin_lt(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("< requires at least 2 arguments");
     }
 
-    LispObject* a = lisp_car(args);
-    LispObject* b = lisp_car(lisp_cdr(args));
+    LispObject *a = lisp_car(args);
+    LispObject *b = lisp_car(lisp_cdr(args));
 
     if (a->type != LISP_NUMBER || b->type != LISP_NUMBER) {
         return lisp_make_error("< requires numbers");
@@ -234,14 +234,14 @@ static LispObject* builtin_lt(LispObject* args, Environment* env) {
     return (a->value.number < b->value.number) ? lisp_make_number(1) : NIL;
 }
 
-static LispObject* builtin_eq(LispObject* args, Environment* env) {
+static LispObject *builtin_eq(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("= requires at least 2 arguments");
     }
 
-    LispObject* a = lisp_car(args);
-    LispObject* b = lisp_car(lisp_cdr(args));
+    LispObject *a = lisp_car(args);
+    LispObject *b = lisp_car(lisp_cdr(args));
 
     if (a->type != LISP_NUMBER || b->type != LISP_NUMBER) {
         return lisp_make_error("= requires numbers");
@@ -250,14 +250,14 @@ static LispObject* builtin_eq(LispObject* args, Environment* env) {
     return (a->value.number == b->value.number) ? lisp_make_number(1) : NIL;
 }
 
-static LispObject* builtin_gte(LispObject* args, Environment* env) {
+static LispObject *builtin_gte(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error(">= requires at least 2 arguments");
     }
 
-    LispObject* a = lisp_car(args);
-    LispObject* b = lisp_car(lisp_cdr(args));
+    LispObject *a = lisp_car(args);
+    LispObject *b = lisp_car(lisp_cdr(args));
 
     if (a->type != LISP_NUMBER || b->type != LISP_NUMBER) {
         return lisp_make_error(">= requires numbers");
@@ -266,14 +266,14 @@ static LispObject* builtin_gte(LispObject* args, Environment* env) {
     return (a->value.number >= b->value.number) ? lisp_make_number(1) : NIL;
 }
 
-static LispObject* builtin_lte(LispObject* args, Environment* env) {
+static LispObject *builtin_lte(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("<= requires at least 2 arguments");
     }
 
-    LispObject* a = lisp_car(args);
-    LispObject* b = lisp_car(lisp_cdr(args));
+    LispObject *a = lisp_car(args);
+    LispObject *b = lisp_car(lisp_cdr(args));
 
     if (a->type != LISP_NUMBER || b->type != LISP_NUMBER) {
         return lisp_make_error("<= requires numbers");
@@ -283,14 +283,14 @@ static LispObject* builtin_lte(LispObject* args, Environment* env) {
 }
 
 /* String operations */
-static LispObject* builtin_concat(LispObject* args, Environment* env) {
+static LispObject *builtin_concat(LispObject *args, Environment *env) {
     (void)env;
     size_t total_len = 0;
 
     /* Calculate total length */
-    LispObject* curr = args;
+    LispObject *curr = args;
     while (curr != NIL && curr != NULL) {
-        LispObject* arg = lisp_car(curr);
+        LispObject *arg = lisp_car(curr);
         if (arg->type != LISP_STRING) {
             return lisp_make_error("concat requires strings");
         }
@@ -299,22 +299,22 @@ static LispObject* builtin_concat(LispObject* args, Environment* env) {
     }
 
     /* Concatenate */
-    char* result = GC_malloc(total_len + 1);
+    char *result = GC_malloc(total_len + 1);
     result[0] = '\0';
 
     curr = args;
     while (curr != NIL && curr != NULL) {
-        LispObject* arg = lisp_car(curr);
+        LispObject *arg = lisp_car(curr);
         strcat(result, arg->value.string);
         curr = lisp_cdr(curr);
     }
 
-    LispObject* obj = lisp_make_string(result);
+    LispObject *obj = lisp_make_string(result);
     return obj;
 }
 
-static int match_char_class(const char** pattern, char c) {
-    const char* p = *pattern + 1; /* Skip '[' */
+static int match_char_class(const char **pattern, char c) {
+    const char *p = *pattern + 1; /* Skip '[' */
     int negate = 0;
     int match = 0;
 
@@ -346,13 +346,15 @@ static int match_char_class(const char** pattern, char c) {
     return negate ? !match : match;
 }
 
-static int wildcard_match(const char* pattern, const char* str) {
+static int wildcard_match(const char *pattern, const char *str) {
     while (*pattern && *str) {
         if (*pattern == '*') {
             pattern++;
-            if (*pattern == '\0') return 1;
+            if (*pattern == '\0')
+                return 1;
             while (*str) {
-                if (wildcard_match(pattern, str)) return 1;
+                if (wildcard_match(pattern, str))
+                    return 1;
                 str++;
             }
             return 0;
@@ -373,25 +375,26 @@ static int wildcard_match(const char* pattern, const char* str) {
         }
     }
 
-    while (*pattern == '*') pattern++;
+    while (*pattern == '*')
+        pattern++;
     return (*pattern == '\0' && *str == '\0');
 }
 
-static LispObject* builtin_split(LispObject* args, Environment* env) {
+static LispObject *builtin_split(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("split requires 2 arguments");
     }
 
-    LispObject* str_obj = lisp_car(args);
-    LispObject* pattern_obj = lisp_car(lisp_cdr(args));
+    LispObject *str_obj = lisp_car(args);
+    LispObject *pattern_obj = lisp_car(lisp_cdr(args));
 
     if (str_obj->type != LISP_STRING || pattern_obj->type != LISP_STRING) {
         return lisp_make_error("split requires strings");
     }
 
-    const char* str = str_obj->value.string;
-    const char* pattern = pattern_obj->value.string;
+    const char *str = str_obj->value.string;
+    const char *pattern = pattern_obj->value.string;
     size_t pattern_len = strlen(pattern);
 
     /* Handle empty pattern */
@@ -399,11 +402,11 @@ static LispObject* builtin_split(LispObject* args, Environment* env) {
         return lisp_make_cons(lisp_make_string(str), NIL);
     }
 
-    LispObject* result = NIL;
-    LispObject* tail = NULL;
+    LispObject *result = NIL;
+    LispObject *tail = NULL;
 
-    const char* start = str;
-    const char* p = str;
+    const char *start = str;
+    const char *p = str;
 
     /* Check if pattern contains wildcards */
     int has_wildcards = (strchr(pattern, '*') != NULL || strchr(pattern, '?') != NULL);
@@ -421,13 +424,13 @@ static LispObject* builtin_split(LispObject* args, Environment* env) {
         if (match) {
             /* Found match */
             size_t len = p - start;
-            char* token = GC_malloc(len + 1);
+            char *token = GC_malloc(len + 1);
             strncpy(token, start, len);
             token[len] = '\0';
 
-            LispObject* token_obj = lisp_make_string(token);
+            LispObject *token_obj = lisp_make_string(token);
 
-            LispObject* new_cons = lisp_make_cons(token_obj, NIL);
+            LispObject *new_cons = lisp_make_cons(token_obj, NIL);
             if (result == NIL) {
                 result = new_cons;
                 tail = new_cons;
@@ -446,8 +449,8 @@ static LispObject* builtin_split(LispObject* args, Environment* env) {
 
     /* Add remaining */
     if (*start || result != NIL) {
-        LispObject* token_obj = lisp_make_string(start);
-        LispObject* new_cons = lisp_make_cons(token_obj, NIL);
+        LispObject *token_obj = lisp_make_string(start);
+        LispObject *new_cons = lisp_make_cons(token_obj, NIL);
         if (result == NIL) {
             result = new_cons;
         } else {
@@ -458,14 +461,14 @@ static LispObject* builtin_split(LispObject* args, Environment* env) {
     return result;
 }
 
-static LispObject* builtin_string_eq(LispObject* args, Environment* env) {
+static LispObject *builtin_string_eq(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("string= requires 2 arguments");
     }
 
-    LispObject* a = lisp_car(args);
-    LispObject* b = lisp_car(lisp_cdr(args));
+    LispObject *a = lisp_car(args);
+    LispObject *b = lisp_car(lisp_cdr(args));
 
     if (a->type != LISP_STRING || b->type != LISP_STRING) {
         return lisp_make_error("string= requires strings");
@@ -474,14 +477,14 @@ static LispObject* builtin_string_eq(LispObject* args, Environment* env) {
     return (strcmp(a->value.string, b->value.string) == 0) ? lisp_make_number(1) : NIL;
 }
 
-static LispObject* builtin_string_lt(LispObject* args, Environment* env) {
+static LispObject *builtin_string_lt(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("string< requires 2 arguments");
     }
 
-    LispObject* a = lisp_car(args);
-    LispObject* b = lisp_car(lisp_cdr(args));
+    LispObject *a = lisp_car(args);
+    LispObject *b = lisp_car(lisp_cdr(args));
 
     if (a->type != LISP_STRING || b->type != LISP_STRING) {
         return lisp_make_error("string< requires strings");
@@ -490,14 +493,14 @@ static LispObject* builtin_string_lt(LispObject* args, Environment* env) {
     return (strcmp(a->value.string, b->value.string) < 0) ? lisp_make_number(1) : NIL;
 }
 
-static LispObject* builtin_string_gt(LispObject* args, Environment* env) {
+static LispObject *builtin_string_gt(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("string> requires 2 arguments");
     }
 
-    LispObject* a = lisp_car(args);
-    LispObject* b = lisp_car(lisp_cdr(args));
+    LispObject *a = lisp_car(args);
+    LispObject *b = lisp_car(lisp_cdr(args));
 
     if (a->type != LISP_STRING || b->type != LISP_STRING) {
         return lisp_make_error("string> requires strings");
@@ -506,14 +509,14 @@ static LispObject* builtin_string_gt(LispObject* args, Environment* env) {
     return (strcmp(a->value.string, b->value.string) > 0) ? lisp_make_number(1) : NIL;
 }
 
-static LispObject* builtin_string_lte(LispObject* args, Environment* env) {
+static LispObject *builtin_string_lte(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("string<= requires 2 arguments");
     }
 
-    LispObject* a = lisp_car(args);
-    LispObject* b = lisp_car(lisp_cdr(args));
+    LispObject *a = lisp_car(args);
+    LispObject *b = lisp_car(lisp_cdr(args));
 
     if (a->type != LISP_STRING || b->type != LISP_STRING) {
         return lisp_make_error("string<= requires strings");
@@ -522,14 +525,14 @@ static LispObject* builtin_string_lte(LispObject* args, Environment* env) {
     return (strcmp(a->value.string, b->value.string) <= 0) ? lisp_make_number(1) : NIL;
 }
 
-static LispObject* builtin_string_gte(LispObject* args, Environment* env) {
+static LispObject *builtin_string_gte(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("string>= requires 2 arguments");
     }
 
-    LispObject* a = lisp_car(args);
-    LispObject* b = lisp_car(lisp_cdr(args));
+    LispObject *a = lisp_car(args);
+    LispObject *b = lisp_car(lisp_cdr(args));
 
     if (a->type != LISP_STRING || b->type != LISP_STRING) {
         return lisp_make_error("string>= requires strings");
@@ -538,14 +541,14 @@ static LispObject* builtin_string_gte(LispObject* args, Environment* env) {
     return (strcmp(a->value.string, b->value.string) >= 0) ? lisp_make_number(1) : NIL;
 }
 
-static LispObject* builtin_string_contains(LispObject* args, Environment* env) {
+static LispObject *builtin_string_contains(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("string-contains requires 2 arguments");
     }
 
-    LispObject* haystack = lisp_car(args);
-    LispObject* needle = lisp_car(lisp_cdr(args));
+    LispObject *haystack = lisp_car(args);
+    LispObject *needle = lisp_car(lisp_cdr(args));
 
     if (haystack->type != LISP_STRING || needle->type != LISP_STRING) {
         return lisp_make_error("string-contains requires strings");
@@ -554,14 +557,14 @@ static LispObject* builtin_string_contains(LispObject* args, Environment* env) {
     return (strstr(haystack->value.string, needle->value.string) != NULL) ? lisp_make_number(1) : NIL;
 }
 
-static LispObject* builtin_string_match(LispObject* args, Environment* env) {
+static LispObject *builtin_string_match(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("string-match requires 2 arguments");
     }
 
-    LispObject* str = lisp_car(args);
-    LispObject* pattern = lisp_car(lisp_cdr(args));
+    LispObject *str = lisp_car(args);
+    LispObject *pattern = lisp_car(lisp_cdr(args));
 
     if (str->type != LISP_STRING || pattern->type != LISP_STRING) {
         return lisp_make_error("string-match requires strings");
@@ -571,12 +574,12 @@ static LispObject* builtin_string_match(LispObject* args, Environment* env) {
 }
 
 /* Boolean operations */
-static LispObject* builtin_and(LispObject* args, Environment* env) {
+static LispObject *builtin_and(LispObject *args, Environment *env) {
     (void)env;
-    LispObject* last = lisp_make_number(1);
+    LispObject *last = lisp_make_number(1);
 
     while (args != NIL && args != NULL) {
-        LispObject* arg = lisp_car(args);
+        LispObject *arg = lisp_car(args);
         if (!lisp_is_truthy(arg)) {
             return NIL;
         }
@@ -587,10 +590,10 @@ static LispObject* builtin_and(LispObject* args, Environment* env) {
     return last;
 }
 
-static LispObject* builtin_or(LispObject* args, Environment* env) {
+static LispObject *builtin_or(LispObject *args, Environment *env) {
     (void)env;
     while (args != NIL && args != NULL) {
-        LispObject* arg = lisp_car(args);
+        LispObject *arg = lisp_car(args);
         if (lisp_is_truthy(arg)) {
             return arg;
         }
@@ -600,24 +603,24 @@ static LispObject* builtin_or(LispObject* args, Environment* env) {
     return NIL;
 }
 
-static LispObject* builtin_not(LispObject* args, Environment* env) {
+static LispObject *builtin_not(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL) {
         return lisp_make_error("not requires 1 argument");
     }
 
-    LispObject* arg = lisp_car(args);
+    LispObject *arg = lisp_car(args);
     return lisp_is_truthy(arg) ? NIL : lisp_make_number(1);
 }
 
 /* List operations */
-static LispObject* builtin_car(LispObject* args, Environment* env) {
+static LispObject *builtin_car(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL) {
         return lisp_make_error("car requires 1 argument");
     }
 
-    LispObject* arg = lisp_car(args);
+    LispObject *arg = lisp_car(args);
     if (arg == NIL) {
         return NIL;
     }
@@ -629,13 +632,13 @@ static LispObject* builtin_car(LispObject* args, Environment* env) {
     return arg->value.cons.car;
 }
 
-static LispObject* builtin_cdr(LispObject* args, Environment* env) {
+static LispObject *builtin_cdr(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL) {
         return lisp_make_error("cdr requires 1 argument");
     }
 
-    LispObject* arg = lisp_car(args);
+    LispObject *arg = lisp_car(args);
     if (arg == NIL) {
         return NIL;
     }
@@ -647,60 +650,60 @@ static LispObject* builtin_cdr(LispObject* args, Environment* env) {
     return arg->value.cons.cdr;
 }
 
-static LispObject* builtin_cons(LispObject* args, Environment* env) {
+static LispObject *builtin_cons(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("cons requires 2 arguments");
     }
 
-    LispObject* car = lisp_car(args);
-    LispObject* cdr = lisp_car(lisp_cdr(args));
+    LispObject *car = lisp_car(args);
+    LispObject *cdr = lisp_car(lisp_cdr(args));
 
     return lisp_make_cons(car, cdr);
 }
 
-static LispObject* builtin_list(LispObject* args, Environment* env) {
+static LispObject *builtin_list(LispObject *args, Environment *env) {
     (void)env;
     return args;
 }
 
 /* Predicates */
-static LispObject* builtin_null(LispObject* args, Environment* env) {
+static LispObject *builtin_null(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL) {
         return lisp_make_error("null requires 1 argument");
     }
 
-    LispObject* arg = lisp_car(args);
+    LispObject *arg = lisp_car(args);
     return (arg == NIL || arg == NULL) ? lisp_make_number(1) : NIL;
 }
 
-static LispObject* builtin_atom(LispObject* args, Environment* env) {
+static LispObject *builtin_atom(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL) {
         return lisp_make_error("atom requires 1 argument");
     }
 
-    LispObject* arg = lisp_car(args);
+    LispObject *arg = lisp_car(args);
     return (arg->type != LISP_CONS) ? lisp_make_number(1) : NIL;
 }
 
 /* Regex functions */
-static LispObject* builtin_regex_match(LispObject* args, Environment* env) {
+static LispObject *builtin_regex_match(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("regex-match requires 2 arguments");
     }
 
-    LispObject* pattern_obj = lisp_car(args);
-    LispObject* string_obj = lisp_car(lisp_cdr(args));
+    LispObject *pattern_obj = lisp_car(args);
+    LispObject *string_obj = lisp_car(lisp_cdr(args));
 
     if (pattern_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
         return lisp_make_error("regex-match requires strings");
     }
 
-    char* error_msg = NULL;
-    pcre2_code* re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
+    char *error_msg = NULL;
+    pcre2_code *re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
 
     if (re == NULL) {
         char error[512];
@@ -708,7 +711,7 @@ static LispObject* builtin_regex_match(LispObject* args, Environment* env) {
         return lisp_make_error(error);
     }
 
-    pcre2_match_data* match_data = execute_regex(re, string_obj->value.string);
+    pcre2_match_data *match_data = execute_regex(re, string_obj->value.string);
     int result = (match_data != NULL);
 
     free_regex_resources(re, match_data);
@@ -716,21 +719,21 @@ static LispObject* builtin_regex_match(LispObject* args, Environment* env) {
     return result ? lisp_make_number(1) : NIL;
 }
 
-static LispObject* builtin_regex_find(LispObject* args, Environment* env) {
+static LispObject *builtin_regex_find(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("regex-find requires 2 arguments");
     }
 
-    LispObject* pattern_obj = lisp_car(args);
-    LispObject* string_obj = lisp_car(lisp_cdr(args));
+    LispObject *pattern_obj = lisp_car(args);
+    LispObject *string_obj = lisp_car(lisp_cdr(args));
 
     if (pattern_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
         return lisp_make_error("regex-find requires strings");
     }
 
-    char* error_msg = NULL;
-    pcre2_code* re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
+    char *error_msg = NULL;
+    pcre2_code *re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
 
     if (re == NULL) {
         char error[512];
@@ -738,36 +741,36 @@ static LispObject* builtin_regex_find(LispObject* args, Environment* env) {
         return lisp_make_error(error);
     }
 
-    pcre2_match_data* match_data = execute_regex(re, string_obj->value.string);
+    pcre2_match_data *match_data = execute_regex(re, string_obj->value.string);
 
     if (match_data == NULL) {
         free_regex_resources(re, NULL);
         return NIL;
     }
 
-    char* matched = extract_capture(match_data, string_obj->value.string, 0);
-    LispObject* result = matched ? lisp_make_string(matched) : NIL;
+    char *matched = extract_capture(match_data, string_obj->value.string, 0);
+    LispObject *result = matched ? lisp_make_string(matched) : NIL;
 
     free_regex_resources(re, match_data);
 
     return result;
 }
 
-static LispObject* builtin_regex_find_all(LispObject* args, Environment* env) {
+static LispObject *builtin_regex_find_all(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("regex-find-all requires 2 arguments");
     }
 
-    LispObject* pattern_obj = lisp_car(args);
-    LispObject* string_obj = lisp_car(lisp_cdr(args));
+    LispObject *pattern_obj = lisp_car(args);
+    LispObject *string_obj = lisp_car(lisp_cdr(args));
 
     if (pattern_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
         return lisp_make_error("regex-find-all requires strings");
     }
 
-    char* error_msg = NULL;
-    pcre2_code* re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
+    char *error_msg = NULL;
+    pcre2_code *re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
 
     if (re == NULL) {
         char error[512];
@@ -775,35 +778,27 @@ static LispObject* builtin_regex_find_all(LispObject* args, Environment* env) {
         return lisp_make_error(error);
     }
 
-    LispObject* result = NIL;
-    LispObject* tail = NULL;
+    LispObject *result = NIL;
+    LispObject *tail = NULL;
 
-    const char* subject = string_obj->value.string;
+    const char *subject = string_obj->value.string;
     size_t offset = 0;
     size_t subject_len = strlen(subject);
 
     while (offset < subject_len) {
-        pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(re, NULL);
+        pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(re, NULL);
 
-        int rc = pcre2_match(
-            re,
-            (PCRE2_SPTR)subject,
-            subject_len,
-            offset,
-            0,
-            match_data,
-            NULL
-        );
+        int rc = pcre2_match(re, (PCRE2_SPTR)subject, subject_len, offset, 0, match_data, NULL);
 
         if (rc < 0) {
             pcre2_match_data_free(match_data);
             break;
         }
 
-        char* matched = extract_capture(match_data, subject, 0);
+        char *matched = extract_capture(match_data, subject, 0);
         if (matched) {
-            LispObject* match_obj = lisp_make_string(matched);
-            LispObject* new_cons = lisp_make_cons(match_obj, NIL);
+            LispObject *match_obj = lisp_make_string(matched);
+            LispObject *new_cons = lisp_make_cons(match_obj, NIL);
 
             if (result == NIL) {
                 result = new_cons;
@@ -814,7 +809,7 @@ static LispObject* builtin_regex_find_all(LispObject* args, Environment* env) {
             }
         }
 
-        PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
+        PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
         offset = ovector[1];
 
         pcre2_match_data_free(match_data);
@@ -829,21 +824,21 @@ static LispObject* builtin_regex_find_all(LispObject* args, Environment* env) {
     return result;
 }
 
-static LispObject* builtin_regex_extract(LispObject* args, Environment* env) {
+static LispObject *builtin_regex_extract(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("regex-extract requires 2 arguments");
     }
 
-    LispObject* pattern_obj = lisp_car(args);
-    LispObject* string_obj = lisp_car(lisp_cdr(args));
+    LispObject *pattern_obj = lisp_car(args);
+    LispObject *string_obj = lisp_car(lisp_cdr(args));
 
     if (pattern_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
         return lisp_make_error("regex-extract requires strings");
     }
 
-    char* error_msg = NULL;
-    pcre2_code* re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
+    char *error_msg = NULL;
+    pcre2_code *re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
 
     if (re == NULL) {
         char error[512];
@@ -851,7 +846,7 @@ static LispObject* builtin_regex_extract(LispObject* args, Environment* env) {
         return lisp_make_error(error);
     }
 
-    pcre2_match_data* match_data = execute_regex(re, string_obj->value.string);
+    pcre2_match_data *match_data = execute_regex(re, string_obj->value.string);
 
     if (match_data == NULL) {
         free_regex_resources(re, NULL);
@@ -859,15 +854,15 @@ static LispObject* builtin_regex_extract(LispObject* args, Environment* env) {
     }
 
     int capture_count = get_capture_count(re);
-    LispObject* result = NIL;
-    LispObject* tail = NULL;
+    LispObject *result = NIL;
+    LispObject *tail = NULL;
 
     /* Extract capture groups (skip group 0 which is the whole match) */
     for (int i = 1; i <= capture_count; i++) {
-        char* captured = extract_capture(match_data, string_obj->value.string, i);
+        char *captured = extract_capture(match_data, string_obj->value.string, i);
         if (captured) {
-            LispObject* cap_obj = lisp_make_string(captured);
-            LispObject* new_cons = lisp_make_cons(cap_obj, NIL);
+            LispObject *cap_obj = lisp_make_string(captured);
+            LispObject *new_cons = lisp_make_cons(cap_obj, NIL);
 
             if (result == NIL) {
                 result = new_cons;
@@ -884,23 +879,22 @@ static LispObject* builtin_regex_extract(LispObject* args, Environment* env) {
     return result;
 }
 
-static LispObject* builtin_regex_replace(LispObject* args, Environment* env) {
+static LispObject *builtin_regex_replace(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL || lisp_cdr(lisp_cdr(args)) == NIL) {
         return lisp_make_error("regex-replace requires 3 arguments");
     }
 
-    LispObject* pattern_obj = lisp_car(args);
-    LispObject* replacement_obj = lisp_car(lisp_cdr(args));
-    LispObject* string_obj = lisp_car(lisp_cdr(lisp_cdr(args)));
+    LispObject *pattern_obj = lisp_car(args);
+    LispObject *replacement_obj = lisp_car(lisp_cdr(args));
+    LispObject *string_obj = lisp_car(lisp_cdr(lisp_cdr(args)));
 
-    if (pattern_obj->type != LISP_STRING || replacement_obj->type != LISP_STRING ||
-        string_obj->type != LISP_STRING) {
+    if (pattern_obj->type != LISP_STRING || replacement_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
         return lisp_make_error("regex-replace requires strings");
     }
 
-    char* error_msg = NULL;
-    pcre2_code* re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
+    char *error_msg = NULL;
+    pcre2_code *re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
 
     if (re == NULL) {
         char error[512];
@@ -909,21 +903,13 @@ static LispObject* builtin_regex_replace(LispObject* args, Environment* env) {
     }
 
     size_t output_len = strlen(string_obj->value.string) * 2 + 256;
-    PCRE2_UCHAR* output = GC_malloc(output_len);
+    PCRE2_UCHAR *output = GC_malloc(output_len);
 
-    int rc = pcre2_substitute(
-        re,
-        (PCRE2_SPTR)string_obj->value.string,
-        PCRE2_ZERO_TERMINATED,
-        0,  /* start offset */
-        PCRE2_SUBSTITUTE_GLOBAL,  /* options - replace all */
-        NULL,  /* match data */
-        NULL,  /* match context */
-        (PCRE2_SPTR)replacement_obj->value.string,
-        PCRE2_ZERO_TERMINATED,
-        output,
-        &output_len
-    );
+    int rc = pcre2_substitute(re, (PCRE2_SPTR)string_obj->value.string, PCRE2_ZERO_TERMINATED, 0, /* start offset */
+                              PCRE2_SUBSTITUTE_GLOBAL, /* options - replace all */
+                              NULL,                    /* match data */
+                              NULL,                    /* match context */
+                              (PCRE2_SPTR)replacement_obj->value.string, PCRE2_ZERO_TERMINATED, output, &output_len);
 
     pcre2_code_free(re);
 
@@ -931,29 +917,29 @@ static LispObject* builtin_regex_replace(LispObject* args, Environment* env) {
         return lisp_make_error("regex-replace: substitution failed");
     }
 
-    return lisp_make_string((char*)output);
+    return lisp_make_string((char *)output);
 }
 
-static LispObject* builtin_regex_replace_all(LispObject* args, Environment* env) {
+static LispObject *builtin_regex_replace_all(LispObject *args, Environment *env) {
     /* Same as regex-replace since we use PCRE2_SUBSTITUTE_GLOBAL */
     return builtin_regex_replace(args, env);
 }
 
-static LispObject* builtin_regex_split(LispObject* args, Environment* env) {
+static LispObject *builtin_regex_split(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
         return lisp_make_error("regex-split requires 2 arguments");
     }
 
-    LispObject* pattern_obj = lisp_car(args);
-    LispObject* string_obj = lisp_car(lisp_cdr(args));
+    LispObject *pattern_obj = lisp_car(args);
+    LispObject *string_obj = lisp_car(lisp_cdr(args));
 
     if (pattern_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
         return lisp_make_error("regex-split requires strings");
     }
 
-    char* error_msg = NULL;
-    pcre2_code* re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
+    char *error_msg = NULL;
+    pcre2_code *re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
 
     if (re == NULL) {
         char error[512];
@@ -961,44 +947,36 @@ static LispObject* builtin_regex_split(LispObject* args, Environment* env) {
         return lisp_make_error(error);
     }
 
-    LispObject* result = NIL;
-    LispObject* tail = NULL;
+    LispObject *result = NIL;
+    LispObject *tail = NULL;
 
-    const char* subject = string_obj->value.string;
+    const char *subject = string_obj->value.string;
     size_t offset = 0;
     size_t last_end = 0;
     size_t subject_len = strlen(subject);
 
     while (offset <= subject_len) {
-        pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(re, NULL);
+        pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(re, NULL);
 
-        int rc = pcre2_match(
-            re,
-            (PCRE2_SPTR)subject,
-            subject_len,
-            offset,
-            0,
-            match_data,
-            NULL
-        );
+        int rc = pcre2_match(re, (PCRE2_SPTR)subject, subject_len, offset, 0, match_data, NULL);
 
         if (rc < 0) {
             pcre2_match_data_free(match_data);
             break;
         }
 
-        PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
+        PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
         size_t match_start = ovector[0];
         size_t match_end = ovector[1];
 
         /* Add substring before match */
         size_t part_len = match_start - last_end;
-        char* part = GC_malloc(part_len + 1);
+        char *part = GC_malloc(part_len + 1);
         strncpy(part, subject + last_end, part_len);
         part[part_len] = '\0';
 
-        LispObject* part_obj = lisp_make_string(part);
-        LispObject* new_cons = lisp_make_cons(part_obj, NIL);
+        LispObject *part_obj = lisp_make_string(part);
+        LispObject *new_cons = lisp_make_cons(part_obj, NIL);
 
         if (result == NIL) {
             result = new_cons;
@@ -1020,11 +998,11 @@ static LispObject* builtin_regex_split(LispObject* args, Environment* env) {
 
     /* Add remaining substring */
     if (last_end <= subject_len) {
-        char* part = GC_malloc(subject_len - last_end + 1);
+        char *part = GC_malloc(subject_len - last_end + 1);
         strcpy(part, subject + last_end);
 
-        LispObject* part_obj = lisp_make_string(part);
-        LispObject* new_cons = lisp_make_cons(part_obj, NIL);
+        LispObject *part_obj = lisp_make_string(part);
+        LispObject *new_cons = lisp_make_cons(part_obj, NIL);
 
         if (result == NIL) {
             result = new_cons;
@@ -1038,24 +1016,24 @@ static LispObject* builtin_regex_split(LispObject* args, Environment* env) {
     return result;
 }
 
-static LispObject* builtin_regex_escape(LispObject* args, Environment* env) {
+static LispObject *builtin_regex_escape(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL) {
         return lisp_make_error("regex-escape requires 1 argument");
     }
 
-    LispObject* string_obj = lisp_car(args);
+    LispObject *string_obj = lisp_car(args);
 
     if (string_obj->type != LISP_STRING) {
         return lisp_make_error("regex-escape requires a string");
     }
 
-    const char* str = string_obj->value.string;
+    const char *str = string_obj->value.string;
     size_t len = strlen(str);
-    char* escaped = GC_malloc(len * 2 + 1);
+    char *escaped = GC_malloc(len * 2 + 1);
     size_t j = 0;
 
-    const char* special = ".^$*+?()[]{}|\\";
+    const char *special = ".^$*+?()[]{}|\\";
 
     for (size_t i = 0; i < len; i++) {
         if (strchr(special, str[i])) {
@@ -1068,20 +1046,20 @@ static LispObject* builtin_regex_escape(LispObject* args, Environment* env) {
     return lisp_make_string(escaped);
 }
 
-static LispObject* builtin_regex_valid(LispObject* args, Environment* env) {
+static LispObject *builtin_regex_valid(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL) {
         return lisp_make_error("regex-valid? requires 1 argument");
     }
 
-    LispObject* pattern_obj = lisp_car(args);
+    LispObject *pattern_obj = lisp_car(args);
 
     if (pattern_obj->type != LISP_STRING) {
         return lisp_make_error("regex-valid? requires a string");
     }
 
-    char* error_msg = NULL;
-    pcre2_code* re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
+    char *error_msg = NULL;
+    pcre2_code *re = compile_regex_pattern(pattern_obj->value.string, &error_msg);
 
     if (re == NULL) {
         return NIL;
