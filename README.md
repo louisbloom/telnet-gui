@@ -38,6 +38,9 @@ A minimal, embeddable Lisp interpreter library written in C, designed to be inte
 ### Integer Operations
 
 - `quotient` - Integer division (truncates to integer, e.g., quotient 10 3 → 3)
+- `remainder` - Integer remainder/modulo operation (e.g., remainder 17 5 → 2)
+- `even?` - Check if number is even (returns #t for even, #f for odd)
+- `odd?` - Check if number is odd (returns #t for odd, #f for even)
 
 ### Number Comparisons
 
@@ -334,6 +337,9 @@ int main() {
 (* 3 4.0)          ; => 12.0 (float - mixed types)
 (/ 10 2)           ; => 5.0 (always float)
 (quotient 10 3)    ; => 3 (integer division)
+(remainder 17 5)   ; => 2
+(even? 6)          ; => #t
+(odd? 7)            ; => #t
 ```
 
 ### Variables
@@ -737,6 +743,7 @@ Potential additions for future versions:
 - **Type Coercion**: Automatic integer/float promotion in arithmetic operations
 - **Modern Naming Conventions**: Scheme-style predicates (`?` suffix) and mutating functions (`!` suffix)
 - **Do Loop**: Efficient iteration construct with tail-call optimization for long-running loops
+- **Integer Operations**: Remainder, even?, odd? predicates for number operations
 
 ### High Priority
 
@@ -744,7 +751,6 @@ Potential additions for future versions:
 - Additional special forms (`cond`, `case`)
 - Better error recovery and stack traces
 - Tail call optimization for better recursion performance
-- Additional integer operations (`remainder`, `even?`, `odd?`)
 
 ### Medium Priority
 

@@ -58,6 +58,9 @@ static LispObject *builtin_regex_valid(LispObject *args, Environment *env);
 
 /* Integer operations */
 static LispObject *builtin_quotient(LispObject *args, Environment *env);
+static LispObject *builtin_remainder(LispObject *args, Environment *env);
+static LispObject *builtin_even_question(LispObject *args, Environment *env);
+static LispObject *builtin_odd_question(LispObject *args, Environment *env);
 
 /* Hash table operations */
 static LispObject *builtin_make_hash_table(LispObject *args, Environment *env);
@@ -162,6 +165,9 @@ void register_builtins(Environment *env) {
 
     /* Integer operations */
     env_define(env, "quotient", lisp_make_builtin(builtin_quotient, "quotient"));
+    env_define(env, "remainder", lisp_make_builtin(builtin_remainder, "remainder"));
+    env_define(env, "even?", lisp_make_builtin(builtin_even_question, "even?"));
+    env_define(env, "odd?", lisp_make_builtin(builtin_odd_question, "odd?"));
 
     /* Hash table operations */
     env_define(env, "make-hash-table", lisp_make_builtin(builtin_make_hash_table, "make-hash-table"));
@@ -358,6 +364,73 @@ static LispObject *builtin_quotient(LispObject *args, Environment *env) {
     /* Truncate to integer */
     long long result = (long long)(first_val / second_val);
     return lisp_make_integer(result);
+}
+
+static LispObject *builtin_remainder(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("remainder requires 2 arguments");
+    }
+
+    LispObject *first = lisp_car(args);
+    LispObject *second = lisp_car(lisp_cdr(args));
+
+    int first_is_integer;
+    int second_is_integer;
+    double first_val = get_numeric_value(first, &first_is_integer);
+    double second_val = get_numeric_value(second, &second_is_integer);
+
+    if (first_val == 0 || (first_is_integer == 0 && first->type != LISP_INTEGER && first->type != LISP_NUMBER)) {
+        return lisp_make_error("remainder requires numbers");
+    }
+    if (second_val == 0) {
+        return lisp_make_error("Division by zero");
+    }
+
+    long long result = (long long)first_val % (long long)second_val;
+    return lisp_make_integer(result);
+}
+
+static LispObject *builtin_even_question(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("even? requires 1 argument");
+    }
+
+    LispObject *arg = lisp_car(args);
+    int arg_is_integer;
+    double arg_val = get_numeric_value(arg, &arg_is_integer);
+
+    if (arg->type != LISP_INTEGER && arg->type != LISP_NUMBER) {
+        return lisp_make_error("even? requires a number");
+    }
+
+    long long val = (long long)arg_val;
+    if ((val & 1) == 0) {
+        return lisp_make_boolean(1);
+    }
+    return lisp_make_boolean(0);
+}
+
+static LispObject *builtin_odd_question(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("odd? requires 1 argument");
+    }
+
+    LispObject *arg = lisp_car(args);
+    int arg_is_integer;
+    double arg_val = get_numeric_value(arg, &arg_is_integer);
+
+    if (arg->type != LISP_INTEGER && arg->type != LISP_NUMBER) {
+        return lisp_make_error("odd? requires a number");
+    }
+
+    long long val = (long long)arg_val;
+    if ((val & 1) == 1) {
+        return lisp_make_boolean(1);
+    }
+    return lisp_make_boolean(0);
 }
 
 /* Number comparisons */
