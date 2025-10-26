@@ -201,6 +201,11 @@ static LispObject *eval_define(LispObject *args, Environment *env) {
         return value;
     }
 
+    /* If defining a lambda, attach the name for better debugging */
+    if (value->type == LISP_LAMBDA && value->value.lambda.name == NULL) {
+        value->value.lambda.name = GC_strdup(name->value.symbol);
+    }
+
     env_define(env, name->value.symbol, value);
     return value;
 }
@@ -252,7 +257,7 @@ static LispObject *eval_lambda(LispObject *args, Environment *env) {
 
     LispObject *body = lisp_car(rest);
 
-    return lisp_make_lambda(params, body, env);
+    return lisp_make_lambda(params, body, env, NULL);
 }
 
 static LispObject *eval_let(LispObject *args, Environment *env) {
@@ -641,16 +646,24 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env) {
 
         /* Generate lambda name for stack trace */
         char lambda_name[128];
+        const char *frame_name;
         LispObject *lambda_params = func->value.lambda.params;
-        if (lambda_params != NIL && lambda_params->type == LISP_CONS && lisp_car(lambda_params) != NULL &&
-            lisp_car(lambda_params)->type == LISP_SYMBOL) {
-            snprintf(lambda_name, sizeof(lambda_name), "lambda/%s", lisp_car(lambda_params)->value.symbol);
+
+        /* Priority: 1) stored name, 2) lambda/param, 3) lambda */
+        if (func->value.lambda.name != NULL) {
+            frame_name = func->value.lambda.name;
         } else {
-            snprintf(lambda_name, sizeof(lambda_name), "lambda");
+            if (lambda_params != NIL && lambda_params->type == LISP_CONS && lisp_car(lambda_params) != NULL &&
+                lisp_car(lambda_params)->type == LISP_SYMBOL) {
+                snprintf(lambda_name, sizeof(lambda_name), "lambda/%s", lisp_car(lambda_params)->value.symbol);
+                frame_name = lambda_name;
+            } else {
+                frame_name = "lambda";
+            }
         }
 
         /* Push call frame for lambda */
-        push_call_frame(new_env, lambda_name);
+        push_call_frame(new_env, frame_name);
 
         /* Bind parameters */
         LispObject *params = lambda_params;

@@ -56,7 +56,13 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
         break;
 
     case LISP_LAMBDA:
-        append_str(buffer, size, pos, "#<lambda>");
+        if (obj->value.lambda.name != NULL) {
+            append_str(buffer, size, pos, "#<lambda:");
+            append_str(buffer, size, pos, obj->value.lambda.name);
+            append_str(buffer, size, pos, ">");
+        } else {
+            append_str(buffer, size, pos, "#<lambda>");
+        }
         break;
 
     case LISP_ERROR: {

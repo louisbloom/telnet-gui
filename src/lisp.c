@@ -84,12 +84,13 @@ LispObject *lisp_make_builtin(BuiltinFunc func, const char *name) {
     return obj;
 }
 
-LispObject *lisp_make_lambda(LispObject *params, LispObject *body, Environment *closure) {
+LispObject *lisp_make_lambda(LispObject *params, LispObject *body, Environment *closure, const char *name) {
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_LAMBDA;
     obj->value.lambda.params = params;
     obj->value.lambda.body = body;
     obj->value.lambda.closure = closure;
+    obj->value.lambda.name = name ? GC_strdup(name) : NULL;
     return obj;
 }
 
