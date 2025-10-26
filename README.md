@@ -699,14 +699,22 @@ This is a demonstration project. Feel free to use and modify as needed.
 
 Potential additions for future versions:
 
+### Recently Completed ✨
+
+- **UTF-8 Support**: Full Unicode string support with character-based operations (`string-length`, `substring`, `string-ref`)
+- **Enhanced File I/O**: Support for Unix, Windows, and Mac line endings
+- **Improved REPL File Mode**: Now prints all expression results when running files
+- **New Data Types**: Integers, booleans, vectors, and hash tables with complete operations
+- **Type Coercion**: Automatic integer/float promotion in arithmetic operations
+- **Modern Naming Conventions**: Scheme-style predicates (`?` suffix) and mutating functions (`!` suffix)
+
 ### High Priority
 
-- Additional integer operations (`remainder`, `even?`, `odd?`)
 - Hash table iteration (keys, values, entries)
 - Additional special forms (`cond`, `case`, `do`)
 - Better error recovery and stack traces
 - Tail call optimization for better recursion performance
-- UTF-8 examples and comprehensive tests (basic implementation complete)
+- Additional integer operations (`remainder`, `even?`, `odd?`)
 
 ### Medium Priority
 
