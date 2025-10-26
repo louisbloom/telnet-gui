@@ -92,31 +92,33 @@ int main(int argc, char **argv) {
                 /* Skip whitespace and comments */
                 while (*input == ' ' || *input == '\t' || *input == '\n' || *input == '\r' || *input == ';') {
                     if (*input == ';') {
-                        while (*input && *input != '\n') input++;
+                        while (*input && *input != '\n')
+                            input++;
                     } else {
                         input++;
                     }
                 }
-                
+
                 /* End of input */
-                if (*input == '\0') break;
+                if (*input == '\0')
+                    break;
 
                 /* Parse expression */
                 const char *parse_start = input;
                 LispObject *expr = lisp_read(&input);
-                
+
                 /* If input didn't advance, we're done */
                 if (expr == NULL || input == parse_start) {
                     break;
                 }
-                
+
                 if (expr->type == LISP_ERROR) {
                     fprintf(stderr, "ERROR in %s: %s\n", argv[i], expr->value.error);
                     return 1;
                 }
 
                 LispObject *result = lisp_eval(expr, env);
-                
+
                 if (result->type == LISP_ERROR) {
                     fprintf(stderr, "ERROR in %s: %s\n", argv[i], result->value.error);
                     return 1;

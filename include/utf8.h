@@ -31,4 +31,3 @@ int utf8_char_bytes(const char *ptr);
 int utf8_get_codepoint(const char *ptr);
 
 #endif /* UTF8_H */
-

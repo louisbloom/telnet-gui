@@ -157,4 +157,3 @@ int utf8_get_codepoint(const char *ptr) {
     }
     return -1; /* Invalid */
 }
-
