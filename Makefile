@@ -78,9 +78,11 @@ BUILD_DIR = build
 
 # Library sources and objects
 LIB_SOURCES = $(SRC_DIR)/lisp.c $(SRC_DIR)/reader.c $(SRC_DIR)/eval.c \
-              $(SRC_DIR)/env.c $(SRC_DIR)/builtins.c $(SRC_DIR)/print.c $(SRC_DIR)/regex.c
+              $(SRC_DIR)/env.c $(SRC_DIR)/builtins.c $(SRC_DIR)/print.c $(SRC_DIR)/regex.c \
+              $(SRC_DIR)/hash_table.c $(SRC_DIR)/utf8.c
 LIB_OBJECTS = $(BUILD_DIR)/lisp.o $(BUILD_DIR)/reader.o $(BUILD_DIR)/eval.o \
-              $(BUILD_DIR)/env.o $(BUILD_DIR)/builtins.o $(BUILD_DIR)/print.o $(BUILD_DIR)/regex.o
+              $(BUILD_DIR)/env.o $(BUILD_DIR)/builtins.o $(BUILD_DIR)/print.o $(BUILD_DIR)/regex.o \
+              $(BUILD_DIR)/hash_table.o $(BUILD_DIR)/utf8.o
 
 # REPL sources and objects
 REPL_SOURCES = $(REPL_DIR)/main.c
@@ -125,6 +127,12 @@ $(BUILD_DIR)/print.o: $(SRC_DIR)/print.c $(INCLUDE_DIR)/lisp.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/regex.o: $(SRC_DIR)/regex.c $(INCLUDE_DIR)/lisp.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/hash_table.o: $(SRC_DIR)/hash_table.c $(INCLUDE_DIR)/lisp.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/utf8.o: $(SRC_DIR)/utf8.c $(INCLUDE_DIR)/utf8.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Compile REPL

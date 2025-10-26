@@ -50,6 +50,9 @@ A minimal, embeddable Lisp interpreter library written in C, designed to be inte
 
 - `concat` - Concatenate multiple strings
 - `split` - Split string by pattern (supports wildcards: `*`, `?`, `[]`)
+- `string-length` - Get character count (UTF-8 aware, not byte count)
+- `substring` - Extract substring by character indices (UTF-8 aware)
+- `string-ref` - Get character at index (UTF-8 aware, returns single character string)
 
 ### String Comparisons
 
@@ -115,7 +118,7 @@ A minimal, embeddable Lisp interpreter library written in C, designed to be inte
 
 - `open` - Open a file (filename, mode) - returns file stream
 - `close` - Close a file stream
-- `read-line` - Read a line from file stream (returns string or nil at EOF)
+- `read-line` - Read a line from file stream (returns string or nil at EOF), supports Unix (`\n`), Windows (`\r\n`), and Mac (`\r`) line endings
 - `write-line` - Write a line to file stream
 
 ### Advanced Features
@@ -128,8 +131,13 @@ A minimal, embeddable Lisp interpreter library written in C, designed to be inte
 - **Quote Syntax**: `'expr` shorthand for `(quote expr)`
 - **Truthy/Falsy**: JavaScript-like semantics (nil and empty strings are falsy)
 - **Memory Management**: Automatic garbage collection with Boehm GC
-- **Regex Support**: Full PCRE2 integration for advanced pattern matching
+- **Regex Support**: Full PCRE2 integration for advanced pattern matching with UTF-8 support
 - **Wildcard Patterns**: Enhanced wildcard matching in `string-match` and `split`
+- **UTF-8 Support**: Full Unicode string support with character-based operations (not byte-based)
+  - Strings stored as UTF-8 byte sequences internally
+  - UTF-8 aware string operations: `string-length`, `substring`, `string-ref`
+  - Line ending support for Unix (`\n`), Windows (`\r\n`), and Mac (`\r`) in file I/O
+  - PCRE2 regex compiled with UTF-8 and Unicode character property support
 
 ## Building
 
@@ -374,6 +382,11 @@ int main() {
 (string< "abc" "def")                ; => 1
 (string-contains "hello world" "world") ; => 1
 (string-match "hello" "h*o")         ; => 1
+
+; UTF-8 string operations
+(string-length "Hello, 世界! 🌍")     ; => 15 (character count)
+(substring "Hello, 世界!" 7 9)        ; => "世界"
+(string-ref "Hello, 世界!" 7)        ; => "世"
 ```
 
 ### Regex Operations
@@ -693,10 +706,11 @@ Potential additions for future versions:
 - Additional special forms (`cond`, `case`, `do`)
 - Better error recovery and stack traces
 - Tail call optimization for better recursion performance
+- UTF-8 examples and comprehensive tests (basic implementation complete)
 
 ### Medium Priority
 
-- Additional string operations (substring, replace, upper/lowercase transformations)
+- Additional string operations (replace, upper/lowercase transformations)
 - Structured data reading from files (S-expressions, JSON)
 - Macros for metaprogramming
 - More regex features (lookahead, lookbehind, non-capturing groups)

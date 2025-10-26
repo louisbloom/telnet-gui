@@ -26,6 +26,9 @@ static LispObject *builtin_string_lte(LispObject *args, Environment *env);
 static LispObject *builtin_string_gte(LispObject *args, Environment *env);
 static LispObject *builtin_string_contains(LispObject *args, Environment *env);
 static LispObject *builtin_string_match(LispObject *args, Environment *env);
+static LispObject *builtin_string_length(LispObject *args, Environment *env);
+static LispObject *builtin_substring(LispObject *args, Environment *env);
+static LispObject *builtin_string_ref(LispObject *args, Environment *env);
 
 /* Boolean operations */
 static LispObject *builtin_and(LispObject *args, Environment *env);
@@ -110,6 +113,9 @@ void register_builtins(Environment *env) {
     env_define(env, "string>=", lisp_make_builtin(builtin_string_gte, "string>="));
     env_define(env, "string-contains", lisp_make_builtin(builtin_string_contains, "string-contains"));
     env_define(env, "string-match", lisp_make_builtin(builtin_string_match, "string-match"));
+    env_define(env, "string-length", lisp_make_builtin(builtin_string_length, "string-length"));
+    env_define(env, "substring", lisp_make_builtin(builtin_substring, "substring"));
+    env_define(env, "string-ref", lisp_make_builtin(builtin_string_ref, "string-ref"));
 
     env_define(env, "and", lisp_make_builtin(builtin_and, "and"));
     env_define(env, "or", lisp_make_builtin(builtin_or, "or"));
@@ -756,6 +762,106 @@ static LispObject *builtin_string_match(LispObject *args, Environment *env) {
     return wildcard_match(pattern->value.string, str->value.string) ? lisp_make_number(1) : NIL;
 }
 
+/* UTF-8 String operations */
+static LispObject *builtin_string_length(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("string-length requires 1 argument");
+    }
+
+    LispObject *str_obj = lisp_car(args);
+    if (str_obj->type != LISP_STRING) {
+        return lisp_make_error("string-length requires a string");
+    }
+
+    size_t char_count = utf8_strlen(str_obj->value.string);
+    return lisp_make_integer((long long)char_count);
+}
+
+static LispObject *builtin_substring(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("substring requires at least 2 arguments");
+    }
+
+    LispObject *str_obj = lisp_car(args);
+    LispObject *start_obj = lisp_car(lisp_cdr(args));
+    LispObject *end_obj = lisp_cdr(lisp_cdr(args)) != NIL ? lisp_car(lisp_cdr(lisp_cdr(args))) : NIL;
+
+    if (str_obj->type != LISP_STRING) {
+        return lisp_make_error("substring requires a string");
+    }
+    if (start_obj->type != LISP_INTEGER) {
+        return lisp_make_error("substring requires integer start index");
+    }
+
+    long long start = start_obj->value.integer;
+    long long end;
+
+    if (end_obj == NIL || end_obj == NULL) {
+        /* No end specified, use string length */
+        end = utf8_strlen(str_obj->value.string);
+    } else {
+        if (end_obj->type != LISP_INTEGER) {
+            return lisp_make_error("substring requires integer end index");
+        }
+        end = end_obj->value.integer;
+    }
+
+    if (start < 0 || end < 0 || start > end) {
+        return lisp_make_error("substring: invalid start/end indices");
+    }
+
+    size_t start_offset = utf8_byte_offset(str_obj->value.string, start);
+    size_t end_offset = utf8_byte_offset(str_obj->value.string, end);
+
+    size_t result_len = end_offset - start_offset;
+    char *result = GC_malloc(result_len + 1);
+    memcpy(result, str_obj->value.string + start_offset, result_len);
+    result[result_len] = '\0';
+
+    return lisp_make_string(result);
+}
+
+static LispObject *builtin_string_ref(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("string-ref requires 2 arguments");
+    }
+
+    LispObject *str_obj = lisp_car(args);
+    LispObject *index_obj = lisp_car(lisp_cdr(args));
+
+    if (str_obj->type != LISP_STRING) {
+        return lisp_make_error("string-ref requires a string");
+    }
+    if (index_obj->type != LISP_INTEGER) {
+        return lisp_make_error("string-ref requires an integer index");
+    }
+
+    long long index = index_obj->value.integer;
+    if (index < 0) {
+        return lisp_make_error("string-ref: negative index");
+    }
+
+    size_t char_count = utf8_strlen(str_obj->value.string);
+    if (index >= (long long)char_count) {
+        return lisp_make_error("string-ref: index out of bounds");
+    }
+
+    const char *char_ptr = utf8_char_at(str_obj->value.string, index);
+    if (char_ptr == NULL) {
+        return lisp_make_error("string-ref: invalid character at index");
+    }
+
+    int bytes = utf8_char_bytes(char_ptr);
+    char *result = GC_malloc(bytes + 1);
+    memcpy(result, char_ptr, bytes);
+    result[bytes] = '\0';
+
+    return lisp_make_string(result);
+}
+
 /* Boolean operations */
 static LispObject *builtin_and(LispObject *args, Environment *env) {
     (void)env;
@@ -1336,6 +1442,19 @@ static LispObject *builtin_read_line(LispObject *args, Environment *env) {
     int c;
     while ((c = fgetc(file)) != EOF) {
         if (c == '\n') {
+            /* Unix line ending */
+            break;
+        } else if (c == '\r') {
+            /* Check for Windows (\r\n) or old Mac (\r) line ending */
+            int next_c = fgetc(file);
+            if (next_c == '\n') {
+                /* Windows line ending \r\n */
+                break;
+            } else if (next_c != EOF) {
+                /* Old Mac line ending \r, put back the character */
+                ungetc(next_c, file);
+            }
+            /* We got \r, now break */
             break;
         }
 

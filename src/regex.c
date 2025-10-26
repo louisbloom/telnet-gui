@@ -12,8 +12,10 @@ pcre2_code *compile_regex_pattern(const char *pattern, char **error_msg) {
     int errornumber;
     PCRE2_SIZE erroroffset;
 
-    pcre2_code *re = pcre2_compile((PCRE2_SPTR)pattern, PCRE2_ZERO_TERMINATED, 0, /* options */
-                                   &errornumber, &erroroffset, NULL);
+    /* Enable UTF-8 mode and Unicode properties for proper UTF-8 support */
+    uint32_t compile_options = PCRE2_UTF | PCRE2_UCP;
+    pcre2_code *re =
+        pcre2_compile((PCRE2_SPTR)pattern, PCRE2_ZERO_TERMINATED, compile_options, &errornumber, &erroroffset, NULL);
 
     if (re == NULL) {
         /* Get error message */

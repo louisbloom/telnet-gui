@@ -7,6 +7,7 @@
 
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
+#include "utf8.h"
 
 /* Forward declarations */
 typedef struct LispObject LispObject;

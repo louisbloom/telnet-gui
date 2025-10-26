@@ -43,6 +43,7 @@ set(LIB_SOURCES
     src/print.c
     src/regex.c
     src/hash_table.c
+    src/utf8.c
 )
 
 # Create static library

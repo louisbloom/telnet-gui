@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <locale.h>
 
 #define MAX_INPUT 4096
 
@@ -58,6 +59,9 @@ static int handle_command(const char *input, Environment *env) {
 }
 
 int main(int argc, char **argv) {
+    /* Set locale for UTF-8 support */
+    setlocale(LC_ALL, "");
+
     /* Initialize interpreter */
     lisp_init();
     Environment *env = env_create_global();
