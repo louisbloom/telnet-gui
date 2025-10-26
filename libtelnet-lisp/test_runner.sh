@@ -14,13 +14,20 @@ if [ ! -f "$TEST_FILE" ]; then
 fi
 
 # Check if lisp-repl exists
-if [ ! -x "./lisp-repl.exe" ]; then
-  echo "ERROR: lisp-repl.exe not found"
+if [ ! -x "./lisp-repl.exe" ] && [ ! -x "../lisp-repl.exe" ]; then
+  echo "ERROR: lisp-repl.exe not found (searched ./ and ../)"
   exit 1
 fi
 
+# Determine lisp-repl location
+if [ -x "./lisp-repl.exe" ]; then
+  REPL="./lisp-repl.exe"
+else
+  REPL="../lisp-repl.exe"
+fi
+
 # Run the test file and capture output
-ACTUAL_OUTPUT=$(./lisp-repl.exe "$TEST_FILE" 2>&1 || true)
+ACTUAL_OUTPUT=$($REPL "$TEST_FILE" 2>&1 || true)
 EXIT_CODE=$?
 
 # If there's an error message, we need to handle it

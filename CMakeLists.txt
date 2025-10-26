@@ -18,11 +18,45 @@ set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
 # For Windows UCRT64, prefer static linking to avoid msys-2.0.dll
 if(WIN32)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc")
-    # Add UCRT64 system include paths for clangd
-    set(UCRT64_ROOT "C:/Users/tchristensen/scoop/apps/msys2/current/ucrt64")
-    include_directories(SYSTEM "${UCRT64_ROOT}/include")
-    include_directories(SYSTEM "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/15.2.0/include")
-    include_directories(SYSTEM "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/15.2.0/include-fixed")
+
+    # Detect MSYS2/UCRT64 installation in common locations
+    if(DEFINED ENV{MSYS2_ROOT})
+        set(UCRT64_ROOT "$ENV{MSYS2_ROOT}/ucrt64")
+    else()
+        # Try common installation paths
+        set(PROGRAM_FILES_X86 "$ENV{ProgramFiles\(x86\)}")
+        file(GLOB MSYS2_INSTALLS
+            "C:/msys64"
+            "C:/tools/msys64"
+            "$ENV{USERPROFILE}/scoop/apps/msys2/current"
+            "$ENV{ProgramFiles}/msys64"
+            "${PROGRAM_FILES_X86}/msys64"
+        )
+
+        # Find the first existing MSYS2 installation
+        foreach(path IN LISTS MSYS2_INSTALLS)
+            if(EXISTS "${path}")
+                set(UCRT64_ROOT "${path}/ucrt64")
+                break()
+            endif()
+        endforeach()
+    endif()
+
+    # Add UCRT64 system include paths for clangd if found
+    if(EXISTS "${UCRT64_ROOT}/include")
+        include_directories(SYSTEM "${UCRT64_ROOT}/include")
+        # Add GCC include paths if they exist
+        file(GLOB GCC_VERSIONS "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/*")
+        if(GCC_VERSIONS)
+            list(SORT GCC_VERSIONS)
+            list(REVERSE GCC_VERSIONS)
+            get_filename_component(GCC_VERSION "${GCC_VERSIONS}" NAME)
+            include_directories(SYSTEM "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/${GCC_VERSION}/include")
+            if(EXISTS "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/${GCC_VERSION}/include-fixed")
+                include_directories(SYSTEM "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/${GCC_VERSION}/include-fixed")
+            endif()
+        endif()
+    endif()
 endif()
 
 # Find required packages
@@ -33,17 +67,33 @@ pkg_check_modules(PCRE2 REQUIRED libpcre2-8)
 # Add library subdirectory
 add_subdirectory(libtelnet-lisp)
 
-# REPL executable
-add_executable(lisp-repl repl/main.c)
+# Telnet GUI executable
+add_subdirectory(telnet-gui)
+
+# REPL executable (default application)
+add_executable(lisp-repl libtelnet-lisp/repl/main.c)
 target_link_libraries(lisp-repl liblisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
 
+# Add include directories for REPL
+target_include_directories(lisp-repl PRIVATE libtelnet-lisp/include)
+
 # Add UCRT64 system include paths for REPL executable on Windows
-if(WIN32)
-    target_include_directories(lisp-repl SYSTEM PRIVATE
-        "${UCRT64_ROOT}/include"
-        "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/15.2.0/include"
-        "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/15.2.0/include-fixed"
-    )
+if(WIN32 AND EXISTS "${UCRT64_ROOT}/include")
+    target_include_directories(lisp-repl SYSTEM PRIVATE "${UCRT64_ROOT}/include")
+
+    # Add GCC include paths if available
+    file(GLOB GCC_VERSIONS "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/*")
+    if(GCC_VERSIONS)
+        list(SORT GCC_VERSIONS)
+        list(REVERSE GCC_VERSIONS)
+        get_filename_component(GCC_VERSION "${GCC_VERSIONS}" NAME)
+        target_include_directories(lisp-repl SYSTEM PRIVATE
+            "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/${GCC_VERSION}/include")
+        if(EXISTS "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/${GCC_VERSION}/include-fixed")
+            target_include_directories(lisp-repl SYSTEM PRIVATE
+                "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/${GCC_VERSION}/include-fixed")
+        endif()
+    endif()
 endif()
 
 # Installation
@@ -61,7 +111,7 @@ install(FILES libtelnet-lisp/include/lisp.h
 enable_testing()
 
 # Find all test files and add them with validation
-file(GLOB_RECURSE TEST_FILES "tests/**/*.lisp")
+file(GLOB_RECURSE TEST_FILES "libtelnet-lisp/tests/**/*.lisp")
 
 foreach(TEST_FILE ${TEST_FILES})
     get_filename_component(TEST_NAME ${TEST_FILE} NAME_WE)
@@ -70,8 +120,8 @@ foreach(TEST_FILE ${TEST_FILES})
     get_filename_component(CATEGORY ${TEST_DIR} NAME)
 
     add_test(NAME ${CATEGORY}_${TEST_NAME}
-        COMMAND bash ${CMAKE_SOURCE_DIR}/test_runner.sh ${TEST_FILE}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMAND bash ${CMAKE_SOURCE_DIR}/libtelnet-lisp/test_runner.sh ${TEST_FILE}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/libtelnet-lisp
     )
 endforeach()
 
@@ -82,3 +132,58 @@ set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Telnet Lisp Interpreter")
 set(CPACK_PACKAGE_VENDOR "Telnet Lisp Project")
 
 include(CPack)
+
+# Format target for clang-format and shell scripts
+find_program(CLANG_FORMAT
+    NAMES clang-format
+    PATHS
+        /ucrt64/bin
+        C:/msys64/ucrt64/bin
+        C:/tools/msys64/ucrt64/bin
+    NO_DEFAULT_PATH
+)
+find_program(CLANG_FORMAT NAMES clang-format)
+
+find_program(SHFMT NAMES shfmt)
+
+if(CLANG_FORMAT)
+    # Collect all C source files
+    file(GLOB_RECURSE LIB_SOURCES "libtelnet-lisp/src/*.c")
+    file(GLOB_RECURSE REPL_SOURCES "libtelnet-lisp/repl/*.c")
+    file(GLOB_RECURSE GUI_SOURCES "telnet-gui/src/*.c")
+
+    # Collect all shell scripts
+    file(GLOB SHELL_SCRIPTS
+        "*.sh"
+        "libtelnet-lisp/*.sh"
+    )
+
+    # Format target for C sources
+    if(SHFMT)
+        # Format both C and shell scripts
+        add_custom_target(format
+            COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
+            COMMAND ${SHFMT} -w -i 2 ${SHELL_SCRIPTS}
+            COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
+            COMMENT "Formatting all C source files and shell scripts"
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        )
+        message(STATUS "clang-format found: ${CLANG_FORMAT}")
+        message(STATUS "shfmt found: ${SHFMT}")
+    else()
+        # Format C sources only
+        add_custom_target(format
+            COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
+            COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete! (shell scripts skipped - shfmt not found)"
+            COMMENT "Formatting all C source files with clang-format"
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        )
+        message(STATUS "clang-format found: ${CLANG_FORMAT}")
+        message(STATUS "shfmt not found - shell scripts will not be formatted")
+    endif()
+
+    message(STATUS "Use 'cmake --build . --target format' to format sources")
+else()
+    message(STATUS "clang-format not found - skipping format target")
+    message(STATUS "Install clang-tools-extra package for formatting support")
+endif()

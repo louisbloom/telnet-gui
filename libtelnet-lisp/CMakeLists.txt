@@ -1,6 +1,25 @@
 # Telnet Lisp Library CMakeLists.txt
 # Self-contained library build configuration
 
+cmake_minimum_required(VERSION 3.10)
+
+# Check if this is being included as a subdirectory or standalone
+if(NOT DEFINED PROJECT_NAME)
+    project(TelnetLisp VERSION 1.0.0 LANGUAGES C)
+
+    # Set C standard
+    set(CMAKE_C_STANDARD 99)
+    set(CMAKE_C_STANDARD_REQUIRED ON)
+
+    # Compiler flags
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -pedantic")
+    set(CMAKE_C_FLAGS_DEBUG "-g -O0")
+    set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
+
+    # Export compile commands for clangd
+    set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+endif()
+
 # Library sources
 set(LIB_SOURCES
     src/lisp.c
@@ -29,11 +48,20 @@ target_link_libraries(liblisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
 target_include_directories(liblisp PUBLIC include)
 
 # Add UCRT64 system include paths for clangd on Windows
-if(WIN32)
-    set(UCRT64_ROOT "C:/Users/tchristensen/scoop/apps/msys2/current/ucrt64")
-    target_include_directories(liblisp SYSTEM PUBLIC
-        "${UCRT64_ROOT}/include"
-        "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/15.2.0/include"
-        "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/15.2.0/include-fixed"
-    )
+if(WIN32 AND MINGW)
+    # For MSYS2/MINGW environments, add system include paths
+    # These are typically set by the environment automatically
+    # Additional system paths can be specified via CMAKE_SYSROOT
 endif()
+
+# Installation rules for standalone builds
+# When used as subdirectory, parent handles installation
+install(TARGETS liblisp
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+)
+
+install(FILES include/lisp.h include/utf8.h
+    DESTINATION include
+)
