@@ -278,7 +278,7 @@ cp build/compile_commands.json .
 
 ## License
 
-See project license file for details.
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Contributing
 
