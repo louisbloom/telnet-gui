@@ -69,23 +69,68 @@ int main(int argc, char **argv) {
     /* If file argument provided, load and execute it */
     if (argc > 1) {
         for (int i = 1; i < argc; i++) {
-            LispObject *result = lisp_load_file(argv[i], env);
-
-            if (result->type == LISP_ERROR) {
-                fprintf(stderr, "ERROR in %s: %s\n", argv[i], result->value.error);
+            FILE *file = fopen(argv[i], "r");
+            if (file == NULL) {
+                fprintf(stderr, "ERROR: Cannot open file: %s\n", argv[i]);
                 return 1;
             }
 
-            char *output = lisp_print(result);
-            printf("%s\n", output);
-            free(output);
+            /* Read entire file */
+            fseek(file, 0, SEEK_END);
+            long size = ftell(file);
+            fseek(file, 0, SEEK_SET);
+
+            char *buffer = GC_malloc(size + 1);
+            fread(buffer, 1, size, file);
+            buffer[size] = '\0';
+            fclose(file);
+
+            /* Evaluate and print each expression */
+            const char *input = buffer;
+
+            while (*input) {
+                /* Skip whitespace and comments */
+                while (*input == ' ' || *input == '\t' || *input == '\n' || *input == '\r' || *input == ';') {
+                    if (*input == ';') {
+                        while (*input && *input != '\n') input++;
+                    } else {
+                        input++;
+                    }
+                }
+                
+                /* End of input */
+                if (*input == '\0') break;
+
+                /* Parse expression */
+                const char *parse_start = input;
+                LispObject *expr = lisp_read(&input);
+                
+                /* If input didn't advance, we're done */
+                if (expr == NULL || input == parse_start) {
+                    break;
+                }
+                
+                if (expr->type == LISP_ERROR) {
+                    fprintf(stderr, "ERROR in %s: %s\n", argv[i], expr->value.error);
+                    return 1;
+                }
+
+                LispObject *result = lisp_eval(expr, env);
+                
+                if (result->type == LISP_ERROR) {
+                    fprintf(stderr, "ERROR in %s: %s\n", argv[i], result->value.error);
+                    return 1;
+                }
+
+                char *output = lisp_print(result);
+                printf("%s\n", output);
+                /* output is GC-allocated, don't free */
+            }
         }
 
-        /* Exit after running files if not in interactive mode */
-        if (argc > 1) {
-            lisp_cleanup();
-            return 0;
-        }
+        /* Exit after running files */
+        lisp_cleanup();
+        return 0;
     }
 
     /* REPL */
