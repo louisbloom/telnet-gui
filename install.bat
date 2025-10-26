@@ -1,7 +1,7 @@
 @echo off
-REM install.bat - Windows installation script for Telnet LISP
+REM install.bat - Windows installation script for Telnet Lisp
 
-echo Telnet LISP Interpreter - Installation Script
+echo Telnet Lisp Interpreter - Installation Script
 echo ============================================
 
 REM Detect if we're in MSYS2
@@ -44,7 +44,7 @@ if %errorlevel% neq 0 (
 echo Dependencies OK!
 
 REM Build
-echo Building Telnet LISP...
+echo Building Telnet Lisp...
 make clean
 make
 

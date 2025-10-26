@@ -1,6 +1,6 @@
-# Telnet LISP
+# Telnet Lisp
 
-A minimal, embeddable LISP interpreter library written in C, designed to be integrated into GUI applications. This implementation follows traditional LISP naming conventions and provides a REPL for testing and demonstration.
+A minimal, embeddable Lisp interpreter library written in C, designed to be integrated into GUI applications. This implementation follows traditional Lisp naming conventions and provides a REPL for testing and demonstration.
 
 ## Features
 
@@ -264,11 +264,11 @@ Run the REPL interactively:
 REPL Commands:
 
 - `:quit` - Exit the REPL
-- `:load <filename>` - Load and execute a LISP file
+- `:load <filename>` - Load and execute a Lisp file
 
 ### Running Files
 
-Execute LISP files directly:
+Execute Lisp files directly:
 
 ```bash
 # Linux/macOS
@@ -664,7 +664,7 @@ Examples:
 
 ## Regex Support
 
-Telnet LISP includes powerful PCRE2 regex functions for advanced pattern matching:
+Telnet Lisp includes powerful PCRE2 regex functions for advanced pattern matching:
 
 - `regex-match` - Test if string matches regex pattern
 - `regex-find` - Find first regex match

@@ -1,4 +1,4 @@
-# Telnet LISP Interpreter Makefile
+# Telnet Lisp Interpreter Makefile
 # Cross-platform build system
 
 # Detect OS

@@ -1,8 +1,8 @@
-# Telnet LISP Interpreter - Project Summary
+# Telnet Lisp Interpreter - Project Summary
 
 ## Project Overview
 
-A complete, embeddable LISP interpreter library written in C, designed for integration into GUI applications. The implementation follows traditional LISP naming conventions and includes a fully functional REPL for testing and demonstration. Features automatic garbage collection with Boehm GC and powerful regex support with PCRE2.
+A complete, embeddable Lisp interpreter library written in C, designed for integration into GUI applications. The implementation follows traditional Lisp naming conventions and includes a fully functional REPL for testing and demonstration. Features automatic garbage collection with Boehm GC and powerful regex support with PCRE2.
 
 ## Project Structure
 
@@ -40,6 +40,7 @@ telnet-lisp/
 ## Implemented Features
 
 ### Data Types
+
 - ✅ Numbers (double precision floating point)
 - ✅ Strings (heap-allocated with escape sequences)
 - ✅ Symbols (interned identifiers)
@@ -48,6 +49,7 @@ telnet-lisp/
 - ✅ NIL (empty list/falsy value)
 
 ### Core Language Features
+
 - ✅ Variables with `define`
 - ✅ Lambda functions with lexical scoping
 - ✅ Conditionals with `if`
@@ -56,12 +58,14 @@ telnet-lisp/
 - ✅ Truthy/falsy semantics (JavaScript-like)
 
 ### Arithmetic Operators
+
 - ✅ `+` (addition, variadic)
 - ✅ `-` (subtraction, unary negation)
 - ✅ `*` (multiplication, variadic)
 - ✅ `/` (division with zero check)
 
 ### Number Comparisons
+
 - ✅ `>` (greater than)
 - ✅ `<` (less than)
 - ✅ `=` (equals)
@@ -69,6 +73,7 @@ telnet-lisp/
 - ✅ `<=` (less than or equal)
 
 ### String Operations
+
 - ✅ `concat` (concatenate multiple strings)
 - ✅ `split` (split by pattern with wildcard support)
 - ✅ `string=` (equality)
@@ -80,21 +85,25 @@ telnet-lisp/
 - ✅ `string-match` (wildcard pattern matching)
 
 ### Boolean Operators
+
 - ✅ `and` (logical AND, short-circuit)
 - ✅ `or` (logical OR, short-circuit)
 - ✅ `not` (logical NOT)
 
 ### List Operations
+
 - ✅ `car` (first element)
 - ✅ `cdr` (rest of list)
 - ✅ `cons` (construct pair)
 - ✅ `list` (create list)
 
 ### Predicates
+
 - ✅ `null` (test for nil)
 - ✅ `atom` (test for non-list)
 
 ### Regex and Pattern Matching
+
 - ✅ `regex-match` (test if string matches regex pattern)
 - ✅ `regex-find` (find first regex match)
 - ✅ `regex-find-all` (find all regex matches)
@@ -109,6 +118,7 @@ telnet-lisp/
 ## API Design
 
 ### Simple API (for basic use)
+
 ```c
 lisp_init()                    // Initialize interpreter (includes GC)
 lisp_eval_string(code, env)    // Evaluate a string
@@ -116,6 +126,7 @@ lisp_cleanup()                 // Free resources
 ```
 
 ### Advanced API (for fine control)
+
 ```c
 lisp_read(input)               // Parse to AST
 lisp_eval(expr, env)           // Evaluate expression
@@ -124,6 +135,7 @@ lisp_load_file(filename, env)  // Load file
 ```
 
 ### Object Creation API
+
 ```c
 lisp_make_number(value)
 lisp_make_string(value)
@@ -133,6 +145,7 @@ lisp_make_error(message)
 ```
 
 ### Environment API
+
 ```c
 env_create(parent)
 env_create_global()
@@ -152,6 +165,7 @@ env_free(env)
 ## Testing
 
 All features have been tested and verified:
+
 - ✅ Arithmetic operations
 - ✅ Variable definition and lookup
 - ✅ Function definition and application
@@ -171,6 +185,7 @@ All features have been tested and verified:
 ## Example Usage
 
 ### Embedding in C Application
+
 ```c
 #include "lisp.h"
 
@@ -193,7 +208,8 @@ int main() {
 }
 ```
 
-### LISP Code Examples
+### Lisp Code Examples
+
 ```lisp
 ; Variables
 (define x 42)
@@ -223,7 +239,7 @@ int main() {
 
 ## Design Decisions
 
-1. **Tagged Union**: All LISP objects use a tagged union for type safety
+1. **Tagged Union**: All Lisp objects use a tagged union for type safety
 2. **Lexical Scoping**: Lambdas capture their environment
 3. **Automatic Garbage Collection**: Boehm GC for robust memory management
 4. **Truthy/Falsy**: JavaScript-like semantics for intuitive conditionals
@@ -243,12 +259,14 @@ int main() {
 ## Limitations and Future Enhancements
 
 Current limitations:
+
 - No tail call optimization
 - Simple environment implementation (linked list)
 - No macro system
 - No module/package system
 
 Potential enhancements:
+
 - Tail call optimization
 - Hash table environments
 - More data types (vectors, hash tables)
@@ -259,10 +277,11 @@ Potential enhancements:
 
 ## Conclusion
 
-The Telnet LISP Interpreter is a complete, working implementation suitable for:
+The Telnet Lisp Interpreter is a complete, working implementation suitable for:
+
 - Embedding in GUI applications
 - Scripting and configuration
-- Learning LISP implementation
+- Learning Lisp implementation
 - Extending with custom built-in functions
 - Text processing with regex support
 - Cross-platform development

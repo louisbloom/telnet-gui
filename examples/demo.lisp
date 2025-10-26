@@ -1,4 +1,4 @@
-; Mini LISP Interpreter Demo
+; Mini Lisp Interpreter Demo
 ; This file demonstrates all the features of the interpreter
 
 ; ===== ARITHMETIC =====

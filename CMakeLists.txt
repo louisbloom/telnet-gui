@@ -110,7 +110,7 @@ add_test(NAME repl_multiline_test
 # Package configuration
 set(CPACK_PACKAGE_NAME "TelnetLisp")
 set(CPACK_PACKAGE_VERSION "1.0.0")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Telnet LISP Interpreter")
-set(CPACK_PACKAGE_VENDOR "Telnet LISP Project")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Telnet Lisp Interpreter")
+set(CPACK_PACKAGE_VENDOR "Telnet Lisp Project")
 
 include(CPack)

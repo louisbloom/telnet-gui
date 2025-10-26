@@ -6,7 +6,7 @@
 #define MAX_INPUT 4096
 
 static void print_welcome(void) {
-    printf("Telnet LISP Interpreter v1.0\n");
+    printf("Telnet Lisp Interpreter v1.0\n");
     printf("Type expressions to evaluate, :quit to exit, :load <file> to load a file\n");
     printf(">>> ");
     fflush(stdout);

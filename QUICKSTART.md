@@ -1,4 +1,4 @@
-# Telnet LISP Interpreter - Quick Start Guide
+# Telnet Lisp Interpreter - Quick Start Guide
 
 ## Building the Project
 
@@ -9,6 +9,7 @@ make
 ```
 
 This creates:
+
 - `build/liblisp.a` - The embeddable library
 - `lisp-repl.exe` - The REPL application
 
@@ -36,7 +37,7 @@ Try these commands:
 
 ## Running Example Files
 
-Execute a LISP file:
+Execute a Lisp file:
 
 ```bash
 ./lisp-repl.exe examples/demo.lisp
@@ -45,6 +46,7 @@ Execute a LISP file:
 ## Quick Examples
 
 ### Variables and Functions
+
 ```lisp
 (define x 42)
 (define double (lambda (n) (* n 2)))
@@ -52,11 +54,13 @@ Execute a LISP file:
 ```
 
 ### Conditionals
+
 ```lisp
 (if (> 10 5) "yes" "no")  ; => "yes"
 ```
 
 ### String Operations
+
 ```lisp
 (concat "Hello" " " "World")        ; => "Hello World"
 (split "a,b,c" ",")                 ; => ("a" "b" "c")
@@ -64,6 +68,7 @@ Execute a LISP file:
 ```
 
 ### Lists
+
 ```lisp
 (define nums (list 1 2 3 4 5))
 (car nums)                          ; => 1
@@ -71,6 +76,7 @@ Execute a LISP file:
 ```
 
 ### Recursion
+
 ```lisp
 (define factorial
   (lambda (n)
@@ -101,6 +107,7 @@ int main() {
 ```
 
 Compile with:
+
 ```bash
 gcc myapp.c -Iinclude -Lbuild -llisp -lm -lgc -lpcre2-8 -o myapp.exe
 ```
@@ -108,7 +115,7 @@ gcc myapp.c -Iinclude -Lbuild -llisp -lm -lgc -lpcre2-8 -o myapp.exe
 ## REPL Commands
 
 - `:quit` - Exit the REPL
-- `:load <file>` - Load and execute a LISP file
+- `:load <file>` - Load and execute a Lisp file
 
 ## Truthy/Falsy Values
 
@@ -118,6 +125,7 @@ gcc myapp.c -Iinclude -Lbuild -llisp -lm -lgc -lpcre2-8 -o myapp.exe
 ## Pattern Matching
 
 Use wildcards in `split` and `string-match`:
+
 - `*` matches zero or more characters
 - `?` matches exactly one character
 - `[abc]` matches any character in set
@@ -132,6 +140,7 @@ Use wildcards in `split` and `string-match`:
 ## Regex Support
 
 Powerful PCRE2 regex functions:
+
 ```lisp
 (regex-match "\\d+" "hello123")  ; => 1
 (regex-find-all "[a-z]+" "hello world")  ; => ("hello" "world")
@@ -160,6 +169,7 @@ Powerful PCRE2 regex functions:
 ## More Examples
 
 See the `examples/` directory for more complete examples:
+
 - `examples/demo.lisp` - Comprehensive feature demonstration
 - `examples/factorial.lisp` - Recursive factorial function
 - `examples/strings.lisp` - String manipulation examples

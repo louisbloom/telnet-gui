@@ -32,7 +32,7 @@ typedef enum {
 /* Built-in function pointer type */
 typedef LispObject *(*BuiltinFunc)(LispObject *args, Environment *env);
 
-/* LISP object structure */
+/* Lisp object structure */
 struct LispObject {
     LispType type;
     union {

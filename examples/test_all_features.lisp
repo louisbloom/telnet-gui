@@ -1,4 +1,4 @@
-; Comprehensive test of all Mini LISP features
+; Comprehensive test of all Mini Lisp features
 ; This file tests every implemented feature
 
 ; === ARITHMETIC ===

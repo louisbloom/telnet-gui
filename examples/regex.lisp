@@ -1,4 +1,4 @@
-; Telnet LISP - Regex Examples
+; Telnet Lisp - Regex Examples
 ; Comprehensive demonstration of regex and pattern matching features
 
 ; ===== BASIC REGEX MATCHING =====
@@ -79,4 +79,3 @@
 
 ; Extract IPv4 addresses
 (regex-find-all "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}" "Server at 192.168.1.1 and 10.0.0.1")
-
