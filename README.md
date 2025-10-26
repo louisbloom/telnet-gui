@@ -159,7 +159,63 @@ A minimal, embeddable Lisp interpreter library written in C, designed to be inte
   - Line ending support for Unix (`\n`), Windows (`\r\n`), and Mac (`\r`) in file I/O
   - PCRE2 regex compiled with UTF-8 and Unicode character property support
 
+## Testing
+
+The project includes a comprehensive test suite. See [tests/README.md](tests/README.md) for details.
+
+```bash
+# Run all tests
+cd build && ctest
+
+# Run specific test category
+ctest -R basic
+
+# Run with verbose output
+ctest --verbose
+```
+
 ## Building
+
+### Prerequisites
+
+Install required packages for your platform:
+
+**Windows (MSYS2 UCRT64):**
+
+```bash
+pacman -S mingw-w64-ucrt-x86_64-gc mingw-w64-ucrt-x86_64-pcre2 mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake
+```
+
+**Linux/macOS:**
+
+```bash
+# Install via package manager
+sudo apt-get install libgc-dev libpcre2-8-dev      # Linux
+brew install bdw-gc pcre2                          # macOS
+```
+
+### Building
+
+**Quick Build:**
+
+```bash
+make
+```
+
+**CMake Build:**
+
+```bash
+mkdir build && cd build
+cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+cmake --build .
+```
+
+**Running Tests:**
+
+```bash
+make test          # Basic tests
+cd build && ctest  # Full test suite (CMake)
+```
 
 ## Windows Development
 
@@ -210,15 +266,7 @@ C:\msys64\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "make format"
 C:\msys64\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "mkdir -p build && cd build && cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
 ```
 
-**Note**: The default MSYS2 installation path is `C:\msys64`
-
-### Dependencies
-
-Install required packages:
-
-```bash
-pacman -S mingw-w64-ucrt-x86_64-gc mingw-w64-ucrt-x86_64-pcre2 mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake
-```
+**Note**: Adjust the MSYS2 path based on your installation (may be `C:\msys64`, `C:\Users\...\scoop\apps\msys2\current`, etc.)
 
 ### Verification
 
@@ -230,35 +278,6 @@ ldd lisp-repl.exe
 
 # Or use objdump
 objdump -p lisp-repl.exe | grep DLL
-```
-
-### Build Instructions
-
-**Quick Build:**
-
-```bash
-make
-```
-
-**Cross-platform Build:**
-
-```bash
-# Show platform information
-make info
-
-# Build for current platform
-make clean && make
-
-# Run tests
-make test
-```
-
-**CMake Build (Alternative):**
-
-```bash
-mkdir build && cd build
-cmake ..
-make
 ```
 
 **Installation:**
@@ -311,7 +330,7 @@ Execute Lisp files directly:
 Include the header and link with the library:
 
 ```c
-#include "lisp.h"
+#include "libtelnet-lisp/include/lisp.h"
 
 int main() {
     // Initialize the interpreter (includes GC initialization)
@@ -339,7 +358,49 @@ int main() {
 }
 ```
 
-## Language Examples
+## Examples
+
+The `tests/` directory contains comprehensive, validated examples that serve as both documentation and test cases. Each file demonstrates specific features with expected outputs:
+
+**Basic Features:**
+
+- `tests/basic/recursion.lisp` - Recursive functions and factorial
+- `tests/basic/vectors.lisp` - Vector operations and manipulation
+- `tests/basic/hash_tables.lisp` - Hash table operations
+- `tests/basic/integers.lisp` - Integer arithmetic and type coercion
+- `tests/basic/strings.lisp` - String operations
+
+**Advanced Features:**
+
+- `tests/advanced/named_functions.lisp` - Named function definitions
+- `tests/advanced/do_loop.lisp` - Iteration with `do` loops
+- `tests/advanced/cond_case.lisp` - Multi-way conditionals
+- `tests/advanced/progn.lisp` - Sequential evaluation
+- `tests/advanced/regex.lisp` - PCRE2 regex operations
+- `tests/advanced/utf8.lisp` - UTF-8 string support
+- `tests/advanced/file_io.lisp` - File reading and writing
+
+**Regression Tests:**
+
+- `tests/regression/core_features.lisp` - Comprehensive feature tests
+- `tests/regression/multiline_parsing.lisp` - Multi-line expression parsing
+
+Run the examples:
+
+```bash
+./lisp-repl.exe tests/basic/recursion.lisp
+./lisp-repl.exe tests/advanced/cond_case.lisp
+```
+
+View all examples:
+
+```bash
+find tests -name "*.lisp"
+```
+
+## Quick Examples
+
+Here are some quick examples to get started. For comprehensive examples with expected outputs, see the `tests/` directory.
 
 ### Basic Arithmetic
 
@@ -634,14 +695,15 @@ msg_count                            ; => 10
 (increment)                         ; => 2
 counter                             ; => 2
 
-; Perfect for telnet-gui hooks!
+; Example: Stateful counter function
 (define message_count 0)
-(define count_messages (lambda (data)
+(define count_messages (lambda ()
   (set! message_count (+ message_count 1))
-  data))                             ; Return data unchanged
+  message_count))                    ; Return current count
 
-(register-user-input-hook count_messages)
-message_count                        ; Increments as you type
+(count_messages)                     ; => 1
+(count_messages)                     ; => 2
+message_count                        ; => 2
 ```
 
 ### File I/O Operations
@@ -689,6 +751,14 @@ message_count                        ; Increments as you type
 
 (greet "World")                      ; => "Hello, World!"
 ```
+
+**For more comprehensive examples, see the test files in `tests/` directory:**
+
+- `tests/basic/` - Core functionality examples
+- `tests/advanced/` - Advanced feature examples
+- `tests/regression/` - Comprehensive test cases
+
+Each test file is both executable code and documentation with expected outputs marked inline.
 
 ## API Reference
 
@@ -755,22 +825,6 @@ Examples:
 (string-match "hello" "h[aeiou]llo") ; => 1
 (string-match "hello" "h[a-z]llo")   ; => 1
 ```
-
-## Regex Support
-
-Telnet Lisp includes powerful PCRE2 regex functions for advanced pattern matching:
-
-- `regex-match` - Test if string matches regex pattern
-- `regex-find` - Find first regex match
-- `regex-find-all` - Find all regex matches
-- `regex-extract` - Extract capture groups
-- `regex-replace` - Replace first match with backreferences
-- `regex-replace-all` - Replace all matches
-- `regex-split` - Split by regex pattern
-- `regex-escape` - Escape special regex characters
-- `regex-valid?` - Validate regex patterns
-
-See the `tests/` directory for comprehensive examples and test cases including regex, progn, loops, conditionals, and file I/O.
 
 ## License
 

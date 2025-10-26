@@ -1,81 +1,140 @@
-; Telnet Lisp - Regex Examples
-; Comprehensive demonstration of regex and pattern matching features
+;; Regular Expression Operations
+;; Comprehensive demonstration of PCRE2 regex pattern matching and manipulation
 
-; ===== BASIC REGEX MATCHING =====
-(regex-match "\\d+" "hello123")           ; Match digits
-(regex-match "^[a-z]+$" "hello")          ; Match lowercase only
-(regex-match "test" "this is a test")     ; Simple substring match
+;; ===========================================
+;; Basic Regex Matching
+;; ===========================================
 
-; ===== FINDING MATCHES =====
-(regex-find "\\d+" "abc123def")           ; Find first number
-(regex-find-all "\\d+" "a1b2c3")          ; Find all numbers
-(regex-find-all "\\w+" "hello world test") ; Find all words
+;; Test digit matching
+(regex-match "\\d+" "hello123")                ; => 1
 
-; ===== EXTRACTING CAPTURE GROUPS =====
-(regex-extract "(\\w+)@(\\w+)" "user@domain")  ; Extract email parts
-(regex-extract "(\\d+)-(\\d+)-(\\d+)" "2025-10-24")  ; Extract date parts
-(regex-extract "([A-Z]+)-(\\d+)" "ABC-123")  ; Extract code parts
+;; Test character class matching
+(regex-match "^[a-z]+$" "hello")               ; => 1
 
-; ===== REPLACING TEXT =====
-(regex-replace "\\d+" "X" "a1b2c3")       ; Replace first number
-(regex-replace-all "\\d+" "X" "a1b2c3")   ; Replace all numbers
+;; Simple substring matching
+(regex-match "test" "this is a test")          ; => 1
 
-; Replace with capture groups
-(regex-replace "(\\w+)@(\\w+)" "$2@$1" "user@domain")  ; Swap email parts
-(regex-replace "(\\d+)-(\\d+)" "$2/$1" "2025-10")      ; Change date format
+;; ===========================================
+;; Finding Matches
+;; ===========================================
 
-; ===== SPLITTING STRINGS =====
-(regex-split "\\s+" "hello  world  test") ; Split by whitespace
-(regex-split "," "apple,banana,cherry")   ; Split by comma
-(regex-split "[,;]" "a,b;c,d")           ; Split by comma or semicolon
+;; Find first match
+(regex-find "\\d+" "abc123def")                ; => "123"
 
-; ===== UTILITY FUNCTIONS =====
-(regex-escape "test.string*with?special")  ; Escape special chars
-(regex-valid? "\\d+")                      ; Valid regex
-(regex-valid? "[invalid")                  ; Invalid regex
+;; Find all matches
+(regex-find-all "\\d+" "a1b2c3")               ; => ("1" "2" "3")
 
-; ===== ENHANCED WILDCARD MATCHING =====
-; Character classes
-(string-match "[abc]test" "atest")        ; Match any of a, b, c
-(string-match "[a-z]+" "hello")           ; Match lowercase range
-(string-match "[!0-9]+" "abc")            ; Match non-digits
+;; Find all words
+(regex-find-all "\\w+" "hello world test")      ; => ("hello" "world" "test")
 
-; Wildcards
-(string-match "test*" "test123")          ; * matches zero or more
-(string-match "test?" "test1")            ; ? matches exactly one
+;; ===========================================
+;; Extracting Capture Groups
+;; ===========================================
 
-; ===== PRACTICAL EXAMPLES =====
+;; Extract email username and domain
+(regex-extract "(\\w+)@(\\w+)" "user@domain")  ; => ("user" "domain")
 
-; Email validation
+;; Extract date components (YYYY-MM-DD)
+(regex-extract "(\\d+)-(\\d+)-(\\d+)" "2025-10-24") ; => ("2025" "10" "24")
+
+;; Extract code parts
+(regex-extract "([A-Z]+)-(\\d+)" "ABC-123")     ; => ("ABC" "123")
+
+;; ===========================================
+;; Replacing Text
+;; ===========================================
+
+;; Replace first occurrence
+(regex-replace "\\d+" "X" "a1b2c3")           ; => "aXb2c3"
+
+;; Replace all occurrences
+(regex-replace-all "\\d+" "X" "a1b2c3")       ; => "aXbXcX"
+
+;; Replace with capture groups - swap email parts
+(regex-replace "(\\w+)@(\\w+)" "$2@$1" "user@domain") ; => "domain@user"
+
+;; Replace with capture groups - change date format
+(regex-replace "(\\d+)-(\\d+)" "$2/$1" "2025-10")      ; => "10/2025"
+
+;; ===========================================
+;; Splitting Strings
+;; ===========================================
+
+;; Split by whitespace
+(regex-split "\\s+" "hello  world  test")      ; => ("hello" "world" "test")
+
+;; Split by comma
+(regex-split "," "apple,banana,cherry")         ; => ("apple" "banana" "cherry")
+
+;; Split by multiple delimiters
+(regex-split "[,;]" "a,b;c,d")                 ; => ("a" "b" "c" "d")
+
+;; ===========================================
+;; Utility Functions
+;; ===========================================
+
+;; Escape special regex characters
+(regex-escape "test.string*with?special")      ; => "test\\.string\\*with\\?special"
+
+;; Check if regex pattern is valid
+(regex-valid? "\\d+")                          ; => 1
+(regex-valid? "[invalid")                      ; => 0
+
+;; ===========================================
+;; Enhanced Wildcard Matching
+;; ===========================================
+
+;; Character classes - match any of a, b, or c
+(string-match "[abc]test" "atest")             ; => 1
+
+;; Character ranges - match lowercase
+(string-match "[a-z]+" "hello")                ; => 1
+
+;; Negated classes - match non-digits
+(string-match "[!0-9]+" "abc")                 ; => 1
+
+;; Wildcards - * matches zero or more
+(string-match "test*" "test123")                ; => 1
+
+;; Wildcards - ? matches exactly one
+(string-match "test?" "test1")                 ; => 1
+
+;; ===========================================
+;; Practical Examples
+;; ===========================================
+
+;; Email validation
 (define email-pattern "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")
-(regex-match email-pattern "user@example.com")
-(regex-match email-pattern "invalid.email")
+(regex-match email-pattern "user@example.com") ; => 1
+(regex-match email-pattern "invalid.email")    ; => 0
 
-; Phone number extraction
-(regex-find-all "\\d{3}-\\d{4}" "Call 555-1234 or 555-5678")
+;; Extract phone numbers
+(regex-find-all "\\d{3}-\\d{4}" "Call 555-1234 or 555-5678") ; => ("555-1234" "555-5678")
 
-; URL parsing
+;; URL parsing
 (regex-extract "(https?)://([^/]+)(/.*)?" "https://example.com/path")
+;; Result: ("https" "example.com" "/path")
 
-; Extract all numbers from text
-(regex-find-all "\\d+" "I have 3 apples and 5 oranges")
+;; Extract all numbers from text
+(regex-find-all "\\d+" "I have 3 apples and 5 oranges") ; => ("3" "5")
 
-; Clean whitespace
-(regex-replace-all "\\s+" " " "hello    world   test")
+;; Clean multiple whitespace
+(regex-replace-all "\\s+" " " "hello    world   test")    ; => "hello world test"
 
-; Extract words starting with capital letter
-(regex-find-all "[A-Z][a-z]+" "Hello World Test")
+;; Extract capitalized words
+(regex-find-all "[A-Z][a-z]+" "Hello World Test")        ; => ("Hello" "World" "Test")
 
-; Password validation (at least one digit, one letter, 8+ chars)
+;; Password validation (8+ chars, alphanumeric)
 (define password-pattern "^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d]{8,}$")
-(regex-match password-pattern "Password123")
-(regex-match password-pattern "weak")
+(regex-match password-pattern "Password123")   ; => 1
+(regex-match password-pattern "weak")           ; => 0
 
-; Extract hashtags
-(regex-find-all "#\\w+" "Check out #lisp and #programming!")
+;; Extract hashtags
+(regex-find-all "#\\w+" "Check out #lisp and #programming!") ; => ("#lisp" "#programming")
 
-; Remove HTML tags
-(regex-replace-all "<[^>]+>" "" "<p>Hello <b>World</b></p>")
+;; Remove HTML tags
+(regex-replace-all "<[^>]+>" "" "<p>Hello <b>World</b></p>") ; => "Hello World"
 
-; Extract IPv4 addresses
+;; Extract IPv4 addresses
 (regex-find-all "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}" "Server at 192.168.1.1 and 10.0.0.1")
+;; Result: ("192.168.1.1" "10.0.0.1")
