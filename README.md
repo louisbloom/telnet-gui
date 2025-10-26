@@ -27,6 +27,8 @@ A minimal, embeddable Lisp interpreter library written in C, designed to be inte
 - `let*` - Local variable bindings (sequential evaluation, can reference previous bindings)
 - `progn` - Evaluate multiple expressions sequentially and return last value
 - `do` - Iteration loop with variable updates and exit condition
+- `cond` - Multi-way conditional with test clauses
+- `case` - Pattern matching with value-based dispatch
 
 ### Arithmetic Functions
 
@@ -551,6 +553,36 @@ int main() {
   (set! sum (+ sum i)))              ; => 55 (sum 1 to 10)
 ```
 
+### Cond and Case (Multi-way Conditionals)
+
+```lisp
+; Grade calculator using cond
+(define grade
+  (lambda (score)
+    (cond
+      ((>= score 90) "A")
+      ((>= score 80) "B")
+      ((>= score 70) "C")
+      ((>= score 60) "D")
+      (else "F"))))
+
+(grade 95)  ; => "A"
+(grade 75)  ; => "C"
+
+; Day of week using case
+(define day-name
+  (lambda (n)
+    (case n
+      ((1) "Monday")
+      ((2) "Tuesday")
+      ((6 7) "Weekend")
+      (else "Invalid"))))
+
+(day-name 1)   ; => "Monday"
+(day-name 6)   ; => "Weekend"
+(day-name 99)  ; => "Invalid"
+```
+
 ### Global State Management
 
 ```lisp
@@ -759,10 +791,9 @@ Potential additions for future versions:
 - **Do Loop**: Efficient iteration construct with tail-call optimization for long-running loops
 - **Integer Operations**: Remainder, even?, odd? predicates for number operations
 - **Collection Iteration**: Hash table iteration (keys, values, entries) and list convenience functions (length, ref)
+- **Conditional Forms**: cond (multi-way conditional) and case (pattern matching)
 
 ### High Priority
-
-- Additional special forms (`cond`, `case`)
 - Better error recovery and stack traces
 - Tail call optimization for better recursion performance
 

@@ -14,7 +14,7 @@
 (define keys (hash-keys ht))
 ;; keys = ("name" "age" "city")
 
-;; Get all values  
+;; Get all values
 (define values (hash-values ht))
 ;; values = ("Alice" 30 "NYC")
 
@@ -122,4 +122,3 @@
 
 (define empty_vec #())
 (vector-length empty_vec) ; => 0
-

@@ -12,6 +12,8 @@ static LispObject *eval_let(LispObject *args, Environment *env);
 static LispObject *eval_let_star(LispObject *args, Environment *env);
 static LispObject *eval_progn(LispObject *args, Environment *env);
 static LispObject *eval_do(LispObject *args, Environment *env);
+static LispObject *eval_cond(LispObject *args, Environment *env);
+static LispObject *eval_case(LispObject *args, Environment *env);
 static LispObject *apply(LispObject *func, LispObject *args, Environment *env);
 
 LispObject *lisp_eval(LispObject *expr, Environment *env) {
@@ -104,6 +106,14 @@ static LispObject *eval_list(LispObject *list, Environment *env) {
 
         if (strcmp(first->value.symbol, "do") == 0) {
             return eval_do(lisp_cdr(list), env);
+        }
+
+        if (strcmp(first->value.symbol, "cond") == 0) {
+            return eval_cond(lisp_cdr(list), env);
+        }
+
+        if (strcmp(first->value.symbol, "case") == 0) {
+            return eval_case(lisp_cdr(list), env);
         }
     }
 
@@ -478,6 +488,129 @@ static LispObject *eval_do(LispObject *args, Environment *env) {
             binding_list = lisp_cdr(binding_list);
         }
     }
+}
+
+static LispObject *eval_cond(LispObject *args, Environment *env) {
+    if (args == NIL) {
+        return NIL;
+    }
+
+    while (args != NIL && args != NULL) {
+        LispObject *clause = lisp_car(args);
+
+        if (clause->type != LISP_CONS) {
+            return lisp_make_error("cond clause must be a list");
+        }
+
+        LispObject *test = lisp_car(clause);
+        LispObject *result = lisp_cdr(clause);
+
+        /* Check for 'else' */
+        if (test->type == LISP_SYMBOL && strcmp(test->value.symbol, "else") == 0) {
+            if (result != NIL && result != NULL) {
+                return lisp_eval(lisp_car(result), env);
+            }
+            return NIL;
+        }
+
+        /* Evaluate test */
+        LispObject *test_result = lisp_eval(test, env);
+        if (test_result->type == LISP_ERROR) {
+            return test_result;
+        }
+
+        /* If true, evaluate and return result */
+        if (lisp_is_truthy(test_result)) {
+            if (result != NIL && result != NULL) {
+                return lisp_eval(lisp_car(result), env);
+            }
+            return test_result;
+        }
+
+        args = lisp_cdr(args);
+    }
+
+    return NIL;
+}
+
+static int objects_equal(LispObject *a, LispObject *b) {
+    if (a->type != b->type) {
+        return 0;
+    }
+
+    switch (a->type) {
+    case LISP_INTEGER:
+        return a->value.integer == b->value.integer;
+    case LISP_NUMBER:
+        return a->value.number == b->value.number;
+    case LISP_STRING:
+        return strcmp(a->value.string, b->value.string) == 0;
+    case LISP_BOOLEAN:
+        return a->value.boolean == b->value.boolean;
+    case LISP_NIL:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+static LispObject *eval_case(LispObject *args, Environment *env) {
+    if (args == NIL) {
+        return lisp_make_error("case requires at least 1 argument");
+    }
+
+    /* Evaluate key expression once */
+    LispObject *key = lisp_eval(lisp_car(args), env);
+    if (key->type == LISP_ERROR) {
+        return key;
+    }
+
+    LispObject *clauses = lisp_cdr(args);
+
+    while (clauses != NIL && clauses != NULL) {
+        LispObject *clause = lisp_car(clauses);
+
+        if (clause->type != LISP_CONS) {
+            return lisp_make_error("case clause must be a list");
+        }
+
+        LispObject *values = lisp_car(clause);
+        LispObject *result = lisp_cdr(clause);
+
+        /* Check for 'else' */
+        if (values->type == LISP_SYMBOL && strcmp(values->value.symbol, "else") == 0) {
+            if (result != NIL && result != NULL) {
+                return lisp_eval(lisp_car(result), env);
+            }
+            return NIL;
+        }
+
+        /* Compare key with each value in the list */
+        if (values->type == LISP_CONS) {
+            LispObject *val_list = values;
+            while (val_list != NIL && val_list != NULL) {
+                LispObject *val = lisp_car(val_list);
+                LispObject *val_result = lisp_eval(val, env);
+
+                if (val_result->type == LISP_ERROR) {
+                    return val_result;
+                }
+
+                if (objects_equal(key, val_result)) {
+                    if (result != NIL && result != NULL) {
+                        return lisp_eval(lisp_car(result), env);
+                    }
+                    return NIL;
+                }
+
+                val_list = lisp_cdr(val_list);
+            }
+        }
+
+        clauses = lisp_cdr(clauses);
+    }
+
+    return NIL;
 }
 
 static LispObject *apply(LispObject *func, LispObject *args, Environment *env) {
