@@ -44,7 +44,7 @@ LispObject *lisp_eval(LispObject *expr, Environment *env) {
         if (value == NULL) {
             char error[256];
             snprintf(error, sizeof(error), "Undefined symbol: %s", expr->value.symbol);
-            return lisp_make_error(error);
+            return lisp_make_error_with_stack(error, env);
         }
         return value;
     }
@@ -615,29 +615,65 @@ static LispObject *eval_case(LispObject *args, Environment *env) {
 
 static LispObject *apply(LispObject *func, LispObject *args, Environment *env) {
     if (func->type == LISP_BUILTIN) {
-        return func->value.builtin.func(args, env);
+        /* Push call frame for builtin */
+        push_call_frame(env, func->value.builtin.name);
+
+        /* Call builtin */
+        LispObject *result = func->value.builtin.func(args, env);
+
+        /* Pop frame */
+        pop_call_frame(env);
+
+        /* If error, attach stack trace */
+        if (result->type == LISP_ERROR) {
+            return lisp_attach_stack_trace(result, env);
+        }
+
+        return result;
     }
 
     if (func->type == LISP_LAMBDA) {
         /* Create new environment with closure as parent */
         Environment *new_env = env_create(func->value.lambda.closure);
+        if (env && env->call_stack != NULL) {
+            new_env->call_stack = env->call_stack; /* Inherit call stack */
+        }
+
+        /* Generate lambda name for stack trace */
+        char lambda_name[128];
+        LispObject *lambda_params = func->value.lambda.params;
+        if (lambda_params != NIL && lambda_params->type == LISP_CONS && lisp_car(lambda_params) != NULL &&
+            lisp_car(lambda_params)->type == LISP_SYMBOL) {
+            snprintf(lambda_name, sizeof(lambda_name), "lambda/%s", lisp_car(lambda_params)->value.symbol);
+        } else {
+            snprintf(lambda_name, sizeof(lambda_name), "lambda");
+        }
+
+        /* Push call frame for lambda */
+        push_call_frame(new_env, lambda_name);
 
         /* Bind parameters */
-        LispObject *params = func->value.lambda.params;
+        LispObject *params = lambda_params;
         LispObject *arg_list = args;
 
         while (params != NIL && params != NULL) {
             if (params->type != LISP_CONS) {
-                return lisp_make_error("Invalid lambda parameter list");
+                LispObject *err = lisp_make_error_with_stack("Invalid lambda parameter list", new_env);
+                pop_call_frame(new_env);
+                return err;
             }
 
             LispObject *param = lisp_car(params);
             if (param->type != LISP_SYMBOL) {
-                return lisp_make_error("Lambda parameter must be a symbol");
+                LispObject *err = lisp_make_error_with_stack("Lambda parameter must be a symbol", new_env);
+                pop_call_frame(new_env);
+                return err;
             }
 
             if (arg_list == NIL) {
-                return lisp_make_error("Too few arguments to lambda");
+                LispObject *err = lisp_make_error_with_stack("Too few arguments to lambda", new_env);
+                pop_call_frame(new_env);
+                return err;
             }
 
             LispObject *arg = lisp_car(arg_list);
@@ -648,11 +684,23 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env) {
         }
 
         if (arg_list != NIL) {
-            return lisp_make_error("Too many arguments to lambda");
+            LispObject *err = lisp_make_error_with_stack("Too many arguments to lambda", new_env);
+            pop_call_frame(new_env);
+            return err;
         }
 
-        return lisp_eval(func->value.lambda.body, new_env);
+        LispObject *result = lisp_eval(func->value.lambda.body, new_env);
+
+        /* Pop frame */
+        pop_call_frame(new_env);
+
+        /* If error, attach stack trace */
+        if (result->type == LISP_ERROR) {
+            return lisp_attach_stack_trace(result, env);
+        }
+
+        return result;
     }
 
-    return lisp_make_error("Cannot apply non-function");
+    return lisp_make_error_with_stack("Cannot apply non-function", env);
 }

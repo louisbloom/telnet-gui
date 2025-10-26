@@ -12,6 +12,13 @@
 /* Forward declarations */
 typedef struct LispObject LispObject;
 typedef struct Environment Environment;
+typedef struct CallStackFrame CallStackFrame;
+
+/* Call stack frame structure */
+struct CallStackFrame {
+    char *function_name;
+    CallStackFrame *parent;
+};
 
 /* Object types */
 typedef enum {
@@ -68,6 +75,10 @@ struct LispObject {
             size_t entry_count;
             size_t capacity;
         } hash_table;
+        struct {
+            char *error;
+            LispObject *stack_trace; /* List of function names */
+        } error_with_stack;
     } value;
 };
 
@@ -79,6 +90,7 @@ struct Environment {
         struct Binding *next;
     } *bindings;
     Environment *parent;
+    CallStackFrame *call_stack; /* Current call stack */
 };
 
 /* Global NIL object */
@@ -134,6 +146,13 @@ LispObject *env_lookup(Environment *env, const char *name);
 int env_set(Environment *env, const char *name, LispObject *value);
 void env_free(Environment *env);
 Environment *env_create_global(void);
+
+/* Call stack functions */
+void push_call_frame(Environment *env, const char *function_name);
+void pop_call_frame(Environment *env);
+LispObject *capture_call_stack(Environment *env);
+LispObject *lisp_make_error_with_stack(const char *message, Environment *env);
+LispObject *lisp_attach_stack_trace(LispObject *error, Environment *env);
 
 /* List utilities */
 LispObject *lisp_car(LispObject *obj);

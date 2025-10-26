@@ -46,7 +46,8 @@ static int handle_command(const char *input, Environment *env) {
         LispObject *result = lisp_load_file(fname, env);
 
         if (result->type == LISP_ERROR) {
-            printf("ERROR: %s\n", result->value.error);
+            char *err_str = lisp_print(result);
+            printf("ERROR: %s\n", err_str);
         } else {
             char *output = lisp_print(result);
             printf("%s\n", output);
@@ -113,14 +114,16 @@ int main(int argc, char **argv) {
                 }
 
                 if (expr->type == LISP_ERROR) {
-                    fprintf(stderr, "ERROR in %s: %s\n", argv[i], expr->value.error);
+                    char *err_str = lisp_print(expr);
+                    fprintf(stderr, "ERROR in %s: %s\n", argv[i], err_str);
                     return 1;
                 }
 
                 LispObject *result = lisp_eval(expr, env);
 
                 if (result->type == LISP_ERROR) {
-                    fprintf(stderr, "ERROR in %s: %s\n", argv[i], result->value.error);
+                    char *err_str = lisp_print(result);
+                    fprintf(stderr, "ERROR in %s: %s\n", argv[i], err_str);
                     return 1;
                 }
 
@@ -212,7 +215,8 @@ int main(int argc, char **argv) {
         LispObject *result = lisp_eval(expr, env);
 
         if (result->type == LISP_ERROR) {
-            printf("ERROR: %s\n", result->value.error);
+            char *err_str = lisp_print(result);
+            printf("ERROR: %s\n", err_str);
             /* Reset buffer on error too */
             expr_pos = 0;
             expr_buffer[0] = '\0';

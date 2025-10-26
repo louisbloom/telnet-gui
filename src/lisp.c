@@ -54,8 +54,26 @@ LispObject *lisp_make_cons(LispObject *car, LispObject *cdr) {
 LispObject *lisp_make_error(const char *message) {
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_ERROR;
-    obj->value.error = GC_strdup(message);
+    obj->value.error_with_stack.error = GC_strdup(message);
+    obj->value.error_with_stack.stack_trace = NIL;
     return obj;
+}
+
+LispObject *lisp_make_error_with_stack(const char *message, Environment *env) {
+    LispObject *obj = GC_malloc(sizeof(LispObject));
+    obj->type = LISP_ERROR;
+    obj->value.error_with_stack.error = GC_strdup(message);
+    obj->value.error_with_stack.stack_trace = capture_call_stack(env);
+    return obj;
+}
+
+LispObject *lisp_attach_stack_trace(LispObject *error, Environment *env) {
+    if (error->type == LISP_ERROR) {
+        if (error->value.error_with_stack.stack_trace == NIL || error->value.error_with_stack.stack_trace == NULL) {
+            error->value.error_with_stack.stack_trace = capture_call_stack(env);
+        }
+    }
+    return error;
 }
 
 LispObject *lisp_make_builtin(BuiltinFunc func, const char *name) {

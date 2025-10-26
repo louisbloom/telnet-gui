@@ -59,10 +59,24 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
         append_str(buffer, size, pos, "#<lambda>");
         break;
 
-    case LISP_ERROR:
+    case LISP_ERROR: {
         append_str(buffer, size, pos, "ERROR: ");
-        append_str(buffer, size, pos, obj->value.error);
+        append_str(buffer, size, pos, obj->value.error_with_stack.error);
+
+        /* Print stack trace if available */
+        if (obj->value.error_with_stack.stack_trace != NIL && obj->value.error_with_stack.stack_trace != NULL) {
+            LispObject *stack = obj->value.error_with_stack.stack_trace;
+            append_str(buffer, size, pos, "\nCall stack:");
+            int frame_num = 0;
+            while (stack != NIL && stack->type == LISP_CONS && frame_num < 20) {
+                append_str(buffer, size, pos, "\n  at ");
+                print_object(lisp_car(stack), buffer, size, pos);
+                stack = lisp_cdr(stack);
+                frame_num++;
+            }
+        }
         break;
+    }
 
     case LISP_INTEGER:
         snprintf(temp, sizeof(temp), "%lld", obj->value.integer);
