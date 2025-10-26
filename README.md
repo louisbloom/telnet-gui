@@ -792,9 +792,9 @@ Potential additions for future versions:
 - **Integer Operations**: Remainder, even?, odd? predicates for number operations
 - **Collection Iteration**: Hash table iteration (keys, values, entries) and list convenience functions (length, ref)
 - **Conditional Forms**: cond (multi-way conditional) and case (pattern matching)
+- **Error Recovery**: Lisp-level call stack traces show the call chain when errors occur
 
 ### High Priority
-- Better error recovery and stack traces
 - Tail call optimization for better recursion performance
 
 ### Medium Priority
