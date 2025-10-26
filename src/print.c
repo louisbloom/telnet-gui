@@ -63,6 +63,34 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
         append_str(buffer, size, pos, "ERROR: ");
         append_str(buffer, size, pos, obj->value.error);
         break;
+
+    case LISP_INTEGER:
+        snprintf(temp, sizeof(temp), "%lld", obj->value.integer);
+        append_str(buffer, size, pos, temp);
+        break;
+
+    case LISP_BOOLEAN:
+        append_str(buffer, size, pos, obj->value.boolean ? "#t" : "#f");
+        break;
+
+    case LISP_VECTOR:
+        append_str(buffer, size, pos, "#(");
+        for (size_t i = 0; i < obj->value.vector.size; i++) {
+            if (i > 0) {
+                append_str(buffer, size, pos, " ");
+            }
+            print_object(obj->value.vector.items[i], buffer, size, pos);
+        }
+        append_str(buffer, size, pos, ")");
+        break;
+
+    case LISP_HASH_TABLE:
+        append_str(buffer, size, pos, "#<hash-table>");
+        break;
+
+    case LISP_FILE_STREAM:
+        append_str(buffer, size, pos, "#<file-stream>");
+        break;
     }
 }
 

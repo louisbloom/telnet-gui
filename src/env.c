@@ -42,6 +42,22 @@ LispObject *env_lookup(Environment *env, const char *name) {
     return NULL;
 }
 
+int env_set(Environment *env, const char *name, LispObject *value) {
+    /* Look for binding in current or parent environments */
+    while (env != NULL) {
+        struct Binding *binding = env->bindings;
+        while (binding != NULL) {
+            if (strcmp(binding->name, name) == 0) {
+                binding->value = value;
+                return 1; /* Successfully updated */
+            }
+            binding = binding->next;
+        }
+        env = env->parent;
+    }
+    return 0; /* Variable not found */
+}
+
 void env_free(Environment *env) {
     /* GC handles cleanup automatically */
     /* We don't need to free individual bindings or the environment */

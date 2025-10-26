@@ -90,7 +90,7 @@ REPL_OBJECTS = $(BUILD_DIR)/main.o
 LIBRARY = $(BUILD_DIR)/liblisp.a
 REPL_EXEC = lisp-repl$(EXE_EXT)
 
-.PHONY: all clean test info
+.PHONY: all clean test info format
 
 all: $(BUILD_DIR) $(LIBRARY) $(REPL_EXEC)
 	@echo "Build complete for $(OS)!"
@@ -146,6 +146,12 @@ info:
 	@echo "Flags: $(CFLAGS)"
 	@echo "Linker flags: $(LDFLAGS)"
 	@echo "Executable extension: $(EXE_EXT)"
+
+# Format source code
+format:
+	@echo "Formatting C source files..."
+	@clang-format -i $(SRC_DIR)/*.c $(REPL_DIR)/*.c
+	@echo "Formatting complete!"
 
 # Test target (run some basic tests)
 test: $(REPL_EXEC)

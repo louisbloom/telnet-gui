@@ -6,8 +6,11 @@
 static LispObject *eval_list(LispObject *list, Environment *env);
 static LispObject *eval_if(LispObject *args, Environment *env);
 static LispObject *eval_define(LispObject *args, Environment *env);
+static LispObject *eval_set_bang(LispObject *args, Environment *env);
 static LispObject *eval_lambda(LispObject *args, Environment *env);
 static LispObject *eval_let(LispObject *args, Environment *env);
+static LispObject *eval_let_star(LispObject *args, Environment *env);
+static LispObject *eval_progn(LispObject *args, Environment *env);
 static LispObject *apply(LispObject *func, LispObject *args, Environment *env);
 
 LispObject *lisp_eval(LispObject *expr, Environment *env) {
@@ -20,9 +23,14 @@ LispObject *lisp_eval(LispObject *expr, Environment *env) {
         return NIL;
 
     case LISP_NUMBER:
+    case LISP_INTEGER:
     case LISP_STRING:
+    case LISP_BOOLEAN:
     case LISP_BUILTIN:
     case LISP_LAMBDA:
+    case LISP_FILE_STREAM:
+    case LISP_VECTOR:
+    case LISP_HASH_TABLE:
         return expr;
 
     case LISP_ERROR:
@@ -73,12 +81,24 @@ static LispObject *eval_list(LispObject *list, Environment *env) {
             return eval_define(lisp_cdr(list), env);
         }
 
+        if (strcmp(first->value.symbol, "set!") == 0) {
+            return eval_set_bang(lisp_cdr(list), env);
+        }
+
         if (strcmp(first->value.symbol, "lambda") == 0) {
             return eval_lambda(lisp_cdr(list), env);
         }
 
         if (strcmp(first->value.symbol, "let") == 0) {
             return eval_let(lisp_cdr(list), env);
+        }
+
+        if (strcmp(first->value.symbol, "let*") == 0) {
+            return eval_let_star(lisp_cdr(list), env);
+        }
+
+        if (strcmp(first->value.symbol, "progn") == 0) {
+            return eval_progn(lisp_cdr(list), env);
         }
     }
 
@@ -170,6 +190,39 @@ static LispObject *eval_define(LispObject *args, Environment *env) {
     return value;
 }
 
+static LispObject *eval_set_bang(LispObject *args, Environment *env) {
+    if (args == NIL) {
+        return lisp_make_error("set! requires 2 arguments");
+    }
+
+    LispObject *name = lisp_car(args);
+    if (name->type != LISP_SYMBOL) {
+        return lisp_make_error("set! requires a symbol as first argument");
+    }
+
+    LispObject *rest = lisp_cdr(args);
+    if (rest == NIL) {
+        return lisp_make_error("set! requires 2 arguments");
+    }
+
+    LispObject *value_expr = lisp_car(rest);
+    LispObject *value = lisp_eval(value_expr, env);
+
+    if (value->type == LISP_ERROR) {
+        return value;
+    }
+
+    /* Try to update existing binding */
+    if (!env_set(env, name->value.symbol, value)) {
+        /* If not found, error */
+        char error[256];
+        snprintf(error, sizeof(error), "set!: cannot set undefined variable: %s", name->value.symbol);
+        return lisp_make_error(error);
+    }
+
+    return value;
+}
+
 static LispObject *eval_lambda(LispObject *args, Environment *env) {
     if (args == NIL) {
         return lisp_make_error("lambda requires at least 2 arguments");
@@ -234,6 +287,78 @@ static LispObject *eval_let(LispObject *args, Environment *env) {
     }
 
     return lisp_eval(body, new_env);
+}
+
+static LispObject *eval_let_star(LispObject *args, Environment *env) {
+    if (args == NIL) {
+        return lisp_make_error("let* requires at least 2 arguments");
+    }
+
+    LispObject *bindings = lisp_car(args);
+    LispObject *rest = lisp_cdr(args);
+
+    if (rest == NIL) {
+        return lisp_make_error("let* requires a body");
+    }
+
+    LispObject *body = lisp_car(rest);
+
+    /* Create new environment - will be extended as we process bindings */
+    Environment *new_env = env_create(env);
+
+    /* Process bindings sequentially */
+    while (bindings != NIL && bindings != NULL) {
+        LispObject *binding = lisp_car(bindings);
+
+        if (binding->type != LISP_CONS) {
+            return lisp_make_error("let* binding must be a list");
+        }
+
+        LispObject *name = lisp_car(binding);
+        if (name->type != LISP_SYMBOL) {
+            return lisp_make_error("let* binding name must be a symbol");
+        }
+
+        LispObject *value_list = lisp_cdr(binding);
+        if (value_list == NIL) {
+            return lisp_make_error("let* binding requires a value");
+        }
+
+        LispObject *value_expr = lisp_car(value_list);
+
+        /* Evaluate in the new_env (which includes previous bindings) */
+        LispObject *value = lisp_eval(value_expr, new_env);
+
+        if (value->type == LISP_ERROR) {
+            return value;
+        }
+
+        env_define(new_env, name->value.symbol, value);
+        bindings = lisp_cdr(bindings);
+    }
+
+    return lisp_eval(body, new_env);
+}
+
+static LispObject *eval_progn(LispObject *args, Environment *env) {
+    if (args == NIL) {
+        return NIL;
+    }
+
+    LispObject *result = NIL;
+
+    while (args != NIL && args != NULL) {
+        LispObject *expr = lisp_car(args);
+        result = lisp_eval(expr, env);
+
+        if (result->type == LISP_ERROR) {
+            return result;
+        }
+
+        args = lisp_cdr(args);
+    }
+
+    return result;
 }
 
 static LispObject *apply(LispObject *func, LispObject *args, Environment *env) {

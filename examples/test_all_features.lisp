@@ -75,10 +75,10 @@
 (cons 0 (list 1 2 3))      ; (0 1 2 3)
 
 ; === PREDICATES ===
-(null nil)                 ; 1
-(null 5)                   ; nil
-(atom 42)                  ; 1
-(atom (list 1 2))          ; nil
+(null? nil)                ; 1
+(null? 5)                  ; nil
+(atom? 42)                 ; 1
+(atom? (list 1 2))         ; nil
 
 ; === QUOTES ===
 '(1 2 3)                   ; (1 2 3)

@@ -17,17 +17,19 @@ static void print_prompt(void) {
     fflush(stdout);
 }
 
-static int handle_command(const char* input, Environment* env) {
+static int handle_command(const char *input, Environment *env) {
     /* Skip leading whitespace */
-    while (*input == ' ' || *input == '\t') input++;
+    while (*input == ' ' || *input == '\t')
+        input++;
 
     if (strncmp(input, ":quit", 5) == 0) {
         return 1; /* Exit */
     }
 
     if (strncmp(input, ":load", 5) == 0) {
-        const char* filename = input + 5;
-        while (*filename == ' ' || *filename == '\t') filename++;
+        const char *filename = input + 5;
+        while (*filename == ' ' || *filename == '\t')
+            filename++;
 
         if (*filename == '\0') {
             printf("ERROR: :load requires a filename\n");
@@ -35,16 +37,17 @@ static int handle_command(const char* input, Environment* env) {
         }
 
         /* Remove trailing newline */
-        char* fname = GC_strdup(filename);
-        char* newline = strchr(fname, '\n');
-        if (newline) *newline = '\0';
+        char *fname = GC_strdup(filename);
+        char *newline = strchr(fname, '\n');
+        if (newline)
+            *newline = '\0';
 
-        LispObject* result = lisp_load_file(fname, env);
+        LispObject *result = lisp_load_file(fname, env);
 
         if (result->type == LISP_ERROR) {
             printf("ERROR: %s\n", result->value.error);
         } else {
-            char* output = lisp_print(result);
+            char *output = lisp_print(result);
             printf("%s\n", output);
         }
 
@@ -54,22 +57,22 @@ static int handle_command(const char* input, Environment* env) {
     return -1; /* Not a command */
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     /* Initialize interpreter */
     lisp_init();
-    Environment* env = env_create_global();
+    Environment *env = env_create_global();
 
     /* If file argument provided, load and execute it */
     if (argc > 1) {
         for (int i = 1; i < argc; i++) {
-            LispObject* result = lisp_load_file(argv[i], env);
+            LispObject *result = lisp_load_file(argv[i], env);
 
             if (result->type == LISP_ERROR) {
                 fprintf(stderr, "ERROR in %s: %s\n", argv[i], result->value.error);
                 return 1;
             }
 
-            char* output = lisp_print(result);
+            char *output = lisp_print(result);
             printf("%s\n", output);
             free(output);
         }
@@ -86,6 +89,10 @@ int main(int argc, char** argv) {
 
     char input[MAX_INPUT];
 
+    /* Buffer for multi-line expressions */
+    static char expr_buffer[8192] = {0};
+    static int expr_pos = 0;
+
     while (fgets(input, sizeof(input), stdin) != NULL) {
         /* Remove trailing newline */
         size_t len = strlen(input);
@@ -93,43 +100,77 @@ int main(int argc, char** argv) {
             input[len - 1] = '\0';
         }
 
-        /* Skip empty lines */
-        if (input[0] == '\0') {
+        /* Skip empty lines only if not accumulating */
+        if (input[0] == '\0' && expr_pos == 0) {
             print_prompt();
             continue;
         }
 
-        /* Handle commands */
-        int cmd_result = handle_command(input, env);
-        if (cmd_result == 1) {
-            break; /* Exit */
-        } else if (cmd_result == 0) {
-            print_prompt();
-            continue; /* Command handled */
+        /* Handle commands only on first line of input */
+        if (expr_pos == 0) {
+            int cmd_result = handle_command(input, env);
+            if (cmd_result == 1) {
+                break; /* Exit */
+            } else if (cmd_result == 0) {
+                print_prompt();
+                continue; /* Command handled */
+            }
         }
 
-        /* Evaluate expression */
-        const char* input_ptr = input;
-        LispObject* expr = lisp_read(&input_ptr);
+        /* Read and accumulate input until expression is complete */
+        /* Append this line to buffer */
+        size_t input_len = strlen(input);
+        if (input_len > 0 && expr_pos + input_len < sizeof(expr_buffer) - 1) {
+            if (expr_pos > 0) {
+                expr_buffer[expr_pos++] = ' ';
+            }
+            strcpy(expr_buffer + expr_pos, input);
+            expr_pos += input_len;
+        }
+
+        /* Try to parse the buffer */
+        const char *input_ptr = expr_buffer;
+        LispObject *expr = lisp_read(&input_ptr);
+
+        /* If we got an error and it's an unclosed list, continue reading */
+        if (expr != NULL && expr->type == LISP_ERROR && strstr(expr->value.error, "Unclosed") != NULL) {
+            /* Need more input, continue reading */
+            print_prompt();
+            continue;
+        }
 
         if (expr == NULL) {
+            /* Empty input or incomplete, continue reading if buffer has content */
+            if (expr_pos == 0) {
+                print_prompt();
+                continue;
+            }
+            /* We're accumulating, so continue reading */
             print_prompt();
             continue;
         }
 
         if (expr->type == LISP_ERROR) {
             printf("ERROR: %s\n", expr->value.error);
+            expr_pos = 0;
+            expr_buffer[0] = '\0';
             print_prompt();
             continue;
         }
 
-        LispObject* result = lisp_eval(expr, env);
+        LispObject *result = lisp_eval(expr, env);
 
         if (result->type == LISP_ERROR) {
             printf("ERROR: %s\n", result->value.error);
+            /* Reset buffer on error too */
+            expr_pos = 0;
+            expr_buffer[0] = '\0';
         } else {
-            char* output = lisp_print(result);
+            char *output = lisp_print(result);
             printf("%s\n", output);
+            /* Reset buffer after successful evaluation */
+            expr_pos = 0;
+            expr_buffer[0] = '\0';
         }
 
         print_prompt();

@@ -15,6 +15,20 @@ LispObject *lisp_make_number(double value) {
     return obj;
 }
 
+LispObject *lisp_make_integer(long long value) {
+    LispObject *obj = GC_malloc(sizeof(LispObject));
+    obj->type = LISP_INTEGER;
+    obj->value.integer = value;
+    return obj;
+}
+
+LispObject *lisp_make_boolean(int value) {
+    LispObject *obj = GC_malloc(sizeof(LispObject));
+    obj->type = LISP_BOOLEAN;
+    obj->value.boolean = value;
+    return obj;
+}
+
 LispObject *lisp_make_string(const char *value) {
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_STRING;
@@ -75,6 +89,31 @@ int lisp_is_truthy(LispObject *obj) {
         return 0;
     }
 
+    /* Integer 0 is falsy */
+    if (obj->type == LISP_INTEGER && obj->value.integer == 0) {
+        return 0;
+    }
+
+    /* Boolean false (#f) is falsy */
+    if (obj->type == LISP_BOOLEAN && obj->value.boolean == 0) {
+        return 0;
+    }
+
+    /* Number 0.0 is falsy (keep existing behavior) */
+    if (obj->type == LISP_NUMBER && obj->value.number == 0.0) {
+        return 0;
+    }
+
+    /* Empty vectors are falsy */
+    if (obj->type == LISP_VECTOR && obj->value.vector.size == 0) {
+        return 0;
+    }
+
+    /* Empty hash tables are falsy */
+    if (obj->type == LISP_HASH_TABLE && obj->value.hash_table.entry_count == 0) {
+        return 0;
+    }
+
     return 1;
 }
 
@@ -98,6 +137,33 @@ size_t lisp_list_length(LispObject *list) {
         list = list->value.cons.cdr;
     }
     return len;
+}
+
+LispObject *lisp_make_vector(size_t capacity) {
+    LispObject *obj = GC_malloc(sizeof(LispObject));
+    obj->type = LISP_VECTOR;
+    obj->value.vector.capacity = capacity > 0 ? capacity : 8;
+    obj->value.vector.size = 0;
+    obj->value.vector.items = GC_malloc(sizeof(LispObject *) * obj->value.vector.capacity);
+    /* Initialize to NULL */
+    for (size_t i = 0; i < obj->value.vector.capacity; i++) {
+        obj->value.vector.items[i] = NIL;
+    }
+    return obj;
+}
+
+LispObject *lisp_make_hash_table(void) {
+    LispObject *obj = GC_malloc(sizeof(LispObject));
+    obj->type = LISP_HASH_TABLE;
+    obj->value.hash_table.capacity = 16;
+    obj->value.hash_table.bucket_count = 16;
+    obj->value.hash_table.entry_count = 0;
+    obj->value.hash_table.buckets = GC_malloc(sizeof(void *) * 16);
+    /* Initialize buckets to NULL */
+    for (size_t i = 0; i < 16; i++) {
+        ((void **)obj->value.hash_table.buckets)[i] = NULL;
+    }
+    return obj;
 }
 
 /* List utilities */

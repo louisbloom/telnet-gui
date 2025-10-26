@@ -8,6 +8,7 @@ static LispObject *read_atom(const char **input);
 static LispObject *read_string(const char **input);
 static LispObject *read_list(const char **input);
 static LispObject *read_quote(const char **input);
+static LispObject *read_vector(const char **input);
 
 static void skip_whitespace(const char **input) {
     while (**input && (isspace(**input) || **input == ';')) {
@@ -117,9 +118,17 @@ static LispObject *read_atom(const char **input) {
 
     LispObject *obj;
     if (is_number && length > 0) {
-        obj = lisp_make_number(atof(token));
-    } else if (strcmp(token, "nil") == 0) {
+        /* Try to parse as integer first */
+        if (!has_dot && strchr(token, '.') == NULL) {
+            long long val = atoll(token);
+            obj = lisp_make_integer(val);
+        } else {
+            obj = lisp_make_number(atof(token));
+        }
+    } else if (strcmp(token, "nil") == 0 || strcmp(token, "#f") == 0) {
         obj = NIL;
+    } else if (strcmp(token, "#t") == 0) {
+        obj = lisp_make_boolean(1);
     } else {
         obj = lisp_make_symbol(token);
     }
@@ -167,6 +176,56 @@ static LispObject *read_list(const char **input) {
     return head;
 }
 
+static LispObject *read_vector(const char **input) {
+    (*input)++; /* Skip # */
+    (*input)++; /* Skip ( */
+    skip_whitespace(input);
+
+    LispObject *vec = lisp_make_vector(8); /* Start with capacity 8 */
+
+    if (**input == ')') {
+        (*input)++;
+        return vec;
+    }
+
+    while (**input && **input != ')') {
+        LispObject *elem = lisp_read(input);
+        if (elem == NULL) {
+            return lisp_make_error("Syntax error in vector");
+        }
+        if (elem->type == LISP_ERROR) {
+            return elem;
+        }
+
+        /* Add element to vector */
+        if (vec->value.vector.size >= vec->value.vector.capacity) {
+            /* Expand capacity */
+            size_t new_capacity = vec->value.vector.capacity * 2;
+            LispObject **new_items = GC_malloc(sizeof(LispObject *) * new_capacity);
+            for (size_t i = 0; i < vec->value.vector.size; i++) {
+                new_items[i] = vec->value.vector.items[i];
+            }
+            for (size_t i = vec->value.vector.size; i < new_capacity; i++) {
+                new_items[i] = NIL;
+            }
+            vec->value.vector.items = new_items;
+            vec->value.vector.capacity = new_capacity;
+        }
+
+        vec->value.vector.items[vec->value.vector.size++] = elem;
+
+        skip_whitespace(input);
+    }
+
+    if (**input == ')') {
+        (*input)++;
+    } else {
+        return lisp_make_error("Unclosed vector");
+    }
+
+    return vec;
+}
+
 static LispObject *read_quote(const char **input) {
     (*input)++; /* Skip quote character */
     LispObject *quoted = lisp_read(input);
@@ -201,6 +260,21 @@ LispObject *lisp_read(const char **input) {
 
     if (**input == '"') {
         return read_string(input);
+    }
+
+    /* Handle #t, #f, and #(...) */
+    if (**input == '#') {
+        const char *p = *input + 1;
+        if (*p == 't') {
+            (*input) += 2;
+            return lisp_make_boolean(1);
+        } else if (*p == 'f') {
+            (*input) += 2;
+            return NIL;
+        } else if (*p == '(') {
+            return read_vector(input);
+        }
+        return lisp_make_error("Unknown # syntax");
     }
 
     return read_atom(input);

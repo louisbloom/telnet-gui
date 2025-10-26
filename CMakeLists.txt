@@ -42,6 +42,7 @@ set(LIB_SOURCES
     src/builtins.c
     src/print.c
     src/regex.c
+    src/hash_table.c
 )
 
 # Create static library
@@ -90,10 +91,20 @@ install(FILES include/lisp.h
 # Testing
 enable_testing()
 
-# Simple test
-add_test(NAME basic_test
+# REPL test suite
+add_test(NAME repl_basic_test
     COMMAND lisp-repl
     INPUT_FILE ${CMAKE_SOURCE_DIR}/examples/arithmetic.lisp
+)
+
+add_test(NAME repl_regression_test
+    COMMAND lisp-repl
+    INPUT_FILE ${CMAKE_SOURCE_DIR}/tests/test_regression.lisp
+)
+
+add_test(NAME repl_multiline_test
+    COMMAND lisp-repl
+    INPUT_FILE ${CMAKE_SOURCE_DIR}/tests/test_multiline.lisp
 )
 
 # Package configuration

@@ -49,6 +49,7 @@ TargetDirectories.txt
 *.log
 *.tmp
 .cache/
+*.pdf
 
 # Windows specific
 Thumbs.db

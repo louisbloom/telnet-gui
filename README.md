@@ -4,23 +4,132 @@ A minimal, embeddable LISP interpreter library written in C, designed to be inte
 
 ## Features
 
-- **Data Types**: Numbers (double precision) and Strings
-- **Symbols and Variables**: Full support for symbol binding and variable definitions
-- **Functions**: Both built-in functions and user-defined lambdas
-- **Arithmetic Operators**: `+`, `-`, `*`, `/`
-- **String Manipulation**: `concat`, `split` (with wildcard pattern support)
-- **Predicates**:
-  - Number comparisons: `>`, `<`, `=`, `>=`, `<=`
-  - String comparisons: `string=`, `string<`, `string>`, `string<=`, `string>=`
-  - String operations: `string-contains`, `string-match`
-  - Boolean operators: `and`, `or`, `not`
-  - Type predicates: `null`, `atom`
-- **Special Forms**: `quote`, `if`, `define`, `lambda`, `let`
-- **List Operations**: `car`, `cdr`, `cons`, `list`
-- **Quote Syntax**: `'expr` as syntactic sugar for `(quote expr)`
-- **Truthy/Falsy**: JavaScript-like behavior (nil and empty strings are falsy)
+### Data Types
+
+- **Numbers**: Double precision floating-point numbers
+- **Integers**: 64-bit signed integers
+- **Booleans**: True (#t) and false (#f)
+- **Strings**: C-style null-terminated strings
+- **Lists**: Cons cells for linked lists
+- **Vectors**: Dynamic arrays (grow/shrink)
+- **Hash Tables**: Key-value mappings
+- **Symbols**: Variable names and function symbols
+- **Lambda Functions**: User-defined closures with lexical scoping
+
+### Special Forms
+
+- `quote` - Quote expressions (also supported via `'expr` syntax)
+- `if` - Conditional evaluation
+- `define` - Define variables and functions
+- `set!` - Mutate existing variables (works inside lambdas/hooks)
+- `lambda` - Create anonymous functions with parameters
+- `let` - Local variable bindings (parallel evaluation)
+- `let*` - Local variable bindings (sequential evaluation, can reference previous bindings)
+- `progn` - Evaluate multiple expressions sequentially and return last value
+
+### Arithmetic Functions
+
+- `+` - Add numbers (supports multiple arguments, integer + integer = integer, mixed = float)
+- `-` - Subtract numbers (supports unary negation, integer - integer = integer, mixed = float)
+- `*` - Multiply numbers (supports multiple arguments, integer \* integer = integer, mixed = float)
+- `/` - Divide numbers (always returns float, supports unary reciprocal)
+
+### Integer Operations
+
+- `quotient` - Integer division (truncates to integer, e.g., quotient 10 3 → 3)
+
+### Number Comparisons
+
+- `>` - Greater than
+- `<` - Less than
+- `=` - Equal to
+- `>=` - Greater than or equal
+- `<=` - Less than or equal
+
+### String Functions
+
+- `concat` - Concatenate multiple strings
+- `split` - Split string by pattern (supports wildcards: `*`, `?`, `[]`)
+
+### String Comparisons
+
+- `string=` - String equality
+- `string<` - String less than (lexicographic)
+- `string>` - String greater than (lexicographic)
+- `string<=` - String less than or equal (lexicographic)
+- `string>=` - String greater than or equal (lexicographic)
+
+### String Predicates
+
+- `string-contains` - Check if string contains substring
+- `string-match` - Match string against wildcard pattern
+
+### Boolean Functions
+
+- `and` - Logical AND (returns last truthy value or nil)
+- `or` - Logical OR (returns first truthy value or nil)
+- `not` - Logical negation
+
+### List Functions
+
+- `car` - Get first element of list
+- `cdr` - Get rest of list
+- `cons` - Construct new list cell
+- `list` - Create list from arguments
+- `null?` - Check if list is empty
+- `atom?` - Check if value is an atom (not a list)
+
+### Vector Functions
+
+- `make-vector` - Create a vector of specified size
+- `vector-ref` - Get element at index
+- `vector-set!` - Set element at index (mutating)
+- `vector-length` - Get vector size
+- `vector-push!` - Append to end (mutating)
+- `vector-pop!` - Remove from end (mutating)
+- `vector?` - Check if value is a vector
+
+### Type Predicates
+
+- `null?` - Check if nil
+- `atom?` - Check if atom (not a list)
+- `integer?` - Check if integer
+- `boolean?` - Check if boolean
+- `number?` - Check if number or integer
+- `vector?` - Check if vector
+- `hash-table?` - Check if hash table
+
+### Regex Functions (PCRE2)
+
+- `regex-match` - Test if string matches pattern
+- `regex-find` - Find first regex match
+- `regex-find-all` - Find all regex matches
+- `regex-extract` - Extract capture groups
+- `regex-replace` - Replace first match
+- `regex-replace-all` - Replace all matches
+- `regex-split` - Split string by regex pattern
+- `regex-escape` - Escape special regex characters
+- `regex-valid?` - Validate regex pattern syntax
+
+### File I/O Functions
+
+- `open` - Open a file (filename, mode) - returns file stream
+- `close` - Close a file stream
+- `read-line` - Read a line from file stream (returns string or nil at EOF)
+- `write-line` - Write a line to file stream
+
+### Advanced Features
+
+- **Lexical Scoping**: Lambdas capture their environment
+- **First-Class Functions**: Functions can be passed as arguments
+- **Higher-Order Functions**: Functions that operate on functions
+- **Closures**: Functions with captured variables
+- **Global State Management**: Variables persist and can be updated across the REPL session
+- **Quote Syntax**: `'expr` shorthand for `(quote expr)`
+- **Truthy/Falsy**: JavaScript-like semantics (nil and empty strings are falsy)
 - **Memory Management**: Automatic garbage collection with Boehm GC
-- **Regex Support**: Powerful PCRE2 regex functions for pattern matching
+- **Regex Support**: Full PCRE2 integration for advanced pattern matching
+- **Wildcard Patterns**: Enhanced wildcard matching in `string-match` and `split`
 
 ## Building
 
@@ -28,35 +137,57 @@ A minimal, embeddable LISP interpreter library written in C, designed to be inte
 
 ### MSYS2 UCRT64 Environment
 
-This project is built for MSYS2 UCRT64 on Windows. Use the following commands:
+This project is built for MSYS2 UCRT64 on Windows.
+
+**⚠️ Compiler Requirements:**
+
+- **Supported**: GCC (via MSYS2 UCRT64)
+- **NOT Supported**: MSVC (Visual Studio)
+
+**Installing MSYS2:**
+
+1. Download MSYS2 from [https://www.msys2.org/](https://www.msys2.org/)
+2. Run the installer and follow the setup wizard
+3. Launch "MSYS2 UCRT64" from the Start menu
+4. Update packages: `pacman -Syu` (may need to run twice)
+5. Install toolchain: `pacman -S mingw-w64-ucrt-x86_64-toolchain`
 
 **⚠️ CRITICAL REQUIREMENT**: The final executable must NOT depend on `msys-2.0.dll`
 
 **Interactive Shell:**
+
 ```bash
-C:\Users\tchristensen\scoop\apps\msys2\current\msys2_shell.cmd -defterm -here -no-start -ucrt64
+C:\msys64\msys2_shell.cmd -defterm -here -no-start -ucrt64
 ```
 
 **PowerShell Commands with UCRT64 Tools:**
+
 ```powershell
-C:\Users\tchristensen\scoop\apps\msys2\current\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "<command>"
+C:\msys64\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "<command>"
 ```
 
 **Example Build Commands:**
+
 ```powershell
 # Install dependencies
-C:\Users\tchristensen\scoop\apps\msys2\current\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "pacman -S mingw-w64-ucrt-x86_64-gc mingw-w64-ucrt-x86_64-pcre2"
+C:\msys64\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "pacman -S mingw-w64-ucrt-x86_64-gc mingw-w64-ucrt-x86_64-pcre2"
 
 # Build project
-C:\Users\tchristensen\scoop\apps\msys2\current\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "make"
+C:\msys64\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "make"
+
+# Format source code
+C:\msys64\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "make format"
 
 # Generate compile_commands.json for clangd
-C:\Users\tchristensen\scoop\apps\msys2\current\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "mkdir -p build && cd build && cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+C:\msys64\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "mkdir -p build && cd build && cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
 ```
+
+**Note**: The default MSYS2 installation path is `C:\msys64`
 
 ### Dependencies
 
 Install required packages:
+
 ```bash
 pacman -S mingw-w64-ucrt-x86_64-gc mingw-w64-ucrt-x86_64-pcre2 mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake
 ```
@@ -64,6 +195,7 @@ pacman -S mingw-w64-ucrt-x86_64-gc mingw-w64-ucrt-x86_64-pcre2 mingw-w64-ucrt-x8
 ### Verification
 
 After building, verify the executable has no `msys-2.0.dll` dependency:
+
 ```bash
 # Check dependencies (should NOT show msys-2.0.dll)
 ldd lisp-repl.exe
@@ -75,11 +207,13 @@ objdump -p lisp-repl.exe | grep DLL
 ### Build Instructions
 
 **Quick Build:**
+
 ```bash
 make
 ```
 
 **Cross-platform Build:**
+
 ```bash
 # Show platform information
 make info
@@ -92,6 +226,7 @@ make test
 ```
 
 **CMake Build (Alternative):**
+
 ```bash
 mkdir build && cd build
 cmake ..
@@ -99,6 +234,7 @@ make
 ```
 
 **Installation:**
+
 ```bash
 # Linux/macOS
 sudo make install
@@ -126,6 +262,7 @@ Run the REPL interactively:
 ```
 
 REPL Commands:
+
 - `:quit` - Exit the REPL
 - `:load <filename>` - Load and execute a LISP file
 
@@ -179,10 +316,15 @@ int main() {
 ### Basic Arithmetic
 
 ```lisp
-(+ 1 2 3 4)        ; => 6
-(- 10 3)           ; => 7
-(* 2 3 4)          ; => 24
-(/ 10 2)           ; => 5
+(+ 1 2 3 4)        ; => 6 (integer)
+(+ 1 2.5)          ; => 3.5 (float - mixed types)
+(+ 1.5 2.5)        ; => 4.0 (float)
+(- 10 3)           ; => 7 (integer)
+(- 10 3.5)         ; => 6.5 (float - mixed types)
+(* 2 3 4)          ; => 24 (integer)
+(* 3 4.0)          ; => 12.0 (float - mixed types)
+(/ 10 2)           ; => 5.0 (always float)
+(quotient 10 3)    ; => 3 (integer division)
 ```
 
 ### Variables
@@ -308,6 +450,132 @@ int main() {
   (+ x y))                           ; => 30
 ```
 
+### Let\* Bindings (Sequential)
+
+```lisp
+; let* evaluates bindings sequentially
+(let* ((x 5) (y (+ x 3))) y)         ; => 8
+
+; Works with multiple dependent bindings
+(let* ((a 10)
+       (b (* a 2))
+       (c (+ b 5)))
+  c)                                  ; => 25
+
+; Difference from let (which evaluates in parallel)
+(let ((x 5) (y (+ x 3))) y)          ; ERROR: Undefined symbol: x
+(let* ((x 5) (y (+ x 3))) y)         ; => 8 (works!)
+```
+
+### Progn (Sequential Evaluation)
+
+```lisp
+; progn evaluates expressions sequentially and returns the last value
+(progn 1 2 3)                        ; => 3
+
+; Used for executing multiple operations
+(progn
+  (define x 10)
+  (define y 20)
+  (+ x y))                           ; => 30
+
+; With conditional logic
+(progn
+  (define a 5)
+  (define b (* a 2))
+  b)                                 ; => 10
+
+; Empty progn returns NIL
+(progn)                              ; => NIL
+```
+
+### Global State Management
+
+```lisp
+; Variables persist across the REPL session and can be updated
+(define counter 0)                   ; Define initial value
+counter                              ; => 0
+(define counter 1)                   ; Update global state
+counter                              ; => 1
+(define counter (+ counter 5))       ; Update using previous value
+counter                              ; => 6
+
+; Use progn for multi-step state updates
+(define balance 100)
+(progn
+  (define balance (+ balance 50))
+  (define balance (- balance 30))
+  balance)                           ; => 120
+
+; Use set! to mutate from inside lambdas/hooks
+(define counter 0)
+(define increment (lambda ()
+  (set! counter (+ counter 1))
+  counter))
+(increment)                         ; => 1
+(increment)                         ; => 2
+counter                             ; => 2 (globally updated!)
+
+; Variables can be reassigned with different types
+(define x 42)
+x                                   ; => 42
+(define x "hello")
+x                                   ; => "hello"
+```
+
+### Set! for Mutating State
+
+```lisp
+; set! updates existing variables (variable must exist)
+(define msg_count 0)
+(set! msg_count 10)
+msg_count                            ; => 10
+
+; Works inside lambdas for stateful functions
+(define counter 0)
+(define increment (lambda ()
+  (set! counter (+ counter 1))
+  counter))
+(increment)                         ; => 1
+(increment)                         ; => 2
+counter                             ; => 2
+
+; Perfect for telnet-gui hooks!
+(define message_count 0)
+(define count_messages (lambda (data)
+  (set! message_count (+ message_count 1))
+  data))                             ; Return data unchanged
+
+(register-user-input-hook count_messages)
+message_count                        ; Increments as you type
+```
+
+### File I/O Operations
+
+```lisp
+; Open a file for writing
+(define logfile (open "output.log" "w"))
+
+; Write lines
+(write-line logfile "Log entry 1")
+(write-line logfile "Log entry 2")
+
+; Close the file
+(close logfile)
+
+; Read it back
+(define file (open "output.log" "r"))
+(read-line file)                     ; => "Log entry 1"
+(read-line file)                     ; => "Log entry 2"
+(read-line file)                     ; => nil (end of file)
+(close file)
+
+; Different modes
+(define f (open "data.txt" "a"))    ; Append mode
+(write-line f "new line")
+(close f)
+```
+
 ### Complex Example
 
 ```lisp
@@ -359,15 +627,25 @@ int main() {
 - `LispObject* env_lookup(Environment* env, const char* name)` - Look up variable
 - `void env_free(Environment* env)` - Free environment
 
+## Naming Conventions
+
+Telnet Lisp follows modern Lisp naming conventions:
+
+- **Predicates** use `?` suffix: `null?`, `vector?`, `integer?`, `boolean?`
+- **Mutating functions** use `!` suffix: `set!`, `vector-set!`, `vector-push!`
+- **Immutating functions** have no special suffix: `car`, `cdr`, `vector-ref`
+
 ## Truthy/Falsy Values
 
 Following JavaScript-like semantics:
-- **Falsy**: `nil` (the empty list) and `""` (empty string)
-- **Truthy**: Everything else, including `0` and non-empty strings
+
+- **Falsy**: `nil`, `0` (number), `0` (integer), empty string `""`, boolean `#f`, empty vectors, empty hash tables
+- **Truthy**: Everything else, including `0` numbers (except integer 0), non-empty strings, `#t`, non-empty vectors
 
 ## Pattern Matching
 
 The `split` and `string-match` functions support enhanced wildcard patterns:
+
 - `*` - Matches zero or more characters
 - `?` - Matches exactly one character
 - `[abc]` - Matches any character in set
@@ -375,6 +653,7 @@ The `split` and `string-match` functions support enhanced wildcard patterns:
 - `[!abc]` - Matches anything NOT in set
 
 Examples:
+
 ```lisp
 (string-match "hello" "h*o")         ; => 1
 (string-match "hello" "h?llo")       ; => 1
@@ -397,7 +676,7 @@ Telnet LISP includes powerful PCRE2 regex functions for advanced pattern matchin
 - `regex-escape` - Escape special regex characters
 - `regex-valid?` - Validate regex patterns
 
-See the `examples/regex.lisp` file for comprehensive examples.
+See the `examples/` directory for comprehensive examples including `regex.lisp`, `progn.lisp`, `let_star.lisp`, `hooks_with_state.lisp`, and `file_io.lisp`.
 
 ## License
 
@@ -406,10 +685,26 @@ This is a demonstration project. Feel free to use and modify as needed.
 ## Future Enhancements
 
 Potential additions for future versions:
-- More data types (integers, booleans, vectors)
-- Macros
-- Tail call optimization
-- More string operations
-- File I/O operations
-- Error recovery and better error messages
-- More regex features (lookahead, lookbehind)
+
+### High Priority
+
+- Additional integer operations (`remainder`, `even?`, `odd?`)
+- Hash table iteration (keys, values, entries)
+- Additional special forms (`cond`, `case`, `do`)
+- Better error recovery and stack traces
+- Tail call optimization for better recursion performance
+
+### Medium Priority
+
+- Additional string operations (substring, replace, upper/lowercase transformations)
+- Structured data reading from files (S-expressions, JSON)
+- Macros for metaprogramming
+- More regex features (lookahead, lookbehind, non-capturing groups)
+- Performance optimizations (bytecode compilation)
+
+### Low Priority
+
+- Additional list operations (reverse, append, map, filter, fold)
+- Modules/packages for code organization
+- Exception handling (`try-catch`)
+- Namespaces for variable organization
