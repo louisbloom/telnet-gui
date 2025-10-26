@@ -1,4 +1,8 @@
 ;; File I/O examples using standard Lisp functions
+;;
+;; Note: File deletion is not yet supported.
+;; Generated files (like file1.txt, output.log) from these tests
+;; remain in the directory and are not cleaned up automatically.
 
 ;; ============================================
 ;; Example 1: Writing to a file
@@ -11,6 +15,8 @@
 (write-line logfile "Log entry 1")
 (write-line logfile "Log entry 2")
 (write-line logfile "Log entry 3")
+
+;; Note: output.log and file1.txt files are created but not deleted
 
 ;; Always close when done
 (close logfile)
