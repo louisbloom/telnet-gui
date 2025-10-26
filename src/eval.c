@@ -11,6 +11,7 @@ static LispObject *eval_lambda(LispObject *args, Environment *env);
 static LispObject *eval_let(LispObject *args, Environment *env);
 static LispObject *eval_let_star(LispObject *args, Environment *env);
 static LispObject *eval_progn(LispObject *args, Environment *env);
+static LispObject *eval_do(LispObject *args, Environment *env);
 static LispObject *apply(LispObject *func, LispObject *args, Environment *env);
 
 LispObject *lisp_eval(LispObject *expr, Environment *env) {
@@ -99,6 +100,10 @@ static LispObject *eval_list(LispObject *list, Environment *env) {
 
         if (strcmp(first->value.symbol, "progn") == 0) {
             return eval_progn(lisp_cdr(list), env);
+        }
+
+        if (strcmp(first->value.symbol, "do") == 0) {
+            return eval_do(lisp_cdr(list), env);
         }
     }
 
@@ -359,6 +364,120 @@ static LispObject *eval_progn(LispObject *args, Environment *env) {
     }
 
     return result;
+}
+
+static LispObject *eval_do(LispObject *args, Environment *env) {
+    if (args == NIL) {
+        return lisp_make_error("do requires at least 2 arguments");
+    }
+
+    /* Parse bindings and test clause */
+    LispObject *bindings = lisp_car(args);
+    LispObject *rest = lisp_cdr(args);
+
+    if (rest == NIL) {
+        return lisp_make_error("do requires a test clause");
+    }
+
+    LispObject *test_clause = lisp_car(rest);
+    LispObject *body_exprs = lisp_cdr(rest);
+
+    /* Validate test clause is a list */
+    if (test_clause->type != LISP_CONS) {
+        return lisp_make_error("do test clause must be a list");
+    }
+
+    /* Extract test condition and result expression */
+    LispObject *test_expr = lisp_car(test_clause);
+    LispObject *result_rest = lisp_cdr(test_clause);
+    LispObject *result_expr = (result_rest != NIL) ? lisp_car(result_rest) : NIL;
+
+    /* Create new environment for loop variables */
+    Environment *loop_env = env_create(env);
+
+    /* Initialize loop variables from bindings */
+    LispObject *binding_list = bindings;
+    while (binding_list != NIL && binding_list != NULL) {
+        LispObject *binding = lisp_car(binding_list);
+
+        if (binding->type != LISP_CONS) {
+            return lisp_make_error("do binding must be a list");
+        }
+
+        LispObject *name = lisp_car(binding);
+        if (name->type != LISP_SYMBOL) {
+            return lisp_make_error("do binding name must be a symbol");
+        }
+
+        LispObject *init_list = lisp_cdr(binding);
+        if (init_list == NIL) {
+            return lisp_make_error("do binding requires an initial value");
+        }
+
+        LispObject *init_val = lisp_car(init_list);
+        LispObject *init_result = lisp_eval(init_val, env);
+
+        if (init_result->type == LISP_ERROR) {
+            return init_result;
+        }
+
+        env_define(loop_env, name->value.symbol, init_result);
+        binding_list = lisp_cdr(binding_list);
+    }
+
+    /* Main loop */
+    while (1) {
+        /* Evaluate test condition */
+        LispObject *test_result = lisp_eval(test_expr, loop_env);
+        if (test_result->type == LISP_ERROR) {
+            return test_result;
+        }
+
+        /* If test is true, evaluate and return result expression */
+        if (lisp_is_truthy(test_result)) {
+            if (result_expr != NIL) {
+                return lisp_eval(result_expr, loop_env);
+            }
+            return NIL;
+        }
+
+        /* Evaluate body expressions (for side effects) */
+        LispObject *body = body_exprs;
+        while (body != NIL && body != NULL) {
+            LispObject *body_expr = lisp_car(body);
+            LispObject *body_result = lisp_eval(body_expr, loop_env);
+
+            if (body_result->type == LISP_ERROR) {
+                return body_result;
+            }
+
+            body = lisp_cdr(body);
+        }
+
+        /* Update loop variables with step expressions (evaluate in loop_env) */
+        binding_list = bindings;
+        while (binding_list != NIL && binding_list != NULL) {
+            LispObject *binding = lisp_car(binding_list);
+            LispObject *name = lisp_car(binding);
+            LispObject *init_list = lisp_cdr(binding);
+
+            /* Check if there's a step expression */
+            LispObject *step_list = lisp_cdr(init_list);
+            if (step_list != NIL) {
+                LispObject *step_val = lisp_car(step_list);
+                LispObject *step_result = lisp_eval(step_val, loop_env);
+
+                if (step_result->type == LISP_ERROR) {
+                    return step_result;
+                }
+
+                /* Update the variable */
+                env_set(loop_env, name->value.symbol, step_result);
+            }
+
+            binding_list = lisp_cdr(binding_list);
+        }
+    }
 }
 
 static LispObject *apply(LispObject *func, LispObject *args, Environment *env) {

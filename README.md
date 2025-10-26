@@ -26,6 +26,7 @@ A minimal, embeddable Lisp interpreter library written in C, designed to be inte
 - `let` - Local variable bindings (parallel evaluation)
 - `let*` - Local variable bindings (sequential evaluation, can reference previous bindings)
 - `progn` - Evaluate multiple expressions sequentially and return last value
+- `do` - Iteration loop with variable updates and exit condition
 
 ### Arithmetic Functions
 
@@ -502,6 +503,34 @@ int main() {
 (progn)                              ; => NIL
 ```
 
+### Do Loop (Iteration)
+
+```lisp
+; Simple counter from 0 to 9
+(do ((i 0 (+ i 1)))
+    ((>= i 10) i))                   ; => 10
+
+; Factorial using do loop
+(define factorial-do
+  (lambda (n)
+    (do ((i n (- i 1))
+         (acc 1 (* acc i)))
+        ((<= i 0) acc))))
+
+(factorial-do 5)                     ; => 120
+
+; Count down with side effects
+(do ((i 10 (- i 1)))
+    ((<= i 0) "blastoff")
+  i)                                  ; prints 10, 9, 8, ..., 1
+
+; Multiple variables updating in parallel
+(do ((i 1 (+ i 1))
+     (sum 0))
+    ((> i 10) sum)
+  (set! sum (+ sum i)))              ; => 55 (sum 1 to 10)
+```
+
 ### Global State Management
 
 ```lisp
@@ -707,11 +736,12 @@ Potential additions for future versions:
 - **New Data Types**: Integers, booleans, vectors, and hash tables with complete operations
 - **Type Coercion**: Automatic integer/float promotion in arithmetic operations
 - **Modern Naming Conventions**: Scheme-style predicates (`?` suffix) and mutating functions (`!` suffix)
+- **Do Loop**: Efficient iteration construct with tail-call optimization for long-running loops
 
 ### High Priority
 
 - Hash table iteration (keys, values, entries)
-- Additional special forms (`cond`, `case`, `do`)
+- Additional special forms (`cond`, `case`)
 - Better error recovery and stack traces
 - Tail call optimization for better recursion performance
 - Additional integer operations (`remainder`, `even?`, `odd?`)
