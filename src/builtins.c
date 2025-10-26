@@ -40,6 +40,8 @@ static LispObject *builtin_car(LispObject *args, Environment *env);
 static LispObject *builtin_cdr(LispObject *args, Environment *env);
 static LispObject *builtin_cons(LispObject *args, Environment *env);
 static LispObject *builtin_list(LispObject *args, Environment *env);
+static LispObject *builtin_list_length(LispObject *args, Environment *env);
+static LispObject *builtin_list_ref(LispObject *args, Environment *env);
 
 /* Predicates */
 static LispObject *builtin_null_question(LispObject *args, Environment *env);
@@ -69,6 +71,9 @@ static LispObject *builtin_hash_set_bang(LispObject *args, Environment *env);
 static LispObject *builtin_hash_remove_bang(LispObject *args, Environment *env);
 static LispObject *builtin_hash_clear_bang(LispObject *args, Environment *env);
 static LispObject *builtin_hash_count(LispObject *args, Environment *env);
+static LispObject *builtin_hash_keys(LispObject *args, Environment *env);
+static LispObject *builtin_hash_values(LispObject *args, Environment *env);
+static LispObject *builtin_hash_entries(LispObject *args, Environment *env);
 
 /* File I/O operations */
 static LispObject *builtin_open(LispObject *args, Environment *env);
@@ -128,6 +133,8 @@ void register_builtins(Environment *env) {
     env_define(env, "cdr", lisp_make_builtin(builtin_cdr, "cdr"));
     env_define(env, "cons", lisp_make_builtin(builtin_cons, "cons"));
     env_define(env, "list", lisp_make_builtin(builtin_list, "list"));
+    env_define(env, "list-length", lisp_make_builtin(builtin_list_length, "list-length"));
+    env_define(env, "list-ref", lisp_make_builtin(builtin_list_ref, "list-ref"));
 
     env_define(env, "null?", lisp_make_builtin(builtin_null_question, "null?"));
     env_define(env, "atom?", lisp_make_builtin(builtin_atom_question, "atom?"));
@@ -176,6 +183,9 @@ void register_builtins(Environment *env) {
     env_define(env, "hash-remove!", lisp_make_builtin(builtin_hash_remove_bang, "hash-remove!"));
     env_define(env, "hash-clear!", lisp_make_builtin(builtin_hash_clear_bang, "hash-clear!"));
     env_define(env, "hash-count", lisp_make_builtin(builtin_hash_count, "hash-count"));
+    env_define(env, "hash-keys", lisp_make_builtin(builtin_hash_keys, "hash-keys"));
+    env_define(env, "hash-values", lisp_make_builtin(builtin_hash_values, "hash-values"));
+    env_define(env, "hash-entries", lisp_make_builtin(builtin_hash_entries, "hash-entries"));
 }
 
 /* Helper function to get numeric value */
@@ -1029,6 +1039,55 @@ static LispObject *builtin_list(LispObject *args, Environment *env) {
     return args;
 }
 
+static LispObject *builtin_list_length(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("list-length requires 1 argument");
+    }
+
+    LispObject *lst = lisp_car(args);
+    long long count = 0;
+
+    while (lst != NIL && lst != NULL) {
+        count++;
+        lst = lst->value.cons.cdr;
+    }
+
+    return lisp_make_integer(count);
+}
+
+static LispObject *builtin_list_ref(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("list-ref requires 2 arguments");
+    }
+
+    LispObject *lst = lisp_car(args);
+    LispObject *index_obj = lisp_car(lisp_cdr(args));
+
+    int index_is_integer;
+    double index_val = get_numeric_value(index_obj, &index_is_integer);
+
+    if (index_obj->type != LISP_INTEGER && index_obj->type != LISP_NUMBER) {
+        return lisp_make_error("list-ref index must be a number");
+    }
+
+    long long index = (long long)index_val;
+    if (index < 0) {
+        return lisp_make_error("list-ref index must be non-negative");
+    }
+
+    for (long long i = 0; i < index && lst != NIL && lst != NULL; i++) {
+        lst = lst->value.cons.cdr;
+    }
+
+    if (lst == NIL || lst == NULL) {
+        return lisp_make_error("list-ref index out of bounds");
+    }
+
+    return lst->value.cons.car;
+}
+
 /* Predicates */
 static LispObject *builtin_null_question(LispObject *args, Environment *env) {
     (void)env;
@@ -1860,4 +1919,122 @@ static LispObject *builtin_hash_count(LispObject *args, Environment *env) {
     }
 
     return lisp_make_number((double)table->value.hash_table.entry_count);
+}
+
+static LispObject *builtin_hash_keys(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("hash-keys requires 1 argument");
+    }
+
+    LispObject *table = lisp_car(args);
+    if (table->type != LISP_HASH_TABLE) {
+        return lisp_make_error("hash-keys requires a hash table");
+    }
+
+    struct HashEntry **buckets = (struct HashEntry **)table->value.hash_table.buckets;
+    size_t bucket_count = table->value.hash_table.bucket_count;
+
+    LispObject *result = NIL;
+    LispObject *tail = NULL;
+
+    for (size_t i = 0; i < bucket_count; i++) {
+        struct HashEntry *entry = buckets[i];
+        while (entry != NULL) {
+            LispObject *key_obj = lisp_make_string(entry->key);
+            LispObject *new_cons = lisp_make_cons(key_obj, NIL);
+
+            if (result == NIL) {
+                result = new_cons;
+                tail = new_cons;
+            } else {
+                tail->value.cons.cdr = new_cons;
+                tail = new_cons;
+            }
+
+            entry = entry->next;
+        }
+    }
+
+    return result;
+}
+
+static LispObject *builtin_hash_values(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("hash-values requires 1 argument");
+    }
+
+    LispObject *table = lisp_car(args);
+    if (table->type != LISP_HASH_TABLE) {
+        return lisp_make_error("hash-values requires a hash table");
+    }
+
+    struct HashEntry **buckets = (struct HashEntry **)table->value.hash_table.buckets;
+    size_t bucket_count = table->value.hash_table.bucket_count;
+
+    LispObject *result = NIL;
+    LispObject *tail = NULL;
+
+    for (size_t i = 0; i < bucket_count; i++) {
+        struct HashEntry *entry = buckets[i];
+        while (entry != NULL) {
+            LispObject *value_obj = entry->value;
+            LispObject *new_cons = lisp_make_cons(value_obj, NIL);
+
+            if (result == NIL) {
+                result = new_cons;
+                tail = new_cons;
+            } else {
+                tail->value.cons.cdr = new_cons;
+                tail = new_cons;
+            }
+
+            entry = entry->next;
+        }
+    }
+
+    return result;
+}
+
+static LispObject *builtin_hash_entries(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("hash-entries requires 1 argument");
+    }
+
+    LispObject *table = lisp_car(args);
+    if (table->type != LISP_HASH_TABLE) {
+        return lisp_make_error("hash-entries requires a hash table");
+    }
+
+    struct HashEntry **buckets = (struct HashEntry **)table->value.hash_table.buckets;
+    size_t bucket_count = table->value.hash_table.bucket_count;
+
+    LispObject *result = NIL;
+    LispObject *tail = NULL;
+
+    for (size_t i = 0; i < bucket_count; i++) {
+        struct HashEntry *entry = buckets[i];
+        while (entry != NULL) {
+            LispObject *key_obj = lisp_make_string(entry->key);
+            LispObject *value_obj = entry->value;
+
+            /* Create (key . value) pair */
+            LispObject *pair = lisp_make_cons(key_obj, value_obj);
+            LispObject *new_cons = lisp_make_cons(pair, NIL);
+
+            if (result == NIL) {
+                result = new_cons;
+                tail = new_cons;
+            } else {
+                tail->value.cons.cdr = new_cons;
+                tail = new_cons;
+            }
+
+            entry = entry->next;
+        }
+    }
+
+    return result;
 }

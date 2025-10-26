@@ -83,6 +83,8 @@ A minimal, embeddable Lisp interpreter library written in C, designed to be inte
 - `cdr` - Get rest of list
 - `cons` - Construct new list cell
 - `list` - Create list from arguments
+- `list-length` - Get length of list
+- `list-ref` - Get element at index (0-based)
 - `null?` - Check if list is empty
 - `atom?` - Check if value is an atom (not a list)
 
@@ -95,6 +97,18 @@ A minimal, embeddable Lisp interpreter library written in C, designed to be inte
 - `vector-push!` - Append to end (mutating)
 - `vector-pop!` - Remove from end (mutating)
 - `vector?` - Check if value is a vector
+
+### Hash Table Functions
+
+- `make-hash-table` - Create a new hash table
+- `hash-ref` - Get value for key (returns nil if not found)
+- `hash-set!` - Set key-value pair (mutating)
+- `hash-remove!` - Remove key-value pair (mutating)
+- `hash-clear!` - Remove all entries (mutating)
+- `hash-count` - Get number of entries
+- `hash-keys` - Get list of all keys
+- `hash-values` - Get list of all values
+- `hash-entries` - Get list of `(key . value)` pairs
 
 ### Type Predicates
 
@@ -744,10 +758,10 @@ Potential additions for future versions:
 - **Modern Naming Conventions**: Scheme-style predicates (`?` suffix) and mutating functions (`!` suffix)
 - **Do Loop**: Efficient iteration construct with tail-call optimization for long-running loops
 - **Integer Operations**: Remainder, even?, odd? predicates for number operations
+- **Collection Iteration**: Hash table iteration (keys, values, entries) and list convenience functions (length, ref)
 
 ### High Priority
 
-- Hash table iteration (keys, values, entries)
 - Additional special forms (`cond`, `case`)
 - Better error recovery and stack traces
 - Tail call optimization for better recursion performance
