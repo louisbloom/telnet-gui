@@ -68,12 +68,12 @@ endif
 
 CC = gcc
 AR = ar
-CFLAGS = -Wall -Wextra -std=c99 -pedantic -O2 -Iinclude
+CFLAGS = -Wall -Wextra -std=c99 -pedantic -O2 -Ilibtelnet-lisp/include
 
 # Directories
-SRC_DIR = src
+SRC_DIR = libtelnet-lisp/src
 REPL_DIR = repl
-INCLUDE_DIR = include
+INCLUDE_DIR = libtelnet-lisp/include
 BUILD_DIR = build
 
 # Library sources and objects
@@ -159,6 +159,14 @@ info:
 format:
 	@echo "Formatting C source files..."
 	@clang-format -i $(SRC_DIR)/*.c $(REPL_DIR)/*.c
+	@echo "Formatting complete!"
+	@echo "Formatting shell scripts..."
+	@if command -v shfmt >/dev/null 2>&1; then \
+		find . -maxdepth 1 -name "*.sh" -exec shfmt -w -i 2 {} \; ; \
+		echo "Shell scripts formatted with shfmt (2 space indent)"; \
+	else \
+		echo "shfmt not available, skipping shell script formatting"; \
+	fi
 	@echo "Formatting complete!"
 
 # Test target (run some basic tests)

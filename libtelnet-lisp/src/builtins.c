@@ -221,7 +221,7 @@ static LispObject *builtin_add(LispObject *args, Environment *env) {
 
     while (args != NIL && args != NULL) {
         LispObject *arg = lisp_car(args);
-        int arg_is_integer;
+        int arg_is_integer = 0;
         double val = get_numeric_value(arg, &arg_is_integer);
         if (arg_is_integer == 0 && arg->type != LISP_NUMBER && arg->type != LISP_INTEGER) {
             return lisp_make_error("+ requires numbers");
@@ -264,7 +264,7 @@ static LispObject *builtin_subtract(LispObject *args, Environment *env) {
 
     while (args != NIL && args != NULL) {
         LispObject *arg = lisp_car(args);
-        int arg_is_integer;
+        int arg_is_integer = 0;
         double val = get_numeric_value(arg, &arg_is_integer);
         if (arg_is_integer == 0 && arg->type != LISP_NUMBER && arg->type != LISP_INTEGER) {
             return lisp_make_error("- requires numbers");
@@ -294,7 +294,7 @@ static LispObject *builtin_multiply(LispObject *args, Environment *env) {
 
     while (args != NIL && args != NULL) {
         LispObject *arg = lisp_car(args);
-        int arg_is_integer;
+        int arg_is_integer = 0;
         double val = get_numeric_value(arg, &arg_is_integer);
         if (arg_is_integer == 0 && arg->type != LISP_NUMBER && arg->type != LISP_INTEGER) {
             return lisp_make_error("* requires numbers");
@@ -335,7 +335,7 @@ static LispObject *builtin_divide(LispObject *args, Environment *env) {
     /* Division always returns float */
     while (args != NIL && args != NULL) {
         LispObject *arg = lisp_car(args);
-        int arg_is_integer;
+        int arg_is_integer = 0;
         double val = get_numeric_value(arg, &arg_is_integer);
         if (arg_is_integer == 0 && arg->type != LISP_NUMBER && arg->type != LISP_INTEGER) {
             return lisp_make_error("/ requires numbers");
@@ -453,8 +453,8 @@ static LispObject *builtin_gt(LispObject *args, Environment *env) {
     LispObject *a = lisp_car(args);
     LispObject *b = lisp_car(lisp_cdr(args));
 
-    int a_is_integer;
-    int b_is_integer;
+    int a_is_integer = 0;
+    int b_is_integer = 0;
     double a_val = get_numeric_value(a, &a_is_integer);
     double b_val = get_numeric_value(b, &b_is_integer);
 
@@ -475,8 +475,8 @@ static LispObject *builtin_lt(LispObject *args, Environment *env) {
     LispObject *a = lisp_car(args);
     LispObject *b = lisp_car(lisp_cdr(args));
 
-    int a_is_integer;
-    int b_is_integer;
+    int a_is_integer = 0;
+    int b_is_integer = 0;
     double a_val = get_numeric_value(a, &a_is_integer);
     double b_val = get_numeric_value(b, &b_is_integer);
 
@@ -497,8 +497,8 @@ static LispObject *builtin_eq(LispObject *args, Environment *env) {
     LispObject *a = lisp_car(args);
     LispObject *b = lisp_car(lisp_cdr(args));
 
-    int a_is_integer;
-    int b_is_integer;
+    int a_is_integer = 0;
+    int b_is_integer = 0;
     double a_val = get_numeric_value(a, &a_is_integer);
     double b_val = get_numeric_value(b, &b_is_integer);
 
@@ -519,8 +519,8 @@ static LispObject *builtin_gte(LispObject *args, Environment *env) {
     LispObject *a = lisp_car(args);
     LispObject *b = lisp_car(lisp_cdr(args));
 
-    int a_is_integer;
-    int b_is_integer;
+    int a_is_integer = 0;
+    int b_is_integer = 0;
     double a_val = get_numeric_value(a, &a_is_integer);
     double b_val = get_numeric_value(b, &b_is_integer);
 
@@ -541,8 +541,8 @@ static LispObject *builtin_lte(LispObject *args, Environment *env) {
     LispObject *a = lisp_car(args);
     LispObject *b = lisp_car(lisp_cdr(args));
 
-    int a_is_integer;
-    int b_is_integer;
+    int a_is_integer = 0;
+    int b_is_integer = 0;
     double a_val = get_numeric_value(a, &a_is_integer);
     double b_val = get_numeric_value(b, &b_is_integer);
 
@@ -1818,6 +1818,7 @@ static LispObject *builtin_vector_pop_bang(LispObject *args, Environment *env) {
 /* Hash table operations */
 static LispObject *builtin_make_hash_table(LispObject *args, Environment *env) {
     (void)env;
+    (void)args;
     return lisp_make_hash_table();
 }
 

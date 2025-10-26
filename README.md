@@ -770,7 +770,7 @@ Telnet Lisp includes powerful PCRE2 regex functions for advanced pattern matchin
 - `regex-escape` - Escape special regex characters
 - `regex-valid?` - Validate regex patterns
 
-See the `examples/` directory for comprehensive examples including `regex.lisp`, `progn.lisp`, `let_star.lisp`, `hooks_with_state.lisp`, and `file_io.lisp`.
+See the `tests/` directory for comprehensive examples and test cases including regex, progn, loops, conditionals, and file I/O.
 
 ## License
 
@@ -795,6 +795,7 @@ Potential additions for future versions:
 - **Error Recovery**: Lisp-level call stack traces show the call chain when errors occur
 
 ### High Priority
+
 - Tail call optimization for better recursion performance
 
 ### Medium Priority

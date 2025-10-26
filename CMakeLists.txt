@@ -30,40 +30,8 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(GC REQUIRED bdw-gc)
 pkg_check_modules(PCRE2 REQUIRED libpcre2-8)
 
-# Include directories
-include_directories(include)
-
-# Library sources
-set(LIB_SOURCES
-    src/lisp.c
-    src/reader.c
-    src/eval.c
-    src/env.c
-    src/builtins.c
-    src/print.c
-    src/regex.c
-    src/hash_table.c
-    src/utf8.c
-)
-
-# Create static library
-add_library(liblisp STATIC ${LIB_SOURCES})
-
-# Link libraries
-target_link_libraries(liblisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
-
-# Include directories for library
-target_include_directories(liblisp PUBLIC include)
-
-# Add UCRT64 system include paths for clangd on Windows
-if(WIN32)
-    set(UCRT64_ROOT "C:/Users/tchristensen/scoop/apps/msys2/current/ucrt64")
-    target_include_directories(liblisp SYSTEM PUBLIC
-        "${UCRT64_ROOT}/include"
-        "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/15.2.0/include"
-        "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/15.2.0/include-fixed"
-    )
-endif()
+# Add library subdirectory
+add_subdirectory(libtelnet-lisp)
 
 # REPL executable
 add_executable(lisp-repl repl/main.c)
@@ -85,28 +53,27 @@ install(TARGETS lisp-repl liblisp
     ARCHIVE DESTINATION lib
 )
 
-install(FILES include/lisp.h
+install(FILES libtelnet-lisp/include/lisp.h
     DESTINATION include
 )
 
 # Testing
 enable_testing()
 
-# REPL test suite
-add_test(NAME repl_basic_test
-    COMMAND lisp-repl
-    INPUT_FILE ${CMAKE_SOURCE_DIR}/examples/arithmetic.lisp
-)
+# Find all test files and add them with validation
+file(GLOB_RECURSE TEST_FILES "tests/**/*.lisp")
 
-add_test(NAME repl_regression_test
-    COMMAND lisp-repl
-    INPUT_FILE ${CMAKE_SOURCE_DIR}/tests/test_regression.lisp
-)
+foreach(TEST_FILE ${TEST_FILES})
+    get_filename_component(TEST_NAME ${TEST_FILE} NAME_WE)
+    # Generate a unique test name with category prefix
+    get_filename_component(TEST_DIR ${TEST_FILE} DIRECTORY)
+    get_filename_component(CATEGORY ${TEST_DIR} NAME)
 
-add_test(NAME repl_multiline_test
-    COMMAND lisp-repl
-    INPUT_FILE ${CMAKE_SOURCE_DIR}/tests/test_multiline.lisp
-)
+    add_test(NAME ${CATEGORY}_${TEST_NAME}
+        COMMAND bash ${CMAKE_SOURCE_DIR}/test_runner.sh ${TEST_FILE}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+endforeach()
 
 # Package configuration
 set(CPACK_PACKAGE_NAME "TelnetLisp")
