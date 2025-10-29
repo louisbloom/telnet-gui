@@ -1,22 +1,32 @@
-# Telnet Lisp Interpreter
+# Telnet Lisp Repository
 
-A minimal, embeddable Lisp interpreter library written in C, designed for integration into GUI applications. Features automatic garbage collection with Boehm GC, powerful regex support with PCRE2, and a comprehensive REPL for testing and demonstration.
+A multi-project repository focused on **telnet-lisp** integration. This repository contains independent projects that share a common theme: integration with the telnet-lisp Lisp interpreter library.
 
-## Project Structure
+## Repository Overview
+
+This repository is organized around **libtelnet-lisp**, the core embeddable Lisp interpreter library. All projects in this repository integrate with or use telnet-lisp in various ways:
+
+- **libtelnet-lisp** - The core library: A minimal, embeddable Lisp interpreter written in C with automatic garbage collection, regex support, and UTF-8 handling
+- **telnet-gui** - GUI application: A graphical telnet client that integrates telnet-lisp for scriptable automation and command processing
+
+While these projects are independent and can be built separately, they share the common foundation of telnet-lisp integration.
+
+## Repository Structure
 
 ```
 telnet-lisp/
-├── libtelnet-lisp/    # Self-contained library
+├── libtelnet-lisp/    # Core Lisp interpreter library (foundation)
 │   ├── include/       # Public headers (lisp.h, utf8.h)
 │   ├── src/          # Library source files
 │   ├── repl/         # REPL application
 │   ├── tests/        # Test suite
 │   ├── CMakeLists.txt
-│   ├── README.md     # Full library documentation
+│   ├── README.md     # Library documentation
 │   └── PACKAGING.md  # Integration guide
-├── telnet-gui/       # GUI application (SDL2, libvterm)
+├── telnet-gui/       # GUI application (integrates libtelnet-lisp)
 │   ├── src/          # GUI source files
-│   └── CMakeLists.txt
+│   ├── CMakeLists.txt
+│   └── README.md     # GUI-specific documentation
 ├── CMakeLists.txt    # Root build configuration
 └── build/            # Build directory (generated)
 ```
@@ -28,29 +38,41 @@ telnet-lisp/
 **Windows (MSYS2 UCRT64):**
 
 ```bash
-# Install dependencies
+# Core library dependencies (required for all projects)
 pacman -S mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake
 pacman -S mingw-w64-ucrt-x86_64-bdw-gc mingw-w64-ucrt-x86_64-pcre2
+
+# GUI project dependencies (optional, only for telnet-gui)
+pacman -S mingw-w64-ucrt-x86_64-SDL2
+pacman -S mingw-w64-ucrt-x86_64-SDL2_ttf
+pacman -S mingw-w64-ucrt-x86_64-libvterm
 ```
 
 **Linux:**
 
 ```bash
-# Ubuntu/Debian
+# Core library dependencies
 sudo apt install build-essential cmake pkg-config libgc-dev libpcre2-dev
 
-# Fedora
-sudo dnf install gcc cmake pkg-config gc-devel pcre2-devel
+# GUI project dependencies (optional)
+sudo apt install libsdl2-dev libsdl2-ttf-dev
+# libvterm: install from source (see telnet-gui/README.md)
 ```
 
 **macOS:**
 
 ```bash
-# Install dependencies via Homebrew
+# Core library dependencies
 brew install cmake pkg-config bdw-gc pcre2
+
+# GUI project dependencies (optional)
+brew install sdl2 sdl2_ttf
+# libvterm: install from source (see telnet-gui/README.md)
 ```
 
 ### Building
+
+Build all projects from the repository root:
 
 ```bash
 # Create build directory
@@ -63,11 +85,12 @@ cmake .. -G Ninja
 cmake --build .
 
 # Or build specific targets
-cmake --build . --target lisp-repl
-cmake --build . --target telnet-gui
+cmake --build . --target liblisp      # Core library only
+cmake --build . --target lisp-repl     # REPL application
+cmake --build . --target telnet-gui    # GUI application (requires GUI deps)
 ```
 
-**Alternative with MinGW Makefiles:**
+**Alternative with MinGW Makefiles (Windows):**
 
 ```bash
 cmake .. -G "MinGW Makefiles"
@@ -96,13 +119,107 @@ Try some Lisp:
 >>> :quit
 ```
 
-### Building and Running Tests
+## Core Library: libtelnet-lisp
+
+**libtelnet-lisp** is the core embeddable Lisp interpreter library that serves as the foundation for all projects in this repository. It provides a complete Lisp implementation with modern features, designed for integration into applications.
+
+### Key Features
+
+- **Complete Lisp implementation** with lexical scoping, closures, and first-class functions
+- **Rich data types**: Numbers, integers, strings (UTF-8), lists, vectors, hash tables, booleans
+- **PCRE2 regex support** with UTF-8 and Unicode character properties
+- **Automatic memory management** with Boehm GC
+- **File I/O** with cross-platform line ending support
+- **REPL** for interactive development
+- **Comprehensive built-in functions**: Arithmetic, string operations, list/vector manipulation, regex matching
+
+### Quick Example
+
+```lisp
+; Define a function
+(define square (lambda (x) (* x x)))
+(square 5)         ; => 25
+
+; String operations with UTF-8 support
+(string-length "Hello, 世界!")  ; => 11
+
+; Regex pattern matching
+(regex-match "\\d+" "hello123")  ; => 1
+```
+
+### Documentation
+
+For complete documentation including:
+- All available functions and special forms
+- Detailed API reference
+- Comprehensive examples and usage patterns
+- Embedding guide
+
+See **[libtelnet-lisp/README.md](libtelnet-lisp/README.md)**.
+
+To integrate libtelnet-lisp into your project, see **[libtelnet-lisp/PACKAGING.md](libtelnet-lisp/PACKAGING.md)**.
+
+## Projects
+
+### telnet-gui
+
+A graphical telnet client with terminal emulation, built using SDL2 and libvterm. This project integrates with **libtelnet-lisp** to provide scriptable automation and command processing capabilities.
+
+**Integration with telnet-lisp:**
+- Uses libtelnet-lisp for Lisp-based automation and scripting
+- Provides a GUI interface for telnet connections
+- Enables Lisp scripting within the telnet client
+
+**Key Features:**
+- Full VT100-compatible terminal emulation using libvterm
+- SDL2-based graphical interface with font rendering
+- Real-time rendering with efficient screen updates and glyph caching
+- Keyboard and mouse input support
+
+**Dependencies:**
+- SDL2 (windowing and rendering)
+- SDL2_ttf (font rendering)
+- libvterm (terminal emulation) - install from source
+- **libtelnet-lisp** (core library - included)
+
+**Building:**
+
+```bash
+# Install GUI dependencies (MSYS2)
+pacman -S mingw-w64-ucrt-x86_64-SDL2
+pacman -S mingw-w64-ucrt-x86_64-SDL2_ttf
+# libvterm: install from source (see telnet-gui/README.md)
+
+# Build from repository root
+cd build
+cmake --build . --target telnet-gui
+```
+
+**Usage:**
+
+```bash
+./build/telnet-gui/telnet-gui.exe <hostname> <port>
+```
+
+**Documentation:** See [`telnet-gui/README.md`](telnet-gui/README.md) for detailed documentation, including libvterm integration notes and troubleshooting.
+
+## CMake Targets
+
+Repository-level targets:
+
+- `liblisp` - Static library (core)
+- `lisp-repl` - REPL application (uses libtelnet-lisp)
+- `telnet-gui` - GUI application (uses libtelnet-lisp)
+- `format` - Format all source files
+- `test` - Run test suite
+- `install` - Install to system directories
+
+View all targets:
 
 ```bash
 cd build
 cmake .. -G Ninja
-cmake --build .
-ctest
+cmake --build . --target help
 ```
 
 ## Formatting Code
@@ -120,130 +237,6 @@ Or from the project root:
 cmake --build build --target format
 ```
 
-## Project Components
-
-### libtelnet-lisp Library
-
-The core Lisp interpreter library - see [`libtelnet-lisp/README.md`](libtelnet-lisp/README.md) for complete documentation.
-
-**Features:**
-- Numbers, Strings, Lists, Vectors, Hash Tables
-- Lexical scoping with lambdas
-- Pattern matching and regex (PCRE2)
-- Automatic garbage collection (Boehm GC)
-- UTF-8 support
-
-### REPL Application
-
-Interactive Lisp shell for experimentation. Run with:
-
-```bash
-./build/lisp-repl
-```
-
-**Commands:**
-- `:quit` - Exit the REPL
-- `:load <file>` - Load and execute a Lisp file
-
-### Telnet GUI Application
-
-Modern GUI client with SDL2 and libvterm for terminal emulation.
-
-**Dependencies:**
-- SDL2 (windowing and rendering)
-- SDL2_ttf (font rendering)
-- libvterm (terminal emulation)
-
-**Building:**
-
-```bash
-# Install GUI dependencies (MSYS2)
-pacman -S mingw-w64-ucrt-x86_64-SDL2
-pacman -S mingw-w64-ucrt-x86_64-SDL2_ttf
-pacman -S mingw-w64-ucrt-x86_64-libvterm
-
-# Build
-cd build
-cmake --build . --target telnet-gui
-```
-
-## CMake Targets
-
-- `lisp-repl` - REPL application (default)
-- `liblisp` - Static library
-- `telnet-gui` - GUI application
-- `format` - Format all source files
-- `test` - Run test suite
-- `install` - Install to system directories
-
-View all targets:
-
-```bash
-cd build
-cmake .. -G Ninja
-cmake --build . --target help
-```
-
-## Using the Library
-
-### Quick Integration
-
-The library is designed to be easily embedded. See [`libtelnet-lisp/PACKAGING.md`](libtelnet-lisp/PACKAGING.md) for detailed integration instructions.
-
-**Simple integration:**
-
-```c
-#include "libtelnet-lisp/include/lisp.h"
-
-int main() {
-    lisp_init();  // Initializes GC automatically
-    Environment* env = env_create_global();
-
-    LispObject* result = lisp_eval_string("(+ 1 2)", env);
-    char* output = lisp_print(result);
-    printf("%s\n", output);  // Outputs: 3
-
-    env_free(env);
-    lisp_cleanup();
-    return 0;
-}
-```
-
-**Linking with CMake:**
-
-```cmake
-add_subdirectory(libtelnet-lisp)
-target_link_libraries(myapp liblisp)
-target_include_directories(myapp PRIVATE libtelnet-lisp/include)
-```
-
-## Documentation
-
-- **[libtelnet-lisp/README.md](libtelnet-lisp/README.md)** - Complete library documentation
-- **[libtelnet-lisp/PACKAGING.md](libtelnet-lisp/PACKAGING.md)** - Integration guide for embedding
-- **[libtelnet-lisp/tests/README.md](libtelnet-lisp/tests/README.md)** - Test documentation
-
-## Features
-
-### Data Types
-- Numbers (integers and floats), Booleans (#t, #f)
-- Strings, Lists, Vectors, Hash Tables
-- Symbols, Lambdas, Closures
-
-### Control Flow
-- `quote`, `if`, `define`, `set!`
-- `lambda`, `let`, `let*`
-- `progn`, `do`, `cond`, `case`
-
-### Functions
-- Arithmetic, comparisons, string operations
-- List operations (car, cdr, cons, list)
-- Regex with PCRE2 (match, find, extract, replace)
-- Vector operations (ref, set!, push!, pop!)
-- Hash table operations (ref, set!, remove!)
-
-See [`libtelnet-lisp/README.md`](libtelnet-lisp/README.md) for the complete API reference.
-
 ## Platform Support
 
 - **Windows**: MSYS2 UCRT64 (GCC)
@@ -252,15 +245,9 @@ See [`libtelnet-lisp/README.md`](libtelnet-lisp/README.md) for the complete API 
 
 ## Development
 
-### Project Layout
-
-- `libtelnet-lisp/` - Self-contained library (can be embedded independently)
-- `telnet-gui/` - GUI application using the library
-- `build/` - Generated build artifacts
-
 ### Build System
 
-The project uses **CMake** as the primary build system, providing:
+The repository uses **CMake** as the primary build system, providing:
 
 - Cross-platform support
 - Multiple generator support (Ninja, Makefiles, etc.)
@@ -276,10 +263,19 @@ The project generates `compile_commands.json` for clangd and other LSP servers. 
 cp build/compile_commands.json .
 ```
 
+## Documentation
+
+### Repository Documentation
+
+- **[libtelnet-lisp/README.md](libtelnet-lisp/README.md)** - Complete library documentation with all features, API reference, and examples
+- **[libtelnet-lisp/PACKAGING.md](libtelnet-lisp/PACKAGING.md)** - Integration guide for embedding libtelnet-lisp
+- **[libtelnet-lisp/tests/README.md](libtelnet-lisp/tests/README.md)** - Test documentation
+- **[telnet-gui/README.md](telnet-gui/README.md)** - GUI application documentation, libvterm integration notes
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Contributing
 
-See the library documentation in `libtelnet-lisp/README.md` for API reference and examples.
+See the library documentation in `libtelnet-lisp/README.md` for API reference and examples. All projects in this repository integrate with the core **libtelnet-lisp** library.
