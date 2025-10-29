@@ -107,6 +107,7 @@ int main(int argc, char **argv) {
     /* We'll handle terminal output in the main loop */
 
     /* Connect */
+    fprintf(stderr, "Connecting to %s:%d...\n", hostname, port);
     if (telnet_connect(telnet, hostname, port) < 0) {
         fprintf(stderr, "Failed to connect to %s:%d\n", hostname, port);
         telnet_destroy(telnet);
@@ -116,6 +117,7 @@ int main(int argc, char **argv) {
         window_destroy(win);
         return 1;
     }
+    fprintf(stderr, "Connected successfully\n");
 
     /* Main loop */
     SDL_Event event;

@@ -9,16 +9,31 @@ struct Terminal {
     VTermScreen *screen;
     int rows, cols;
     int needs_redraw;
+    VTermScreenCallbacks callbacks; /* Keep callbacks in struct so they don't go out of scope */
 };
 
 static int damage(VTermRect rect, void *user) {
     Terminal *term = (Terminal *)user;
+    if (!term)
+        return 0;
     term->needs_redraw = 1;
     return 1;
 }
 
-static int movecursor(VTermPos pos, VTermPos oldpos, int visible, void *user) {
+/* Screen layer movecursor callback */
+static int screen_movecursor(VTermPos pos, VTermPos oldpos, int visible, void *user) {
     Terminal *term = (Terminal *)user;
+    if (!term)
+        return 0;
+    term->needs_redraw = 1;
+    return 1;
+}
+
+/* State layer movecursor callback - same signature */
+static int state_movecursor(VTermPos pos, VTermPos oldpos, int visible, void *user) {
+    Terminal *term = (Terminal *)user;
+    if (!term)
+        return 0;
     term->needs_redraw = 1;
     return 1;
 }
@@ -33,8 +48,26 @@ static int bell(void *user) {
 
 static int resize(int rows, int cols, void *user) {
     Terminal *term = (Terminal *)user;
+    if (!term)
+        return 0;
     term->rows = rows;
     term->cols = cols;
+    return 1;
+}
+
+static int putglyph(VTermGlyphInfo *info, VTermPos pos, void *user) {
+    Terminal *term = (Terminal *)user;
+    if (!term)
+        return 0;
+    term->needs_redraw = 1;
+    return 1;
+}
+
+static int scrollrect(VTermRect rect, int downward, int rightward, void *user) {
+    Terminal *term = (Terminal *)user;
+    if (!term)
+        return 0;
+    term->needs_redraw = 1;
     return 1;
 }
 
@@ -43,12 +76,16 @@ Terminal *terminal_create(int rows, int cols) {
     if (!term)
         return NULL;
 
+    /* Check libvterm version */
+    vterm_check_version(0, 3);
+
     term->vterm = vterm_new(rows, cols);
     if (!term->vterm) {
         free(term);
         return NULL;
     }
 
+    /* Set UTF-8 mode BEFORE getting screen */
     vterm_set_utf8(term->vterm, 1);
 
     term->screen = vterm_obtain_screen(term->vterm);
@@ -62,15 +99,22 @@ Terminal *terminal_create(int rows, int cols) {
     term->cols = cols;
     term->needs_redraw = 1;
 
-    /* Set up callbacks */
-    VTermScreenCallbacks callbacks = {0};
-    callbacks.damage = damage;
-    callbacks.movecursor = movecursor;
-    callbacks.settermprop = settermprop;
-    callbacks.bell = bell;
-    callbacks.resize = resize;
+    /* Set up screen callbacks - screen layer automatically sets up state callbacks */
+    /* Keep callbacks in Terminal struct so they persist */
+    /* Initialize to zero first, then set callbacks (follows demo/main.c exactly) */
+    memset(&term->callbacks, 0, sizeof(term->callbacks));
+    term->callbacks.damage = damage;
+    term->callbacks.movecursor = screen_movecursor;
+    term->callbacks.settermprop = settermprop;
+    term->callbacks.bell = bell;
+    term->callbacks.resize = resize;
 
-    vterm_screen_set_callbacks(term->screen, &callbacks, term);
+    /* Set callbacks FIRST (like demo/main.c) */
+    vterm_screen_set_callbacks(term->screen, &term->callbacks, term);
+
+    /* Reset screen (hard reset) - this calls vterm_state_reset internally */
+    /* State reset initializes encoding arrays using UTF-8 mode */
+    vterm_screen_reset(term->screen, 1);
 
     return term;
 }
@@ -87,6 +131,8 @@ void terminal_feed_data(Terminal *term, const char *data, size_t len) {
     if (!term || !data)
         return;
     vterm_input_write(term->vterm, data, len);
+    /* Flush screen damage to trigger callbacks (demo/main.c does this) */
+    vterm_screen_flush_damage(term->screen);
 }
 
 VTerm *terminal_get_vterm(Terminal *term) {

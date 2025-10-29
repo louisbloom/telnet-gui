@@ -129,6 +129,15 @@ int telnet_connect(Telnet *t, const char *hostname, int port) {
         return -1;
     }
 
+    /* Set socket to non-blocking mode */
+#ifdef _WIN32
+    u_long mode = 1;
+    ioctlsocket(t->socket, FIONBIO, &mode);
+#else
+    int flags = fcntl(t->socket, F_GETFL, 0);
+    fcntl(t->socket, F_SETFL, flags | O_NONBLOCK);
+#endif
+
     /* Send initial Telnet options */
     telnet_send_command(t->socket, WILL, OPT_ECHO);
     telnet_send_command(t->socket, WILL, OPT_SUPPRESS_GO_AHEAD);
@@ -179,6 +188,18 @@ int telnet_receive(Telnet *t, char *buffer, size_t bufsize) {
 
     int received = recv(t->socket, buffer, bufsize, 0);
     if (received <= 0) {
+#ifdef _WIN32
+        int error = WSAGetLastError();
+        if (error == WSAEWOULDBLOCK || error == WSAEINPROGRESS) {
+            /* Would block - no data available */
+            return 0;
+        }
+#else
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            /* Would block - no data available */
+            return 0;
+        }
+#endif
         telnet_disconnect(t);
         return received;
     }

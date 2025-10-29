@@ -2,7 +2,6 @@
 
 #include "renderer.h"
 #include <stdlib.h>
-#include <string.h>
 
 struct Renderer {
     SDL_Renderer *sdl_renderer;
@@ -43,6 +42,16 @@ void renderer_render(Renderer *r, Terminal *term, const char *title) {
     int rows, cols;
     terminal_get_size(term, &rows, &cols);
 
+    /* Get default colors for fallback */
+    VTermState *state = vterm_obtain_state(vterm);
+    VTermColor default_fg, default_bg;
+    /* Initialize default colors to safe values */
+    vterm_color_rgb(&default_fg, 255, 255, 255);
+    vterm_color_rgb(&default_bg, 0, 0, 0);
+    if (state) {
+        vterm_state_get_default_colors(state, &default_fg, &default_bg);
+    }
+
     /* Render each cell */
     for (int row = 0; row < rows; row++) {
         for (int col = 0; col < cols; col++) {
@@ -50,27 +59,46 @@ void renderer_render(Renderer *r, Terminal *term, const char *title) {
             VTermScreenCell cell;
             vterm_screen_get_cell(screen, pos, &cell);
 
-            /* Draw background if needed */
-            if (cell.bg.type == VTERM_COLOR_RGB) {
-                SDL_SetRenderDrawColor(r->sdl_renderer, cell.bg.rgb.red, cell.bg.rgb.green, cell.bg.rgb.blue, 255);
+            /* Handle background color */
+            VTermColor bg_color_processed = cell.bg;
+            if (VTERM_COLOR_IS_DEFAULT_BG(&cell.bg)) {
+                bg_color_processed = default_bg;
+            }
+            if (VTERM_COLOR_IS_INDEXED(&bg_color_processed)) {
+                vterm_screen_convert_color_to_rgb(screen, &bg_color_processed);
+            }
+
+            /* Draw background if not default or if RGB */
+            if (!VTERM_COLOR_IS_DEFAULT_BG(&cell.bg) && VTERM_COLOR_IS_RGB(&bg_color_processed)) {
+                SDL_SetRenderDrawColor(r->sdl_renderer, bg_color_processed.rgb.red, bg_color_processed.rgb.green,
+                                       bg_color_processed.rgb.blue, 255);
                 SDL_Rect bg_rect = {col * r->cell_w, row * r->cell_h + r->titlebar_h, r->cell_w, r->cell_h};
                 SDL_RenderFillRect(r->sdl_renderer, &bg_rect);
             }
 
             /* Draw foreground/characters */
             if (cell.chars[0]) {
+                /* Handle foreground color */
+                VTermColor fg_color_processed = cell.fg;
+                if (VTERM_COLOR_IS_DEFAULT_FG(&cell.fg)) {
+                    fg_color_processed = default_fg;
+                }
+                if (VTERM_COLOR_IS_INDEXED(&fg_color_processed)) {
+                    vterm_screen_convert_color_to_rgb(screen, &fg_color_processed);
+                }
+
                 SDL_Color fg_color = {255, 255, 255, 255};
-                if (cell.fg.type == VTERM_COLOR_RGB) {
-                    fg_color.r = cell.fg.rgb.red;
-                    fg_color.g = cell.fg.rgb.green;
-                    fg_color.b = cell.fg.rgb.blue;
+                if (VTERM_COLOR_IS_RGB(&fg_color_processed)) {
+                    fg_color.r = fg_color_processed.rgb.red;
+                    fg_color.g = fg_color_processed.rgb.green;
+                    fg_color.b = fg_color_processed.rgb.blue;
                 }
 
                 SDL_Color bg_color = {0, 0, 0, 255};
-                if (cell.bg.type == VTERM_COLOR_RGB) {
-                    bg_color.r = cell.bg.rgb.red;
-                    bg_color.g = cell.bg.rgb.green;
-                    bg_color.b = cell.bg.rgb.blue;
+                if (VTERM_COLOR_IS_RGB(&bg_color_processed)) {
+                    bg_color.r = bg_color_processed.rgb.red;
+                    bg_color.g = bg_color_processed.rgb.green;
+                    bg_color.b = bg_color_processed.rgb.blue;
                 }
 
                 SDL_Texture *glyph = glyph_cache_get(r->glyph_cache, cell.chars[0], fg_color, bg_color, cell.attrs.bold,
@@ -84,7 +112,6 @@ void renderer_render(Renderer *r, Terminal *term, const char *title) {
     }
 
     /* Draw cursor */
-    VTermState *state = vterm_obtain_state(vterm);
     if (state) {
         VTermPos cursor;
         vterm_state_get_cursorpos(state, &cursor);
