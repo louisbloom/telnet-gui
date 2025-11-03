@@ -21,6 +21,7 @@ struct Window {
 };
 
 static SDL_HitTestResult hit_test(SDL_Window *win, const SDL_Point *area, void *data) {
+    (void)data; /* Unused parameter - required by SDL_HitTest signature */
     int x = area->x, y = area->y;
     int w, h;
     SDL_GetWindowSize(win, &w, &h);
@@ -61,6 +62,9 @@ Window *window_create(const char *title, int width, int height) {
     if (!w)
         return NULL;
 
+    /* Set SDL hints BEFORE creating renderer for proper effect */
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1"); /* Linear scaling for smooth text */
+
     w->window = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height,
                                  SDL_WINDOW_BORDERLESS | SDL_WINDOW_RESIZABLE);
     if (!w->window) {
@@ -76,6 +80,13 @@ Window *window_create(const char *title, int width, int height) {
         free(w);
         return NULL;
     }
+
+    /* Set blend mode for proper alpha blending */
+    SDL_SetRenderDrawBlendMode(w->renderer, SDL_BLENDMODE_BLEND);
+
+    /* Use linear filtering for best quality text rendering (0=nearest, 1=linear) */
+    /* Note: SDL_HINT_RENDER_INTEGER_SCALE requires SDL 2.0.5+, not available in this version */
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
 
     /* Initialize buttons */
     w->close_button.x = width - BUTTON_SIZE - BUTTON_PADDING;
@@ -126,6 +137,7 @@ void window_set_title(Window *w, const char *title) {
 }
 
 void window_render_titlebar(Window *w, SDL_Renderer *renderer, const char *text) {
+    (void)text; /* Unused parameter - reserved for future use */
     int w_width, w_height;
     SDL_GetWindowSize(w->window, &w_width, &w_height);
 

@@ -22,15 +22,96 @@ static void cleanup(void) {
     SDL_Quit();
 }
 
+static void print_help(const char *program_name) {
+    printf("Usage: %s [OPTIONS] <hostname> <port>\n", program_name);
+    printf("\n");
+    printf("Options:\n");
+    printf("  -h, --help              Show this help message and exit\n");
+    printf("  --hinting MODE         Set font hinting mode (default: none)\n");
+    printf("                           MODE can be: none, light, normal, mono\n");
+    printf("  --antialiasing MODE    Set anti-aliasing mode (default: linear)\n");
+    printf("                           MODE can be: nearest, linear\n");
+    printf("\n");
+    printf("Arguments:\n");
+    printf("  hostname               Telnet server hostname or IP address\n");
+    printf("  port                   Telnet server port number\n");
+    printf("\n");
+    printf("Examples:\n");
+    printf("  %s carrionfields.net 4449\n", program_name);
+    printf("  %s --hinting light --antialiasing linear example.com 23\n", program_name);
+    printf("  %s --hinting normal --antialiasing nearest localhost 8080\n", program_name);
+}
+
 int main(int argc, char **argv) {
+    /* Default settings */
+    int hinting_mode = TTF_HINTING_NONE;
+    SDL_ScaleMode scale_mode = SDL_ScaleModeLinear;
+    const char *hostname = NULL;
+    int port = 0;
+
     /* Parse command-line arguments */
-    if (argc < 3) {
-        fprintf(stderr, "Usage: %s <hostname> <port>\n", argv[0]);
-        return 1;
+    int arg_idx = 1;
+    while (arg_idx < argc) {
+        if (strcmp(argv[arg_idx], "-h") == 0 || strcmp(argv[arg_idx], "--help") == 0) {
+            print_help(argv[0]);
+            return 0;
+        } else if (strcmp(argv[arg_idx], "--hinting") == 0) {
+            if (arg_idx + 1 >= argc) {
+                fprintf(stderr, "Error: --hinting requires a mode (none, light, normal, mono)\n");
+                return 1;
+            }
+            arg_idx++;
+            if (strcmp(argv[arg_idx], "none") == 0) {
+                hinting_mode = TTF_HINTING_NONE;
+            } else if (strcmp(argv[arg_idx], "light") == 0) {
+                hinting_mode = TTF_HINTING_LIGHT;
+            } else if (strcmp(argv[arg_idx], "normal") == 0) {
+                hinting_mode = TTF_HINTING_NORMAL;
+            } else if (strcmp(argv[arg_idx], "mono") == 0) {
+                hinting_mode = TTF_HINTING_MONO;
+            } else {
+                fprintf(stderr, "Error: Invalid hinting mode '%s'. Use: none, light, normal, mono\n", argv[arg_idx]);
+                return 1;
+            }
+        } else if (strcmp(argv[arg_idx], "--antialiasing") == 0) {
+            if (arg_idx + 1 >= argc) {
+                fprintf(stderr, "Error: --antialiasing requires a mode (nearest, linear)\n");
+                return 1;
+            }
+            arg_idx++;
+            if (strcmp(argv[arg_idx], "nearest") == 0) {
+                scale_mode = SDL_ScaleModeNearest;
+            } else if (strcmp(argv[arg_idx], "linear") == 0) {
+                scale_mode = SDL_ScaleModeLinear;
+            } else {
+                fprintf(stderr, "Error: Invalid antialiasing mode '%s'. Use: nearest, linear\n", argv[arg_idx]);
+                return 1;
+            }
+        } else {
+            /* Positional arguments: hostname and port */
+            if (hostname == NULL) {
+                hostname = argv[arg_idx];
+            } else if (port == 0) {
+                port = atoi(argv[arg_idx]);
+                if (port <= 0 || port > 65535) {
+                    fprintf(stderr, "Error: Invalid port number '%s'. Must be between 1 and 65535\n", argv[arg_idx]);
+                    return 1;
+                }
+            } else {
+                fprintf(stderr, "Error: Unexpected argument '%s'\n", argv[arg_idx]);
+                fprintf(stderr, "Use --help for usage information\n");
+                return 1;
+            }
+        }
+        arg_idx++;
     }
 
-    const char *hostname = argv[1];
-    int port = atoi(argv[2]);
+    /* Validate required arguments */
+    if (hostname == NULL || port == 0) {
+        fprintf(stderr, "Error: Missing required arguments: hostname and port\n");
+        fprintf(stderr, "Use --help for usage information\n");
+        return 1;
+    }
 
     /* Set locale for UTF-8 support */
     setlocale(LC_ALL, "");
@@ -59,14 +140,97 @@ int main(int argc, char **argv) {
     SDL_Renderer *renderer = window_get_sdl_renderer(win);
     int titlebar_h = window_get_titlebar_height();
 
-    /* Create glyph cache */
-    GlyphCache *glyph_cache = glyph_cache_create(renderer, NULL, 14);
-    if (!glyph_cache) {
-        /* Try fallback font */
-        glyph_cache = glyph_cache_create(renderer, "C:/Windows/Fonts/consola.ttf", 14);
+    /* Create glyph cache with IBM Plex Mono */
+    /* Get executable base path using SDL */
+    char *base_path = SDL_GetBasePath();
+    char font_path[1024] = {0};
+    const char *font_paths[10];
+    const char *font_path_labels[10];
+    int font_path_count = 0;
+
+    fprintf(stderr, "Font resolution: Starting font search...\n");
+
+    /* Try font relative to executable first (installation path) */
+    if (base_path) {
+        /* SDL_GetBasePath() should return a path with trailing separator, but be safe */
+        size_t base_len = strlen(base_path);
+        const char *sep =
+            (base_len > 0 && (base_path[base_len - 1] == '/' || base_path[base_len - 1] == '\\')) ? "" : "/";
+
+        /* Normalize path separators - use backslashes on Windows for consistency */
+        char normalized_path[1024];
+        snprintf(normalized_path, sizeof(normalized_path), "%s%sassets/fonts/IBMPlexMono-Regular.ttf", base_path, sep);
+
+/* Convert forward slashes to backslashes on Windows for SDL_ttf compatibility */
+#ifdef _WIN32
+        for (char *p = normalized_path; *p; p++) {
+            if (*p == '/')
+                *p = '\\';
+        }
+#endif
+
+        strncpy(font_path, normalized_path, sizeof(font_path) - 1);
+        font_path[sizeof(font_path) - 1] = '\0';
+
+        font_paths[font_path_count] = font_path;
+        font_path_labels[font_path_count] = "executable-relative (installation path)";
+        font_path_count++;
+        fprintf(stderr, "Font resolution: Executable base path: %s\n", base_path);
+        fprintf(stderr, "Font resolution: Constructed font path: %s\n", font_path);
+        SDL_free(base_path);
+    } else {
+        fprintf(stderr, "Font resolution: Warning - SDL_GetBasePath() returned NULL\n");
     }
+
+    /* Add fallback paths - try source tree paths first since we know the font exists there */
+    font_paths[font_path_count] = "telnet-gui/assets/fonts/IBMPlexMono-Regular.ttf";
+    font_path_labels[font_path_count++] = "source tree path (from build root)";
+    font_paths[font_path_count] = "../../telnet-gui/assets/fonts/IBMPlexMono-Regular.ttf";
+    font_path_labels[font_path_count++] = "source tree path (nested build dir)";
+    font_paths[font_path_count] = "../telnet-gui/assets/fonts/IBMPlexMono-Regular.ttf";
+    font_path_labels[font_path_count++] = "source tree path (parent dir)";
+    font_paths[font_path_count] = "assets/fonts/IBMPlexMono-Regular.ttf";
+    font_path_labels[font_path_count++] = "current directory relative (build/development)";
+    font_paths[font_path_count] = "../assets/fonts/IBMPlexMono-Regular.ttf";
+    font_path_labels[font_path_count++] = "parent directory relative";
+    /* Last resort fallbacks */
+    font_paths[font_path_count] = "C:/Windows/Fonts/consola.ttf";
+    font_path_labels[font_path_count++] = "Windows system fallback (Consola)";
+    font_paths[font_path_count] = NULL;
+
+    GlyphCache *glyph_cache = NULL;
+    const char *loaded_font_path = NULL;
+    const char *loaded_font_label = NULL;
+
+    for (int i = 0; font_paths[i] != NULL; i++) {
+        fprintf(stderr, "Font resolution: Trying [%d] %s: %s\n", i + 1, font_path_labels[i], font_paths[i]);
+
+        /* Check if file exists before trying to load */
+        FILE *test = fopen(font_paths[i], "rb");
+        if (test) {
+            fclose(test);
+            fprintf(stderr, "Font resolution: File exists, attempting to load...\n");
+        } else {
+            fprintf(stderr, "Font resolution: File does not exist, skipping...\n");
+            continue;
+        }
+
+        /* Use slightly smaller font size with specified hinting and antialiasing */
+        glyph_cache = glyph_cache_create(renderer, font_paths[i], 16, hinting_mode, scale_mode);
+        if (glyph_cache) {
+            loaded_font_path = font_paths[i];
+            loaded_font_label = font_path_labels[i];
+            fprintf(stderr, "Font resolution: SUCCESS! Loaded font from [%d] %s\n", i + 1, loaded_font_label);
+            fprintf(stderr, "Font resolution: Font file path: %s\n", loaded_font_path);
+            break;
+        } else {
+            fprintf(stderr, "Font resolution: Failed to load font from: %s (error: %s)\n", font_paths[i],
+                    TTF_GetError());
+        }
+    }
+
     if (!glyph_cache) {
-        fprintf(stderr, "Failed to create glyph cache\n");
+        fprintf(stderr, "Font resolution: ERROR - Failed to create glyph cache from all attempted paths\n");
         window_destroy(win);
         return 1;
     }

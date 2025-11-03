@@ -14,6 +14,23 @@ set(GUI_SOURCES
 # Create telnet-gui executable
 add_executable(telnet-gui ${GUI_SOURCES})
 
+# Copy font file to build directory
+set(FONT_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/IBMPlexMono-Regular.ttf")
+set(FONT_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/IBMPlexMono-Regular.ttf")
+
+# Create assets/fonts directory in build directory
+add_custom_command(TARGET telnet-gui POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_SRC}" "${FONT_DST}"
+    COMMENT "Copying IBM Plex Mono font to build directory"
+)
+
+# Install font file with executable (in bin directory so it's relative to the executable)
+install(FILES "${FONT_SRC}"
+    DESTINATION "bin/assets/fonts"
+    COMPONENT Runtime
+)
+
 # Find required packages
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL2 REQUIRED sdl2)

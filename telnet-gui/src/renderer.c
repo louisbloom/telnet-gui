@@ -104,7 +104,15 @@ void renderer_render(Renderer *r, Terminal *term, const char *title) {
                 SDL_Texture *glyph = glyph_cache_get(r->glyph_cache, cell.chars[0], fg_color, bg_color, cell.attrs.bold,
                                                      cell.attrs.italic);
                 if (glyph) {
-                    SDL_Rect dst = {col * r->cell_w, row * r->cell_h + r->titlebar_h, r->cell_w, r->cell_h};
+                    /* Get actual texture size */
+                    int tex_w, tex_h;
+                    SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);
+
+                    /* Center glyph horizontally, align to baseline vertically */
+                    int dst_x = col * r->cell_w + (r->cell_w - tex_w) / 2;
+                    int dst_y = row * r->cell_h + r->titlebar_h;
+                    SDL_Rect dst = {dst_x, dst_y, tex_w, tex_h};
+
                     SDL_RenderCopy(r->sdl_renderer, glyph, NULL, &dst);
                 }
             }

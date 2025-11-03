@@ -97,7 +97,7 @@ if(WIN32 AND EXISTS "${UCRT64_ROOT}/include")
 endif()
 
 # Installation
-install(TARGETS lisp-repl liblisp
+install(TARGETS lisp-repl liblisp telnet-gui
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib

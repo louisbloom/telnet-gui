@@ -169,7 +169,7 @@ int telnet_send(Telnet *t, const char *data, size_t len) {
         return -1;
 
     for (size_t i = 0; i < len; i++) {
-        if (data[i] == IAC) {
+        if ((unsigned char)data[i] == IAC) {
             buf[send_len++] = IAC;
             buf[send_len++] = IAC;
         } else {
