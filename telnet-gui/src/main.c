@@ -268,7 +268,8 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    /* We'll handle terminal output in the main loop */
+    /* Wire telnet to terminal for output buffering */
+    terminal_set_telnet(term, telnet);
 
     /* Connect */
     fprintf(stderr, "Connecting to %s:%d...\n", hostname, port);
@@ -309,12 +310,12 @@ int main(int argc, char **argv) {
             case SDL_KEYDOWN:
                 /* Don't handle keys that produce text */
                 if (!(event.key.keysym.mod & KMOD_CTRL && event.key.keysym.sym == SDLK_v)) {
-                    input_handle_keyboard(&event.key, terminal_get_vterm(term));
+                    input_handle_keyboard(&event.key, term);
                 }
                 break;
 
             case SDL_TEXTINPUT:
-                input_handle_text(&event.text, terminal_get_vterm(term));
+                input_handle_text(&event.text, term);
                 break;
 
             case SDL_MOUSEBUTTONUP:

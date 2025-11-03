@@ -34,4 +34,13 @@ int terminal_needs_redraw(Terminal *term);
 /* Mark terminal as redrawn */
 void terminal_mark_drawn(Terminal *term);
 
+/* Set telnet connection for sending output */
+void terminal_set_telnet(Terminal *term, void *telnet);
+
+/* Send buffered output to telnet server */
+void terminal_send_buffer(Terminal *term);
+
+/* Echo local input to screen for immediate feedback */
+void terminal_echo_local(Terminal *term);
+
 #endif /* TERMINAL_H */

@@ -1,8 +1,11 @@
 /* Terminal emulation using libvterm */
 
 #include "terminal.h"
+#include "telnet.h"
 #include <stdlib.h>
 #include <string.h>
+
+#define OUTPUT_BUFFER_INITIAL_SIZE 4096
 
 struct Terminal {
     VTerm *vterm;
@@ -10,9 +13,16 @@ struct Terminal {
     int rows, cols;
     int needs_redraw;
     VTermScreenCallbacks callbacks; /* Keep callbacks in struct so they don't go out of scope */
+    Telnet *telnet;                 /* Telnet connection for sending output */
+    char *output_buffer;            /* Buffer for line input before sending */
+    size_t output_buffer_size;      /* Allocated size of output buffer */
+    size_t output_buffer_len;       /* Current length of data in buffer */
+    size_t output_buffer_echoed;    /* Number of bytes already echoed locally */
+    int echoing_locally;            /* Flag to prevent output callback during local echo */
 };
 
 static int damage(VTermRect rect, void *user) {
+    (void)rect;
     Terminal *term = (Terminal *)user;
     if (!term)
         return 0;
@@ -22,15 +32,9 @@ static int damage(VTermRect rect, void *user) {
 
 /* Screen layer movecursor callback */
 static int screen_movecursor(VTermPos pos, VTermPos oldpos, int visible, void *user) {
-    Terminal *term = (Terminal *)user;
-    if (!term)
-        return 0;
-    term->needs_redraw = 1;
-    return 1;
-}
-
-/* State layer movecursor callback - same signature */
-static int state_movecursor(VTermPos pos, VTermPos oldpos, int visible, void *user) {
+    (void)pos;
+    (void)oldpos;
+    (void)visible;
     Terminal *term = (Terminal *)user;
     if (!term)
         return 0;
@@ -39,10 +43,14 @@ static int state_movecursor(VTermPos pos, VTermPos oldpos, int visible, void *us
 }
 
 static int settermprop(VTermProp prop, VTermValue *val, void *user) {
+    (void)prop;
+    (void)val;
+    (void)user;
     return 1;
 }
 
 static int bell(void *user) {
+    (void)user;
     return 1;
 }
 
@@ -55,20 +63,29 @@ static int resize(int rows, int cols, void *user) {
     return 1;
 }
 
-static int putglyph(VTermGlyphInfo *info, VTermPos pos, void *user) {
+/* Output callback - buffers data from libvterm for telnet transmission */
+static void output_callback(const char *s, size_t len, void *user) {
     Terminal *term = (Terminal *)user;
-    if (!term)
-        return 0;
-    term->needs_redraw = 1;
-    return 1;
-}
+    if (!term || !s || len == 0)
+        return;
 
-static int scrollrect(VTermRect rect, int downward, int rightward, void *user) {
-    Terminal *term = (Terminal *)user;
-    if (!term)
-        return 0;
-    term->needs_redraw = 1;
-    return 1;
+    /* Skip buffering if we're doing local echo (to avoid double buffering) */
+    if (term->echoing_locally)
+        return;
+
+    /* Grow buffer if needed */
+    while (term->output_buffer_len + len > term->output_buffer_size) {
+        size_t new_size = term->output_buffer_size * 2;
+        char *new_buffer = realloc(term->output_buffer, new_size);
+        if (!new_buffer)
+            return; /* Out of memory */
+        term->output_buffer = new_buffer;
+        term->output_buffer_size = new_size;
+    }
+
+    /* Append data to buffer */
+    memcpy(term->output_buffer + term->output_buffer_len, s, len);
+    term->output_buffer_len += len;
 }
 
 Terminal *terminal_create(int rows, int cols) {
@@ -88,8 +105,22 @@ Terminal *terminal_create(int rows, int cols) {
     /* Set UTF-8 mode BEFORE getting screen */
     vterm_set_utf8(term->vterm, 1);
 
+    /* Initialize output buffer before setting callback */
+    term->output_buffer_size = OUTPUT_BUFFER_INITIAL_SIZE;
+    term->output_buffer = malloc(term->output_buffer_size);
+    if (!term->output_buffer) {
+        vterm_free(term->vterm);
+        free(term);
+        return NULL;
+    }
+    term->output_buffer_len = 0;
+
+    /* Set output callback BEFORE getting screen (follows libvterm demo/main.c) */
+    vterm_output_set_callback(term->vterm, output_callback, term);
+
     term->screen = vterm_obtain_screen(term->vterm);
     if (!term->screen) {
+        free(term->output_buffer);
         vterm_free(term->vterm);
         free(term);
         return NULL;
@@ -98,6 +129,9 @@ Terminal *terminal_create(int rows, int cols) {
     term->rows = rows;
     term->cols = cols;
     term->needs_redraw = 1;
+    term->telnet = NULL;
+    term->output_buffer_echoed = 0;
+    term->echoing_locally = 0;
 
     /* Set up screen callbacks - screen layer automatically sets up state callbacks */
     /* Keep callbacks in Terminal struct so they persist */
@@ -122,6 +156,8 @@ Terminal *terminal_create(int rows, int cols) {
 void terminal_destroy(Terminal *term) {
     if (!term)
         return;
+    if (term->output_buffer)
+        free(term->output_buffer);
     if (term->vterm)
         vterm_free(term->vterm);
     free(term);
@@ -133,6 +169,26 @@ void terminal_feed_data(Terminal *term, const char *data, size_t len) {
     vterm_input_write(term->vterm, data, len);
     /* Flush screen damage to trigger callbacks (demo/main.c does this) */
     vterm_screen_flush_damage(term->screen);
+}
+
+/* Echo local input to screen for immediate feedback */
+void terminal_echo_local(Terminal *term) {
+    if (!term || term->output_buffer_len <= term->output_buffer_echoed)
+        return;
+
+    /* Disable output callback during local echo to avoid double buffering */
+    term->echoing_locally = 1;
+
+    /* Feed only newly added bytes back to libvterm for rendering */
+    size_t new_bytes = term->output_buffer_len - term->output_buffer_echoed;
+    vterm_input_write(term->vterm, term->output_buffer + term->output_buffer_echoed, new_bytes);
+    vterm_screen_flush_damage(term->screen);
+
+    /* Update echoed counter */
+    term->output_buffer_echoed = term->output_buffer_len;
+
+    /* Re-enable output callback */
+    term->echoing_locally = 0;
 }
 
 VTerm *terminal_get_vterm(Terminal *term) {
@@ -168,4 +224,21 @@ int terminal_needs_redraw(Terminal *term) {
 void terminal_mark_drawn(Terminal *term) {
     if (term)
         term->needs_redraw = 0;
+}
+
+void terminal_set_telnet(Terminal *term, void *telnet) {
+    if (term)
+        term->telnet = (Telnet *)telnet;
+}
+
+void terminal_send_buffer(Terminal *term) {
+    if (!term || !term->telnet || term->output_buffer_len == 0)
+        return;
+
+    /* Send buffered data to telnet server */
+    telnet_send(term->telnet, term->output_buffer, term->output_buffer_len);
+
+    /* Clear buffer */
+    term->output_buffer_len = 0;
+    term->output_buffer_echoed = 0;
 }

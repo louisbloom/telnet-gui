@@ -1,6 +1,7 @@
 /* Input handling implementation */
 
 #include "input.h"
+#include "terminal.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
@@ -22,8 +23,12 @@ static VTermModifier get_vterm_modifier(void) {
     return mod;
 }
 
-void input_handle_keyboard(SDL_KeyboardEvent *event, VTerm *vterm) {
-    if (!event || !vterm)
+void input_handle_keyboard(SDL_KeyboardEvent *event, struct Terminal *term) {
+    if (!event || !term)
+        return;
+
+    VTerm *vterm = terminal_get_vterm(term);
+    if (!vterm)
         return;
 
     VTermModifier mod = get_vterm_modifier();
@@ -65,7 +70,10 @@ void input_handle_keyboard(SDL_KeyboardEvent *event, VTerm *vterm) {
         break;
     case SDL_SCANCODE_RETURN:
         key = VTERM_KEY_ENTER;
-        break;
+        /* Send buffered output when Enter is pressed */
+        vterm_keyboard_key(vterm, key, mod);
+        terminal_send_buffer(term);
+        return;
     case SDL_SCANCODE_ESCAPE:
         key = VTERM_KEY_ESCAPE;
         break;
@@ -120,8 +128,12 @@ void input_handle_keyboard(SDL_KeyboardEvent *event, VTerm *vterm) {
     }
 }
 
-void input_handle_text(SDL_TextInputEvent *event, VTerm *vterm) {
-    if (!event || !vterm)
+void input_handle_text(SDL_TextInputEvent *event, struct Terminal *term) {
+    if (!event || !term)
+        return;
+
+    VTerm *vterm = terminal_get_vterm(term);
+    if (!vterm)
         return;
 
     /* Convert UTF-8 to UCS-32 codepoint */
@@ -138,7 +150,11 @@ void input_handle_text(SDL_TextInputEvent *event, VTerm *vterm) {
         codepoint = ((text[0] & 0x07) << 18) | ((text[1] & 0x3F) << 12) | ((text[2] & 0x3F) << 6) | (text[3] & 0x3F);
     }
 
+    /* Process keyboard input - this calls output callback synchronously to buffer the bytes */
     vterm_keyboard_unichar(vterm, codepoint, get_vterm_modifier());
+
+    /* Echo buffered input to screen for immediate feedback */
+    terminal_echo_local(term);
 }
 
 void input_handle_mouse(SDL_MouseButtonEvent *event, SDL_MouseMotionEvent *motion, VTerm *vterm, int cell_width,
