@@ -282,7 +282,7 @@ void telnet_set_terminal_size(Telnet *t, int cols, int rows) {
     naws[2] = rows >> 8;
     naws[3] = rows & 0xFF;
 
-    unsigned char buf[8];
+    unsigned char buf[9];
     buf[0] = IAC;
     buf[1] = SB;
     buf[2] = OPT_NAWS;
