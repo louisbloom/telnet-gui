@@ -9,15 +9,18 @@ set(GUI_SOURCES
     src/renderer.c
     src/glyph_cache.c
     src/input.c
+    src/input_area.c
     src/lisp_bridge.c
 )
 
 # Create telnet-gui executable
 add_executable(telnet-gui ${GUI_SOURCES})
 
-# Copy font file to build directory
-set(FONT_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/IBMPlexMono-Regular.ttf")
-set(FONT_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/IBMPlexMono-Regular.ttf")
+# Copy font files to build directory
+set(FONT_PLEX_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/IBMPlexMono-Regular.ttf")
+set(FONT_PLEX_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/IBMPlexMono-Regular.ttf")
+set(FONT_MONACO_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Monaco-Regular.ttf")
+set(FONT_MONACO_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/Monaco-Regular.ttf")
 
 # Copy bootstrap Lisp file to build directory
 set(BOOTSTRAP_SRC "${CMAKE_CURRENT_SOURCE_DIR}/bootstrap.lisp")
@@ -26,13 +29,18 @@ set(BOOTSTRAP_DST "${CMAKE_CURRENT_BINARY_DIR}/bootstrap.lisp")
 # Create assets/fonts directory in build directory
 add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_SRC}" "${FONT_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_PLEX_SRC}" "${FONT_PLEX_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_MONACO_SRC}" "${FONT_MONACO_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${BOOTSTRAP_SRC}" "${BOOTSTRAP_DST}"
-    COMMENT "Copying IBM Plex Mono font and bootstrap.lisp to build directory"
+    COMMENT "Copying fonts (Monaco and IBM Plex Mono) and bootstrap.lisp to build directory"
 )
 
-# Install font file with executable (in bin directory so it's relative to the executable)
-install(FILES "${FONT_SRC}"
+# Install font files with executable (in bin directory so it's relative to the executable)
+install(FILES "${FONT_PLEX_SRC}"
+    DESTINATION "bin/assets/fonts"
+    COMPONENT Runtime
+)
+install(FILES "${FONT_MONACO_SRC}"
     DESTINATION "bin/assets/fonts"
     COMPONENT Runtime
 )

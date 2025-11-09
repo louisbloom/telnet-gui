@@ -15,6 +15,7 @@
 #include "renderer.h"
 #include "glyph_cache.h"
 #include "input.h"
+#include "input_area.h"
 #include "lisp_bridge.h"
 
 static int running = 1;
@@ -27,16 +28,8 @@ static SDL_Cursor *cursor_sizenwse = NULL;
 static SDL_Cursor *cursor_sizenesw = NULL;
 static SDL_Cursor *current_cursor = NULL;
 
-/* Input area structure */
-#define INPUT_AREA_MAX_LENGTH 4096
-typedef struct {
-    char buffer[INPUT_AREA_MAX_LENGTH];
-    int cursor_pos;   /* Cursor position in buffer */
-    int length;       /* Current length of text */
-    int needs_redraw; /* Flag to indicate input area needs redraw */
-} InputArea;
-
-static InputArea input_area = {0};
+/* Input area */
+static InputArea input_area;
 
 static void cleanup(void) {
     lisp_bridge_cleanup();
@@ -69,6 +62,8 @@ static void print_help(const char *program_name) {
     printf("                           MODE can be: none, light, normal, mono\n");
     printf("  --antialiasing MODE    Set anti-aliasing mode (default: linear)\n");
     printf("                           MODE can be: nearest, linear\n");
+    printf("  --font-size SIZE      Set font size in points (default: 16)\n");
+    printf("  --plex                 Use IBM Plex Mono font instead of Monaco (default)\n");
     printf("  -l, --lisp-file FILE   Load and evaluate Lisp file on startup\n");
     printf("                           Used to customize completion hooks\n");
     printf("\n");
@@ -80,6 +75,8 @@ static void print_help(const char *program_name) {
     printf("  %s carrionfields.net 4449\n", program_name);
     printf("  %s --hinting light --antialiasing linear example.com 23\n", program_name);
     printf("  %s --hinting normal --antialiasing nearest localhost 8080\n", program_name);
+    printf("  %s --font-size 20 carrionfields.net 4449\n", program_name);
+    printf("  %s --plex carrionfields.net 4449\n", program_name);
     printf("  %s -l completion.lisp carrionfields.net 4449\n", program_name);
 }
 
@@ -90,6 +87,8 @@ int main(int argc, char **argv) {
     const char *hostname = NULL;
     int port = 0;
     const char *lisp_file = NULL;
+    int use_plex = 0;   /* Default to Monaco font */
+    int font_size = 16; /* Default font size */
 
     /* Parse command-line arguments */
     int arg_idx = 1;
@@ -129,6 +128,19 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Error: Invalid antialiasing mode '%s'. Use: nearest, linear\n", argv[arg_idx]);
                 return 1;
             }
+        } else if (strcmp(argv[arg_idx], "--font-size") == 0) {
+            if (arg_idx + 1 >= argc) {
+                fprintf(stderr, "Error: --font-size requires a size (positive integer)\n");
+                return 1;
+            }
+            arg_idx++;
+            font_size = atoi(argv[arg_idx]);
+            if (font_size <= 0 || font_size > 100) {
+                fprintf(stderr, "Error: Invalid font size '%s'. Must be between 1 and 100\n", argv[arg_idx]);
+                return 1;
+            }
+        } else if (strcmp(argv[arg_idx], "--plex") == 0) {
+            use_plex = 1;
         } else if (strcmp(argv[arg_idx], "-l") == 0 || strcmp(argv[arg_idx], "--lisp-file") == 0) {
             if (arg_idx + 1 >= argc) {
                 fprintf(stderr, "Error: --lisp-file requires a file path\n");
@@ -212,7 +224,13 @@ int main(int argc, char **argv) {
     SDL_Renderer *renderer = window_get_sdl_renderer(win);
     int titlebar_h = window_get_titlebar_height();
 
-    /* Create glyph cache with IBM Plex Mono */
+    /* Determine font filename based on user preference */
+    const char *font_filename = use_plex ? "IBMPlexMono-Regular.ttf" : "Monaco-Regular.ttf";
+    const char *font_name = use_plex ? "IBM Plex Mono" : "Monaco";
+
+    fprintf(stderr, "Font resolution: Using %s font (filename: %s)\n", font_name, font_filename);
+
+    /* Create glyph cache with selected font */
     /* Get executable base path using SDL */
     char *base_path = SDL_GetBasePath();
     char font_path[1024] = {0};
@@ -231,7 +249,7 @@ int main(int argc, char **argv) {
 
         /* Normalize path separators - use backslashes on Windows for consistency */
         char normalized_path[1024];
-        snprintf(normalized_path, sizeof(normalized_path), "%s%sassets/fonts/IBMPlexMono-Regular.ttf", base_path, sep);
+        snprintf(normalized_path, sizeof(normalized_path), "%s%sassets/fonts/%s", base_path, sep, font_filename);
 
 /* Convert forward slashes to backslashes on Windows for SDL_ttf compatibility */
 #ifdef _WIN32
@@ -255,16 +273,31 @@ int main(int argc, char **argv) {
     }
 
     /* Add fallback paths - try source tree paths first since we know the font exists there */
-    font_paths[font_path_count] = "telnet-gui/assets/fonts/IBMPlexMono-Regular.ttf";
+    static char fallback_path1[256];
+    snprintf(fallback_path1, sizeof(fallback_path1), "telnet-gui/assets/fonts/%s", font_filename);
+    font_paths[font_path_count] = fallback_path1;
     font_path_labels[font_path_count++] = "source tree path (from build root)";
-    font_paths[font_path_count] = "../../telnet-gui/assets/fonts/IBMPlexMono-Regular.ttf";
+
+    static char fallback_path2[256];
+    snprintf(fallback_path2, sizeof(fallback_path2), "../../telnet-gui/assets/fonts/%s", font_filename);
+    font_paths[font_path_count] = fallback_path2;
     font_path_labels[font_path_count++] = "source tree path (nested build dir)";
-    font_paths[font_path_count] = "../telnet-gui/assets/fonts/IBMPlexMono-Regular.ttf";
+
+    static char fallback_path3[256];
+    snprintf(fallback_path3, sizeof(fallback_path3), "../telnet-gui/assets/fonts/%s", font_filename);
+    font_paths[font_path_count] = fallback_path3;
     font_path_labels[font_path_count++] = "source tree path (parent dir)";
-    font_paths[font_path_count] = "assets/fonts/IBMPlexMono-Regular.ttf";
+
+    static char fallback_path4[256];
+    snprintf(fallback_path4, sizeof(fallback_path4), "assets/fonts/%s", font_filename);
+    font_paths[font_path_count] = fallback_path4;
     font_path_labels[font_path_count++] = "current directory relative (build/development)";
-    font_paths[font_path_count] = "../assets/fonts/IBMPlexMono-Regular.ttf";
+
+    static char fallback_path5[256];
+    snprintf(fallback_path5, sizeof(fallback_path5), "../assets/fonts/%s", font_filename);
+    font_paths[font_path_count] = fallback_path5;
     font_path_labels[font_path_count++] = "parent directory relative";
+
     /* Last resort fallbacks */
     font_paths[font_path_count] = "C:/Windows/Fonts/consola.ttf";
     font_path_labels[font_path_count++] = "Windows system fallback (Consola)";
@@ -287,8 +320,8 @@ int main(int argc, char **argv) {
             continue;
         }
 
-        /* Use slightly smaller font size with specified hinting and antialiasing */
-        glyph_cache = glyph_cache_create(renderer, font_paths[i], 16, hinting_mode, scale_mode);
+        /* Use specified font size with specified hinting and antialiasing */
+        glyph_cache = glyph_cache_create(renderer, font_paths[i], font_size, hinting_mode, scale_mode);
         if (glyph_cache) {
             loaded_font_path = font_paths[i];
             loaded_font_label = font_path_labels[i];
@@ -309,6 +342,55 @@ int main(int argc, char **argv) {
 
     int cell_w, cell_h;
     glyph_cache_get_cell_size(glyph_cache, &cell_w, &cell_h);
+
+    /* Calculate minimum window size for 80 columns and 24 rows */
+    int min_width = 80 * cell_w;
+    /* Minimum height for 24 rows: available_height = 24 * cell_h, so window_height = 24 * cell_h + titlebar_h +
+     * input_area_height */
+    /* Input area is one cell height */
+    int input_area_height_local = cell_h;
+    int min_height = 24 * cell_h + titlebar_h + input_area_height_local; /* 24 rows + titlebar + input area */
+
+    /* Get current window size */
+    int current_width, current_height;
+    window_get_size(win, &current_width, &current_height);
+
+    /* Resize window if current size is too small */
+    /* For width: ensure at least 80 columns */
+    int new_width = current_width;
+    if (current_width < min_width) {
+        new_width = min_width;
+    }
+    /* For height: snap to nearest full row */
+    int new_height = current_height;
+    if (current_height < min_height) {
+        /* If too small, use minimum (24 rows) */
+        new_height = min_height;
+    } else {
+        /* Calculate available height for terminal area */
+        int available_height = current_height - titlebar_h - input_area_height_local;
+        /* Calculate number of rows that fit */
+        int rows = available_height / cell_h;
+        /* Calculate remainder to determine if we should round up or down */
+        int remainder = available_height % cell_h;
+        /* Round to nearest row (round up if remainder >= cell_h/2) */
+        if (remainder >= cell_h / 2) {
+            rows++;
+        }
+        /* Ensure at least 24 rows */
+        if (rows < 24) {
+            rows = 24;
+        }
+        /* Calculate new height based on snapped row count */
+        new_height = rows * cell_h + titlebar_h + input_area_height_local;
+    }
+
+    /* Resize window if needed */
+    if (new_width != current_width || new_height != current_height) {
+        SDL_Window *sdl_window = window_get_sdl_window(win);
+        SDL_SetWindowSize(sdl_window, new_width, new_height);
+        window_update_button_positions(win);
+    }
 
     /* Create renderer */
     Renderer *rend = renderer_create(renderer, glyph_cache, cell_w, cell_h, titlebar_h);
@@ -357,8 +439,7 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Connected successfully\n");
 
     /* Initialize input area */
-    memset(&input_area, 0, sizeof(input_area));
-    input_area.needs_redraw = 1;
+    input_area_init(&input_area);
 
     /* Resize terminal to match initial window size */
     int input_area_height = cell_h; /* Input area is one cell height */
@@ -412,24 +493,20 @@ int main(int argc, char **argv) {
                 /* Get window size to check if mouse is in input area */
                 int window_width, window_height;
                 window_get_size(win, &window_width, &window_height);
-                /* Exclude input area from resize and titlebar checks */
-                if (mouse_y < window_height - input_area_height) {
-                    /* Check for resize area first */
-                    int resize_mode = window_check_resize_area(win, mouse_x, mouse_y);
-                    if (resize_mode != RESIZE_NONE) {
-                        window_start_resize(win, resize_mode, 0,
-                                            0); /* Coordinates fetched from SDL_GetGlobalMouseState */
-                    } else {
-                        /* Check for titlebar buttons */
-                        WindowTitlebarAction action = window_check_titlebar_click(win, mouse_x, mouse_y);
-                        if (action == WINDOW_TITLEBAR_ACTION_CLOSE) {
-                            running = 0;
-                        } else if (action == WINDOW_TITLEBAR_ACTION_MINIMIZE) {
-                            SDL_MinimizeWindow(window_get_sdl_window(win));
-                        }
+                /* Check for resize area first (resize areas take priority over everything) */
+                int resize_mode = window_check_resize_area(win, mouse_x, mouse_y);
+                if (resize_mode != RESIZE_NONE) {
+                    window_start_resize(win, resize_mode, 0, 0); /* Coordinates fetched from SDL_GetGlobalMouseState */
+                } else if (mouse_y < window_height - input_area_height) {
+                    /* Only check titlebar buttons if not in input area */
+                    WindowTitlebarAction action = window_check_titlebar_click(win, mouse_x, mouse_y);
+                    if (action == WINDOW_TITLEBAR_ACTION_CLOSE) {
+                        running = 0;
+                    } else if (action == WINDOW_TITLEBAR_ACTION_MINIMIZE) {
+                        SDL_MinimizeWindow(window_get_sdl_window(win));
                     }
                 }
-                /* Mouse clicks in input area are ignored (input area is always active) */
+                /* Mouse clicks in input area (when not in resize area) are ignored (input area is always active) */
                 break;
 
             case SDL_KEYDOWN: {
@@ -441,29 +518,29 @@ int main(int argc, char **argv) {
                 case SDL_SCANCODE_RETURN:
                 case SDL_SCANCODE_KP_ENTER: {
                     /* Send input area text to terminal and telnet */
-                    if (input_area.length > 0) {
+                    int length = input_area_get_length(&input_area);
+                    if (length > 0) {
+                        const char *text = input_area_get_text(&input_area);
                         /* Echo to terminal with CRLF (carriage return + line feed) */
                         char echo_buf[INPUT_AREA_MAX_LENGTH + 2];
-                        memcpy(echo_buf, input_area.buffer, input_area.length);
-                        echo_buf[input_area.length] = '\r';
-                        echo_buf[input_area.length + 1] = '\n';
-                        terminal_feed_data(term, echo_buf, input_area.length + 2);
+                        memcpy(echo_buf, text, length);
+                        echo_buf[length] = '\r';
+                        echo_buf[length + 1] = '\n';
+                        terminal_feed_data(term, echo_buf, length + 2);
 
                         /* Send to telnet with CRLF (telnet standard) */
                         char telnet_buf[INPUT_AREA_MAX_LENGTH + 2];
-                        memcpy(telnet_buf, input_area.buffer, input_area.length);
-                        telnet_buf[input_area.length] = '\r';
-                        telnet_buf[input_area.length + 1] = '\n';
-                        int sent = telnet_send(telnet, telnet_buf, input_area.length + 2);
+                        memcpy(telnet_buf, text, length);
+                        telnet_buf[length] = '\r';
+                        telnet_buf[length + 1] = '\n';
+                        int sent = telnet_send(telnet, telnet_buf, length + 2);
                         if (sent < 0) {
                             fprintf(stderr, "Failed to send data via telnet\n");
                         }
 
-                        /* Clear input area */
-                        input_area.buffer[0] = '\0';
-                        input_area.length = 0;
-                        input_area.cursor_pos = 0;
-                        input_area.needs_redraw = 1;
+                        /* Add to history and clear input area */
+                        input_area_history_add(&input_area);
+                        input_area_clear(&input_area);
                     } else {
                         /* Even if input is empty, send CRLF for newline */
                         char crlf[] = "\r\n";
@@ -477,61 +554,79 @@ int main(int argc, char **argv) {
                     break;
                 }
                 case SDL_SCANCODE_BACKSPACE: {
-                    /* Delete character before cursor */
-                    if (input_area.cursor_pos > 0) {
-                        memmove(&input_area.buffer[input_area.cursor_pos - 1],
-                                &input_area.buffer[input_area.cursor_pos], input_area.length - input_area.cursor_pos);
-                        input_area.cursor_pos--;
-                        input_area.length--;
-                        /* Clear the last byte to ensure no stale data */
-                        if (input_area.length < INPUT_AREA_MAX_LENGTH) {
-                            input_area.buffer[input_area.length] = '\0';
-                        }
-                        input_area.needs_redraw = 1;
-                    }
+                    input_area_backspace(&input_area);
                     break;
                 }
                 case SDL_SCANCODE_DELETE: {
-                    /* Delete character at cursor */
-                    if (input_area.cursor_pos < input_area.length) {
-                        memmove(&input_area.buffer[input_area.cursor_pos],
-                                &input_area.buffer[input_area.cursor_pos + 1],
-                                input_area.length - input_area.cursor_pos - 1);
-                        input_area.length--;
-                        /* Clear the last byte to ensure no stale data */
-                        if (input_area.length < INPUT_AREA_MAX_LENGTH) {
-                            input_area.buffer[input_area.length] = '\0';
-                        }
-                        input_area.needs_redraw = 1;
-                    }
+                    input_area_delete_char(&input_area);
                     break;
                 }
                 case SDL_SCANCODE_LEFT: {
-                    /* Move cursor left */
-                    if (input_area.cursor_pos > 0) {
-                        input_area.cursor_pos--;
-                        input_area.needs_redraw = 1;
+                    if (mod & KMOD_CTRL) {
+                        input_area_move_cursor_word_left(&input_area);
+                    } else {
+                        input_area_move_cursor_left(&input_area);
                     }
                     break;
                 }
                 case SDL_SCANCODE_RIGHT: {
-                    /* Move cursor right */
-                    if (input_area.cursor_pos < input_area.length) {
-                        input_area.cursor_pos++;
-                        input_area.needs_redraw = 1;
+                    if (mod & KMOD_CTRL) {
+                        input_area_move_cursor_word_right(&input_area);
+                    } else {
+                        input_area_move_cursor_right(&input_area);
                     }
                     break;
                 }
+                case SDL_SCANCODE_UP: {
+                    input_area_history_prev(&input_area);
+                    break;
+                }
+                case SDL_SCANCODE_DOWN: {
+                    input_area_history_next(&input_area);
+                    break;
+                }
                 case SDL_SCANCODE_HOME: {
-                    /* Move cursor to beginning */
-                    input_area.cursor_pos = 0;
-                    input_area.needs_redraw = 1;
+                    input_area_move_cursor_home(&input_area);
                     break;
                 }
                 case SDL_SCANCODE_END: {
-                    /* Move cursor to end */
-                    input_area.cursor_pos = input_area.length;
-                    input_area.needs_redraw = 1;
+                    input_area_move_cursor_end(&input_area);
+                    break;
+                }
+                case SDL_SCANCODE_A: {
+                    if (mod & KMOD_CTRL) {
+                        input_area_move_cursor_beginning(&input_area);
+                    }
+                    break;
+                }
+                case SDL_SCANCODE_E: {
+                    if (mod & KMOD_CTRL) {
+                        input_area_move_cursor_end_line(&input_area);
+                    }
+                    break;
+                }
+                case SDL_SCANCODE_K: {
+                    if (mod & KMOD_CTRL) {
+                        input_area_kill_to_end(&input_area);
+                    }
+                    break;
+                }
+                case SDL_SCANCODE_U: {
+                    if (mod & KMOD_CTRL) {
+                        input_area_kill_from_start(&input_area);
+                    }
+                    break;
+                }
+                case SDL_SCANCODE_W: {
+                    if (mod & KMOD_CTRL) {
+                        input_area_kill_word(&input_area);
+                    }
+                    break;
+                }
+                case SDL_SCANCODE_Y: {
+                    if (mod & KMOD_CTRL) {
+                        input_area_yank(&input_area);
+                    }
                     break;
                 }
                 case SDL_SCANCODE_PAGEUP: {
@@ -554,8 +649,16 @@ int main(int argc, char **argv) {
                 }
                 case SDL_SCANCODE_TAB: {
                     /* Handle TAB completion via Lisp bridge */
-                    lisp_bridge_handle_tab(input_area.buffer, INPUT_AREA_MAX_LENGTH, &input_area.cursor_pos,
-                                           &input_area.length, &input_area.needs_redraw);
+                    /* Note: lisp_bridge_handle_tab modifies buffer directly */
+                    int cursor_pos = input_area_get_cursor_pos(&input_area);
+                    int length = input_area_get_length(&input_area);
+                    int needs_redraw = input_area_needs_redraw(&input_area);
+                    char *buffer = input_area_get_buffer(&input_area);
+                    lisp_bridge_handle_tab(buffer, INPUT_AREA_MAX_LENGTH, &cursor_pos, &length, &needs_redraw);
+                    /* Sync state after external buffer modification */
+                    input_area_sync_state(&input_area);
+                    /* Update cursor position */
+                    input_area_move_cursor(&input_area, cursor_pos);
                     break;
                 }
                 default:
@@ -569,22 +672,7 @@ int main(int argc, char **argv) {
                 /* All text input goes to input area */
                 const char *text = event.text.text;
                 int text_len = strlen(text);
-
-                /* Insert text at cursor position */
-                if (input_area.length + text_len < INPUT_AREA_MAX_LENGTH) {
-                    /* Make room for new text */
-                    memmove(&input_area.buffer[input_area.cursor_pos + text_len],
-                            &input_area.buffer[input_area.cursor_pos], input_area.length - input_area.cursor_pos);
-                    /* Insert new text */
-                    memcpy(&input_area.buffer[input_area.cursor_pos], text, text_len);
-                    input_area.cursor_pos += text_len;
-                    input_area.length += text_len;
-                    /* Null-terminate to ensure no stale data is read */
-                    if (input_area.length < INPUT_AREA_MAX_LENGTH) {
-                        input_area.buffer[input_area.length] = '\0';
-                    }
-                    input_area.needs_redraw = 1;
-                }
+                input_area_insert_text(&input_area, text, text_len);
                 break;
             }
 
@@ -635,14 +723,10 @@ int main(int argc, char **argv) {
                         last_terminal_resize = current_time;
                     }
                 } else if (!window_is_resizing(win)) {
-                    /* Set cursor for resize areas (exclude input area) */
+                    /* Set cursor for resize areas (resize areas take priority over input area) */
                     int win_width, win_height;
                     window_get_size(win, &win_width, &win_height);
-                    ResizeMode resize_mode = RESIZE_NONE;
-                    /* Only check resize areas if not in input area */
-                    if (event.motion.y < win_height - input_area_height) {
-                        resize_mode = window_check_resize_area(win, event.motion.x, event.motion.y);
-                    }
+                    ResizeMode resize_mode = window_check_resize_area(win, event.motion.x, event.motion.y);
                     SDL_Cursor *new_cursor = cursor_arrow;
                     switch (resize_mode) {
                     case RESIZE_LEFT:
@@ -674,6 +758,57 @@ int main(int argc, char **argv) {
                     input_handle_mouse(NULL, &event.motion, terminal_get_vterm(term), cell_w, cell_h, titlebar_h);
                 }
                 break;
+
+            case SDL_MOUSEWHEEL: {
+                /* Get mouse position */
+                int mouse_x, mouse_y;
+                SDL_GetMouseState(&mouse_x, &mouse_y);
+
+                /* Check if mouse is over terminal area (not titlebar or input area) */
+                int wheel_win_width, wheel_win_height;
+                window_get_size(win, &wheel_win_width, &wheel_win_height);
+                if (mouse_y >= titlebar_h && mouse_y < wheel_win_height - input_area_height) {
+                    /* Get scroll configuration from Lisp bridge */
+                    int lines_per_click = lisp_bridge_get_scroll_lines_per_click();
+                    int smooth_scrolling = lisp_bridge_get_smooth_scrolling_enabled();
+
+                    /* Calculate scroll amount */
+                    float scroll_amount = 0.0f;
+                    if (smooth_scrolling && event.wheel.preciseY != 0.0f) {
+                        /* Use smooth scrolling for high-resolution trackpads */
+                        scroll_amount = event.wheel.preciseY * (float)lines_per_click;
+                    } else {
+                        /* Use discrete clicks */
+                        scroll_amount = (float)event.wheel.y * (float)lines_per_click;
+                    }
+
+                    /* Only scroll if there's actual movement */
+                    if (scroll_amount != 0.0f) {
+                        int scroll_lines = (int)scroll_amount;
+                        if (scroll_lines == 0) {
+                            /* For very small smooth scroll amounts, use at least 1 line */
+                            scroll_lines = scroll_amount > 0.0f ? 1 : -1;
+                        }
+
+                        /* Check if we can scroll in the requested direction */
+                        int viewport_offset = terminal_get_viewport_offset(term);
+                        int scrollback_size = terminal_get_scrollback_size(term);
+
+                        if (scroll_lines > 0) {
+                            /* Scroll up (view older content) */
+                            if (viewport_offset < scrollback_size) {
+                                terminal_scroll_up(term, scroll_lines);
+                            }
+                        } else {
+                            /* Scroll down (view newer content) */
+                            if (viewport_offset > 0) {
+                                terminal_scroll_down(term, -scroll_lines);
+                            }
+                        }
+                    }
+                }
+                break;
+            }
             }
         }
 
@@ -709,10 +844,11 @@ int main(int argc, char **argv) {
         }
 
         /* Always render input area if it needs redraw or if terminal was rendered */
-        if (input_area.needs_redraw || needs_render) {
-            renderer_render_input_area(rend, input_area.buffer, input_area.length, input_area.cursor_pos, window_width,
-                                       window_height, input_area_height);
-            input_area.needs_redraw = 0;
+        if (input_area_needs_redraw(&input_area) || needs_render) {
+            renderer_render_input_area(rend, input_area_get_text(&input_area), input_area_get_length(&input_area),
+                                       input_area_get_cursor_pos(&input_area), window_width, window_height,
+                                       input_area_height);
+            input_area_mark_drawn(&input_area);
             SDL_RenderPresent(window_get_sdl_renderer(win));
         }
 
