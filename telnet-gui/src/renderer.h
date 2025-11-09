@@ -17,6 +17,10 @@ Renderer *renderer_create(SDL_Renderer *sdl_renderer, GlyphCache *glyph_cache, i
 /* Render a frame */
 void renderer_render(Renderer *r, Terminal *term, const char *title);
 
+/* Render input area at bottom of screen */
+void renderer_render_input_area(Renderer *r, const char *text, int text_len, int cursor_pos, int window_width,
+                                 int window_height, int input_area_height);
+
 /* Clean up */
 void renderer_destroy(Renderer *r);
 

@@ -60,9 +60,23 @@ void input_handle_keyboard(SDL_KeyboardEvent *event, struct Terminal *term) {
         key = VTERM_KEY_END;
         break;
     case SDL_SCANCODE_PAGEUP:
+        /* If Ctrl is pressed, scroll viewport instead of sending to terminal */
+        if (mod & VTERM_MOD_CTRL) {
+            int rows, cols;
+            terminal_get_size(term, &rows, &cols);
+            terminal_scroll_up(term, rows); /* Scroll by one screen height */
+            return;                         /* Don't send to terminal */
+        }
         key = VTERM_KEY_PAGEUP;
         break;
     case SDL_SCANCODE_PAGEDOWN:
+        /* If Ctrl is pressed, scroll viewport instead of sending to terminal */
+        if (mod & VTERM_MOD_CTRL) {
+            int rows, cols;
+            terminal_get_size(term, &rows, &cols);
+            terminal_scroll_down(term, rows); /* Scroll by one screen height */
+            return;                           /* Don't send to terminal */
+        }
         key = VTERM_KEY_PAGEDOWN;
         break;
     case SDL_SCANCODE_DELETE:

@@ -43,4 +43,22 @@ void terminal_send_buffer(Terminal *term);
 /* Echo local input to screen for immediate feedback */
 void terminal_echo_local(Terminal *term);
 
+/* Scroll viewport up by N lines */
+void terminal_scroll_up(Terminal *term, int lines);
+
+/* Scroll viewport down by N lines */
+void terminal_scroll_down(Terminal *term, int lines);
+
+/* Scroll to bottom (show current screen) */
+void terminal_scroll_to_bottom(Terminal *term);
+
+/* Get viewport offset */
+int terminal_get_viewport_offset(Terminal *term);
+
+/* Get scrollback size */
+int terminal_get_scrollback_size(Terminal *term);
+
+/* Get cell at position considering viewport offset */
+int terminal_get_cell_at(Terminal *term, int row, int col, VTermScreenCell *cell);
+
 #endif /* TERMINAL_H */

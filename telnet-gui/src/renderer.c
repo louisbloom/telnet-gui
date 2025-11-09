@@ -55,9 +55,10 @@ void renderer_render(Renderer *r, Terminal *term, const char *title) {
     /* Render each cell */
     for (int row = 0; row < rows; row++) {
         for (int col = 0; col < cols; col++) {
-            VTermPos pos = {row, col};
             VTermScreenCell cell;
-            vterm_screen_get_cell(screen, pos, &cell);
+            /* Get cell considering viewport offset */
+            if (!terminal_get_cell_at(term, row, col, &cell))
+                continue;
 
             /* Handle background color */
             VTermColor bg_color_processed = cell.bg;
@@ -119,15 +120,92 @@ void renderer_render(Renderer *r, Terminal *term, const char *title) {
         }
     }
 
-    /* Draw cursor */
-    if (state) {
-        VTermPos cursor;
-        vterm_state_get_cursorpos(state, &cursor);
-        SDL_SetRenderDrawColor(r->sdl_renderer, 200, 200, 200, 255);
-        SDL_Rect cursor_rect = {cursor.col * r->cell_w, cursor.row * r->cell_h + r->titlebar_h, r->cell_w, r->cell_h};
-        SDL_RenderFillRect(r->sdl_renderer, &cursor_rect);
+    /* Don't draw terminal cursor - user input is handled by input area at bottom */
+}
+
+/* Render input area at bottom of screen */
+void renderer_render_input_area(Renderer *r, const char *text, int text_len, int cursor_pos, int window_width,
+                                int window_height, int input_area_height) {
+    if (!r)
+        return;
+
+    int input_area_y = window_height - input_area_height;
+
+    /* Draw separator line between terminal and input area */
+    SDL_SetRenderDrawColor(r->sdl_renderer, 100, 100, 100, 255);
+    SDL_RenderDrawLine(r->sdl_renderer, 0, input_area_y, window_width, input_area_y);
+
+    /* Draw input area background - always clear the entire area */
+    SDL_SetRenderDrawColor(r->sdl_renderer, 20, 20, 20, 255);
+    SDL_Rect input_bg = {0, input_area_y, window_width, input_area_height};
+    SDL_RenderFillRect(r->sdl_renderer, &input_bg);
+
+    /* Render input text */
+    SDL_Color fg_color = {255, 255, 255, 255};
+    SDL_Color bg_color = {20, 20, 20, 255};
+    int x = 0;
+    int y = input_area_y;
+
+    /* Calculate cursor character position (cursor_pos is in bytes, same as characters for ASCII) */
+    int cursor_char_pos = cursor_pos;
+
+    /* Render characters character by character (UTF-8 aware) */
+    /* Only render if we have text */
+    if (text && text_len > 0) {
+        /* Ensure we don't read past the buffer */
+        int max_len = text_len < 1000 ? text_len : 1000;
+        int i = 0;
+        while (i < max_len) {
+            /* Bounds check - ensure we don't read past text_len */
+            if (i >= text_len)
+                break;
+
+            unsigned char byte = (unsigned char)text[i];
+            uint32_t codepoint = 0;
+            int bytes_consumed = 1; /* How many bytes this character consumed */
+
+            /* Decode UTF-8 */
+            if (byte < 0x80) {
+                /* ASCII character - use byte value directly */
+                codepoint = byte;
+            } else if ((byte & 0xE0) == 0xC0 && i + 1 < text_len) {
+                /* 2-byte UTF-8 */
+                codepoint = ((byte & 0x1F) << 6) | ((unsigned char)text[i + 1] & 0x3F);
+                bytes_consumed = 2;
+            } else if ((byte & 0xF0) == 0xE0 && i + 2 < text_len) {
+                /* 3-byte UTF-8 */
+                codepoint = ((byte & 0x0F) << 12) | (((unsigned char)text[i + 1] & 0x3F) << 6) |
+                            ((unsigned char)text[i + 2] & 0x3F);
+                bytes_consumed = 3;
+            } else if ((byte & 0xF8) == 0xF0 && i + 3 < text_len) {
+                /* 4-byte UTF-8 */
+                codepoint = ((byte & 0x07) << 18) | (((unsigned char)text[i + 1] & 0x3F) << 12) |
+                            (((unsigned char)text[i + 2] & 0x3F) << 6) | ((unsigned char)text[i + 3] & 0x3F);
+                bytes_consumed = 4;
+            } else {
+                /* Invalid UTF-8, skip byte */
+                i++;
+                continue;
+            }
+
+            /* Render the character */
+            SDL_Texture *glyph = glyph_cache_get(r->glyph_cache, codepoint, fg_color, bg_color, 0, 0);
+            if (glyph) {
+                int tex_w, tex_h;
+                SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);
+                SDL_Rect dst = {x + (r->cell_w - tex_w) / 2, y, tex_w, tex_h};
+                SDL_RenderCopy(r->sdl_renderer, glyph, NULL, &dst);
+            }
+            x += r->cell_w;
+            i += bytes_consumed; /* Advance by number of bytes consumed */
+        }
     }
-    SDL_RenderPresent(r->sdl_renderer);
+
+    /* Draw cursor at character position - always draw cursor even if text is empty */
+    int cursor_x = cursor_char_pos * r->cell_w;
+    SDL_SetRenderDrawColor(r->sdl_renderer, 200, 200, 200, 255);
+    SDL_Rect cursor_rect = {cursor_x, y, r->cell_w, r->cell_h};
+    SDL_RenderFillRect(r->sdl_renderer, &cursor_rect);
 }
 
 void renderer_destroy(Renderer *r) {

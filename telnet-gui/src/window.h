@@ -13,6 +13,15 @@ typedef enum {
     WINDOW_TITLEBAR_ACTION_MINIMIZE,
 } WindowTitlebarAction;
 
+typedef enum {
+    RESIZE_NONE,
+    RESIZE_LEFT,
+    RESIZE_RIGHT,
+    RESIZE_BOTTOM,
+    RESIZE_BOTTOMLEFT,
+    RESIZE_BOTTOMRIGHT,
+} ResizeMode;
+
 /* Create a borderless window */
 Window *window_create(const char *title, int width, int height);
 
@@ -24,6 +33,24 @@ SDL_Renderer *window_get_sdl_renderer(Window *w);
 
 /* Get window dimensions */
 void window_get_size(Window *w, int *width, int *height);
+
+/* Update button positions after window resize */
+void window_update_button_positions(Window *w);
+
+/* Check if point is in resize area and return resize mode */
+ResizeMode window_check_resize_area(Window *w, int x, int y);
+
+/* Start resize operation */
+void window_start_resize(Window *w, ResizeMode resize_mode, int mouse_x, int mouse_y);
+
+/* Update resize operation */
+void window_update_resize(Window *w, int mouse_x, int mouse_y);
+
+/* End resize operation */
+void window_end_resize(Window *w);
+
+/* Check if resize is active */
+int window_is_resizing(Window *w);
 
 /* Get titlebar height */
 int window_get_titlebar_height(void);

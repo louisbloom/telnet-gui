@@ -7,6 +7,7 @@
 #define TITLEBAR_HEIGHT 30
 #define BUTTON_SIZE 16
 #define BUTTON_PADDING 4
+#define RESIZE_AREA_SIZE 8
 
 typedef struct Button {
     int x, y, w, h;
@@ -18,6 +19,14 @@ struct Window {
     SDL_Renderer *renderer;
     Button close_button;
     Button minimize_button;
+    ResizeMode resize_mode;
+    int resize_start_x;
+    int resize_start_y;
+    int resize_start_width;
+    int resize_start_height;
+    int resize_start_window_x;
+    int resize_start_window_y;
+    Uint32 last_resize_render_time;
 };
 
 static SDL_HitTestResult hit_test(SDL_Window *win, const SDL_Point *area, void *data) {
@@ -28,31 +37,21 @@ static SDL_HitTestResult hit_test(SDL_Window *win, const SDL_Point *area, void *
 
     /* Top 30px is draggable */
     if (y < TITLEBAR_HEIGHT) {
-        /* Check for close/minimize buttons */
-        if (x > w - BUTTON_SIZE - BUTTON_PADDING && x < w - BUTTON_PADDING && y < BUTTON_SIZE + BUTTON_PADDING) {
-            return SDL_HITTEST_RESIZE_TOPRIGHT;
-        }
-        if (x > w - (BUTTON_SIZE * 2) - (BUTTON_PADDING * 2) && x < w - BUTTON_SIZE - BUTTON_PADDING &&
-            y < BUTTON_SIZE + BUTTON_PADDING) {
-            return SDL_HITTEST_RESIZE_TOPRIGHT;
-        }
+        /* Button areas return NORMAL to allow click handling */
+        /* Buttons are handled via window_check_titlebar_click() in main loop */
         return SDL_HITTEST_DRAGGABLE;
     }
 
-    /* Bottom edge */
-    if (y > h - 3) {
-        if (x < 3)
-            return SDL_HITTEST_RESIZE_BOTTOMLEFT;
-        if (x > w - 3)
-            return SDL_HITTEST_RESIZE_BOTTOMRIGHT;
-        return SDL_HITTEST_RESIZE_BOTTOM;
+    /* Bottom edge - return NORMAL so we can handle resize manually */
+    /* SDL's automatic resize doesn't work reliably for borderless windows on Windows */
+    if (y > h - RESIZE_AREA_SIZE) {
+        return SDL_HITTEST_NORMAL;
     }
 
-    /* Left/Right edges */
-    if (x < 3)
-        return SDL_HITTEST_RESIZE_LEFT;
-    if (x > w - 3)
-        return SDL_HITTEST_RESIZE_RIGHT;
+    /* Left/Right edges - return NORMAL so we can handle resize manually */
+    if (x < RESIZE_AREA_SIZE || x > w - RESIZE_AREA_SIZE) {
+        return SDL_HITTEST_NORMAL;
+    }
 
     return SDL_HITTEST_NORMAL;
 }
@@ -100,6 +99,8 @@ Window *window_create(const char *title, int width, int height) {
     w->minimize_button.w = BUTTON_SIZE;
     w->minimize_button.h = BUTTON_SIZE;
     w->minimize_button.action = WINDOW_TITLEBAR_ACTION_MINIMIZE;
+    w->resize_mode = RESIZE_NONE;
+    w->last_resize_render_time = 0;
 
     return w;
 }
@@ -114,6 +115,151 @@ SDL_Renderer *window_get_sdl_renderer(Window *w) {
 
 void window_get_size(Window *w, int *width, int *height) {
     SDL_GetWindowSize(w->window, width, height);
+}
+
+void window_update_button_positions(Window *w) {
+    if (!w)
+        return;
+    int width, height;
+    SDL_GetWindowSize(w->window, &width, &height);
+
+    /* Update button positions based on new window width */
+    w->close_button.x = width - BUTTON_SIZE - BUTTON_PADDING;
+    w->minimize_button.x = width - (BUTTON_SIZE * 2) - (BUTTON_PADDING * 2);
+}
+
+ResizeMode window_check_resize_area(Window *w, int x, int y) {
+    if (!w)
+        return RESIZE_NONE;
+    int width, height;
+    SDL_GetWindowSize(w->window, &width, &height);
+
+    /* Top area is draggable, not resize */
+    if (y < TITLEBAR_HEIGHT)
+        return RESIZE_NONE;
+
+    /* Bottom edge - resize area is at bottom RESIZE_AREA_SIZE pixels */
+    /* Note: Input area exclusion is handled in main.c by checking y position */
+    if (y > height - RESIZE_AREA_SIZE) {
+        if (x < RESIZE_AREA_SIZE)
+            return RESIZE_BOTTOMLEFT;
+        if (x > width - RESIZE_AREA_SIZE)
+            return RESIZE_BOTTOMRIGHT;
+        return RESIZE_BOTTOM;
+    }
+
+    /* Left/Right edges */
+    if (x < RESIZE_AREA_SIZE)
+        return RESIZE_LEFT;
+    if (x > width - RESIZE_AREA_SIZE)
+        return RESIZE_RIGHT;
+
+    return RESIZE_NONE;
+}
+
+void window_start_resize(Window *w, ResizeMode resize_mode, int mouse_x, int mouse_y) {
+    (void)mouse_x; /* Unused - using SDL_GetGlobalMouseState instead */
+    (void)mouse_y; /* Unused - using SDL_GetGlobalMouseState instead */
+    if (!w || resize_mode == RESIZE_NONE)
+        return;
+    /* Set resize mode first for immediate state */
+    w->resize_mode = resize_mode;
+    /* Use screen coordinates for resize calculations */
+    int screen_x, screen_y;
+    SDL_GetGlobalMouseState(&screen_x, &screen_y);
+    w->resize_start_x = screen_x;
+    w->resize_start_y = screen_y;
+    /* Cache window size/position to avoid multiple SDL calls */
+    SDL_GetWindowSize(w->window, &w->resize_start_width, &w->resize_start_height);
+    SDL_GetWindowPosition(w->window, &w->resize_start_window_x, &w->resize_start_window_y);
+}
+
+void window_update_resize(Window *w, int mouse_x, int mouse_y) {
+    (void)mouse_x; /* Unused - using SDL_GetGlobalMouseState instead */
+    (void)mouse_y; /* Unused - using SDL_GetGlobalMouseState instead */
+    if (!w || w->resize_mode == RESIZE_NONE)
+        return;
+
+    /* Use screen coordinates for resize calculations */
+    int screen_x, screen_y;
+    SDL_GetGlobalMouseState(&screen_x, &screen_y);
+    int delta_x = screen_x - w->resize_start_x;
+    int delta_y = screen_y - w->resize_start_y;
+    int new_width = w->resize_start_width;
+    int new_height = w->resize_start_height;
+    int new_x = w->resize_start_window_x;
+    int new_y = w->resize_start_window_y;
+
+    switch (w->resize_mode) {
+    case RESIZE_LEFT: {
+        int min_width = 100;
+        new_width -= delta_x;
+        new_x += delta_x;
+        if (new_width < min_width) {
+            int excess = min_width - new_width;
+            new_width = min_width;
+            new_x -= excess; /* Adjust position to maintain minimum width */
+        }
+        break;
+    }
+    case RESIZE_RIGHT:
+        new_width += delta_x;
+        if (new_width < 100)
+            new_width = 100;
+        break;
+    case RESIZE_BOTTOM:
+        new_height += delta_y;
+        if (new_height < 100)
+            new_height = 100;
+        break;
+    case RESIZE_BOTTOMLEFT: {
+        int min_width = 100;
+        int min_height = 100;
+        new_width -= delta_x;
+        new_x += delta_x;
+        new_height += delta_y;
+        if (new_width < min_width) {
+            int excess = min_width - new_width;
+            new_width = min_width;
+            new_x -= excess;
+        }
+        if (new_height < min_height)
+            new_height = min_height;
+        break;
+    }
+    case RESIZE_BOTTOMRIGHT:
+        new_width += delta_x;
+        new_height += delta_y;
+        if (new_width < 100)
+            new_width = 100;
+        if (new_height < 100)
+            new_height = 100;
+        break;
+    default:
+        return;
+    }
+
+    /* Set window size first (for left edge resize, we need to set position too) */
+    if (w->resize_mode == RESIZE_LEFT || w->resize_mode == RESIZE_BOTTOMLEFT) {
+        /* For left edge resize, set position first, then size */
+        SDL_SetWindowPosition(w->window, new_x, new_y);
+        SDL_SetWindowSize(w->window, new_width, new_height);
+    } else {
+        /* For other resize modes, just set size */
+        SDL_SetWindowSize(w->window, new_width, new_height);
+    }
+
+    /* Note: SDL_SetWindowSize on Windows borderless windows may not update visually */
+    /* during drag. The visual update will happen on the next render frame. */
+}
+
+void window_end_resize(Window *w) {
+    if (w)
+        w->resize_mode = RESIZE_NONE;
+}
+
+int window_is_resizing(Window *w) {
+    return w ? (w->resize_mode != RESIZE_NONE) : 0;
 }
 
 WindowTitlebarAction window_check_titlebar_click(Window *w, int mouse_x, int mouse_y) {

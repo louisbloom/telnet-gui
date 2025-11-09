@@ -9,6 +9,7 @@ set(GUI_SOURCES
     src/renderer.c
     src/glyph_cache.c
     src/input.c
+    src/lisp_bridge.c
 )
 
 # Create telnet-gui executable
@@ -18,16 +19,28 @@ add_executable(telnet-gui ${GUI_SOURCES})
 set(FONT_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/IBMPlexMono-Regular.ttf")
 set(FONT_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/IBMPlexMono-Regular.ttf")
 
+# Copy bootstrap Lisp file to build directory
+set(BOOTSTRAP_SRC "${CMAKE_CURRENT_SOURCE_DIR}/bootstrap.lisp")
+set(BOOTSTRAP_DST "${CMAKE_CURRENT_BINARY_DIR}/bootstrap.lisp")
+
 # Create assets/fonts directory in build directory
 add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_SRC}" "${FONT_DST}"
-    COMMENT "Copying IBM Plex Mono font to build directory"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${BOOTSTRAP_SRC}" "${BOOTSTRAP_DST}"
+    COMMENT "Copying IBM Plex Mono font and bootstrap.lisp to build directory"
 )
 
 # Install font file with executable (in bin directory so it's relative to the executable)
 install(FILES "${FONT_SRC}"
     DESTINATION "bin/assets/fonts"
+    COMPONENT Runtime
+)
+
+# Install bootstrap Lisp file with executable (in bin directory so it's relative to the executable)
+# Always installs from source directory, so changes are picked up on next install
+install(FILES "${BOOTSTRAP_SRC}"
+    DESTINATION "bin"
     COMPONENT Runtime
 )
 
@@ -232,10 +245,16 @@ endif()
 # Link libraries - only link SDL2_ttf since it includes SDL2
 # VTERM already includes pthread
 # Need ws2_32 for Windows sockets
+# Link against libtelnet-lisp for completion hooks
+# Also need GC and PCRE2 since liblisp is static
 target_link_libraries(telnet-gui PRIVATE
     ${SDL2_TTF_LIBRARIES}
     ${VTERM_LIBRARIES}
+    liblisp
+    ${GC_LIBRARIES}
+    ${PCRE2_LIBRARIES}
     ws2_32
+    m
 )
 
 # Include directories

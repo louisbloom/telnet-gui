@@ -23,7 +23,18 @@ struct GlyphCache {
 
 /* Hash function for cache key */
 static uint32_t hash_key(uint32_t codepoint, SDL_Color fg, SDL_Color bg, int bold, int italic) {
-    return codepoint | (fg.r << 24) | (fg.g << 16) | (fg.b << 8) | bg.r | (bold << 7) | (italic << 6);
+    /* Use a proper hash function to avoid collisions */
+    /* Combine all values using a simple hash */
+    uint32_t hash = codepoint;
+    hash = hash * 31 + fg.r;
+    hash = hash * 31 + fg.g;
+    hash = hash * 31 + fg.b;
+    hash = hash * 31 + bg.r;
+    hash = hash * 31 + bg.g;
+    hash = hash * 31 + bg.b;
+    hash = hash * 31 + (bold ? 1 : 0);
+    hash = hash * 31 + (italic ? 1 : 0);
+    return hash;
 }
 
 GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, int font_size, int hinting_mode,
