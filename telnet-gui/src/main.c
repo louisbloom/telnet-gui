@@ -58,25 +58,34 @@ static void print_help(const char *program_name) {
     printf("\n");
     printf("Options:\n");
     printf("  -h, --help              Show this help message and exit\n");
-    printf("  --hinting MODE         Set font hinting mode (default: none)\n");
-    printf("                           MODE can be: none, light, normal, mono\n");
-    printf("  --antialiasing MODE    Set anti-aliasing mode (default: linear)\n");
-    printf("                           MODE can be: nearest, linear\n");
-    printf("  --font-size SIZE      Set font size in points (default: 16)\n");
-    printf("  --plex                 Use IBM Plex Mono font instead of Monaco (default)\n");
-    printf("  -l, --lisp-file FILE   Load and evaluate Lisp file on startup\n");
-    printf("                           Used to customize completion hooks\n");
+    printf("\n");
+    printf("  Font Options:\n");
+    printf("    -f, --font-size SIZE   Set font size in points (default: 16)\n");
+    printf("    -p, --plex             Use IBM Plex Mono font instead of Monaco (default)\n");
+    printf("    -H, --hinting MODE     Set font hinting mode (default: none)\n");
+    printf("                            MODE can be: none, light, normal, mono\n");
+    printf("    -a, --antialiasing MODE Set anti-aliasing mode (default: linear)\n");
+    printf("                            MODE can be: nearest, linear\n");
+    printf("\n");
+    printf("  Terminal Options:\n");
+    printf("    -g, --geometry GEOM     Set terminal size in characters\n");
+    printf("                            GEOM format: COLSxROWS (e.g., 80x40)\n");
+    printf("                            Default: 80x24\n");
+    printf("\n");
+    printf("  Other Options:\n");
+    printf("    -l, --lisp-file FILE   Load and evaluate Lisp file on startup\n");
+    printf("                            Used to customize completion hooks and scroll settings\n");
     printf("\n");
     printf("Arguments:\n");
-    printf("  hostname               Telnet server hostname or IP address\n");
-    printf("  port                   Telnet server port number\n");
+    printf("  hostname                 Telnet server hostname or IP address\n");
+    printf("  port                     Telnet server port number\n");
     printf("\n");
     printf("Examples:\n");
     printf("  %s carrionfields.net 4449\n", program_name);
-    printf("  %s --hinting light --antialiasing linear example.com 23\n", program_name);
-    printf("  %s --hinting normal --antialiasing nearest localhost 8080\n", program_name);
-    printf("  %s --font-size 20 carrionfields.net 4449\n", program_name);
-    printf("  %s --plex carrionfields.net 4449\n", program_name);
+    printf("  %s -f 20 carrionfields.net 4449\n", program_name);
+    printf("  %s -p carrionfields.net 4449\n", program_name);
+    printf("  %s -g 100x40 carrionfields.net 4449\n", program_name);
+    printf("  %s -H light -a linear example.com 23\n", program_name);
     printf("  %s -l completion.lisp carrionfields.net 4449\n", program_name);
 }
 
@@ -87,8 +96,10 @@ int main(int argc, char **argv) {
     const char *hostname = NULL;
     int port = 0;
     const char *lisp_file = NULL;
-    int use_plex = 0;   /* Default to Monaco font */
-    int font_size = 16; /* Default font size */
+    int use_plex = 0;       /* Default to Monaco font */
+    int font_size = 16;     /* Default font size */
+    int terminal_cols = 80; /* Default terminal columns */
+    int terminal_rows = 24; /* Default terminal rows */
 
     /* Parse command-line arguments */
     int arg_idx = 1;
@@ -96,7 +107,7 @@ int main(int argc, char **argv) {
         if (strcmp(argv[arg_idx], "-h") == 0 || strcmp(argv[arg_idx], "--help") == 0) {
             print_help(argv[0]);
             return 0;
-        } else if (strcmp(argv[arg_idx], "--hinting") == 0) {
+        } else if (strcmp(argv[arg_idx], "-H") == 0 || strcmp(argv[arg_idx], "--hinting") == 0) {
             if (arg_idx + 1 >= argc) {
                 fprintf(stderr, "Error: --hinting requires a mode (none, light, normal, mono)\n");
                 return 1;
@@ -114,7 +125,7 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Error: Invalid hinting mode '%s'. Use: none, light, normal, mono\n", argv[arg_idx]);
                 return 1;
             }
-        } else if (strcmp(argv[arg_idx], "--antialiasing") == 0) {
+        } else if (strcmp(argv[arg_idx], "-a") == 0 || strcmp(argv[arg_idx], "--antialiasing") == 0) {
             if (arg_idx + 1 >= argc) {
                 fprintf(stderr, "Error: --antialiasing requires a mode (nearest, linear)\n");
                 return 1;
@@ -128,7 +139,7 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Error: Invalid antialiasing mode '%s'. Use: nearest, linear\n", argv[arg_idx]);
                 return 1;
             }
-        } else if (strcmp(argv[arg_idx], "--font-size") == 0) {
+        } else if (strcmp(argv[arg_idx], "-f") == 0 || strcmp(argv[arg_idx], "--font-size") == 0) {
             if (arg_idx + 1 >= argc) {
                 fprintf(stderr, "Error: --font-size requires a size (positive integer)\n");
                 return 1;
@@ -139,8 +150,35 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Error: Invalid font size '%s'. Must be between 1 and 100\n", argv[arg_idx]);
                 return 1;
             }
-        } else if (strcmp(argv[arg_idx], "--plex") == 0) {
+        } else if (strcmp(argv[arg_idx], "-p") == 0 || strcmp(argv[arg_idx], "--plex") == 0) {
             use_plex = 1;
+        } else if (strcmp(argv[arg_idx], "-g") == 0 || strcmp(argv[arg_idx], "--geometry") == 0) {
+            if (arg_idx + 1 >= argc) {
+                fprintf(stderr, "Error: --geometry requires a geometry string (COLSxROWS, e.g., 80x40)\n");
+                return 1;
+            }
+            arg_idx++;
+            /* Parse geometry string: COLSxROWS (e.g., 80x40) */
+            const char *geom = argv[arg_idx];
+            char *geom_copy = strdup(geom);
+            if (!geom_copy) {
+                fprintf(stderr, "Error: Out of memory\n");
+                return 1;
+            }
+            char *x_pos = strchr(geom_copy, 'x');
+            if (!x_pos) {
+                fprintf(stderr, "Error: Invalid geometry format '%s'. Use COLSxROWS (e.g., 80x40)\n", geom);
+                free(geom_copy);
+                return 1;
+            }
+            *x_pos = '\0';
+            terminal_cols = atoi(geom_copy);
+            terminal_rows = atoi(x_pos + 1);
+            free(geom_copy);
+            if (terminal_cols <= 0 || terminal_rows <= 0) {
+                fprintf(stderr, "Error: Invalid geometry dimensions. Columns and rows must be positive\n");
+                return 1;
+            }
         } else if (strcmp(argv[arg_idx], "-l") == 0 || strcmp(argv[arg_idx], "--lisp-file") == 0) {
             if (arg_idx + 1 >= argc) {
                 fprintf(stderr, "Error: --lisp-file requires a file path\n");
@@ -343,13 +381,14 @@ int main(int argc, char **argv) {
     int cell_w, cell_h;
     glyph_cache_get_cell_size(glyph_cache, &cell_w, &cell_h);
 
-    /* Calculate minimum window size for 80 columns and 24 rows */
-    int min_width = 80 * cell_w;
-    /* Minimum height for 24 rows: available_height = 24 * cell_h, so window_height = 24 * cell_h + titlebar_h +
-     * input_area_height */
+    /* Calculate minimum window size for terminal geometry */
+    int min_width = terminal_cols * cell_w;
+    /* Minimum height for terminal rows: available_height = terminal_rows * cell_h, so window_height = terminal_rows *
+     * cell_h + titlebar_h + input_area_height */
     /* Input area is one cell height */
     int input_area_height_local = cell_h;
-    int min_height = 24 * cell_h + titlebar_h + input_area_height_local; /* 24 rows + titlebar + input area */
+    int min_height =
+        terminal_rows * cell_h + titlebar_h + input_area_height_local; /* terminal rows + titlebar + input area */
 
     /* Get current window size */
     int current_width, current_height;
@@ -377,9 +416,9 @@ int main(int argc, char **argv) {
         if (remainder >= cell_h / 2) {
             rows++;
         }
-        /* Ensure at least 24 rows */
-        if (rows < 24) {
-            rows = 24;
+        /* Ensure at least terminal_rows */
+        if (rows < terminal_rows) {
+            rows = terminal_rows;
         }
         /* Calculate new height based on snapped row count */
         new_height = rows * cell_h + titlebar_h + input_area_height_local;
@@ -401,8 +440,8 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    /* Create terminal */
-    Terminal *term = terminal_create(24, 80);
+    /* Create terminal with specified geometry */
+    Terminal *term = terminal_create(terminal_rows, terminal_cols);
     if (!term) {
         fprintf(stderr, "Failed to create terminal\n");
         renderer_destroy(rend);
@@ -497,13 +536,16 @@ int main(int argc, char **argv) {
                 int resize_mode = window_check_resize_area(win, mouse_x, mouse_y);
                 if (resize_mode != RESIZE_NONE) {
                     window_start_resize(win, resize_mode, 0, 0); /* Coordinates fetched from SDL_GetGlobalMouseState */
-                } else if (mouse_y < window_height - input_area_height) {
-                    /* Only check titlebar buttons if not in input area */
+                } else {
+                    /* Check titlebar buttons first (they're always in titlebar area) */
                     WindowTitlebarAction action = window_check_titlebar_click(win, mouse_x, mouse_y);
                     if (action == WINDOW_TITLEBAR_ACTION_CLOSE) {
                         running = 0;
+                        break; /* Exit immediately */
                     } else if (action == WINDOW_TITLEBAR_ACTION_MINIMIZE) {
                         SDL_MinimizeWindow(window_get_sdl_window(win));
+                    } else if (mouse_y < window_height - input_area_height) {
+                        /* Handle other clicks in terminal area */
                     }
                 }
                 /* Mouse clicks in input area (when not in resize area) are ignored (input area is always active) */
@@ -828,6 +870,7 @@ int main(int argc, char **argv) {
             char title[256];
             snprintf(title, sizeof(title), "Telnet: %s:%d", hostname, port);
             renderer_render(rend, term, title);
+            window_render_titlebar(win, renderer, title);
             terminal_mark_drawn(term);
             needs_render = 1;
         } else if (window_is_resizing(win)) {
@@ -838,6 +881,7 @@ int main(int argc, char **argv) {
                 char title[256];
                 snprintf(title, sizeof(title), "Telnet: %s:%d", hostname, port);
                 renderer_render(rend, term, title);
+                window_render_titlebar(win, renderer, title);
                 last_resize_render = current_time;
                 needs_render = 1;
             }

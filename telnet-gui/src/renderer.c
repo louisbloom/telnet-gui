@@ -30,9 +30,13 @@ void renderer_render(Renderer *r, Terminal *term, const char *title) {
         return;
     (void)title; /* unused for now */
 
-    /* Clear screen */
+    /* Clear screen (but not titlebar area - it will be rendered separately) */
     SDL_SetRenderDrawColor(r->sdl_renderer, 0, 0, 0, 255);
-    SDL_RenderClear(r->sdl_renderer);
+    /* Clear only the terminal area, not the titlebar */
+    int window_width, window_height;
+    SDL_GetRendererOutputSize(r->sdl_renderer, &window_width, &window_height);
+    SDL_Rect terminal_area = {0, r->titlebar_h, window_width, window_height - r->titlebar_h};
+    SDL_RenderFillRect(r->sdl_renderer, &terminal_area);
 
     VTerm *vterm = terminal_get_vterm(term);
     VTermScreen *screen = terminal_get_screen(term);
@@ -135,14 +139,14 @@ void renderer_render_input_area(Renderer *r, const char *text, int text_len, int
     SDL_SetRenderDrawColor(r->sdl_renderer, 100, 100, 100, 255);
     SDL_RenderDrawLine(r->sdl_renderer, 0, input_area_y, window_width, input_area_y);
 
-    /* Draw input area background - always clear the entire area */
-    SDL_SetRenderDrawColor(r->sdl_renderer, 20, 20, 20, 255);
+    /* Draw input area background - dark blueish (same as titlebar) */
+    SDL_SetRenderDrawColor(r->sdl_renderer, 25, 40, 60, 255);
     SDL_Rect input_bg = {0, input_area_y, window_width, input_area_height};
     SDL_RenderFillRect(r->sdl_renderer, &input_bg);
 
-    /* Render input text */
-    SDL_Color fg_color = {255, 255, 255, 255};
-    SDL_Color bg_color = {20, 20, 20, 255};
+    /* Render input text - yellow */
+    SDL_Color fg_color = {255, 255, 0, 255};
+    SDL_Color bg_color = {25, 40, 60, 255};
     int x = 0;
     int y = input_area_y;
 

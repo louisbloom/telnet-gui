@@ -30,26 +30,35 @@ struct Window {
 };
 
 static SDL_HitTestResult hit_test(SDL_Window *win, const SDL_Point *area, void *data) {
-    (void)data; /* Unused parameter - required by SDL_HitTest signature */
+    Window *w = (Window *)data;
     int x = area->x, y = area->y;
-    int w, h;
-    SDL_GetWindowSize(win, &w, &h);
+    int win_w, win_h;
+    SDL_GetWindowSize(win, &win_w, &win_h);
 
-    /* Top 30px is draggable */
+    /* Top 30px is draggable, but check buttons first */
     if (y < TITLEBAR_HEIGHT) {
-        /* Button areas return NORMAL to allow click handling */
-        /* Buttons are handled via window_check_titlebar_click() in main loop */
+        /* Check if click is on close button - return NORMAL to allow click handling */
+        if (x >= w->close_button.x && x < w->close_button.x + w->close_button.w && y >= w->close_button.y &&
+            y < w->close_button.y + w->close_button.h) {
+            return SDL_HITTEST_NORMAL;
+        }
+        /* Check if click is on minimize button - return NORMAL to allow click handling */
+        if (x >= w->minimize_button.x && x < w->minimize_button.x + w->minimize_button.w && y >= w->minimize_button.y &&
+            y < w->minimize_button.y + w->minimize_button.h) {
+            return SDL_HITTEST_NORMAL;
+        }
+        /* Rest of titlebar is draggable */
         return SDL_HITTEST_DRAGGABLE;
     }
 
     /* Bottom edge - return NORMAL so we can handle resize manually */
     /* SDL's automatic resize doesn't work reliably for borderless windows on Windows */
-    if (y > h - RESIZE_AREA_SIZE) {
+    if (y > win_h - RESIZE_AREA_SIZE) {
         return SDL_HITTEST_NORMAL;
     }
 
     /* Left/Right edges - return NORMAL so we can handle resize manually */
-    if (x < RESIZE_AREA_SIZE || x > w - RESIZE_AREA_SIZE) {
+    if (x < RESIZE_AREA_SIZE || x > win_w - RESIZE_AREA_SIZE) {
         return SDL_HITTEST_NORMAL;
     }
 
@@ -87,15 +96,18 @@ Window *window_create(const char *title, int width, int height) {
     /* Note: SDL_HINT_RENDER_INTEGER_SCALE requires SDL 2.0.5+, not available in this version */
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
 
-    /* Initialize buttons */
-    w->close_button.x = width - BUTTON_SIZE - BUTTON_PADDING;
-    w->close_button.y = BUTTON_PADDING;
+    /* Initialize buttons - centered vertically in titlebar */
+    int button_y = (TITLEBAR_HEIGHT - BUTTON_SIZE) / 2;
+    /* Horizontal spacing after buttons matches vertical spacing above buttons */
+    int button_right_padding = button_y;
+    w->close_button.x = width - BUTTON_SIZE - button_right_padding;
+    w->close_button.y = button_y;
     w->close_button.w = BUTTON_SIZE;
     w->close_button.h = BUTTON_SIZE;
     w->close_button.action = WINDOW_TITLEBAR_ACTION_CLOSE;
 
-    w->minimize_button.x = width - (BUTTON_SIZE * 2) - (BUTTON_PADDING * 2);
-    w->minimize_button.y = BUTTON_PADDING;
+    w->minimize_button.x = width - (BUTTON_SIZE * 2) - button_right_padding - BUTTON_PADDING;
+    w->minimize_button.y = button_y;
     w->minimize_button.w = BUTTON_SIZE;
     w->minimize_button.h = BUTTON_SIZE;
     w->minimize_button.action = WINDOW_TITLEBAR_ACTION_MINIMIZE;
@@ -124,8 +136,11 @@ void window_update_button_positions(Window *w) {
     SDL_GetWindowSize(w->window, &width, &height);
 
     /* Update button positions based on new window width */
-    w->close_button.x = width - BUTTON_SIZE - BUTTON_PADDING;
-    w->minimize_button.x = width - (BUTTON_SIZE * 2) - (BUTTON_PADDING * 2);
+    /* Horizontal spacing after buttons matches vertical spacing above buttons */
+    int button_y = (TITLEBAR_HEIGHT - BUTTON_SIZE) / 2;
+    int button_right_padding = button_y;
+    w->close_button.x = width - BUTTON_SIZE - button_right_padding;
+    w->minimize_button.x = width - (BUTTON_SIZE * 2) - button_right_padding - BUTTON_PADDING;
 }
 
 ResizeMode window_check_resize_area(Window *w, int x, int y) {
@@ -287,8 +302,8 @@ void window_render_titlebar(Window *w, SDL_Renderer *renderer, const char *text)
     int w_width, w_height;
     SDL_GetWindowSize(w->window, &w_width, &w_height);
 
-    /* Draw titlebar background */
-    SDL_SetRenderDrawColor(renderer, 30, 30, 30, 255);
+    /* Draw titlebar background - dark blueish */
+    SDL_SetRenderDrawColor(renderer, 25, 40, 60, 255);
     SDL_Rect titlebar = {0, 0, w_width, TITLEBAR_HEIGHT};
     SDL_RenderFillRect(renderer, &titlebar);
 
