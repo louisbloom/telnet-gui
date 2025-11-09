@@ -92,3 +92,61 @@
   dest))
 
 (copy_file "input.txt" "output.txt")
+
+;; ============================================
+;; Example 6: Read S-expressions from file
+;; ============================================
+
+;; Create a test file with S-expressions
+(define sexp_file (open "test.lisp" "w"))
+(write-line sexp_file "(define x 42)")
+(write-line sexp_file "(define y 10)")
+(write-line sexp_file "(+ x y)")
+(close sexp_file)
+
+;; Read all S-expressions from file
+(read-sexp "test.lisp")  ; => Returns list of expressions or single expression
+
+;; Read from file stream
+(define file (open "test.lisp" "r"))
+(read-sexp file)  ; => Returns list of expressions or single expression
+(close file)
+
+;; ============================================
+;; Example 7: Read JSON from file
+;; ============================================
+
+;; Create a test JSON file
+(define json_file (open "test.json" "w"))
+(write-line json_file "{\"name\": \"Alice\", \"age\": 30, \"active\": true}")
+(close json_file)
+
+;; Read JSON from file
+(define data (read-json "test.json"))
+(hash-ref data "name")   ; => "Alice"
+(hash-ref data "age")    ; => 30
+(hash-ref data "active") ; => 1 (true)
+
+;; Read JSON from file stream
+(define file2 (open "test.json" "r"))
+(define data2 (read-json file2))
+(close file2)
+
+;; Simple JSON values
+(define json_str_file (open "string.json" "w"))
+(write-line json_str_file "\"hello world\"")
+(close json_str_file)
+
+(read-json "string.json")  ; => "hello world"
+
+(define json_num_file (open "number.json" "w"))
+(write-line json_num_file "42")
+(close json_num_file)
+
+(read-json "number.json")  ; => 42
+
+(define json_bool_file (open "bool.json" "w"))
+(write-line json_bool_file "true")
+(close json_bool_file)
+
+(read-json "bool.json")  ; => 1 (true)

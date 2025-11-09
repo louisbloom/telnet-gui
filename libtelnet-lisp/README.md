@@ -59,6 +59,9 @@ A minimal, embeddable Lisp interpreter library written in C, designed to be inte
 - `string-length` - Get character count (UTF-8 aware, not byte count)
 - `substring` - Extract substring by character indices (UTF-8 aware)
 - `string-ref` - Get character at index (UTF-8 aware, returns single character string)
+- `string-replace` - Replace all occurrences of substring in string
+- `string-upcase` - Convert string to uppercase (UTF-8 aware, ASCII only)
+- `string-downcase` - Convert string to lowercase (UTF-8 aware, ASCII only)
 
 ### String Comparisons
 
@@ -70,8 +73,9 @@ A minimal, embeddable Lisp interpreter library written in C, designed to be inte
 
 ### String Predicates
 
-- `string-contains` - Check if string contains substring
-- `string-match` - Match string against wildcard pattern
+- `string-contains?` - Check if string contains substring
+- `string-match?` - Match string against wildcard pattern
+- `string-prefix?` - Check if one string is a prefix of another
 
 ### Boolean Functions
 
@@ -140,6 +144,8 @@ A minimal, embeddable Lisp interpreter library written in C, designed to be inte
 - `close` - Close a file stream
 - `read-line` - Read a line from file stream (returns string or nil at EOF), supports Unix (`\n`), Windows (`\r\n`), and Mac (`\r`) line endings
 - `write-line` - Write a line to file stream
+- `read-sexp` - Read S-expressions from file (filename or file stream) - returns single expression or list of expressions
+- `read-json` - Read JSON from file (filename or file stream) - returns Lisp data structures (objects → hash tables, arrays → vectors, etc.)
 
 ### Printing Functions (Common Lisp Style)
 
@@ -158,7 +164,7 @@ A minimal, embeddable Lisp interpreter library written in C, designed to be inte
 - **Truthy/Falsy**: JavaScript-like semantics (nil and empty strings are falsy)
 - **Memory Management**: Automatic garbage collection with Boehm GC
 - **Regex Support**: Full PCRE2 integration for advanced pattern matching with UTF-8 support
-- **Wildcard Patterns**: Enhanced wildcard matching in `string-match` and `split`
+- **Wildcard Patterns**: Enhanced wildcard matching in `string-match?` and `split`
 - **UTF-8 Support**: Full Unicode string support with character-based operations (not byte-based)
   - Strings stored as UTF-8 byte sequences internally
   - UTF-8 aware string operations: `string-length`, `substring`, `string-ref`
@@ -501,13 +507,21 @@ Here are some quick examples to get started. For comprehensive examples with exp
 ; String comparisons
 (string= "hello" "hello")            ; => 1
 (string< "abc" "def")                ; => 1
-(string-contains "hello world" "world") ; => 1
-(string-match "hello" "h*o")         ; => 1
+(string-contains? "hello world" "world") ; => 1
+(string-match? "hello" "h*o")         ; => 1
+(string-prefix? "hel" "hello")       ; => 1
+(string-prefix? "lis" "lisp")        ; => 1
 
 ; UTF-8 string operations
 (string-length "Hello, 世界! 🌍")     ; => 15 (character count)
 (substring "Hello, 世界!" 7 9)        ; => "世界"
 (string-ref "Hello, 世界!" 7)        ; => "世"
+
+; String transformations
+(string-replace "world" "universe" "hello world")  ; => "hello universe"
+(string-replace "l" "L" "hello")                   ; => "heLLo"
+(string-upcase "hello world")                     ; => "HELLO WORLD"
+(string-downcase "HELLO WORLD")                    ; => "hello world"
 ```
 
 ### Regex Operations
@@ -789,6 +803,12 @@ message_count                        ; => 2
 (define f (open "data.txt" "a"))    ; Append mode
 (write-line f "new line")
 (close f)
+
+; Read S-expressions from file
+(read-sexp "config.lisp")           ; => (list of expressions or single expression)
+
+; Read JSON from file
+(read-json "data.json")              ; => hash table (for objects) or other Lisp value
 ```
 
 ### Complex Example
@@ -872,7 +892,7 @@ Following JavaScript-like semantics:
 
 ## Pattern Matching
 
-The `split` and `string-match` functions support enhanced wildcard patterns:
+The `split` and `string-match?` functions support enhanced wildcard patterns:
 
 - `*` - Matches zero or more characters
 - `?` - Matches exactly one character
@@ -883,11 +903,11 @@ The `split` and `string-match` functions support enhanced wildcard patterns:
 Examples:
 
 ```lisp
-(string-match "hello" "h*o")         ; => 1
-(string-match "hello" "h?llo")       ; => 1
-(string-match "hello" "h??lo")       ; => 1
-(string-match "hello" "h[aeiou]llo") ; => 1
-(string-match "hello" "h[a-z]llo")   ; => 1
+(string-match? "hello" "h*o")         ; => 1
+(string-match? "hello" "h?llo")       ; => 1
+(string-match? "hello" "h??lo")       ; => 1
+(string-match? "hello" "h[aeiou]llo") ; => 1
+(string-match? "hello" "h[a-z]llo")   ; => 1
 ```
 
 ## License
@@ -918,8 +938,6 @@ Potential additions for future versions:
 
 ### Medium Priority
 
-- Additional string operations (replace, upper/lowercase transformations)
-- Structured data reading from files (S-expressions, JSON)
 - Macros for metaprogramming
 - More regex features (lookahead, lookbehind, non-capturing groups)
 - Performance optimizations (bytecode compilation)

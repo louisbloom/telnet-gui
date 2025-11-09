@@ -81,12 +81,12 @@ static void print_help(const char *program_name) {
     printf("  port                     Telnet server port number\n");
     printf("\n");
     printf("Examples:\n");
-    printf("  %s carrionfields.net 4449\n", program_name);
-    printf("  %s -f 20 carrionfields.net 4449\n", program_name);
-    printf("  %s -p carrionfields.net 4449\n", program_name);
-    printf("  %s -g 100x40 carrionfields.net 4449\n", program_name);
+    printf("  %s telnet-server 4449\n", program_name);
+    printf("  %s -f 20 telnet-server 4449\n", program_name);
+    printf("  %s -p telnet-server 4449\n", program_name);
+    printf("  %s -g 100x40 telnet-server 4449\n", program_name);
     printf("  %s -H light -a linear example.com 23\n", program_name);
-    printf("  %s -l completion.lisp carrionfields.net 4449\n", program_name);
+    printf("  %s -l completion.lisp telnet-server 4449\n", program_name);
 }
 
 int main(int argc, char **argv) {
@@ -858,6 +858,9 @@ int main(int argc, char **argv) {
         char recv_buf[4096];
         int received = telnet_receive(telnet, recv_buf, sizeof(recv_buf) - 1);
         if (received > 0) {
+            /* Call telnet-input-hook with received data (stripped of ANSI codes) */
+            lisp_bridge_call_telnet_input_hook(recv_buf, received);
+            /* Feed original data to terminal (hook doesn't modify the data flow) */
             terminal_feed_data(term, recv_buf, received);
         }
 

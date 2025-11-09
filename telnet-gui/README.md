@@ -58,7 +58,7 @@ The executable will be created at `build/telnet-gui/telnet-gui.exe`.
 Example:
 
 ```bash
-./build/telnet-gui/telnet-gui.exe carrionfields.net 4449
+./build/telnet-gui/telnet-gui.exe telnet-server 4449
 ```
 
 ## libvterm 0.3.3 Integration
@@ -281,7 +281,7 @@ Use GDB to debug segmentation faults:
 
 ```bash
 gdb ./build/telnet-gui/telnet-gui.exe
-(gdb) run carrionfields.net 4449
+(gdb) run telnet-server 4449
 # ... wait for crash ...
 (gdb) bt
 (gdb) info registers

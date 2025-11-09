@@ -10,6 +10,10 @@
 /* Lisp environment for completion hooks and future primitives */
 static Environment *lisp_env = NULL;
 
+/* Static buffer for ANSI code stripping (pre-allocated at startup, freed on exit) */
+static char *ansi_strip_buffer = NULL;
+static size_t ansi_strip_buffer_size = 0;
+
 /* Extract partial text to complete using regex pattern */
 static int extract_partial_text(const char *buffer, int cursor_pos, int length, int *start_pos, int *partial_len) {
     if (!buffer || cursor_pos < 0 || cursor_pos > length || !start_pos || !partial_len) {
@@ -133,6 +137,87 @@ static void replace_partial_text(char *buffer, int buffer_size, int *cursor_pos,
     *length = new_length;
     *cursor_pos = start_pos + completion_len;
     buffer[*length] = '\0';
+}
+
+/* Strip ANSI escape sequences and control codes from input */
+static char *strip_ansi_codes(const char *input, size_t len, size_t *out_len) {
+    if (!input || len == 0 || !out_len) {
+        if (out_len)
+            *out_len = 0;
+        return NULL;
+    }
+
+    /* Ensure buffer is initialized and large enough */
+    if (!ansi_strip_buffer || ansi_strip_buffer_size < len + 1) {
+        size_t new_size = len + 1;
+        if (new_size < 4096) {
+            new_size = 4096; /* Minimum size */
+        }
+        char *new_buffer = realloc(ansi_strip_buffer, new_size);
+        if (!new_buffer) {
+            if (out_len)
+                *out_len = 0;
+            return NULL;
+        }
+        ansi_strip_buffer = new_buffer;
+        ansi_strip_buffer_size = new_size;
+    }
+
+    size_t out_pos = 0;
+    int in_escape = 0;
+    int in_csi = 0; /* Control Sequence Introducer (ESC[) */
+
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)input[i];
+
+        if (in_escape) {
+            if (c == '[') {
+                /* Start of CSI sequence */
+                in_csi = 1;
+                in_escape = 0;
+            } else if (c >= 0x40 && c <= 0x5F) {
+                /* Single character escape sequence (e.g., ESC m) */
+                in_escape = 0;
+            } else if (c == 0x1B) {
+                /* Another ESC - keep in escape state */
+            } else {
+                /* End of escape sequence */
+                in_escape = 0;
+            }
+            continue;
+        }
+
+        if (in_csi) {
+            /* Inside CSI sequence - skip until terminator */
+            if ((c >= 0x40 && c <= 0x7E) || c == 0x1B) {
+                /* Terminator found or new ESC */
+                in_csi = 0;
+                if (c == 0x1B) {
+                    in_escape = 1;
+                }
+            }
+            continue;
+        }
+
+        if (c == 0x1B) {
+            /* Start of escape sequence */
+            in_escape = 1;
+            continue;
+        }
+
+        /* Keep printable characters and whitespace */
+        if (c >= 0x20 || c == '\n' || c == '\r' || c == '\t') {
+            if (out_pos < ansi_strip_buffer_size - 1) {
+                ansi_strip_buffer[out_pos++] = c;
+            }
+        }
+        /* Skip other control characters */
+    }
+
+    /* Null terminate */
+    ansi_strip_buffer[out_pos] = '\0';
+    *out_len = out_pos;
+    return ansi_strip_buffer;
 }
 
 /* Call Lisp completion hook */
@@ -307,6 +392,17 @@ int lisp_bridge_init(void) {
         return -1;
     }
 
+    /* Allocate static buffer for ANSI stripping */
+    ansi_strip_buffer_size = 4096; /* Initial size */
+    ansi_strip_buffer = malloc(ansi_strip_buffer_size);
+    if (!ansi_strip_buffer) {
+        fprintf(stderr, "Failed to allocate ANSI strip buffer\n");
+        env_free(lisp_env);
+        lisp_env = NULL;
+        lisp_cleanup();
+        return -1;
+    }
+
     /* Load bootstrap file */
     if (!load_bootstrap_file()) {
         fprintf(stderr, "Warning: Failed to load bootstrap file, continuing with defaults\n");
@@ -321,6 +417,15 @@ int lisp_bridge_init(void) {
             env_define(lisp_env, "completion-hook", hook_expr);
         } else {
             fprintf(stderr, "Warning: Failed to initialize default completion hook\n");
+        }
+
+        /* Initialize default telnet-input-hook */
+        char default_telnet_hook_code[] = "(lambda (text) ())";
+        LispObject *telnet_hook_expr = lisp_eval_string(default_telnet_hook_code, lisp_env);
+        if (telnet_hook_expr && telnet_hook_expr->type != LISP_ERROR) {
+            env_define(lisp_env, "telnet-input-hook", telnet_hook_expr);
+        } else {
+            fprintf(stderr, "Warning: Failed to initialize default telnet-input-hook\n");
         }
 
         /* Initialize default scroll config variables if bootstrap failed */
@@ -354,6 +459,11 @@ void lisp_bridge_cleanup(void) {
     if (lisp_env) {
         env_free(lisp_env);
         lisp_env = NULL;
+    }
+    if (ansi_strip_buffer) {
+        free(ansi_strip_buffer);
+        ansi_strip_buffer = NULL;
+        ansi_strip_buffer_size = 0;
     }
     lisp_cleanup();
 }
@@ -436,4 +546,47 @@ int lisp_bridge_get_smooth_scrolling_enabled(void) {
 
     /* Use truthy check for other types */
     return lisp_is_truthy(value) ? 1 : 0;
+}
+
+void lisp_bridge_call_telnet_input_hook(const char *text, size_t len) {
+    if (!lisp_env || !text || len == 0) {
+        return;
+    }
+
+    /* Look up telnet-input-hook */
+    LispObject *hook = env_lookup(lisp_env, "telnet-input-hook");
+    if (!hook || (hook->type != LISP_LAMBDA && hook->type != LISP_BUILTIN)) {
+        return; /* Hook not found or wrong type - silently do nothing */
+    }
+
+    /* Strip ANSI codes from input text */
+    size_t stripped_len = 0;
+    char *stripped_text = strip_ansi_codes(text, len, &stripped_len);
+    if (!stripped_text || stripped_len == 0) {
+        return; /* Nothing to process after stripping */
+    }
+
+    /* Create Lisp string from stripped text */
+    LispObject *arg = lisp_make_string(stripped_text);
+    if (!arg || arg->type == LISP_ERROR) {
+        return; /* Failed to create string */
+    }
+
+    /* Create argument list */
+    LispObject *args = lisp_make_cons(arg, NIL);
+
+    /* Create function call: (telnet-input-hook "stripped-text") */
+    LispObject *call_expr = lisp_make_cons(hook, args);
+
+    /* Evaluate the function call */
+    LispObject *result = lisp_eval(call_expr, lisp_env);
+
+    /* Check for errors - log but continue */
+    if (result && result->type == LISP_ERROR) {
+        char *err_str = lisp_print(result);
+        if (err_str) {
+            fprintf(stderr, "Error in telnet-input-hook: %s\n", err_str);
+        }
+    }
+    /* Ignore return value - hook is side-effect only */
 }

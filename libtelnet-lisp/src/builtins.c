@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <ctype.h>
 
 /* Arithmetic operations */
 static LispObject *builtin_add(LispObject *args, Environment *env);
@@ -29,6 +30,10 @@ static LispObject *builtin_string_match(LispObject *args, Environment *env);
 static LispObject *builtin_string_length(LispObject *args, Environment *env);
 static LispObject *builtin_substring(LispObject *args, Environment *env);
 static LispObject *builtin_string_ref(LispObject *args, Environment *env);
+static LispObject *builtin_string_prefix_question(LispObject *args, Environment *env);
+static LispObject *builtin_string_replace(LispObject *args, Environment *env);
+static LispObject *builtin_string_upcase(LispObject *args, Environment *env);
+static LispObject *builtin_string_downcase(LispObject *args, Environment *env);
 
 /* Boolean operations */
 static LispObject *builtin_and(LispObject *args, Environment *env);
@@ -80,6 +85,8 @@ static LispObject *builtin_open(LispObject *args, Environment *env);
 static LispObject *builtin_close(LispObject *args, Environment *env);
 static LispObject *builtin_read_line(LispObject *args, Environment *env);
 static LispObject *builtin_write_line(LispObject *args, Environment *env);
+static LispObject *builtin_read_sexp(LispObject *args, Environment *env);
+static LispObject *builtin_read_json(LispObject *args, Environment *env);
 
 /* Common Lisp printing operations */
 static LispObject *builtin_princ(LispObject *args, Environment *env);
@@ -124,11 +131,15 @@ void register_builtins(Environment *env) {
     env_define(env, "string>", lisp_make_builtin(builtin_string_gt, "string>"));
     env_define(env, "string<=", lisp_make_builtin(builtin_string_lte, "string<="));
     env_define(env, "string>=", lisp_make_builtin(builtin_string_gte, "string>="));
-    env_define(env, "string-contains", lisp_make_builtin(builtin_string_contains, "string-contains"));
-    env_define(env, "string-match", lisp_make_builtin(builtin_string_match, "string-match"));
+    env_define(env, "string-contains?", lisp_make_builtin(builtin_string_contains, "string-contains?"));
+    env_define(env, "string-match?", lisp_make_builtin(builtin_string_match, "string-match?"));
     env_define(env, "string-length", lisp_make_builtin(builtin_string_length, "string-length"));
     env_define(env, "substring", lisp_make_builtin(builtin_substring, "substring"));
     env_define(env, "string-ref", lisp_make_builtin(builtin_string_ref, "string-ref"));
+    env_define(env, "string-prefix?", lisp_make_builtin(builtin_string_prefix_question, "string-prefix?"));
+    env_define(env, "string-replace", lisp_make_builtin(builtin_string_replace, "string-replace"));
+    env_define(env, "string-upcase", lisp_make_builtin(builtin_string_upcase, "string-upcase"));
+    env_define(env, "string-downcase", lisp_make_builtin(builtin_string_downcase, "string-downcase"));
 
     env_define(env, "and", lisp_make_builtin(builtin_and, "and"));
     env_define(env, "or", lisp_make_builtin(builtin_or, "or"));
@@ -159,6 +170,8 @@ void register_builtins(Environment *env) {
     env_define(env, "close", lisp_make_builtin(builtin_close, "close"));
     env_define(env, "read-line", lisp_make_builtin(builtin_read_line, "read-line"));
     env_define(env, "write-line", lisp_make_builtin(builtin_write_line, "write-line"));
+    env_define(env, "read-sexp", lisp_make_builtin(builtin_read_sexp, "read-sexp"));
+    env_define(env, "read-json", lisp_make_builtin(builtin_read_json, "read-json"));
 
     /* Common Lisp printing functions */
     env_define(env, "princ", lisp_make_builtin(builtin_princ, "princ"));
@@ -826,14 +839,14 @@ static LispObject *builtin_string_gte(LispObject *args, Environment *env) {
 static LispObject *builtin_string_contains(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("string-contains requires 2 arguments");
+        return lisp_make_error("string-contains? requires 2 arguments");
     }
 
     LispObject *haystack = lisp_car(args);
     LispObject *needle = lisp_car(lisp_cdr(args));
 
     if (haystack->type != LISP_STRING || needle->type != LISP_STRING) {
-        return lisp_make_error("string-contains requires strings");
+        return lisp_make_error("string-contains? requires strings");
     }
 
     return (strstr(haystack->value.string, needle->value.string) != NULL) ? lisp_make_number(1) : NIL;
@@ -842,17 +855,42 @@ static LispObject *builtin_string_contains(LispObject *args, Environment *env) {
 static LispObject *builtin_string_match(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("string-match requires 2 arguments");
+        return lisp_make_error("string-match? requires 2 arguments");
     }
 
     LispObject *str = lisp_car(args);
     LispObject *pattern = lisp_car(lisp_cdr(args));
 
     if (str->type != LISP_STRING || pattern->type != LISP_STRING) {
-        return lisp_make_error("string-match requires strings");
+        return lisp_make_error("string-match? requires strings");
     }
 
     return wildcard_match(pattern->value.string, str->value.string) ? lisp_make_number(1) : NIL;
+}
+
+static LispObject *builtin_string_prefix_question(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("string-prefix? requires 2 arguments");
+    }
+
+    LispObject *prefix = lisp_car(args);
+    LispObject *str = lisp_car(lisp_cdr(args));
+
+    if (prefix->type != LISP_STRING || str->type != LISP_STRING) {
+        return lisp_make_error("string-prefix? requires strings");
+    }
+
+    size_t prefix_len = strlen(prefix->value.string);
+    size_t str_len = strlen(str->value.string);
+
+    /* If prefix is longer than string, it can't be a prefix */
+    if (prefix_len > str_len) {
+        return NIL;
+    }
+
+    /* Use strncmp to check if prefix matches the beginning of str */
+    return (strncmp(prefix->value.string, str->value.string, prefix_len) == 0) ? lisp_make_number(1) : NIL;
 }
 
 /* UTF-8 String operations */
@@ -951,6 +989,149 @@ static LispObject *builtin_string_ref(LispObject *args, Environment *env) {
     char *result = GC_malloc(bytes + 1);
     memcpy(result, char_ptr, bytes);
     result[bytes] = '\0';
+
+    return lisp_make_string(result);
+}
+
+/* String replace */
+static LispObject *builtin_string_replace(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL || lisp_cdr(lisp_cdr(args)) == NIL) {
+        return lisp_make_error("string-replace requires 3 arguments");
+    }
+
+    LispObject *old_obj = lisp_car(args);
+    LispObject *new_obj = lisp_car(lisp_cdr(args));
+    LispObject *str_obj = lisp_car(lisp_cdr(lisp_cdr(args)));
+
+    if (old_obj->type != LISP_STRING || new_obj->type != LISP_STRING || str_obj->type != LISP_STRING) {
+        return lisp_make_error("string-replace requires strings");
+    }
+
+    const char *old_str = old_obj->value.string;
+    const char *new_str = new_obj->value.string;
+    const char *str = str_obj->value.string;
+
+    /* If old string is empty, return original string */
+    if (old_str[0] == '\0') {
+        return lisp_make_string(GC_strdup(str));
+    }
+
+    /* Count occurrences to estimate result size */
+    size_t old_len = strlen(old_str);
+    size_t new_len = strlen(new_str);
+    size_t str_len = strlen(str);
+    size_t count = 0;
+    const char *pos = str;
+    while ((pos = strstr(pos, old_str)) != NULL) {
+        count++;
+        pos += old_len;
+    }
+
+    /* Calculate result size */
+    size_t result_len = str_len + (new_len - old_len) * count;
+    char *result = GC_malloc(result_len + 1);
+    char *result_ptr = result;
+    const char *str_ptr = str;
+
+    /* Replace all occurrences */
+    while ((pos = strstr(str_ptr, old_str)) != NULL) {
+        /* Copy part before match */
+        size_t before_len = pos - str_ptr;
+        memcpy(result_ptr, str_ptr, before_len);
+        result_ptr += before_len;
+
+        /* Copy new string */
+        memcpy(result_ptr, new_str, new_len);
+        result_ptr += new_len;
+
+        /* Advance past old string */
+        str_ptr = pos + old_len;
+    }
+
+    /* Copy remaining part */
+    size_t remaining = strlen(str_ptr);
+    memcpy(result_ptr, str_ptr, remaining);
+    result_ptr += remaining;
+    *result_ptr = '\0';
+
+    return lisp_make_string(result);
+}
+
+/* String upcase */
+static LispObject *builtin_string_upcase(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("string-upcase requires 1 argument");
+    }
+
+    LispObject *str_obj = lisp_car(args);
+    if (str_obj->type != LISP_STRING) {
+        return lisp_make_error("string-upcase requires a string");
+    }
+
+    const char *str = str_obj->value.string;
+    size_t len = strlen(str);
+    char *result = GC_malloc(len + 1);
+    const char *src = str;
+    char *dst = result;
+
+    /* Convert each character */
+    while (*src) {
+        int codepoint = utf8_get_codepoint(src);
+        if (codepoint >= 0 && codepoint < 128) {
+            /* ASCII - use toupper */
+            *dst = toupper((unsigned char)*src);
+            src++;
+            dst++;
+        } else {
+            /* Unicode - preserve as-is (full Unicode case conversion requires tables) */
+            int bytes = utf8_char_bytes(src);
+            memcpy(dst, src, bytes);
+            src += bytes;
+            dst += bytes;
+        }
+    }
+    *dst = '\0';
+
+    return lisp_make_string(result);
+}
+
+/* String downcase */
+static LispObject *builtin_string_downcase(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("string-downcase requires 1 argument");
+    }
+
+    LispObject *str_obj = lisp_car(args);
+    if (str_obj->type != LISP_STRING) {
+        return lisp_make_error("string-downcase requires a string");
+    }
+
+    const char *str = str_obj->value.string;
+    size_t len = strlen(str);
+    char *result = GC_malloc(len + 1);
+    const char *src = str;
+    char *dst = result;
+
+    /* Convert each character */
+    while (*src) {
+        int codepoint = utf8_get_codepoint(src);
+        if (codepoint >= 0 && codepoint < 128) {
+            /* ASCII - use tolower */
+            *dst = tolower((unsigned char)*src);
+            src++;
+            dst++;
+        } else {
+            /* Unicode - preserve as-is (full Unicode case conversion requires tables) */
+            int bytes = utf8_char_bytes(src);
+            memcpy(dst, src, bytes);
+            src += bytes;
+            dst += bytes;
+        }
+    }
+    *dst = '\0';
 
     return lisp_make_string(result);
 }
@@ -1649,6 +1830,338 @@ static LispObject *builtin_write_line(LispObject *args, Environment *env) {
     fflush(file);
 
     return text_obj;
+}
+
+/* Read S-expressions from file */
+static LispObject *builtin_read_sexp(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("read-sexp requires 1 argument");
+    }
+
+    LispObject *arg = lisp_car(args);
+    FILE *file = NULL;
+    int should_close = 0;
+
+    /* Check if argument is file stream or filename */
+    if (arg->type == LISP_FILE_STREAM) {
+        file = arg->value.file;
+        if (file == NULL) {
+            return lisp_make_error("read-sexp: file is closed");
+        }
+    } else if (arg->type == LISP_STRING) {
+        /* Open file */
+        file = fopen(arg->value.string, "r");
+        if (file == NULL) {
+            char error[512];
+            snprintf(error, sizeof(error), "read-sexp: cannot open file '%s'", arg->value.string);
+            return lisp_make_error(error);
+        }
+        should_close = 1;
+    } else {
+        return lisp_make_error("read-sexp requires a filename (string) or file stream");
+    }
+
+    /* Read entire file */
+    fseek(file, 0, SEEK_END);
+    long size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    if (size < 0) {
+        if (should_close) {
+            fclose(file);
+        }
+        return lisp_make_error("read-sexp: cannot determine file size");
+    }
+
+    char *buffer = GC_malloc(size + 1);
+    size_t read_size = fread(buffer, 1, size, file);
+    buffer[read_size] = '\0';
+
+    if (should_close) {
+        fclose(file);
+    }
+
+    /* Parse all expressions */
+    const char *input = buffer;
+    LispObject *result = NIL;
+    LispObject *last = NIL;
+
+    while (*input) {
+        /* Skip whitespace and comments */
+        while (*input == ' ' || *input == '\t' || *input == '\n' || *input == '\r' || *input == ';') {
+            if (*input == ';') {
+                while (*input && *input != '\n') {
+                    input++;
+                }
+            } else {
+                input++;
+            }
+        }
+
+        if (*input == '\0') {
+            break;
+        }
+
+        /* Parse expression */
+        LispObject *expr = lisp_read(&input);
+        if (expr == NULL) {
+            break;
+        }
+
+        if (expr->type == LISP_ERROR) {
+            return expr;
+        }
+
+        /* Add to result list */
+        LispObject *cell = lisp_make_cons(expr, NIL);
+        if (result == NIL) {
+            result = cell;
+            last = cell;
+        } else {
+            last->value.cons.cdr = cell;
+            last = cell;
+        }
+    }
+
+    /* Return single expression if only one, otherwise return list */
+    if (result != NIL && lisp_cdr(result) == NIL) {
+        return lisp_car(result);
+    }
+
+    return result;
+}
+
+/* Read JSON from file - basic JSON parser */
+static LispObject *builtin_read_json(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("read-json requires 1 argument");
+    }
+
+    LispObject *arg = lisp_car(args);
+    FILE *file = NULL;
+    int should_close = 0;
+
+    /* Check if argument is file stream or filename */
+    if (arg->type == LISP_FILE_STREAM) {
+        file = arg->value.file;
+        if (file == NULL) {
+            return lisp_make_error("read-json: file is closed");
+        }
+    } else if (arg->type == LISP_STRING) {
+        /* Open file */
+        file = fopen(arg->value.string, "r");
+        if (file == NULL) {
+            char error[512];
+            snprintf(error, sizeof(error), "read-json: cannot open file '%s'", arg->value.string);
+            return lisp_make_error(error);
+        }
+        should_close = 1;
+    } else {
+        return lisp_make_error("read-json requires a filename (string) or file stream");
+    }
+
+    /* Read entire file */
+    fseek(file, 0, SEEK_END);
+    long size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    if (size < 0) {
+        if (should_close) {
+            fclose(file);
+        }
+        return lisp_make_error("read-json: cannot determine file size");
+    }
+
+    char *buffer = GC_malloc(size + 1);
+    size_t read_size = fread(buffer, 1, size, file);
+    buffer[read_size] = '\0';
+
+    if (should_close) {
+        fclose(file);
+    }
+
+    /* Simple JSON parser - this is a basic implementation */
+    /* Skip whitespace */
+    const char *p = buffer;
+    while (*p && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) {
+        p++;
+    }
+
+    if (*p == '\0') {
+        return NIL;
+    }
+
+    /* Parse JSON value */
+    LispObject *result = NULL;
+    if (*p == '{') {
+        /* JSON object -> hash table */
+        result = lisp_make_hash_table();
+        p++; /* Skip '{' */
+        while (*p && *p != '}') {
+            /* Skip whitespace */
+            while (*p && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) {
+                p++;
+            }
+            if (*p == '}') {
+                break;
+            }
+
+            /* Parse key (must be string) */
+            if (*p != '"') {
+                return lisp_make_error("read-json: object key must be a string");
+            }
+            p++; /* Skip '"' */
+            const char *key_start = p;
+            while (*p && *p != '"') {
+                if (*p == '\\' && *(p + 1)) {
+                    p += 2; /* Skip escape sequence */
+                } else {
+                    p++;
+                }
+            }
+            if (*p != '"') {
+                return lisp_make_error("read-json: unterminated string");
+            }
+            size_t key_len = p - key_start;
+            char *key = GC_malloc(key_len + 1);
+            memcpy(key, key_start, key_len);
+            key[key_len] = '\0';
+            p++; /* Skip '"' */
+
+            /* Skip whitespace */
+            while (*p && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) {
+                p++;
+            }
+            if (*p != ':') {
+                return lisp_make_error("read-json: expected ':' after key");
+            }
+            p++; /* Skip ':' */
+
+            /* Skip whitespace */
+            while (*p && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) {
+                p++;
+            }
+
+            /* Parse value (recursive) */
+            LispObject *json_value = NULL;
+            if (*p == '"') {
+                /* String */
+                p++;
+                const char *val_start = p;
+                while (*p && *p != '"') {
+                    if (*p == '\\' && *(p + 1)) {
+                        p += 2;
+                    } else {
+                        p++;
+                    }
+                }
+                if (*p != '"') {
+                    return lisp_make_error("read-json: unterminated string");
+                }
+                size_t val_len = p - val_start;
+                char *val_str = GC_malloc(val_len + 1);
+                memcpy(val_str, val_start, val_len);
+                val_str[val_len] = '\0';
+                json_value = lisp_make_string(val_str);
+                p++; /* Skip '"' */
+            } else if (*p == '{') {
+                /* Nested object - simplified: return error for now */
+                return lisp_make_error("read-json: nested objects not yet supported");
+            } else if (*p == '[') {
+                /* Array - simplified: return error for now */
+                return lisp_make_error("read-json: arrays not yet supported");
+            } else if (strncmp(p, "true", 4) == 0) {
+                json_value = lisp_make_boolean(1);
+                p += 4;
+            } else if (strncmp(p, "false", 5) == 0) {
+                json_value = NIL;
+                p += 5;
+            } else if (strncmp(p, "null", 4) == 0) {
+                json_value = NIL;
+                p += 4;
+            } else if (isdigit(*p) || *p == '-') {
+                /* Number - simplified parsing */
+                const char *num_start = p;
+                while (*p && (isdigit(*p) || *p == '.' || *p == '-' || *p == '+' || *p == 'e' || *p == 'E')) {
+                    p++;
+                }
+                size_t num_len = p - num_start;
+                char *num_str = GC_malloc(num_len + 1);
+                memcpy(num_str, num_start, num_len);
+                num_str[num_len] = '\0';
+                if (strchr(num_str, '.') != NULL) {
+                    json_value = lisp_make_number(atof(num_str));
+                } else {
+                    json_value = lisp_make_integer(atoll(num_str));
+                }
+            } else {
+                return lisp_make_error("read-json: unexpected character");
+            }
+
+            /* Store in hash table */
+            hash_table_set_entry(result, key, json_value);
+
+            /* Skip whitespace */
+            while (*p && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) {
+                p++;
+            }
+            if (*p == ',') {
+                p++; /* Skip ',' */
+            } else if (*p != '}') {
+                return lisp_make_error("read-json: expected ',' or '}'");
+            }
+        }
+        if (*p == '}') {
+            p++;
+        }
+    } else if (*p == '"') {
+        /* JSON string */
+        p++;
+        const char *str_start = p;
+        while (*p && *p != '"') {
+            if (*p == '\\' && *(p + 1)) {
+                p += 2;
+            } else {
+                p++;
+            }
+        }
+        if (*p != '"') {
+            return lisp_make_error("read-json: unterminated string");
+        }
+        size_t str_len = p - str_start;
+        char *str = GC_malloc(str_len + 1);
+        memcpy(str, str_start, str_len);
+        str[str_len] = '\0';
+        result = lisp_make_string(str);
+        p++;
+    } else if (strncmp(p, "true", 4) == 0) {
+        result = lisp_make_boolean(1);
+    } else if (strncmp(p, "false", 5) == 0) {
+        result = NIL;
+    } else if (strncmp(p, "null", 4) == 0) {
+        result = NIL;
+    } else if (isdigit(*p) || *p == '-') {
+        /* Number */
+        const char *num_start = p;
+        while (*p && (isdigit(*p) || *p == '.' || *p == '-' || *p == '+' || *p == 'e' || *p == 'E')) {
+            p++;
+        }
+        size_t num_len = p - num_start;
+        char *num_str = GC_malloc(num_len + 1);
+        memcpy(num_str, num_start, num_len);
+        num_str[num_len] = '\0';
+        if (strchr(num_str, '.') != NULL) {
+            result = lisp_make_number(atof(num_str));
+        } else {
+            result = lisp_make_integer(atoll(num_str));
+        }
+    } else {
+        return lisp_make_error("read-json: unsupported JSON value type");
+    }
+
+    return result;
 }
 
 static LispObject *builtin_princ(LispObject *args, Environment *env) {

@@ -3,6 +3,8 @@
 #ifndef LISP_BRIDGE_H
 #define LISP_BRIDGE_H
 
+#include <stddef.h>
+
 /* Initialize Lisp interpreter, environment, and load bootstrap file */
 int lisp_bridge_init(void);
 
@@ -20,6 +22,9 @@ int lisp_bridge_get_scroll_lines_per_click(void);
 
 /* Get smooth scrolling enabled from Lisp config (default: 1/true) */
 int lisp_bridge_get_smooth_scrolling_enabled(void);
+
+/* Call telnet-input-hook with telnet data (stripped of ANSI codes) */
+void lisp_bridge_call_telnet_input_hook(const char *text, size_t len);
 
 /* Future: More functions to expose telnet-gui primitives */
 /* - Input/output hooks */

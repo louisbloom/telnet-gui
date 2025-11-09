@@ -28,3 +28,10 @@
 
 ;; Verify substring with Japanese characters
 (substring "こんにちは" 0 1)                ; => "こ"
+
+;; String transformations with UTF-8
+;; Note: Case conversion only works for ASCII characters, Unicode is preserved
+(string-upcase "hello 世界")            ; => "HELLO 世界" (Unicode preserved)
+(string-downcase "HELLO 世界")         ; => "hello 世界" (Unicode preserved)
+(string-replace "世界" "universe" "hello 世界")  ; => "hello universe"
+(string-replace "o" "O" "hello 世界")  ; => "hellO 世界"

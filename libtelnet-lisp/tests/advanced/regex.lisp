@@ -85,19 +85,19 @@
 ;; ===========================================
 
 ;; Character classes - match any of a, b, or c
-(string-match "[abc]test" "atest")             ; => 1
+(string-match? "[abc]test" "atest")             ; => 1
 
 ;; Character ranges - match lowercase
-(string-match "[a-z]+" "hello")                ; => 1
+(string-match? "[a-z]+" "hello")                ; => 1
 
 ;; Negated classes - match non-digits
-(string-match "[!0-9]+" "abc")                 ; => 1
+(string-match? "[!0-9]+" "abc")                 ; => 1
 
 ;; Wildcards - * matches zero or more
-(string-match "test*" "test123")                ; => 1
+(string-match? "test*" "test123")                ; => 1
 
 ;; Wildcards - ? matches exactly one
-(string-match "test?" "test1")                 ; => 1
+(string-match? "test?" "test1")                 ; => 1
 
 ;; ===========================================
 ;; Practical Examples
