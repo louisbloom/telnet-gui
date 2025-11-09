@@ -140,10 +140,10 @@ ResizeMode window_check_resize_area(Window *w, int x, int y) {
 
     /* Bottom edge - resize area is at bottom RESIZE_AREA_SIZE pixels */
     /* Note: Input area exclusion is handled in main.c by checking y position */
-    if (y > height - RESIZE_AREA_SIZE) {
+    if (y >= height - RESIZE_AREA_SIZE) {
         if (x < RESIZE_AREA_SIZE)
             return RESIZE_BOTTOMLEFT;
-        if (x > width - RESIZE_AREA_SIZE)
+        if (x >= width - RESIZE_AREA_SIZE)
             return RESIZE_BOTTOMRIGHT;
         return RESIZE_BOTTOM;
     }
@@ -151,7 +151,7 @@ ResizeMode window_check_resize_area(Window *w, int x, int y) {
     /* Left/Right edges */
     if (x < RESIZE_AREA_SIZE)
         return RESIZE_LEFT;
-    if (x > width - RESIZE_AREA_SIZE)
+    if (x >= width - RESIZE_AREA_SIZE)
         return RESIZE_RIGHT;
 
     return RESIZE_NONE;

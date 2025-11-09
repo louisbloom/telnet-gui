@@ -278,8 +278,8 @@ static int load_bootstrap_file(void) {
         LispObject *result = lisp_load_file(bootstrap_paths[i], lisp_env);
         if (result && result->type == LISP_ERROR) {
             char *err_str = lisp_print(result);
-            fprintf(stderr, "Bootstrap file resolution: Failed to load bootstrap file from: %s (error: %s)\n",
-                    bootstrap_paths[i], err_str);
+            fprintf(stderr, "Bootstrap file evaluation ERROR in %s:\n%s\n", bootstrap_paths[i], err_str);
+            /* Continue trying other paths */
         } else {
             loaded_bootstrap_path = bootstrap_paths[i];
             loaded_bootstrap_label = bootstrap_path_labels[i];
@@ -322,6 +322,13 @@ int lisp_bridge_init(void) {
         } else {
             fprintf(stderr, "Warning: Failed to initialize default completion hook\n");
         }
+
+        /* Initialize default scroll config variables if bootstrap failed */
+        LispObject *scroll_lines = lisp_make_integer(3);
+        env_define(lisp_env, "*scroll-lines-per-click*", scroll_lines);
+
+        LispObject *smooth_scrolling = lisp_make_boolean(1); /* true */
+        env_define(lisp_env, "*smooth-scrolling-enabled*", smooth_scrolling);
     }
 
     return 0;
@@ -375,4 +382,58 @@ void lisp_bridge_handle_tab(char *buffer, int buffer_size, int *cursor_pos, int 
                               partial_len);
         }
     }
+}
+
+int lisp_bridge_get_scroll_lines_per_click(void) {
+    if (!lisp_env) {
+        return 3; /* Default */
+    }
+
+    LispObject *value = env_lookup(lisp_env, "*scroll-lines-per-click*");
+    if (!value || value == NIL) {
+        return 3; /* Default */
+    }
+
+    /* Check if it's an integer */
+    if (value->type == LISP_INTEGER) {
+        int lines = (int)value->value.integer;
+        /* Clamp to reasonable range (1-100) */
+        if (lines < 1)
+            lines = 1;
+        if (lines > 100)
+            lines = 100;
+        return lines;
+    }
+
+    /* If it's a number, convert to integer */
+    if (value->type == LISP_NUMBER) {
+        int lines = (int)value->value.number;
+        if (lines < 1)
+            lines = 1;
+        if (lines > 100)
+            lines = 100;
+        return lines;
+    }
+
+    /* Invalid type, return default */
+    return 3;
+}
+
+int lisp_bridge_get_smooth_scrolling_enabled(void) {
+    if (!lisp_env) {
+        return 1; /* Default: enabled */
+    }
+
+    LispObject *value = env_lookup(lisp_env, "*smooth-scrolling-enabled*");
+    if (!value || value == NIL) {
+        return 1; /* Default: enabled */
+    }
+
+    /* Check if it's a boolean */
+    if (value->type == LISP_BOOLEAN) {
+        return value->value.boolean ? 1 : 0;
+    }
+
+    /* Use truthy check for other types */
+    return lisp_is_truthy(value) ? 1 : 0;
 }
