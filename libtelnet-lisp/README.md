@@ -141,6 +141,12 @@ A minimal, embeddable Lisp interpreter library written in C, designed to be inte
 - `read-line` - Read a line from file stream (returns string or nil at EOF), supports Unix (`\n`), Windows (`\r\n`), and Mac (`\r`) line endings
 - `write-line` - Write a line to file stream
 
+### Printing Functions (Common Lisp Style)
+
+- `princ` - Print object in human-readable form (strings without quotes), returns the object
+- `prin1` - Print object in readable representation (strings with quotes), returns the object
+- `print` - Print object like `prin1` but adds newline before and after, returns the object
+
 ### Advanced Features
 
 - **Lexical Scoping**: Lambdas capture their environment
@@ -737,6 +743,28 @@ counter                             ; => 2
 message_count                        ; => 2
 ```
 
+### Printing Functions (Common Lisp Style)
+
+```lisp
+; princ - prints without quotes (human-readable)
+(princ "Hello, World!")              ; Prints: Hello, World! (no quotes)
+(princ 42)                           ; Prints: 42
+(princ '(1 2 3))                     ; Prints: (1 2 3)
+
+; prin1 - prints with quotes (readable representation)
+(prin1 "Hello, World!")              ; Prints: "Hello, World!" (with quotes)
+(prin1 42)                           ; Prints: 42
+(prin1 '(1 2 3))                     ; Prints: (1 2 3)
+
+; print - like prin1 but adds newline before and after
+(print "Hello, World!")              ; Prints: \n"Hello, World!"\n
+(print 42)                           ; Prints: \n42\n
+(print '(1 2 3))                     ; Prints: \n(1 2 3)\n
+
+; All functions return the object being printed
+(define result (princ "test"))       ; Prints: test, result => "test"
+```
+
 ### File I/O Operations
 
 ```lisp
@@ -804,6 +832,9 @@ Each test file is both executable code and documentation with expected outputs m
 - `LispObject* lisp_read(const char** input)` - Parse input into AST
 - `LispObject* lisp_eval(LispObject* expr, Environment* env)` - Evaluate an expression
 - `char* lisp_print(LispObject* obj)` - Convert object to string (GC-managed, don't free)
+- `void lisp_princ(LispObject* obj)` - Print object in human-readable form (no quotes for strings)
+- `void lisp_prin1(LispObject* obj)` - Print object in readable representation (with quotes for strings)
+- `void lisp_print_cl(LispObject* obj)` - Print object like `prin1` but adds newline before and after
 - `LispObject* lisp_load_file(const char* filename, Environment* env)` - Load and evaluate a file
 
 ### Object Creation

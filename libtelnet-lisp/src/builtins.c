@@ -81,6 +81,11 @@ static LispObject *builtin_close(LispObject *args, Environment *env);
 static LispObject *builtin_read_line(LispObject *args, Environment *env);
 static LispObject *builtin_write_line(LispObject *args, Environment *env);
 
+/* Common Lisp printing operations */
+static LispObject *builtin_princ(LispObject *args, Environment *env);
+static LispObject *builtin_prin1(LispObject *args, Environment *env);
+static LispObject *builtin_print_cl(LispObject *args, Environment *env);
+
 /* Type predicates */
 static LispObject *builtin_integer_question(LispObject *args, Environment *env);
 static LispObject *builtin_boolean_question(LispObject *args, Environment *env);
@@ -154,6 +159,11 @@ void register_builtins(Environment *env) {
     env_define(env, "close", lisp_make_builtin(builtin_close, "close"));
     env_define(env, "read-line", lisp_make_builtin(builtin_read_line, "read-line"));
     env_define(env, "write-line", lisp_make_builtin(builtin_write_line, "write-line"));
+
+    /* Common Lisp printing functions */
+    env_define(env, "princ", lisp_make_builtin(builtin_princ, "princ"));
+    env_define(env, "prin1", lisp_make_builtin(builtin_prin1, "prin1"));
+    env_define(env, "print", lisp_make_builtin(builtin_print_cl, "print"));
 
     /* Type predicates */
     env_define(env, "integer?", lisp_make_builtin(builtin_integer_question, "integer?"));
@@ -1639,6 +1649,45 @@ static LispObject *builtin_write_line(LispObject *args, Environment *env) {
     fflush(file);
 
     return text_obj;
+}
+
+static LispObject *builtin_princ(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("princ requires 1 argument");
+    }
+
+    LispObject *obj = lisp_car(args);
+    lisp_princ(obj);
+
+    /* Return the object (Common Lisp convention) */
+    return obj;
+}
+
+static LispObject *builtin_prin1(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("prin1 requires 1 argument");
+    }
+
+    LispObject *obj = lisp_car(args);
+    lisp_prin1(obj);
+
+    /* Return the object (Common Lisp convention) */
+    return obj;
+}
+
+static LispObject *builtin_print_cl(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("print requires 1 argument");
+    }
+
+    LispObject *obj = lisp_car(args);
+    lisp_print_cl(obj);
+
+    /* Return the object (Common Lisp convention) */
+    return obj;
 }
 
 /* Type predicates */

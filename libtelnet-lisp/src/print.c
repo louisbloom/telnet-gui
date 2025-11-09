@@ -145,3 +145,134 @@ char *lisp_print(LispObject *obj) {
 
     return buffer;
 }
+
+/* Helper functions for princ (prints directly to stdout, strings without quotes) */
+static void princ_list(LispObject *obj);
+static void princ_object(LispObject *obj);
+
+static void princ_object(LispObject *obj) {
+    if (obj == NULL || obj == NIL) {
+        printf("nil");
+        return;
+    }
+
+    switch (obj->type) {
+    case LISP_NIL:
+        printf("nil");
+        break;
+
+    case LISP_NUMBER:
+        printf("%.15g", obj->value.number);
+        break;
+
+    case LISP_STRING:
+        /* Display strings without quotes (unlike lisp_print) */
+        printf("%s", obj->value.string);
+        break;
+
+    case LISP_SYMBOL:
+        printf("%s", obj->value.symbol);
+        break;
+
+    case LISP_CONS:
+        princ_list(obj);
+        break;
+
+    case LISP_BUILTIN:
+        printf("#<builtin:%s>", obj->value.builtin.name);
+        break;
+
+    case LISP_LAMBDA:
+        if (obj->value.lambda.name != NULL) {
+            printf("#<lambda:%s>", obj->value.lambda.name);
+        } else {
+            printf("#<lambda>");
+        }
+        break;
+
+    case LISP_ERROR: {
+        printf("ERROR: %s", obj->value.error_with_stack.error);
+
+        /* Print stack trace if available */
+        if (obj->value.error_with_stack.stack_trace != NIL && obj->value.error_with_stack.stack_trace != NULL) {
+            LispObject *stack = obj->value.error_with_stack.stack_trace;
+            printf("\nCall stack:");
+            int frame_num = 0;
+            while (stack != NIL && stack->type == LISP_CONS && frame_num < 20) {
+                printf("\n  at ");
+                princ_object(lisp_car(stack));
+                stack = lisp_cdr(stack);
+                frame_num++;
+            }
+        }
+        break;
+    }
+
+    case LISP_INTEGER:
+        printf("%lld", obj->value.integer);
+        break;
+
+    case LISP_BOOLEAN:
+        printf("%s", obj->value.boolean ? "#t" : "#f");
+        break;
+
+    case LISP_VECTOR:
+        printf("#(");
+        for (size_t i = 0; i < obj->value.vector.size; i++) {
+            if (i > 0) {
+                printf(" ");
+            }
+            princ_object(obj->value.vector.items[i]);
+        }
+        printf(")");
+        break;
+
+    case LISP_HASH_TABLE:
+        printf("#<hash-table>");
+        break;
+
+    case LISP_FILE_STREAM:
+        printf("#<file-stream>");
+        break;
+    }
+}
+
+static void princ_list(LispObject *obj) {
+    printf("(");
+
+    while (obj != NULL && obj != NIL && obj->type == LISP_CONS) {
+        princ_object(obj->value.cons.car);
+        obj = obj->value.cons.cdr;
+
+        if (obj != NULL && obj != NIL) {
+            if (obj->type == LISP_CONS) {
+                printf(" ");
+            } else {
+                printf(" . ");
+                princ_object(obj);
+                break;
+            }
+        }
+    }
+
+    printf(")");
+}
+
+/* Common Lisp style printing functions */
+void lisp_princ(LispObject *obj) {
+    princ_object(obj);
+    fflush(stdout);
+}
+
+void lisp_prin1(LispObject *obj) {
+    char *str = lisp_print(obj);
+    printf("%s", str);
+    fflush(stdout);
+}
+
+void lisp_print_cl(LispObject *obj) {
+    printf("\n"); /* Newline BEFORE */
+    lisp_prin1(obj);
+    printf("\n"); /* Newline AFTER */
+    fflush(stdout);
+}

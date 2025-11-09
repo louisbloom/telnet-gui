@@ -106,6 +106,9 @@ void lisp_cleanup(void);
 LispObject *lisp_read(const char **input);
 LispObject *lisp_eval(LispObject *expr, Environment *env);
 char *lisp_print(LispObject *obj);
+void lisp_princ(LispObject *obj);
+void lisp_prin1(LispObject *obj);
+void lisp_print_cl(LispObject *obj);
 LispObject *lisp_load_file(const char *filename, Environment *env);
 
 /* Object creation */

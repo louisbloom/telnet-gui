@@ -1,6 +1,15 @@
 cmake_minimum_required(VERSION 3.10)
 project(TelnetLisp VERSION 1.0.0 LANGUAGES C)
 
+# Default to user install directory (no admin privileges required)
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    if(WIN32)
+        set(CMAKE_INSTALL_PREFIX "$ENV{USERPROFILE}/telnet-lisp" CACHE PATH "Install path prefix" FORCE)
+    else()
+        set(CMAKE_INSTALL_PREFIX "$ENV{HOME}/telnet-lisp" CACHE PATH "Install path prefix" FORCE)
+    endif()
+endif()
+
 # Export compile commands for clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -97,10 +106,16 @@ if(WIN32 AND EXISTS "${UCRT64_ROOT}/include")
 endif()
 
 # Installation
-install(TARGETS lisp-repl liblisp telnet-gui
+install(TARGETS lisp-repl liblisp
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
+)
+
+# Install telnet-gui with Runtime component (includes bootstrap.lisp and assets)
+install(TARGETS telnet-gui
+    RUNTIME DESTINATION bin
+    COMPONENT Runtime
 )
 
 install(FILES libtelnet-lisp/include/lisp.h
