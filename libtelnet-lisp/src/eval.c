@@ -315,13 +315,11 @@ static LispObject *eval_let_star(LispObject *args, Environment *env) {
     }
 
     LispObject *bindings = lisp_car(args);
-    LispObject *rest = lisp_cdr(args);
+    LispObject *body = lisp_cdr(args);
 
-    if (rest == NIL) {
+    if (body == NIL) {
         return lisp_make_error("let* requires a body");
     }
-
-    LispObject *body = lisp_car(rest);
 
     /* Create new environment - will be extended as we process bindings */
     Environment *new_env = env_create(env);
@@ -357,7 +355,8 @@ static LispObject *eval_let_star(LispObject *args, Environment *env) {
         bindings = lisp_cdr(bindings);
     }
 
-    return lisp_eval(body, new_env);
+    /* Evaluate body expressions like progn - return last value */
+    return eval_progn(body, new_env);
 }
 
 static LispObject *eval_progn(LispObject *args, Environment *env) {

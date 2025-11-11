@@ -99,6 +99,7 @@ static LispObject *builtin_boolean_question(LispObject *args, Environment *env);
 static LispObject *builtin_number_question(LispObject *args, Environment *env);
 static LispObject *builtin_vector_question(LispObject *args, Environment *env);
 static LispObject *builtin_hash_table_question(LispObject *args, Environment *env);
+static LispObject *builtin_string_question(LispObject *args, Environment *env);
 
 /* Vector operations */
 static LispObject *builtin_make_vector(LispObject *args, Environment *env);
@@ -184,6 +185,7 @@ void register_builtins(Environment *env) {
     env_define(env, "number?", lisp_make_builtin(builtin_number_question, "number?"));
     env_define(env, "vector?", lisp_make_builtin(builtin_vector_question, "vector?"));
     env_define(env, "hash-table?", lisp_make_builtin(builtin_hash_table_question, "hash-table?"));
+    env_define(env, "string?", lisp_make_builtin(builtin_string_question, "string?"));
 
     /* Vector operations */
     env_define(env, "make-vector", lisp_make_builtin(builtin_make_vector, "make-vector"));
@@ -382,14 +384,18 @@ static LispObject *builtin_quotient(LispObject *args, Environment *env) {
     LispObject *first = lisp_car(args);
     LispObject *second = lisp_car(lisp_cdr(args));
 
+    if (first->type != LISP_INTEGER && first->type != LISP_NUMBER) {
+        return lisp_make_error("quotient requires numbers");
+    }
+    if (second->type != LISP_INTEGER && second->type != LISP_NUMBER) {
+        return lisp_make_error("quotient requires numbers");
+    }
+
     int first_is_integer;
     int second_is_integer;
     double first_val = get_numeric_value(first, &first_is_integer);
     double second_val = get_numeric_value(second, &second_is_integer);
 
-    if (first_val == 0 || (first_is_integer == 0 && first->type != LISP_INTEGER && first->type != LISP_NUMBER)) {
-        return lisp_make_error("quotient requires numbers");
-    }
     if (second_val == 0) {
         return lisp_make_error("Division by zero");
     }
@@ -408,14 +414,18 @@ static LispObject *builtin_remainder(LispObject *args, Environment *env) {
     LispObject *first = lisp_car(args);
     LispObject *second = lisp_car(lisp_cdr(args));
 
+    if (first->type != LISP_INTEGER && first->type != LISP_NUMBER) {
+        return lisp_make_error("remainder requires numbers");
+    }
+    if (second->type != LISP_INTEGER && second->type != LISP_NUMBER) {
+        return lisp_make_error("remainder requires numbers");
+    }
+
     int first_is_integer;
     int second_is_integer;
     double first_val = get_numeric_value(first, &first_is_integer);
     double second_val = get_numeric_value(second, &second_is_integer);
 
-    if (first_val == 0 || (first_is_integer == 0 && first->type != LISP_INTEGER && first->type != LISP_NUMBER)) {
-        return lisp_make_error("remainder requires numbers");
-    }
     if (second_val == 0) {
         return lisp_make_error("Division by zero");
     }
@@ -2249,6 +2259,15 @@ static LispObject *builtin_hash_table_question(LispObject *args, Environment *en
     return (arg->type == LISP_HASH_TABLE) ? lisp_make_number(1) : NIL;
 }
 
+static LispObject *builtin_string_question(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("string? requires 1 argument");
+    }
+    LispObject *arg = lisp_car(args);
+    return (arg->type == LISP_STRING) ? lisp_make_number(1) : NIL;
+}
+
 /* Vector operations */
 static LispObject *builtin_make_vector(LispObject *args, Environment *env) {
     (void)env;
@@ -2260,7 +2279,18 @@ static LispObject *builtin_make_vector(LispObject *args, Environment *env) {
         return lisp_make_error("make-vector size must be a number");
     }
     size_t size = (size_t)(size_obj->type == LISP_INTEGER ? size_obj->value.integer : size_obj->value.number);
-    return lisp_make_vector(size);
+
+    LispObject *vec = lisp_make_vector(size);
+
+    /* If initial value is provided, set all elements to it */
+    if (lisp_cdr(args) != NIL) {
+        LispObject *init_val = lisp_car(lisp_cdr(args));
+        for (size_t i = 0; i < size; i++) {
+            vec->value.vector.items[i] = init_val;
+        }
+    }
+
+    return vec;
 }
 
 static LispObject *builtin_vector_ref(LispObject *args, Environment *env) {

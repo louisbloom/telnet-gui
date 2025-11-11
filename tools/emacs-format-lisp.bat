@@ -1,0 +1,46 @@
+@echo off
+REM Format Lisp file using Emacs in batch mode (Windows)
+REM Reads from stdin, writes to stdout
+
+set TEMP_FILE=%TEMP%\lisp-format-%RANDOM%.lisp
+
+REM Read from stdin and write to temp file
+more > "%TEMP_FILE%"
+
+REM Get full path using PowerShell to expand short names
+REM This should convert TCHRIS~1 to the full username
+for /f "delims=" %%F in ('powershell -Command "[System.IO.Path]::GetFullPath('%TEMP_FILE%')"') do set TEMP_FILE_FULL=%%F
+
+REM If PowerShell failed, try for loop expansion
+if "%TEMP_FILE_FULL%"=="" (
+    for %%F in ("%TEMP_FILE%") do set TEMP_FILE_FULL=%%~fF
+)
+
+REM Fallback to original if still empty
+if "%TEMP_FILE_FULL%"=="" set TEMP_FILE_FULL=%TEMP_FILE%
+
+REM Convert Windows path to forward slashes for Emacs
+REM Keep drive letter as-is (C:/Users/...)
+set TEMP_FILE_FORWARD=%TEMP_FILE_FULL:\=/%
+
+REM Verify file exists before calling Emacs
+if not exist "%TEMP_FILE%" (
+    echo Error: Temporary file not created >&2
+    exit /b 1
+)
+
+REM Use Emacs in batch mode to indent the entire buffer
+REM Use find-file-literally to avoid issues with short paths
+emacs --batch ^
+    --eval "(find-file-literally \"%TEMP_FILE_FORWARD%\")" ^
+    --eval "(lisp-mode)" ^
+    --eval "(indent-region (point-min) (point-max))" ^
+    --eval "(save-buffer)" ^
+    --eval "(kill-buffer)" ^
+    --eval "(kill-emacs)" 2>nul
+
+REM Output the formatted file
+type "%TEMP_FILE%"
+
+REM Clean up
+del "%TEMP_FILE%" 2>nul

@@ -1,5 +1,16 @@
 ; Advanced string operations
 
+; ===========================================
+; String Type Checking (regression test for string? predicate)
+; ===========================================
+
+(string? "hello")              ; => 1
+(string? "")                   ; => 1
+(string? 42)                   ; => nil
+(string? nil)                  ; => nil
+(string? #(1 2 3))             ; => nil
+(string? '(a b c))             ; => nil
+
 ; Split test
 (split "apple-banana-cherry" "-")      ; => ("apple" "banana" "cherry")
 

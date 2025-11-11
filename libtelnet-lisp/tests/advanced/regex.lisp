@@ -42,19 +42,55 @@
 
 ;; ===========================================
 ;; Replacing Text
+;; Arguments: (regex-replace PATTERN REPLACEMENT STRING)
 ;; ===========================================
 
-;; Replace first occurrence
-(regex-replace "\\d+" "X" "a1b2c3")           ; => "aXb2c3"
+;; Replace all occurrences (replaces all by default)
+;; Pattern: "\d+" (one or more digits)
+;; Replacement: "X"
+;; String: "a1b2c3"
+(regex-replace "\\d+" "X" "a1b2c3")           ; => "aXbXcX"
 
-;; Replace all occurrences
+;; Replace all occurrences explicitly
+;; Pattern: "\d+" (one or more digits)
+;; Replacement: "X"
+;; String: "a1b2c3"
 (regex-replace-all "\\d+" "X" "a1b2c3")       ; => "aXbXcX"
 
 ;; Replace with capture groups - swap email parts
+;; Pattern: "(\w+)@(\w+)" (username@domain)
+;; Replacement: "$2@$1" (domain@username)
+;; String: "user@domain"
 (regex-replace "(\\w+)@(\\w+)" "$2@$1" "user@domain") ; => "domain@user"
 
 ;; Replace with capture groups - change date format
+;; Pattern: "(\d+)-(\d+)" (year-month)
+;; Replacement: "$2/$1" (month/year)
+;; String: "2025-10"
 (regex-replace "(\\d+)-(\\d+)" "$2/$1" "2025-10")      ; => "10/2025"
+
+;; ===========================================
+;; Replacing - Partial Match Tests
+;; Arguments: (regex-replace PATTERN REPLACEMENT STRING)
+;; ===========================================
+
+;; Replace only matched portion (trailing comma)
+;; Pattern: ",$" (comma at end)
+;; Replacement: "X"
+;; String: "hello,"
+(regex-replace ",$" "X" "hello,")              ; => "helloX"
+
+;; Remove trailing punctuation (empty replacement)
+;; Pattern: "a+$" (one or more 'a' at end)
+;; Replacement: "" (empty string)
+;; String: "baaa"
+(regex-replace "a+$" "" "baaa")                ; => "b"
+
+;; Remove leading punctuation
+;; Pattern: "^a+" (one or more 'a' at start)
+;; Replacement: "" (empty string)
+;; String: "aaab"
+(regex-replace "^a+" "" "aaab")                ; => "b"
 
 ;; ===========================================
 ;; Splitting Strings
