@@ -1,5 +1,5 @@
 ;; Regular Expression Operations
-;; Comprehensive demonstration of PCRE2 regex pattern matching and manipulation
+;; Demonstration of PCRE2 regex pattern matching and manipulation
 
 ;; ===========================================
 ;; Basic Regex Matching

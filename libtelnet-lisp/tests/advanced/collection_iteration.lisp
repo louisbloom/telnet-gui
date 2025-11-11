@@ -1,5 +1,5 @@
 ;; Collection Iteration Examples
-;; Comprehensive demonstration of iterating over hash tables, vectors, and lists using do loops
+;; Demonstration of iterating over hash tables, vectors, and lists using do loops
 
 ;; ===========================================
 ;; Hash Table Iteration

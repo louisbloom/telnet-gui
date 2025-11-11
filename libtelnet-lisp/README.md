@@ -35,7 +35,7 @@ See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for complete function lis
 
 ## Testing
 
-The project includes a comprehensive test suite. See [tests/README.md](tests/README.md) for details.
+The project includes a test suite with automated validation. See [tests/README.md](tests/README.md) for details.
 
 ```bash
 # Run all tests
@@ -265,7 +265,7 @@ int main() {
 
 ## Examples
 
-The `tests/` directory contains comprehensive, validated examples that serve as both documentation and test cases. Each file demonstrates specific features with expected outputs:
+The `tests/` directory contains validated examples that serve as both documentation and test cases. Each file demonstrates specific features with expected outputs:
 
 **Basic Features:**
 
@@ -287,7 +287,7 @@ The `tests/` directory contains comprehensive, validated examples that serve as 
 
 **Regression Tests:**
 
-- `tests/regression/core_features.lisp` - Comprehensive feature tests
+- `tests/regression/core_features.lisp` - Core feature tests
 - `tests/regression/multiline_parsing.lisp` - Multi-line expression parsing
 
 Run the examples:
@@ -331,7 +331,7 @@ find tests -name "*.lisp"
 
 - `tests/basic/` - Core functionality examples (recursion, vectors, strings, etc.)
 - `tests/advanced/` - Advanced features (regex, file I/O, UTF-8, do loops, cond/case)
-- `tests/regression/` - Comprehensive test cases
+- `tests/regression/` - Regression test cases
 
 Each test file is both executable code and documentation with expected outputs marked inline.
 

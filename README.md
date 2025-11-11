@@ -131,7 +131,7 @@ Try some Lisp:
 - **Automatic memory management** with Boehm GC
 - **File I/O** with cross-platform line ending support
 - **REPL** for interactive development
-- **Comprehensive built-in functions**: Arithmetic, string operations, list/vector manipulation, regex matching
+- **Built-in functions**: Arithmetic, string operations, list/vector manipulation, regex matching
 
 ### Quick Example
 
@@ -152,7 +152,7 @@ Try some Lisp:
 For complete documentation including:
 - All available functions and special forms
 - Detailed API reference
-- Comprehensive examples and usage patterns
+- Examples and usage patterns
 - Embedding guide
 
 See **[libtelnet-lisp/README.md](libtelnet-lisp/README.md)**.

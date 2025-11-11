@@ -1,5 +1,5 @@
 ;; Core Features Regression Tests
-;; Comprehensive tests for hash tables, vectors, integers, and type coercion
+;; Tests for hash tables, vectors, integers, and type coercion
 
 ;; ===========================================
 ;; Integer Arithmetic and Type Coercion

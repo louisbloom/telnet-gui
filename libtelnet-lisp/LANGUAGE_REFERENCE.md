@@ -1,6 +1,6 @@
 # Telnet Lisp Language Reference
 
-A comprehensive reference for the Telnet Lisp language, covering data types, special forms, built-in functions, and usage examples.
+A complete reference for the Telnet Lisp language, covering data types, special forms, built-in functions, and usage examples.
 
 ## Table of Contents
 
@@ -633,5 +633,5 @@ vec                                  ; => #(10 99)
 ## See Also
 
 - [README.md](README.md) - Project overview, building, and C API reference
-- [tests/](tests/) - Comprehensive test files with more examples
+- [tests/](tests/) - Test files with more examples
 - [PACKAGING.md](PACKAGING.md) - Guide for packaging the library
