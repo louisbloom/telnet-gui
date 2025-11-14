@@ -2288,6 +2288,8 @@ static LispObject *builtin_make_vector(LispObject *args, Environment *env) {
         for (size_t i = 0; i < size; i++) {
             vec->value.vector.items[i] = init_val;
         }
+        /* Set the size to match the capacity when initializing */
+        vec->value.vector.size = size;
     }
 
     return vec;

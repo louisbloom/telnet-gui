@@ -8,7 +8,6 @@ REM Read from stdin and write to temp file
 more > "%TEMP_FILE%"
 
 REM Get full path using PowerShell to expand short names
-REM This should convert TCHRIS~1 to the full username
 for /f "delims=" %%F in ('powershell -Command "[System.IO.Path]::GetFullPath('%TEMP_FILE%')"') do set TEMP_FILE_FULL=%%F
 
 REM If PowerShell failed, try for loop expansion
