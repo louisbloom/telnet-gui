@@ -6,6 +6,11 @@
 #define INPUT_AREA_MAX_LENGTH 4096
 #define INPUT_AREA_HISTORY_SIZE 100
 
+typedef enum {
+    INPUT_AREA_MODE_NORMAL = 0,
+    INPUT_AREA_MODE_EVAL = 1
+} InputAreaMode;
+
 typedef struct {
     char buffer[INPUT_AREA_MAX_LENGTH];
     int cursor_pos;   /* Cursor position in buffer */
@@ -20,6 +25,14 @@ typedef struct {
 
     /* Kill ring */
     char kill_ring[INPUT_AREA_MAX_LENGTH];
+
+    /* Mode */
+    InputAreaMode mode;
+
+    /* Visual area */
+    char visual_text[256];
+    int visual_length;
+    int visual_needs_redraw;
 } InputArea;
 
 /* Initialize input area */
@@ -83,5 +96,17 @@ char *input_area_get_buffer(InputArea *area);
 
 /* Sync state after external buffer modification (for lisp_bridge compatibility) */
 void input_area_sync_state(InputArea *area);
+
+/* Mode management */
+void input_area_set_mode(InputArea *area, InputAreaMode mode);
+InputAreaMode input_area_get_mode(InputArea *area);
+
+/* Visual area management */
+void input_area_visual_set_text(InputArea *area, const char *text);
+void input_area_visual_clear(InputArea *area);
+const char *input_area_visual_get_text(InputArea *area);
+int input_area_visual_get_length(InputArea *area);
+int input_area_visual_needs_redraw(InputArea *area);
+void input_area_visual_mark_drawn(InputArea *area);
 
 #endif /* INPUT_AREA_H */

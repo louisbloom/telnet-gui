@@ -9,6 +9,10 @@ void input_area_init(InputArea *area) {
         return;
     memset(area, 0, sizeof(InputArea));
     area->history_index = -1; /* Start with new entry */
+    area->mode = INPUT_AREA_MODE_NORMAL;
+    /* Initialize visual area with mode indicator */
+    strcpy(area->visual_text, "N");
+    area->visual_length = 1;
 }
 
 void input_area_insert_text(InputArea *area, const char *text, int text_len) {
@@ -411,4 +415,80 @@ void input_area_sync_state(InputArea *area) {
         area->cursor_pos = area->length;
     }
     area->needs_redraw = 1;
+}
+
+/* Mode management */
+void input_area_set_mode(InputArea *area, InputAreaMode mode) {
+    if (!area)
+        return;
+
+    if (area->mode != mode) {
+        area->mode = mode;
+        /* Update visual area text based on mode */
+        if (mode == INPUT_AREA_MODE_NORMAL) {
+            strcpy(area->visual_text, "N");
+            area->visual_length = 1;
+        } else if (mode == INPUT_AREA_MODE_EVAL) {
+            strcpy(area->visual_text, "E");
+            area->visual_length = 1;
+        }
+        area->visual_needs_redraw = 1;
+        area->needs_redraw = 1;
+    }
+}
+
+InputAreaMode input_area_get_mode(InputArea *area) {
+    if (!area)
+        return INPUT_AREA_MODE_NORMAL;
+    return area->mode;
+}
+
+/* Visual area management */
+void input_area_visual_set_text(InputArea *area, const char *text) {
+    if (!area || !text)
+        return;
+
+    int len = strlen(text);
+    if (len >= 256)
+        len = 255;
+
+    strncpy(area->visual_text, text, len);
+    area->visual_text[len] = '\0';
+    area->visual_length = len;
+    area->visual_needs_redraw = 1;
+    area->needs_redraw = 1;
+}
+
+void input_area_visual_clear(InputArea *area) {
+    if (!area)
+        return;
+
+    area->visual_text[0] = '\0';
+    area->visual_length = 0;
+    area->visual_needs_redraw = 1;
+    area->needs_redraw = 1;
+}
+
+const char *input_area_visual_get_text(InputArea *area) {
+    if (!area)
+        return NULL;
+    return area->visual_text;
+}
+
+int input_area_visual_get_length(InputArea *area) {
+    if (!area)
+        return 0;
+    return area->visual_length;
+}
+
+int input_area_visual_needs_redraw(InputArea *area) {
+    if (!area)
+        return 0;
+    return area->visual_needs_redraw;
+}
+
+void input_area_visual_mark_drawn(InputArea *area) {
+    if (!area)
+        return;
+    area->visual_needs_redraw = 0;
 }

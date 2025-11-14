@@ -890,12 +890,14 @@ int main(int argc, char **argv) {
             }
         }
 
-        /* Always render input area if it needs redraw or if terminal was rendered */
-        if (input_area_needs_redraw(&input_area) || needs_render) {
+        /* Always render input area if it needs redraw, visual area needs redraw, or if terminal was rendered */
+        if (input_area_needs_redraw(&input_area) || input_area_visual_needs_redraw(&input_area) || needs_render) {
             renderer_render_input_area(rend, input_area_get_text(&input_area), input_area_get_length(&input_area),
                                        input_area_get_cursor_pos(&input_area), window_width, window_height,
-                                       input_area_height);
+                                       input_area_height, input_area_visual_get_text(&input_area),
+                                       input_area_visual_get_length(&input_area));
             input_area_mark_drawn(&input_area);
+            input_area_visual_mark_drawn(&input_area);
             SDL_RenderPresent(window_get_sdl_renderer(win));
         }
 

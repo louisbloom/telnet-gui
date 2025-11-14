@@ -129,7 +129,7 @@ void renderer_render(Renderer *r, Terminal *term, const char *title) {
 
 /* Render input area at bottom of screen */
 void renderer_render_input_area(Renderer *r, const char *text, int text_len, int cursor_pos, int window_width,
-                                int window_height, int input_area_height) {
+                                int window_height, int input_area_height, const char *visual_text, int visual_length) {
     if (!r)
         return;
 
@@ -144,11 +144,68 @@ void renderer_render_input_area(Renderer *r, const char *text, int text_len, int
     SDL_Rect input_bg = {0, input_area_y, window_width, input_area_height};
     SDL_RenderFillRect(r->sdl_renderer, &input_bg);
 
-    /* Render input text - yellow */
+    int y = input_area_y;
+    int visual_area_width = 0;
+
+    /* Render visual area on the left side */
+    if (visual_text && visual_length > 0) {
+        /* Calculate visual area width in pixels - add one extra cell for empty space at end */
+        visual_area_width = (visual_length + 1) * r->cell_w;
+
+        /* Draw visual area background - lighter version of input area */
+        SDL_SetRenderDrawColor(r->sdl_renderer, 45, 65, 85, 255);
+        SDL_Rect visual_bg = {0, input_area_y, visual_area_width, input_area_height};
+        SDL_RenderFillRect(r->sdl_renderer, &visual_bg);
+
+        /* Render visual area text - greenish */
+        SDL_Color visual_fg_color = {150, 255, 150, 255};
+        SDL_Color visual_bg_color = {45, 65, 85, 255};
+        int visual_x = 0;
+
+        /* Render visual text character by character (UTF-8 aware) */
+        int i = 0;
+        while (i < visual_length) {
+            unsigned char byte = (unsigned char)visual_text[i];
+            uint32_t codepoint = 0;
+            int bytes_consumed = 1;
+
+            /* Decode UTF-8 */
+            if (byte < 0x80) {
+                codepoint = byte;
+            } else if ((byte & 0xE0) == 0xC0 && i + 1 < visual_length) {
+                codepoint = ((byte & 0x1F) << 6) | ((unsigned char)visual_text[i + 1] & 0x3F);
+                bytes_consumed = 2;
+            } else if ((byte & 0xF0) == 0xE0 && i + 2 < visual_length) {
+                codepoint = ((byte & 0x0F) << 12) | (((unsigned char)visual_text[i + 1] & 0x3F) << 6) |
+                            ((unsigned char)visual_text[i + 2] & 0x3F);
+                bytes_consumed = 3;
+            } else if ((byte & 0xF8) == 0xF0 && i + 3 < visual_length) {
+                codepoint = ((byte & 0x07) << 18) | (((unsigned char)visual_text[i + 1] & 0x3F) << 12) |
+                            (((unsigned char)visual_text[i + 2] & 0x3F) << 6) |
+                            ((unsigned char)visual_text[i + 3] & 0x3F);
+                bytes_consumed = 4;
+            } else {
+                i++;
+                continue;
+            }
+
+            /* Render the character */
+            SDL_Texture *glyph = glyph_cache_get(r->glyph_cache, codepoint, visual_fg_color, visual_bg_color, 0, 0);
+            if (glyph) {
+                int tex_w, tex_h;
+                SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);
+                SDL_Rect dst = {visual_x + (r->cell_w - tex_w) / 2, y, tex_w, tex_h};
+                SDL_RenderCopy(r->sdl_renderer, glyph, NULL, &dst);
+            }
+            visual_x += r->cell_w;
+            i += bytes_consumed;
+        }
+    }
+
+    /* Render input text - yellow, starting after visual area */
     SDL_Color fg_color = {255, 255, 0, 255};
     SDL_Color bg_color = {25, 40, 60, 255};
-    int x = 0;
-    int y = input_area_y;
+    int x = visual_area_width;
 
     /* Calculate cursor character position (cursor_pos is in bytes, same as characters for ASCII) */
     int cursor_char_pos = cursor_pos;
@@ -206,7 +263,8 @@ void renderer_render_input_area(Renderer *r, const char *text, int text_len, int
     }
 
     /* Draw cursor at character position - always draw cursor even if text is empty */
-    int cursor_x = cursor_char_pos * r->cell_w;
+    /* Cursor position accounts for visual area offset */
+    int cursor_x = visual_area_width + (cursor_char_pos * r->cell_w);
     SDL_SetRenderDrawColor(r->sdl_renderer, 200, 200, 200, 255);
     SDL_Rect cursor_rect = {cursor_x, y, r->cell_w, r->cell_h};
     SDL_RenderFillRect(r->sdl_renderer, &cursor_rect);
