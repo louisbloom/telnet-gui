@@ -255,7 +255,8 @@ static LispObject *eval_lambda(LispObject *args, Environment *env) {
         return lisp_make_error("lambda requires a body");
     }
 
-    LispObject *body = lisp_car(rest);
+    /* Store all body expressions (implicit progn) */
+    LispObject *body = rest;
 
     return lisp_make_lambda(params, body, env, NULL);
 }
@@ -266,13 +267,11 @@ static LispObject *eval_let(LispObject *args, Environment *env) {
     }
 
     LispObject *bindings = lisp_car(args);
-    LispObject *rest = lisp_cdr(args);
+    LispObject *body = lisp_cdr(args);
 
-    if (rest == NIL) {
+    if (body == NIL) {
         return lisp_make_error("let requires a body");
     }
-
-    LispObject *body = lisp_car(rest);
 
     /* Create new environment */
     Environment *new_env = env_create(env);
@@ -306,7 +305,8 @@ static LispObject *eval_let(LispObject *args, Environment *env) {
         bindings = lisp_cdr(bindings);
     }
 
-    return lisp_eval(body, new_env);
+    /* Evaluate body expressions like progn - return last value */
+    return eval_progn(body, new_env);
 }
 
 static LispObject *eval_let_star(LispObject *args, Environment *env) {
@@ -625,13 +625,15 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env) {
         /* Call builtin */
         LispObject *result = func->value.builtin.func(args, env);
 
+        /* If error, attach stack trace BEFORE popping frame */
+        if (result->type == LISP_ERROR) {
+            result = lisp_attach_stack_trace(result, env);
+            pop_call_frame(env);
+            return result;
+        }
+
         /* Pop frame */
         pop_call_frame(env);
-
-        /* If error, attach stack trace */
-        if (result->type == LISP_ERROR) {
-            return lisp_attach_stack_trace(result, env);
-        }
 
         return result;
     }
@@ -701,15 +703,25 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env) {
             return err;
         }
 
-        LispObject *result = lisp_eval(func->value.lambda.body, new_env);
+        /* Evaluate all body expressions like progn (implicit progn) */
+        LispObject *result = NIL;
+        LispObject *body = func->value.lambda.body;
+
+        while (body != NIL && body != NULL) {
+            LispObject *expr = lisp_car(body);
+            result = lisp_eval(expr, new_env);
+
+            if (result->type == LISP_ERROR) {
+                result = lisp_attach_stack_trace(result, new_env);
+                pop_call_frame(new_env);
+                return result;
+            }
+
+            body = lisp_cdr(body);
+        }
 
         /* Pop frame */
         pop_call_frame(new_env);
-
-        /* If error, attach stack trace */
-        if (result->type == LISP_ERROR) {
-            return lisp_attach_stack_trace(result, env);
-        }
 
         return result;
     }

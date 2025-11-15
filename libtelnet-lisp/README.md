@@ -1,8 +1,8 @@
 # Telnet Lisp
 
-A minimal, embeddable Lisp interpreter library written in C, designed to be integrated into GUI applications. This implementation follows traditional Lisp naming conventions and provides a REPL for testing and demonstration.
+A minimal, embeddable Lisp interpreter library written in C. This implementation follows traditional Lisp naming conventions and provides a REPL for testing and demonstration.
 
-**📖 [Language Reference](LANGUAGE_REFERENCE.md)** - Complete language documentation with data types, functions, and examples
+**📖 [Language Reference](LANGUAGE_REFERENCE.md)** - Full language documentation with data types, functions, and examples
 
 ## Features
 
@@ -13,7 +13,7 @@ A minimal, embeddable Lisp interpreter library written in C, designed to be inte
 - **Functions**: Arithmetic, strings, lists, vectors, hash tables, regex (PCRE2), file I/O
 - **Type Predicates**: `null?`, `atom?`, `integer?`, `boolean?`, `number?`, `string?`, `vector?`, `hash-table?`
 
-See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for complete function listings and examples.
+See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for all function listings and examples.
 
 ### Advanced Features
 
@@ -32,21 +32,6 @@ See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for complete function lis
   - UTF-8 aware string operations: `string-length`, `substring`, `string-ref`
   - Line ending support for Unix (`\n`), Windows (`\r\n`), and Mac (`\r`) in file I/O
   - PCRE2 regex compiled with UTF-8 and Unicode character property support
-
-## Testing
-
-The project includes a test suite with automated validation. See [tests/README.md](tests/README.md) for details.
-
-```bash
-# Run all tests
-cd build && ctest
-
-# Run specific test category
-ctest -R basic
-
-# Run with verbose output
-ctest --verbose
-```
 
 ## Building
 
@@ -88,8 +73,12 @@ cmake --build .
 
 ```bash
 make test          # Basic tests
-cd build && ctest  # Full test suite (CMake)
+cd build && ctest  # Full test suite
+ctest -R basic     # Specific category
+ctest --verbose    # Detailed output
 ```
+
+See [tests/README.md](tests/README.md) for more details.
 
 ## Windows Development
 
@@ -213,8 +202,6 @@ Execute Lisp files directly:
 
 ### Embedding in Your Application
 
-### Quick Start
-
 The library is self-contained and can be copied into any project. For detailed packaging instructions, see [PACKAGING.md](PACKAGING.md).
 
 **Simple Integration:**
@@ -325,7 +312,7 @@ find tests -name "*.lisp"
 (if (> 10 5) "yes" "no")             ; => "yes"
 ```
 
-**📖 For complete language documentation with all functions and examples, see [LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)**
+**📖 For full language documentation with all functions and examples, see [LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)**
 
 **📁 For executable examples with expected outputs, see the `tests/` directory:**
 
@@ -385,7 +372,7 @@ Potential additions for future versions:
 - **UTF-8 Support**: Full Unicode string support with character-based operations (`string-length`, `substring`, `string-ref`)
 - **Enhanced File I/O**: Support for Unix, Windows, and Mac line endings
 - **Improved REPL File Mode**: Now prints all expression results when running files
-- **New Data Types**: Integers, booleans, vectors, and hash tables with complete operations
+- **New Data Types**: Integers, booleans, vectors, and hash tables with all operations
 - **Type Coercion**: Automatic integer/float promotion in arithmetic operations
 - **Modern Naming Conventions**: Scheme-style predicates (`?` suffix) and mutating functions (`!` suffix)
 - **Do Loop**: Efficient iteration construct for loops with variable updates
@@ -396,8 +383,8 @@ Potential additions for future versions:
 
 ### Recent Bug Fixes (November 2024)
 
+- **Lambda and `let` implicit progn**: Fixed to evaluate all body expressions (returns last value, not first)
 - **`make-vector` with initial value**: Fixed to properly initialize all vector elements with the provided initial value
-- **`let*` body evaluation**: Fixed to evaluate all body expressions like `progn` (returns last value, not first)
 - **`string?` predicate**: Confirmed working for type checking strings
 - **`remainder` operation**: Confirmed working for integer modulo operations
 

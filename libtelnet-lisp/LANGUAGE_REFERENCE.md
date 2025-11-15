@@ -1,6 +1,6 @@
 # Telnet Lisp Language Reference
 
-A complete reference for the Telnet Lisp language, covering data types, special forms, built-in functions, and usage examples.
+A reference for the Telnet Lisp language, covering data types, special forms, built-in functions, and usage examples.
 
 ## Table of Contents
 
@@ -11,6 +11,7 @@ A complete reference for the Telnet Lisp language, covering data types, special 
 - [Naming Conventions](#naming-conventions)
 - [Truthy/Falsy Values](#truthyfalsy-values)
 - [Pattern Matching](#pattern-matching)
+- [Error Handling](#error-handling)
 - [Quick Examples](#quick-examples)
 
 ## Data Types
@@ -31,9 +32,9 @@ A complete reference for the Telnet Lisp language, covering data types, special 
 - `if` - Conditional evaluation
 - `define` - Define variables and functions
 - `set!` - Mutate existing variables (works inside lambdas/hooks)
-- `lambda` - Create anonymous functions with parameters
-- `let` - Local variable bindings (parallel evaluation)
-- `let*` - Local variable bindings (sequential evaluation, can reference previous bindings)
+- `lambda` - Create anonymous functions with parameters (body has implicit progn: evaluates all expressions, returns last)
+- `let` - Local variable bindings (parallel evaluation, body has implicit progn)
+- `let*` - Local variable bindings (sequential evaluation, can reference previous bindings, body has implicit progn)
 - `progn` - Evaluate multiple expressions sequentially and return last value
 - `do` - Iteration loop with variable updates and exit condition
 - `cond` - Multi-way conditional with test clauses
@@ -201,6 +202,80 @@ Examples:
 (string-match? "hello" "h[aeiou]llo") ; => 1
 (string-match? "hello" "h[a-z]llo")   ; => 1
 ```
+
+## Error Handling
+
+Telnet Lisp implements automatic error propagation with call stack traces. When an error occurs, it captures the full call stack showing the sequence of function calls that led to the error.
+
+### How Errors Work
+
+- Errors are created when invalid operations are attempted (division by zero, type mismatches, undefined symbols, etc.)
+- Errors automatically propagate up the call stack
+- Each error includes a descriptive message and the call stack
+- The call stack shows both built-in functions and user-defined functions
+
+### Error Examples
+
+**Simple division by zero:**
+```lisp
+(/ 1 0)
+; => ERROR: Division by zero
+;    Call stack:
+;      at "/"
+```
+
+**Error through lambda:**
+```lisp
+(define divide-by-zero (lambda (x) (/ x 0)))
+(divide-by-zero 10)
+; => ERROR: Division by zero
+;    Call stack:
+;      at "/"
+;      at "divide-by-zero"
+```
+
+**Deep call stack:**
+```lisp
+(define inner (lambda (x) (/ x 0)))
+(define middle (lambda (x) (inner x)))
+(define outer (lambda (x) (middle x)))
+(outer 10)
+; => ERROR: Division by zero
+;    Call stack:
+;      at "/"
+;      at "inner"
+;      at "middle"
+;      at "outer"
+```
+
+**Type error:**
+```lisp
+(define test (lambda (x) (+ x "not a number")))
+(test 5)
+; => ERROR: + requires numbers
+;    Call stack:
+;      at "+"
+;      at "test"
+```
+
+### Common Error Types
+
+- **Division by zero**: `(/ x 0)` or `(quotient x 0)` or `(remainder x 0)`
+- **Type errors**: Wrong type passed to function (e.g., `(+ 1 "string")`)
+- **Undefined symbols**: Using a variable that hasn't been defined
+- **Argument count mismatch**: Wrong number of arguments to lambda
+- **Invalid operations**: Invalid hash key, vector index out of bounds, etc.
+
+### Error Propagation
+
+Errors propagate automatically through:
+- Function calls (both built-in and user-defined)
+- Special forms (`if`, `let`, `do`, `cond`, `case`, etc.)
+- Nested expressions
+
+The call stack trace shows the full path from the error source to the top level, making debugging easier.
+
+**Note**: Telnet Lisp currently does not have try-catch or exception handling constructs. Errors propagate to the top level and terminate evaluation. This may be enhanced in future versions.
 
 ## Quick Examples
 
