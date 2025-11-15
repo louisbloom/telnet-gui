@@ -30,7 +30,8 @@ struct Terminal {
     /* Scrollback support */
     ScrollbackLine *scrollback; /* Array of scrollback lines */
     int scrollback_size;        /* Current number of lines in scrollback */
-    int scrollback_capacity;    /* Maximum capacity of scrollback buffer */
+    int scrollback_capacity;    /* Allocated capacity of scrollback buffer */
+    int max_scrollback_lines;   /* Maximum scrollback lines (0 = unbounded, limited by SCROLLBACK_MAX_LINES) */
     int viewport_offset;        /* Number of lines scrolled up (0 = showing current screen) */
 };
 
@@ -68,18 +69,44 @@ static int bell(void *user) {
 }
 
 /* Scrollback callbacks */
+
+/* Helper: Evict oldest line from scrollback to make room for new line */
+static void evict_oldest_scrollback_line(Terminal *term) {
+    if (!term || term->scrollback_size == 0)
+        return;
+
+    /* Free oldest line (first in array) */
+    free(term->scrollback[0].cells);
+
+    /* Shift all lines down by one */
+    memmove(&term->scrollback[0], &term->scrollback[1], (term->scrollback_size - 1) * sizeof(ScrollbackLine));
+
+    /* Decrease size */
+    term->scrollback_size--;
+
+    /* Adjust viewport if scrolled up */
+    if (term->viewport_offset > 0)
+        term->viewport_offset--;
+}
+
 static int sb_pushline(int cols, const VTermScreenCell *cells, void *user) {
     Terminal *term = (Terminal *)user;
     if (!term || !cells)
         return 0;
 
-    /* Grow scrollback buffer if needed */
+    /* Determine effective maximum (0 = unbounded, limited by SCROLLBACK_MAX_LINES for safety) */
+    int effective_max = (term->max_scrollback_lines > 0) ? term->max_scrollback_lines : SCROLLBACK_MAX_LINES;
+
+    /* If at maximum, evict oldest line */
+    if (term->scrollback_size >= effective_max) {
+        evict_oldest_scrollback_line(term);
+    }
+
+    /* Grow scrollback buffer capacity if needed */
     if (term->scrollback_size >= term->scrollback_capacity) {
         int new_capacity = term->scrollback_capacity == 0 ? 100 : term->scrollback_capacity * 2;
-        if (new_capacity > SCROLLBACK_MAX_LINES)
-            new_capacity = SCROLLBACK_MAX_LINES;
-        if (new_capacity <= term->scrollback_capacity)
-            return 0; /* Already at max capacity */
+        if (new_capacity > effective_max)
+            new_capacity = effective_max;
 
         ScrollbackLine *new_scrollback = realloc(term->scrollback, new_capacity * sizeof(ScrollbackLine));
         if (!new_scrollback)
@@ -108,13 +135,19 @@ static int sb_pushline4(int cols, const VTermScreenCell *cells, bool continuatio
     if (!term || !cells)
         return 0;
 
-    /* Grow scrollback buffer if needed */
+    /* Determine effective maximum (0 = unbounded, limited by SCROLLBACK_MAX_LINES for safety) */
+    int effective_max = (term->max_scrollback_lines > 0) ? term->max_scrollback_lines : SCROLLBACK_MAX_LINES;
+
+    /* If at maximum, evict oldest line */
+    if (term->scrollback_size >= effective_max) {
+        evict_oldest_scrollback_line(term);
+    }
+
+    /* Grow scrollback buffer capacity if needed */
     if (term->scrollback_size >= term->scrollback_capacity) {
         int new_capacity = term->scrollback_capacity == 0 ? 100 : term->scrollback_capacity * 2;
-        if (new_capacity > SCROLLBACK_MAX_LINES)
-            new_capacity = SCROLLBACK_MAX_LINES;
-        if (new_capacity <= term->scrollback_capacity)
-            return 0; /* Already at max capacity */
+        if (new_capacity > effective_max)
+            new_capacity = effective_max;
 
         ScrollbackLine *new_scrollback = realloc(term->scrollback, new_capacity * sizeof(ScrollbackLine));
         if (!new_scrollback)
@@ -264,6 +297,7 @@ Terminal *terminal_create(int rows, int cols) {
     term->scrollback = NULL;
     term->scrollback_size = 0;
     term->scrollback_capacity = 0;
+    term->max_scrollback_lines = 0; /* 0 = unbounded (limited by SCROLLBACK_MAX_LINES for safety) */
     term->viewport_offset = 0;
 
     /* Set up screen callbacks - screen layer automatically sets up state callbacks */
@@ -449,6 +483,29 @@ int terminal_get_viewport_offset(Terminal *term) {
 /* Get scrollback size */
 int terminal_get_scrollback_size(Terminal *term) {
     return term ? term->scrollback_size : 0;
+}
+
+/* Get max scrollback lines (0 = unbounded) */
+int terminal_get_max_scrollback_lines(Terminal *term) {
+    return term ? term->max_scrollback_lines : 0;
+}
+
+/* Set max scrollback lines (0 = unbounded, limited by SCROLLBACK_MAX_LINES for safety) */
+void terminal_set_max_scrollback_lines(Terminal *term, int max_lines) {
+    if (!term)
+        return;
+
+    /* Ensure non-negative */
+    if (max_lines < 0)
+        max_lines = 0;
+
+    term->max_scrollback_lines = max_lines;
+
+    /* If we're over the new limit, trim oldest lines */
+    int effective_max = (max_lines > 0) ? max_lines : SCROLLBACK_MAX_LINES;
+    while (term->scrollback_size > effective_max) {
+        evict_oldest_scrollback_line(term);
+    }
 }
 
 /* Get cell at position considering viewport offset */

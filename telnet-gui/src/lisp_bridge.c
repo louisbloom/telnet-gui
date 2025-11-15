@@ -333,6 +333,15 @@ int lisp_bridge_init(void) {
 
         LispObject *smooth_scrolling = lisp_make_boolean(1); /* true */
         env_define(lisp_env, "*smooth-scrolling-enabled*", smooth_scrolling);
+
+        LispObject *max_scrollback = lisp_make_integer(0); /* 0 = unbounded */
+        env_define(lisp_env, "*max-scrollback-lines*", max_scrollback);
+
+        LispObject *scroll_on_user_input = lisp_make_boolean(1); /* true */
+        env_define(lisp_env, "*scroll-to-bottom-on-user-input*", scroll_on_user_input);
+
+        LispObject *scroll_on_telnet_input = lisp_make_boolean(0); /* false */
+        env_define(lisp_env, "*scroll-to-bottom-on-telnet-input*", scroll_on_telnet_input);
     }
 
     return 0;
@@ -599,6 +608,76 @@ int lisp_bridge_get_smooth_scrolling_enabled(void) {
     LispObject *value = env_lookup(lisp_env, "*smooth-scrolling-enabled*");
     if (!value || value == NIL) {
         return 1; /* Default: enabled */
+    }
+
+    /* Check if it's a boolean */
+    if (value->type == LISP_BOOLEAN) {
+        return value->value.boolean ? 1 : 0;
+    }
+
+    /* Use truthy check for other types */
+    return lisp_is_truthy(value) ? 1 : 0;
+}
+
+int lisp_bridge_get_max_scrollback_lines(void) {
+    if (!lisp_env) {
+        return 0; /* Default: unbounded */
+    }
+
+    LispObject *value = env_lookup(lisp_env, "*max-scrollback-lines*");
+    if (!value || value == NIL) {
+        return 0; /* Default: unbounded */
+    }
+
+    /* Check if it's an integer */
+    if (value->type == LISP_INTEGER) {
+        int lines = (int)value->value.integer;
+        /* Ensure non-negative */
+        if (lines < 0)
+            lines = 0;
+        return lines;
+    }
+
+    /* Check if it's a number (convert to integer) */
+    if (value->type == LISP_NUMBER) {
+        int lines = (int)value->value.number;
+        /* Ensure non-negative */
+        if (lines < 0)
+            lines = 0;
+        return lines;
+    }
+
+    /* Invalid type, return default */
+    return 0;
+}
+
+int lisp_bridge_get_scroll_to_bottom_on_user_input(void) {
+    if (!lisp_env) {
+        return 1; /* Default: enabled */
+    }
+
+    LispObject *value = env_lookup(lisp_env, "*scroll-to-bottom-on-user-input*");
+    if (!value || value == NIL) {
+        return 1; /* Default: enabled */
+    }
+
+    /* Check if it's a boolean */
+    if (value->type == LISP_BOOLEAN) {
+        return value->value.boolean ? 1 : 0;
+    }
+
+    /* Use truthy check for other types */
+    return lisp_is_truthy(value) ? 1 : 0;
+}
+
+int lisp_bridge_get_scroll_to_bottom_on_telnet_input(void) {
+    if (!lisp_env) {
+        return 0; /* Default: disabled */
+    }
+
+    LispObject *value = env_lookup(lisp_env, "*scroll-to-bottom-on-telnet-input*");
+    if (!value || value == NIL) {
+        return 0; /* Default: disabled */
     }
 
     /* Check if it's a boolean */

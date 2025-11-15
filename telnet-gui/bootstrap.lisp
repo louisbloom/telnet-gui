@@ -170,3 +170,63 @@
 ;;   - Disable (#f) if you prefer traditional terminal scrolling
 ;;   - Disable (#f) if smooth scrolling feels laggy on your system
 (define *smooth-scrolling-enabled* #t)
+
+;; ============================================================================
+;; SCROLLBACK BUFFER CONFIGURATION
+;; ============================================================================
+;; *max-scrollback-lines*: Maximum number of scrollback lines to keep in memory
+;;
+;; This controls how many lines of terminal output history are retained for
+;; scrolling back through past output. When the buffer is full, oldest lines
+;; are automatically evicted to make room for new output (FIFO circular buffer).
+;;
+;; Values:
+;;   0     - Unbounded (default, limited to 10000 lines for safety)
+;;   1000  - Small buffer, uses less memory
+;;   5000  - Medium buffer, good balance
+;;   10000 - Large buffer, maximum scrollback
+;;
+;; Note: Set to 0 for unbounded scrollback (limited by SCROLLBACK_MAX_LINES = 10000
+;;       in code for safety). Setting a smaller value can reduce memory usage for
+;;       very long sessions with lots of output.
+;;
+;; Memory usage: Each line uses ~100-500 bytes depending on content
+;;   1000 lines  ≈ 100KB - 500KB
+;;   5000 lines  ≈ 500KB - 2.5MB
+;;   10000 lines ≈ 1MB - 5MB
+(define *max-scrollback-lines* 0)
+
+;; ============================================================================
+;; AUTO-SCROLL TO BOTTOM CONFIGURATION
+;; ============================================================================
+;; *scroll-to-bottom-on-user-input*: Auto-scroll to bottom when user sends input
+;;
+;; When enabled (#t), the terminal automatically scrolls to the bottom (current
+;; output) whenever you send a command or text to the server. This ensures you
+;; always see the response to your commands.
+;;
+;; Values:
+;;   #t - Auto-scroll on user input (default, recommended)
+;;   #f - Don't auto-scroll, stay at current scroll position
+;;
+;; Use cases:
+;;   - Enable (#t) for normal interactive use (default)
+;;   - Disable (#f) if you want to read scrollback while typing commands
+(define *scroll-to-bottom-on-user-input* #t)
+
+;; *scroll-to-bottom-on-telnet-input*: Auto-scroll to bottom when server sends data
+;;
+;; When enabled (#t), the terminal automatically scrolls to the bottom whenever
+;; new data arrives from the server. This keeps you following the live output.
+;; When disabled (#f), you can scroll up to read history while new data continues
+;; to arrive in the background.
+;;
+;; Values:
+;;   #t - Auto-scroll on server output (follows live output)
+;;   #f - Don't auto-scroll, stay at current scroll position (default)
+;;
+;; Use cases:
+;;   - Enable (#t) to always follow live output
+;;   - Disable (#f) to read scrollback while server continues to send data
+;;   - Disable (#f) for high-traffic servers where you want to review past output
+(define *scroll-to-bottom-on-telnet-input* #f)

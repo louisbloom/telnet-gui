@@ -450,6 +450,10 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    /* Apply scrollback configuration from Lisp */
+    int max_scrollback = lisp_bridge_get_max_scrollback_lines();
+    terminal_set_max_scrollback_lines(term, max_scrollback);
+
     /* Create Telnet client */
     Telnet *telnet = telnet_create();
     if (!telnet) {
@@ -574,6 +578,11 @@ int main(int argc, char **argv) {
                         echo_buf[length + 1] = '\n';
                         terminal_feed_data(term, echo_buf, length + 2);
 
+                        /* Scroll to bottom on user input if configured */
+                        if (lisp_bridge_get_scroll_to_bottom_on_user_input()) {
+                            terminal_scroll_to_bottom(term);
+                        }
+
                         /* Send to telnet with CRLF (telnet standard) */
                         char telnet_buf[INPUT_AREA_MAX_LENGTH + 2];
                         memcpy(telnet_buf, text, length);
@@ -596,6 +605,11 @@ int main(int argc, char **argv) {
                         }
                         /* Echo CRLF to terminal */
                         terminal_feed_data(term, "\r\n", 2);
+
+                        /* Scroll to bottom on user input if configured */
+                        if (lisp_bridge_get_scroll_to_bottom_on_user_input()) {
+                            terminal_scroll_to_bottom(term);
+                        }
                     }
                     break;
                 }
@@ -956,6 +970,11 @@ int main(int argc, char **argv) {
             lisp_bridge_call_telnet_input_hook(recv_buf, received);
             /* Feed original data to terminal (hook doesn't modify the data flow) */
             terminal_feed_data(term, recv_buf, received);
+
+            /* Scroll to bottom on telnet input if configured */
+            if (lisp_bridge_get_scroll_to_bottom_on_telnet_input()) {
+                terminal_scroll_to_bottom(term);
+            }
         }
 
         /* Render if needed */

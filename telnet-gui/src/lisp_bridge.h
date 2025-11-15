@@ -32,6 +32,15 @@ int lisp_bridge_get_scroll_lines_per_click(void);
 /* Get smooth scrolling enabled from Lisp config (default: 1/true) */
 int lisp_bridge_get_smooth_scrolling_enabled(void);
 
+/* Get max scrollback lines from Lisp config (default: 0 = unbounded) */
+int lisp_bridge_get_max_scrollback_lines(void);
+
+/* Get scroll-to-bottom-on-user-input from Lisp config (default: 1/true) */
+int lisp_bridge_get_scroll_to_bottom_on_user_input(void);
+
+/* Get scroll-to-bottom-on-telnet-input from Lisp config (default: 0/false) */
+int lisp_bridge_get_scroll_to_bottom_on_telnet_input(void);
+
 /* Call telnet-input-hook with telnet data (stripped of ANSI codes) */
 void lisp_bridge_call_telnet_input_hook(const char *text, size_t len);
 
