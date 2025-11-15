@@ -94,6 +94,16 @@ LispObject *lisp_make_lambda(LispObject *params, LispObject *body, Environment *
     return obj;
 }
 
+LispObject *lisp_make_macro(LispObject *params, LispObject *body, Environment *closure, const char *name) {
+    LispObject *obj = GC_malloc(sizeof(LispObject));
+    obj->type = LISP_MACRO;
+    obj->value.macro.params = params;
+    obj->value.macro.body = body;
+    obj->value.macro.closure = closure;
+    obj->value.macro.name = name ? GC_strdup(name) : NULL;
+    return obj;
+}
+
 LispObject *lisp_make_tail_call(LispObject *func, LispObject *args) {
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_TAIL_CALL;

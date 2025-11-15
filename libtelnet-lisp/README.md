@@ -9,7 +9,8 @@ A minimal, embeddable Lisp interpreter library written in C. This implementation
 ### Core Language
 
 - **Data Types**: Numbers, integers, booleans, strings (UTF-8), lists, vectors, hash tables, lambdas
-- **Special Forms**: `quote`, `if`, `define`, `set!`, `lambda`, `let`/`let*`, `progn`, `do`, `cond`, `case`
+- **Special Forms**: `quote`, `quasiquote`, `if`, `define`, `set!`, `lambda`, `defmacro`, `let`/`let*`, `progn`, `do`, `cond`, `case`
+- **Macros**: Code transformation with `defmacro`, quasiquote (`` ` ``), unquote (`,`), unquote-splicing (`,@`), and built-in `defun` macro
 - **Functions**: Arithmetic, strings, lists, vectors, hash tables, regex (PCRE2), file I/O
 - **Type Predicates**: `null?`, `atom?`, `integer?`, `boolean?`, `number?`, `string?`, `vector?`, `hash-table?`
 
@@ -23,7 +24,7 @@ See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for all function listings
 - **Higher-Order Functions**: Functions that operate on functions
 - **Closures**: Functions with captured variables
 - **Global State Management**: Variables persist and can be updated across the REPL session
-- **Quote Syntax**: `'expr` shorthand for `(quote expr)`
+- **Quote Syntax**: `'expr` shorthand for `(quote expr)`, `` `expr`` for `(quasiquote expr)`, `,expr` for unquote, `,@expr` for unquote-splicing
 - **Truthy/Falsy**: JavaScript-like semantics (nil and empty strings are falsy)
 - **Memory Management**: Automatic garbage collection with Boehm GC
 - **Regex Support**: Full PCRE2 integration for advanced pattern matching with UTF-8 support
@@ -374,6 +375,7 @@ Potential additions for future versions:
 
 ### Recently Completed ✨
 
+- **Macro System**: Metaprogramming with `defmacro`, quasiquote (`` ` ``), unquote (`,`), and unquote-splicing (`,@`) for code transformation
 - **Tail Call Optimization**: Trampoline-based tail recursion for efficient recursive algorithms without stack overflow
 - **UTF-8 Support**: Full Unicode string support with character-based operations (`string-length`, `substring`, `string-ref`)
 - **Enhanced File I/O**: Support for Unix, Windows, and Mac line endings
@@ -387,12 +389,12 @@ Potential additions for future versions:
 - **Conditional Forms**: cond (multi-way conditional) and case (pattern matching)
 - **Error Recovery**: Lisp-level call stack traces show the call chain when errors occur
 
-### Recent Bug Fixes (November 2024)
+### Recent Bug Fixes
 
-- **Lambda and `let` implicit progn**: Fixed to evaluate all body expressions (returns last value, not first)
-- **`make-vector` with initial value**: Fixed to properly initialize all vector elements with the provided initial value
-- **`string?` predicate**: Confirmed working for type checking strings
-- **`remainder` operation**: Confirmed working for integer modulo operations
+- **Lambda and `let` implicit progn** (November 15, 2025): Fixed to evaluate all body expressions (returns last value, not first)
+- **`make-vector` with initial value** (November 14, 2025): Fixed to properly initialize all vector elements with the provided initial value
+- **`string?` predicate** (November 12, 2025): Confirmed working for type checking strings
+- **`remainder` operation** (October 26, 2025): Confirmed working for integer modulo operations
 
 ### High Priority
 
@@ -400,7 +402,6 @@ Potential additions for future versions:
 
 ### Medium Priority
 
-- Macros for metaprogramming
 - More regex features (lookahead, lookbehind, non-capturing groups)
 - Performance optimizations (bytecode compilation)
 

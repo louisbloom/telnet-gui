@@ -109,5 +109,19 @@ void register_builtins(Environment *env);
 Environment *env_create_global(void) {
     Environment *env = env_create(NULL);
     register_builtins(env);
+
+    /* Define the defun macro using defmacro now that we have quasiquote support */
+    /* (defmacro defun (name params . body) `(define ,name (lambda ,params ,@body))) */
+    const char *defun_def = "(defmacro defun (name params . body) `(define ,name (lambda ,params ,@body)))";
+    const char *input = defun_def;
+    LispObject *defun_expr = lisp_read(&input);
+    if (defun_expr != NULL && defun_expr->type != LISP_ERROR) {
+        LispObject *result = lisp_eval(defun_expr, env);
+        if (result->type == LISP_ERROR) {
+            /* Fallback: if quasiquote fails, we can't continue */
+            return NULL;
+        }
+    }
+
     return env;
 }

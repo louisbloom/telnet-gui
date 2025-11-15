@@ -8,6 +8,9 @@ static LispObject *read_atom(const char **input);
 static LispObject *read_string(const char **input);
 static LispObject *read_list(const char **input);
 static LispObject *read_quote(const char **input);
+static LispObject *read_backquote(const char **input);
+static LispObject *read_unquote(const char **input);
+static LispObject *read_unquote_splicing(const char **input);
 static LispObject *read_vector(const char **input);
 
 static void skip_whitespace(const char **input) {
@@ -149,6 +152,33 @@ static LispObject *read_list(const char **input) {
     LispObject *tail = NULL;
 
     while (**input && **input != ')') {
+        /* Check for dot notation */
+        if (**input == '.' && isspace(*(*input + 1))) {
+            (*input)++; /* Skip dot */
+            skip_whitespace(input);
+
+            /* Read the cdr */
+            LispObject *cdr_elem = lisp_read(input);
+            if (cdr_elem == NULL) {
+                return lisp_make_error("Syntax error after dot in list");
+            }
+
+            /* Set the cdr of the last cons cell */
+            if (tail != NULL) {
+                tail->value.cons.cdr = cdr_elem;
+            } else {
+                return lisp_make_error("Dot cannot appear at start of list");
+            }
+
+            skip_whitespace(input);
+
+            /* Should be closing paren now */
+            if (**input != ')') {
+                return lisp_make_error("Expected ) after dotted pair");
+            }
+            break;
+        }
+
         LispObject *elem = lisp_read(input);
         if (elem == NULL) {
             return lisp_make_error("Syntax error in list");
@@ -239,6 +269,45 @@ static LispObject *read_quote(const char **input) {
     return lisp_make_cons(quote_sym, quoted_list);
 }
 
+static LispObject *read_backquote(const char **input) {
+    (*input)++; /* Skip backquote character */
+    LispObject *expr = lisp_read(input);
+    if (expr == NULL) {
+        return lisp_make_error("Nothing to backquote");
+    }
+
+    /* Build (quasiquote <expr>) */
+    LispObject *quasiquote_sym = lisp_make_symbol("quasiquote");
+    LispObject *expr_list = lisp_make_cons(expr, NIL);
+    return lisp_make_cons(quasiquote_sym, expr_list);
+}
+
+static LispObject *read_unquote(const char **input) {
+    (*input)++; /* Skip comma character */
+    LispObject *expr = lisp_read(input);
+    if (expr == NULL) {
+        return lisp_make_error("Nothing to unquote");
+    }
+
+    /* Build (unquote <expr>) */
+    LispObject *unquote_sym = lisp_make_symbol("unquote");
+    LispObject *expr_list = lisp_make_cons(expr, NIL);
+    return lisp_make_cons(unquote_sym, expr_list);
+}
+
+static LispObject *read_unquote_splicing(const char **input) {
+    (*input) += 2; /* Skip ,@ characters */
+    LispObject *expr = lisp_read(input);
+    if (expr == NULL) {
+        return lisp_make_error("Nothing to unquote-splice");
+    }
+
+    /* Build (unquote-splicing <expr>) */
+    LispObject *unquote_splicing_sym = lisp_make_symbol("unquote-splicing");
+    LispObject *expr_list = lisp_make_cons(expr, NIL);
+    return lisp_make_cons(unquote_splicing_sym, expr_list);
+}
+
 LispObject *lisp_read(const char **input) {
     skip_whitespace(input);
 
@@ -256,6 +325,18 @@ LispObject *lisp_read(const char **input) {
 
     if (**input == '\'') {
         return read_quote(input);
+    }
+
+    if (**input == '`') {
+        return read_backquote(input);
+    }
+
+    if (**input == ',') {
+        /* Check for ,@ (unquote-splicing) */
+        if (*(*input + 1) == '@') {
+            return read_unquote_splicing(input);
+        }
+        return read_unquote(input);
     }
 
     if (**input == '"') {

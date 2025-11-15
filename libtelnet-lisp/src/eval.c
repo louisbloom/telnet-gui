@@ -8,6 +8,9 @@ static LispObject *eval_if(LispObject *args, Environment *env, int in_tail_posit
 static LispObject *eval_define(LispObject *args, Environment *env);
 static LispObject *eval_set_bang(LispObject *args, Environment *env);
 static LispObject *eval_lambda(LispObject *args, Environment *env);
+static LispObject *eval_defmacro(LispObject *args, Environment *env);
+static LispObject *eval_quasiquote(LispObject *expr, Environment *env);
+static LispObject *expand_macro(LispObject *macro, LispObject *args, Environment *env);
 static LispObject *eval_let(LispObject *args, Environment *env, int in_tail_position);
 static LispObject *eval_let_star(LispObject *args, Environment *env, int in_tail_position);
 static LispObject *eval_progn(LispObject *args, Environment *env, int in_tail_position);
@@ -49,6 +52,7 @@ static LispObject *lisp_eval_internal(LispObject *expr, Environment *env, int in
     case LISP_BOOLEAN:
     case LISP_BUILTIN:
     case LISP_LAMBDA:
+    case LISP_MACRO:
     case LISP_FILE_STREAM:
     case LISP_VECTOR:
     case LISP_HASH_TABLE:
@@ -98,6 +102,14 @@ static LispObject *eval_list(LispObject *list, Environment *env, int in_tail_pos
             return lisp_car(rest);
         }
 
+        if (strcmp(first->value.symbol, "quasiquote") == 0) {
+            LispObject *rest = lisp_cdr(list);
+            if (rest == NIL) {
+                return lisp_make_error("quasiquote requires an argument");
+            }
+            return eval_quasiquote(lisp_car(rest), env);
+        }
+
         if (strcmp(first->value.symbol, "if") == 0) {
             return eval_if(lisp_cdr(list), env, in_tail_position);
         }
@@ -112,6 +124,10 @@ static LispObject *eval_list(LispObject *list, Environment *env, int in_tail_pos
 
         if (strcmp(first->value.symbol, "lambda") == 0) {
             return eval_lambda(lisp_cdr(list), env);
+        }
+
+        if (strcmp(first->value.symbol, "defmacro") == 0) {
+            return eval_defmacro(lisp_cdr(list), env);
         }
 
         if (strcmp(first->value.symbol, "let") == 0) {
@@ -143,6 +159,16 @@ static LispObject *eval_list(LispObject *list, Environment *env, int in_tail_pos
     LispObject *func = lisp_eval_internal(first, env, 0);
     if (func->type == LISP_ERROR) {
         return func;
+    }
+
+    /* Check if it's a macro - if so, expand and evaluate the result */
+    if (func->type == LISP_MACRO) {
+        LispObject *expansion = expand_macro(func, lisp_cdr(list), env);
+        if (expansion->type == LISP_ERROR) {
+            return expansion;
+        }
+        /* Evaluate the expanded form */
+        return lisp_eval_internal(expansion, env, in_tail_position);
     }
 
     /* Evaluate arguments (never in tail position) */
@@ -284,6 +310,167 @@ static LispObject *eval_lambda(LispObject *args, Environment *env) {
     LispObject *body = rest;
 
     return lisp_make_lambda(params, body, env, NULL);
+}
+
+static LispObject *eval_defmacro(LispObject *args, Environment *env) {
+    if (args == NIL) {
+        return lisp_make_error("defmacro requires at least 3 arguments");
+    }
+
+    LispObject *name = lisp_car(args);
+    if (name->type != LISP_SYMBOL) {
+        return lisp_make_error("defmacro requires a symbol as first argument");
+    }
+
+    LispObject *rest = lisp_cdr(args);
+    if (rest == NIL) {
+        return lisp_make_error("defmacro requires parameter list");
+    }
+
+    LispObject *params = lisp_car(rest);
+    LispObject *body = lisp_cdr(rest);
+
+    if (body == NIL) {
+        return lisp_make_error("defmacro requires a body");
+    }
+
+    /* Create the macro */
+    LispObject *macro = lisp_make_macro(params, body, env, name->value.symbol);
+
+    /* Define it in the environment */
+    env_define(env, name->value.symbol, macro);
+
+    return macro;
+}
+
+static LispObject *eval_quasiquote(LispObject *expr, Environment *env) {
+    /* Base cases: atoms are returned as-is */
+    if (expr == NIL || expr->type != LISP_CONS) {
+        return expr;
+    }
+
+    /* Check if this is an unquote: (unquote expr) => ,expr */
+    LispObject *first = lisp_car(expr);
+    if (first != NULL && first->type == LISP_SYMBOL && strcmp(first->value.symbol, "unquote") == 0) {
+        LispObject *rest = lisp_cdr(expr);
+        if (rest == NIL) {
+            return lisp_make_error("unquote requires an argument");
+        }
+        /* Evaluate the unquoted expression */
+        return lisp_eval_internal(lisp_car(rest), env, 0);
+    }
+
+    /* Check if this is unquote-splicing at the beginning: (unquote-splicing expr) => ,@expr */
+    if (first != NULL && first->type == LISP_CONS) {
+        LispObject *first_first = lisp_car(first);
+        if (first_first != NULL && first_first->type == LISP_SYMBOL &&
+            strcmp(first_first->value.symbol, "unquote-splicing") == 0) {
+            LispObject *splice_rest = lisp_cdr(first);
+            if (splice_rest == NIL) {
+                return lisp_make_error("unquote-splicing requires an argument");
+            }
+            /* Evaluate the splice expression */
+            LispObject *splice_value = lisp_eval_internal(lisp_car(splice_rest), env, 0);
+            if (splice_value->type == LISP_ERROR) {
+                return splice_value;
+            }
+            /* Append the rest of the quasiquoted list */
+            LispObject *rest_result = eval_quasiquote(lisp_cdr(expr), env);
+            if (rest_result->type == LISP_ERROR) {
+                return rest_result;
+            }
+            /* Splice the evaluated list into the result */
+            if (splice_value == NIL) {
+                return rest_result;
+            }
+            /* Copy and append splice_value list to rest_result */
+            LispObject *result = NIL;
+            LispObject *tail = NULL;
+            LispObject *current = splice_value;
+
+            /* Copy each element from splice_value */
+            while (current != NIL && current->type == LISP_CONS) {
+                LispObject *new_cons = lisp_make_cons(lisp_car(current), NIL);
+                if (result == NIL) {
+                    result = new_cons;
+                    tail = new_cons;
+                } else {
+                    tail->value.cons.cdr = new_cons;
+                    tail = new_cons;
+                }
+                current = lisp_cdr(current);
+            }
+
+            /* Append the rest */
+            if (tail != NULL) {
+                tail->value.cons.cdr = rest_result;
+            } else {
+                result = rest_result;
+            }
+            return result;
+        }
+    }
+
+    /* Recursively process the car and cdr */
+    LispObject *car_result = eval_quasiquote(first, env);
+    if (car_result->type == LISP_ERROR) {
+        return car_result;
+    }
+
+    LispObject *cdr_result = eval_quasiquote(lisp_cdr(expr), env);
+    if (cdr_result->type == LISP_ERROR) {
+        return cdr_result;
+    }
+
+    /* Rebuild the cons cell */
+    return lisp_make_cons(car_result, cdr_result);
+}
+
+static LispObject *expand_macro(LispObject *macro, LispObject *args, Environment *env) {
+    /* Create new environment with macro's closure as parent */
+    Environment *new_env = env_create(macro->value.macro.closure);
+
+    /* Bind parameters to UNEVALUATED arguments */
+    LispObject *params = macro->value.macro.params;
+    LispObject *arg_list = args;
+
+    while (params != NIL && params != NULL) {
+        /* Check for rest parameter (dotted list) */
+        if (params->type == LISP_SYMBOL) {
+            /* Rest of arguments go into this parameter as a list */
+            env_define(new_env, params->value.symbol, arg_list);
+            arg_list = NIL; /* Mark as consumed */
+            break;
+        }
+
+        if (params->type != LISP_CONS) {
+            return lisp_make_error("Invalid macro parameter list");
+        }
+
+        LispObject *param = lisp_car(params);
+        if (param->type != LISP_SYMBOL) {
+            return lisp_make_error("Macro parameter must be a symbol");
+        }
+
+        if (arg_list == NIL) {
+            return lisp_make_error("Too few arguments to macro");
+        }
+
+        LispObject *arg = lisp_car(arg_list);
+        env_define(new_env, param->value.symbol, arg);
+
+        params = lisp_cdr(params);
+        arg_list = lisp_cdr(arg_list);
+    }
+
+    /* If we exhausted params but still have args, and didn't encounter rest param, error */
+    if (arg_list != NIL) {
+        return lisp_make_error("Too many arguments to macro");
+    }
+
+    /* Evaluate body (implicit progn) and return the result */
+    /* This is the expansion, not the final result */
+    return eval_progn(macro->value.macro.body, new_env, 0);
 }
 
 static LispObject *eval_let(LispObject *args, Environment *env, int in_tail_position) {

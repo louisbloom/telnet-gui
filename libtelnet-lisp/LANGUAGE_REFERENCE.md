@@ -30,16 +30,153 @@ A reference for the Telnet Lisp language, covering data types, special forms, bu
 ## Special Forms
 
 - `quote` - Quote expressions (also supported via `'expr` syntax)
+- `quasiquote` - Quote with selective evaluation (also supported via `` `expr`` syntax)
+- `unquote` - Evaluate within quasiquote (also supported via `,expr` syntax)
+- `unquote-splicing` - Evaluate and splice list within quasiquote (also supported via `,@expr` syntax)
 - `if` - Conditional evaluation
 - `define` - Define variables and functions
 - `set!` - Mutate existing variables (works inside lambdas/hooks)
 - `lambda` - Create anonymous functions with parameters (body has implicit progn: evaluates all expressions, returns last with tail recursion optimization)
+- `defmacro` - Define macros for code transformation at evaluation time
 - `let` - Local variable bindings (parallel evaluation, body has implicit progn)
 - `let*` - Local variable bindings (sequential evaluation, can reference previous bindings, body has implicit progn)
 - `progn` - Evaluate multiple expressions sequentially and return last value
 - `do` - Iteration loop with variable updates and exit condition
 - `cond` - Multi-way conditional with test clauses
 - `case` - Pattern matching with value-based dispatch
+
+### Macros
+
+Macros are special functions that receive unevaluated arguments and return code to be evaluated. They enable powerful code transformations at evaluation time.
+
+#### Quasiquote (Backquote)
+
+Quasiquote (`` ` ``) is like quote (`'`) but allows selective evaluation using unquote (`,`) and unquote-splicing (`,@`). This is essential for writing macros that construct code with computed values.
+
+**Syntax:**
+- `` `expr`` - Quasiquote (same as `(quasiquote expr)`)
+- `,expr` - Unquote: evaluate expr and insert result (same as `(unquote expr)`)
+- `,@expr` - Unquote-splicing: evaluate expr (must be a list) and splice elements (same as `(unquote-splicing expr)`)
+
+**Examples:**
+```lisp
+; Simple quasiquote (same as quote)
+`(1 2 3)  ; => (1 2 3)
+
+; Unquote to insert computed values
+(define x 42)
+`(1 ,x 3)  ; => (1 42 3)
+`(result is ,(+ 10 20))  ; => (result is 30)
+
+; Nested lists
+`(a (b ,x c) d)  ; => (a (b 42 c) d)
+
+; Unquote-splicing to splice lists
+(define lst '(a b c))
+`(1 ,@lst 4)  ; => (1 a b c 4)
+`(start ,x middle ,@lst end)  ; => (start 42 middle a b c end)
+
+; Multiple splicing
+`(,@lst ,@lst)  ; => (a b c a b c)
+
+; Empty list splicing
+`(1 ,@'() 2)  ; => (1 2)
+```
+
+**Common pattern in macros:**
+```lisp
+; Without quasiquote (cumbersome)
+(defmacro when (condition body)
+  (list 'if condition body nil))
+
+; With quasiquote (clean)
+(defmacro when (condition body)
+  `(if ,condition ,body nil))
+```
+
+#### defmacro
+
+Define a macro that transforms code before evaluation.
+
+**Syntax:**
+```lisp
+(defmacro name (params...) body...)
+(defmacro name (param1 param2 . rest-params) body...)
+```
+
+**Features:**
+- Macros receive arguments unevaluated
+- The macro body is evaluated to produce an expansion
+- The expansion is then evaluated in the caller's context
+- Supports rest parameters using dotted parameter list syntax
+
+**Examples:**
+```lisp
+; Simple macro that returns a quoted expression
+(defmacro simple () '(+ 1 2))
+(simple)  ; => 3
+
+; Macro with parameters
+(defmacro double (x) (list '+ x x))
+(double 5)          ; => 10
+(double (+ 2 3))    ; => 10
+
+; Conditional macro (like 'when')
+(defmacro when (condition body)
+  (list 'if condition body nil))
+(when #t 42)   ; => 42
+(when #f 42)   ; => nil
+
+; Macro with rest parameters
+(defmacro my-progn (first . rest)
+  (cons 'progn (cons first rest)))
+```
+
+#### defun
+
+`defun` is a built-in macro that provides a convenient syntax for defining named functions. It's implemented using quasiquote:
+
+**Syntax:**
+```lisp
+(defun name (params...) body...)
+```
+
+**Definition:**
+```lisp
+(defmacro defun (name params . body)
+  `(define ,name (lambda ,params ,@body)))
+```
+
+**Expands to:**
+```lisp
+(define name (lambda (params...) body...))
+```
+
+**Examples:**
+```lisp
+; Simple function
+(defun add-one (x) (+ x 1))
+(add-one 5)  ; => 6
+
+; Multiple parameters
+(defun add-three (a b c)
+  (+ a b c))
+(add-three 1 2 3)  ; => 6
+
+; Multiple body expressions
+(defun test-multi (x)
+  (+ x 1)
+  (+ x 2)
+  (+ x 3))
+(test-multi 10)  ; => 13
+
+; Recursive function
+(defun factorial (n)
+  (if (= n 0)
+      1
+      (* n (factorial (- n 1)))))
+(factorial 5)  ; => 120
+```
 
 ## Built-in Functions
 

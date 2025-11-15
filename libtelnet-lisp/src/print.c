@@ -65,6 +65,16 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
         }
         break;
 
+    case LISP_MACRO:
+        if (obj->value.macro.name != NULL) {
+            append_str(buffer, size, pos, "#<macro:");
+            append_str(buffer, size, pos, obj->value.macro.name);
+            append_str(buffer, size, pos, ">");
+        } else {
+            append_str(buffer, size, pos, "#<macro>");
+        }
+        break;
+
     case LISP_ERROR: {
         append_str(buffer, size, pos, "ERROR: ");
         append_str(buffer, size, pos, obj->value.error_with_stack.error);
@@ -191,6 +201,14 @@ static void princ_object(LispObject *obj) {
             printf("#<lambda:%s>", obj->value.lambda.name);
         } else {
             printf("#<lambda>");
+        }
+        break;
+
+    case LISP_MACRO:
+        if (obj->value.macro.name != NULL) {
+            printf("#<macro:%s>", obj->value.macro.name);
+        } else {
+            printf("#<macro>");
         }
         break;
 

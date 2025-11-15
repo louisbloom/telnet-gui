@@ -31,6 +31,7 @@ typedef enum {
     LISP_CONS,
     LISP_BUILTIN,
     LISP_LAMBDA,
+    LISP_MACRO,
     LISP_ERROR,
     LISP_FILE_STREAM,
     LISP_VECTOR,
@@ -64,6 +65,12 @@ struct LispObject {
             Environment *closure;
             char *name; /* Optional function name for debugging */
         } lambda;
+        struct {
+            LispObject *params;
+            LispObject *body;
+            Environment *closure;
+            char *name; /* Optional macro name for debugging */
+        } macro;
         char *error;
         FILE *file;
         struct {
@@ -126,6 +133,7 @@ LispObject *lisp_make_cons(LispObject *car, LispObject *cdr);
 LispObject *lisp_make_error(const char *message);
 LispObject *lisp_make_builtin(BuiltinFunc func, const char *name);
 LispObject *lisp_make_lambda(LispObject *params, LispObject *body, Environment *closure, const char *name);
+LispObject *lisp_make_macro(LispObject *params, LispObject *body, Environment *closure, const char *name);
 LispObject *lisp_make_file_stream(FILE *file);
 LispObject *lisp_make_vector(size_t capacity);
 LispObject *lisp_make_hash_table(void);
