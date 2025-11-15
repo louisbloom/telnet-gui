@@ -4,6 +4,14 @@
 #include <string.h>
 #include <ctype.h>
 
+/* Helper: Reset history prefix search (call when user edits text) */
+static void reset_history_search(InputArea *area) {
+    if (!area)
+        return;
+    area->history_search_active = 0;
+    area->history_search_prefix[0] = '\0';
+}
+
 void input_area_init(InputArea *area) {
     if (!area)
         return;
@@ -32,6 +40,9 @@ void input_area_insert_text(InputArea *area, const char *text, int text_len) {
             area->buffer[area->length] = '\0';
         }
         area->needs_redraw = 1;
+
+        /* Reset history prefix search when text is edited */
+        reset_history_search(area);
     }
 }
 
@@ -48,6 +59,9 @@ void input_area_delete_char(InputArea *area) {
             area->buffer[area->length] = '\0';
         }
         area->needs_redraw = 1;
+
+        /* Reset history prefix search when text is edited */
+        reset_history_search(area);
     }
 }
 
@@ -64,6 +78,9 @@ void input_area_backspace(InputArea *area) {
             area->buffer[area->length] = '\0';
         }
         area->needs_redraw = 1;
+
+        /* Reset history prefix search when text is edited */
+        reset_history_search(area);
     }
 }
 
@@ -204,6 +221,9 @@ void input_area_kill_to_end(InputArea *area) {
         area->length = area->cursor_pos;
         area->buffer[area->length] = '\0';
         area->needs_redraw = 1;
+
+        /* Reset history prefix search when text is edited */
+        reset_history_search(area);
     }
 }
 
@@ -222,6 +242,9 @@ void input_area_kill_from_start(InputArea *area) {
         area->cursor_pos = 0;
         area->buffer[area->length] = '\0';
         area->needs_redraw = 1;
+
+        /* Reset history prefix search when text is edited */
+        reset_history_search(area);
     }
 }
 
@@ -243,6 +266,9 @@ void input_area_kill_word(InputArea *area) {
         area->cursor_pos = word_start;
         area->buffer[area->length] = '\0';
         area->needs_redraw = 1;
+
+        /* Reset history prefix search when text is edited */
+        reset_history_search(area);
     }
 }
 
@@ -261,6 +287,9 @@ void input_area_yank(InputArea *area) {
         area->length += kill_len;
         area->buffer[area->length] = '\0';
         area->needs_redraw = 1;
+
+        /* Reset history prefix search when text is edited */
+        reset_history_search(area);
     }
 }
 
@@ -284,6 +313,10 @@ void input_area_history_restore_current(InputArea *area) {
     area->cursor_pos = area->length;
     area->history_index = -1;
     area->needs_redraw = 1;
+
+    /* Reset prefix search */
+    area->history_search_active = 0;
+    area->history_search_prefix[0] = '\0';
 }
 
 void input_area_history_add(InputArea *area) {
@@ -319,44 +352,92 @@ void input_area_history_prev(InputArea *area) {
     if (!area)
         return;
 
-    /* Save current input if we're starting history navigation */
+    if (area->history_count == 0)
+        return;
+
+    /* Starting history navigation */
     if (area->history_index == -1) {
         input_area_history_save_current(area);
+
+        /* If cursor is at end of line, enable prefix search */
+        if (area->cursor_pos == area->length) {
+            area->history_search_active = 1;
+            memcpy(area->history_search_prefix, area->buffer, area->length + 1);
+        } else {
+            area->history_search_active = 0;
+            area->history_search_prefix[0] = '\0';
+        }
     }
 
-    /* Navigate to previous entry */
-    if (area->history_count > 0) {
-        if (area->history_index < 0) {
-            area->history_index = area->history_count - 1;
-        } else if (area->history_index > 0) {
-            area->history_index--;
+    /* Determine search start position */
+    int start_idx = (area->history_index < 0) ? area->history_count - 1 : area->history_index - 1;
+
+    /* Search backwards through history */
+    for (int i = start_idx; i >= 0; i--) {
+        /* Check if entry matches (prefix search or no filter) */
+        int matches = 0;
+        if (area->history_search_active) {
+            /* Prefix search: check if history entry starts with prefix */
+            int prefix_len = strlen(area->history_search_prefix);
+            if (prefix_len == 0 || strncmp(area->history[i], area->history_search_prefix, prefix_len) == 0) {
+                matches = 1;
+            }
+        } else {
+            /* No filter: all entries match */
+            matches = 1;
         }
 
-        /* Load history entry */
-        strcpy(area->buffer, area->history[area->history_index]);
-        area->length = strlen(area->buffer);
-        area->cursor_pos = area->length;
-        area->needs_redraw = 1;
+        if (matches) {
+            /* Load this history entry */
+            area->history_index = i;
+            strcpy(area->buffer, area->history[area->history_index]);
+            area->length = strlen(area->buffer);
+            area->cursor_pos = area->length;
+            area->needs_redraw = 1;
+            return;
+        }
     }
+
+    /* No match found - stay at current position */
 }
 
 void input_area_history_next(InputArea *area) {
     if (!area)
         return;
 
-    if (area->history_index >= 0) {
-        area->history_index++;
-        if (area->history_index >= area->history_count) {
-            /* Restore saved input */
-            input_area_history_restore_current(area);
+    if (area->history_index < 0)
+        return; /* Not in history navigation */
+
+    /* Search forward through history */
+    for (int i = area->history_index + 1; i < area->history_count; i++) {
+        /* Check if entry matches (prefix search or no filter) */
+        int matches = 0;
+        if (area->history_search_active) {
+            /* Prefix search: check if history entry starts with prefix */
+            int prefix_len = strlen(area->history_search_prefix);
+            if (prefix_len == 0 || strncmp(area->history[i], area->history_search_prefix, prefix_len) == 0) {
+                matches = 1;
+            }
         } else {
-            /* Load next history entry */
+            /* No filter: all entries match */
+            matches = 1;
+        }
+
+        if (matches) {
+            /* Load this history entry */
+            area->history_index = i;
             strcpy(area->buffer, area->history[area->history_index]);
             area->length = strlen(area->buffer);
             area->cursor_pos = area->length;
             area->needs_redraw = 1;
+            return;
         }
     }
+
+    /* No more matches - restore saved input */
+    input_area_history_restore_current(area);
+    area->history_search_active = 0;
+    area->history_search_prefix[0] = '\0';
 }
 
 void input_area_clear(InputArea *area) {

@@ -23,6 +23,10 @@ typedef struct {
     int history_index;  /* -1 = new entry, 0+ = history index */
     char saved_input[INPUT_AREA_MAX_LENGTH]; /* Preserve current input during history navigation */
 
+    /* Prefix search for history (when cursor at EOL during arrow up) */
+    char history_search_prefix[INPUT_AREA_MAX_LENGTH]; /* Prefix to search for */
+    int history_search_active; /* 1 if prefix search is active, 0 otherwise */
+
     /* Kill ring */
     char kill_ring[INPUT_AREA_MAX_LENGTH];
 
