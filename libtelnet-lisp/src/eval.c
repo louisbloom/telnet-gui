@@ -3,20 +3,38 @@
 #include <string.h>
 
 /* Forward declarations */
-static LispObject *eval_list(LispObject *list, Environment *env);
-static LispObject *eval_if(LispObject *args, Environment *env);
+static LispObject *eval_list(LispObject *list, Environment *env, int in_tail_position);
+static LispObject *eval_if(LispObject *args, Environment *env, int in_tail_position);
 static LispObject *eval_define(LispObject *args, Environment *env);
 static LispObject *eval_set_bang(LispObject *args, Environment *env);
 static LispObject *eval_lambda(LispObject *args, Environment *env);
-static LispObject *eval_let(LispObject *args, Environment *env);
-static LispObject *eval_let_star(LispObject *args, Environment *env);
-static LispObject *eval_progn(LispObject *args, Environment *env);
+static LispObject *eval_let(LispObject *args, Environment *env, int in_tail_position);
+static LispObject *eval_let_star(LispObject *args, Environment *env, int in_tail_position);
+static LispObject *eval_progn(LispObject *args, Environment *env, int in_tail_position);
 static LispObject *eval_do(LispObject *args, Environment *env);
-static LispObject *eval_cond(LispObject *args, Environment *env);
-static LispObject *eval_case(LispObject *args, Environment *env);
-static LispObject *apply(LispObject *func, LispObject *args, Environment *env);
+static LispObject *eval_cond(LispObject *args, Environment *env, int in_tail_position);
+static LispObject *eval_case(LispObject *args, Environment *env, int in_tail_position);
+static LispObject *apply(LispObject *func, LispObject *args, Environment *env, int in_tail_position);
+static LispObject *lisp_eval_internal(LispObject *expr, Environment *env, int in_tail_position);
 
+/* Public eval function - adds trampoline loop for tail call optimization */
 LispObject *lisp_eval(LispObject *expr, Environment *env) {
+    LispObject *result = lisp_eval_internal(expr, env, 1);
+
+    /* Trampoline loop: keep unwrapping tail calls */
+    while (result != NULL && result->type == LISP_TAIL_CALL) {
+        LispObject *func = result->value.tail_call.func;
+        LispObject *args = result->value.tail_call.args;
+        /* Execute the tail call (in_tail_position=0 to actually run it) */
+        /* But the body evaluation will still use in_tail_position=1 for last expr */
+        result = apply(func, args, env, 0);
+    }
+
+    return result;
+}
+
+/* Internal eval function with tail position tracking */
+static LispObject *lisp_eval_internal(LispObject *expr, Environment *env, int in_tail_position) {
     if (expr == NULL || expr == NIL) {
         return NIL;
     }
@@ -50,13 +68,17 @@ LispObject *lisp_eval(LispObject *expr, Environment *env) {
     }
 
     case LISP_CONS:
-        return eval_list(expr, env);
+        return eval_list(expr, env, in_tail_position);
+
+    case LISP_TAIL_CALL:
+        /* Should never evaluate a tail call directly */
+        return lisp_make_error("Internal error: evaluating tail call object");
     }
 
     return lisp_make_error("Unknown expression type");
 }
 
-static LispObject *eval_list(LispObject *list, Environment *env) {
+static LispObject *eval_list(LispObject *list, Environment *env, int in_tail_position) {
     if (list == NIL) {
         return NIL;
     }
@@ -66,7 +88,7 @@ static LispObject *eval_list(LispObject *list, Environment *env) {
         return lisp_make_error("Empty list in function position");
     }
 
-    /* Check for special forms */
+    /* Check for special forms - these propagate tail position */
     if (first->type == LISP_SYMBOL) {
         if (strcmp(first->value.symbol, "quote") == 0) {
             LispObject *rest = lisp_cdr(list);
@@ -77,7 +99,7 @@ static LispObject *eval_list(LispObject *list, Environment *env) {
         }
 
         if (strcmp(first->value.symbol, "if") == 0) {
-            return eval_if(lisp_cdr(list), env);
+            return eval_if(lisp_cdr(list), env, in_tail_position);
         }
 
         if (strcmp(first->value.symbol, "define") == 0) {
@@ -93,15 +115,15 @@ static LispObject *eval_list(LispObject *list, Environment *env) {
         }
 
         if (strcmp(first->value.symbol, "let") == 0) {
-            return eval_let(lisp_cdr(list), env);
+            return eval_let(lisp_cdr(list), env, in_tail_position);
         }
 
         if (strcmp(first->value.symbol, "let*") == 0) {
-            return eval_let_star(lisp_cdr(list), env);
+            return eval_let_star(lisp_cdr(list), env, in_tail_position);
         }
 
         if (strcmp(first->value.symbol, "progn") == 0) {
-            return eval_progn(lisp_cdr(list), env);
+            return eval_progn(lisp_cdr(list), env, in_tail_position);
         }
 
         if (strcmp(first->value.symbol, "do") == 0) {
@@ -109,28 +131,28 @@ static LispObject *eval_list(LispObject *list, Environment *env) {
         }
 
         if (strcmp(first->value.symbol, "cond") == 0) {
-            return eval_cond(lisp_cdr(list), env);
+            return eval_cond(lisp_cdr(list), env, in_tail_position);
         }
 
         if (strcmp(first->value.symbol, "case") == 0) {
-            return eval_case(lisp_cdr(list), env);
+            return eval_case(lisp_cdr(list), env, in_tail_position);
         }
     }
 
     /* Function application */
-    LispObject *func = lisp_eval(first, env);
+    LispObject *func = lisp_eval_internal(first, env, 0);
     if (func->type == LISP_ERROR) {
         return func;
     }
 
-    /* Evaluate arguments */
+    /* Evaluate arguments (never in tail position) */
     LispObject *evaled_args = NIL;
     LispObject *tail = NULL;
     LispObject *args = lisp_cdr(list);
 
     while (args != NIL && args != NULL) {
         LispObject *arg = lisp_car(args);
-        LispObject *evaled = lisp_eval(arg, env);
+        LispObject *evaled = lisp_eval_internal(arg, env, 0);
 
         if (evaled->type == LISP_ERROR) {
             return evaled;
@@ -148,10 +170,11 @@ static LispObject *eval_list(LispObject *list, Environment *env) {
         args = lisp_cdr(args);
     }
 
-    return apply(func, evaled_args, env);
+    /* Apply with tail position flag */
+    return apply(func, evaled_args, env, in_tail_position);
 }
 
-static LispObject *eval_if(LispObject *args, Environment *env) {
+static LispObject *eval_if(LispObject *args, Environment *env, int in_tail_position) {
     if (args == NIL) {
         return lisp_make_error("if requires at least 2 arguments");
     }
@@ -167,15 +190,17 @@ static LispObject *eval_if(LispObject *args, Environment *env) {
     LispObject *else_rest = lisp_cdr(rest);
     LispObject *else_expr = (else_rest != NIL) ? lisp_car(else_rest) : NIL;
 
-    LispObject *cond_val = lisp_eval(cond, env);
+    /* Condition is never in tail position */
+    LispObject *cond_val = lisp_eval_internal(cond, env, 0);
     if (cond_val->type == LISP_ERROR) {
         return cond_val;
     }
 
+    /* Both branches ARE in tail position if parent is */
     if (lisp_is_truthy(cond_val)) {
-        return lisp_eval(then_expr, env);
+        return lisp_eval_internal(then_expr, env, in_tail_position);
     } else {
-        return lisp_eval(else_expr, env);
+        return lisp_eval_internal(else_expr, env, in_tail_position);
     }
 }
 
@@ -195,7 +220,7 @@ static LispObject *eval_define(LispObject *args, Environment *env) {
     }
 
     LispObject *value_expr = lisp_car(rest);
-    LispObject *value = lisp_eval(value_expr, env);
+    LispObject *value = lisp_eval_internal(value_expr, env, 0);
 
     if (value->type == LISP_ERROR) {
         return value;
@@ -226,7 +251,7 @@ static LispObject *eval_set_bang(LispObject *args, Environment *env) {
     }
 
     LispObject *value_expr = lisp_car(rest);
-    LispObject *value = lisp_eval(value_expr, env);
+    LispObject *value = lisp_eval_internal(value_expr, env, 0);
 
     if (value->type == LISP_ERROR) {
         return value;
@@ -261,7 +286,7 @@ static LispObject *eval_lambda(LispObject *args, Environment *env) {
     return lisp_make_lambda(params, body, env, NULL);
 }
 
-static LispObject *eval_let(LispObject *args, Environment *env) {
+static LispObject *eval_let(LispObject *args, Environment *env, int in_tail_position) {
     if (args == NIL) {
         return lisp_make_error("let requires at least 2 arguments");
     }
@@ -276,7 +301,7 @@ static LispObject *eval_let(LispObject *args, Environment *env) {
     /* Create new environment */
     Environment *new_env = env_create(env);
 
-    /* Process bindings */
+    /* Process bindings - values are evaluated in parent environment */
     while (bindings != NIL && bindings != NULL) {
         LispObject *binding = lisp_car(bindings);
 
@@ -295,7 +320,7 @@ static LispObject *eval_let(LispObject *args, Environment *env) {
         }
 
         LispObject *value_expr = lisp_car(value_list);
-        LispObject *value = lisp_eval(value_expr, env);
+        LispObject *value = lisp_eval_internal(value_expr, env, 0);
 
         if (value->type == LISP_ERROR) {
             return value;
@@ -305,11 +330,11 @@ static LispObject *eval_let(LispObject *args, Environment *env) {
         bindings = lisp_cdr(bindings);
     }
 
-    /* Evaluate body expressions like progn - return last value */
-    return eval_progn(body, new_env);
+    /* Evaluate body expressions like progn - tail position propagates */
+    return eval_progn(body, new_env, in_tail_position);
 }
 
-static LispObject *eval_let_star(LispObject *args, Environment *env) {
+static LispObject *eval_let_star(LispObject *args, Environment *env, int in_tail_position) {
     if (args == NIL) {
         return lisp_make_error("let* requires at least 2 arguments");
     }
@@ -345,7 +370,7 @@ static LispObject *eval_let_star(LispObject *args, Environment *env) {
         LispObject *value_expr = lisp_car(value_list);
 
         /* Evaluate in the new_env (which includes previous bindings) */
-        LispObject *value = lisp_eval(value_expr, new_env);
+        LispObject *value = lisp_eval_internal(value_expr, new_env, 0);
 
         if (value->type == LISP_ERROR) {
             return value;
@@ -355,11 +380,11 @@ static LispObject *eval_let_star(LispObject *args, Environment *env) {
         bindings = lisp_cdr(bindings);
     }
 
-    /* Evaluate body expressions like progn - return last value */
-    return eval_progn(body, new_env);
+    /* Evaluate body expressions like progn - tail position propagates */
+    return eval_progn(body, new_env, in_tail_position);
 }
 
-static LispObject *eval_progn(LispObject *args, Environment *env) {
+static LispObject *eval_progn(LispObject *args, Environment *env, int in_tail_position) {
     if (args == NIL) {
         return NIL;
     }
@@ -368,13 +393,19 @@ static LispObject *eval_progn(LispObject *args, Environment *env) {
 
     while (args != NIL && args != NULL) {
         LispObject *expr = lisp_car(args);
-        result = lisp_eval(expr, env);
+        LispObject *rest = lisp_cdr(args);
+
+        /* Only the LAST expression is in tail position */
+        int is_last = (rest == NIL || rest == NULL);
+        int expr_in_tail = in_tail_position && is_last;
+
+        result = lisp_eval_internal(expr, env, expr_in_tail);
 
         if (result->type == LISP_ERROR) {
             return result;
         }
 
-        args = lisp_cdr(args);
+        args = rest;
     }
 
     return result;
@@ -429,7 +460,7 @@ static LispObject *eval_do(LispObject *args, Environment *env) {
         }
 
         LispObject *init_val = lisp_car(init_list);
-        LispObject *init_result = lisp_eval(init_val, env);
+        LispObject *init_result = lisp_eval_internal(init_val, env, 0);
 
         if (init_result->type == LISP_ERROR) {
             return init_result;
@@ -442,7 +473,7 @@ static LispObject *eval_do(LispObject *args, Environment *env) {
     /* Main loop */
     while (1) {
         /* Evaluate test condition */
-        LispObject *test_result = lisp_eval(test_expr, loop_env);
+        LispObject *test_result = lisp_eval_internal(test_expr, loop_env, 0);
         if (test_result->type == LISP_ERROR) {
             return test_result;
         }
@@ -450,7 +481,7 @@ static LispObject *eval_do(LispObject *args, Environment *env) {
         /* If test is true, evaluate and return result expression */
         if (lisp_is_truthy(test_result)) {
             if (result_expr != NIL) {
-                return lisp_eval(result_expr, loop_env);
+                return lisp_eval_internal(result_expr, loop_env, 0);
             }
             return NIL;
         }
@@ -459,7 +490,7 @@ static LispObject *eval_do(LispObject *args, Environment *env) {
         LispObject *body = body_exprs;
         while (body != NIL && body != NULL) {
             LispObject *body_expr = lisp_car(body);
-            LispObject *body_result = lisp_eval(body_expr, loop_env);
+            LispObject *body_result = lisp_eval_internal(body_expr, loop_env, 0);
 
             if (body_result->type == LISP_ERROR) {
                 return body_result;
@@ -479,7 +510,7 @@ static LispObject *eval_do(LispObject *args, Environment *env) {
             LispObject *step_list = lisp_cdr(init_list);
             if (step_list != NIL) {
                 LispObject *step_val = lisp_car(step_list);
-                LispObject *step_result = lisp_eval(step_val, loop_env);
+                LispObject *step_result = lisp_eval_internal(step_val, loop_env, 0);
 
                 if (step_result->type == LISP_ERROR) {
                     return step_result;
@@ -494,7 +525,7 @@ static LispObject *eval_do(LispObject *args, Environment *env) {
     }
 }
 
-static LispObject *eval_cond(LispObject *args, Environment *env) {
+static LispObject *eval_cond(LispObject *args, Environment *env, int in_tail_position) {
     if (args == NIL) {
         return NIL;
     }
@@ -512,21 +543,22 @@ static LispObject *eval_cond(LispObject *args, Environment *env) {
         /* Check for 'else' */
         if (test->type == LISP_SYMBOL && strcmp(test->value.symbol, "else") == 0) {
             if (result != NIL && result != NULL) {
-                return lisp_eval(lisp_car(result), env);
+                /* Else clause result is in tail position */
+                return lisp_eval_internal(lisp_car(result), env, in_tail_position);
             }
             return NIL;
         }
 
-        /* Evaluate test */
-        LispObject *test_result = lisp_eval(test, env);
+        /* Evaluate test (not in tail position) */
+        LispObject *test_result = lisp_eval_internal(test, env, 0);
         if (test_result->type == LISP_ERROR) {
             return test_result;
         }
 
-        /* If true, evaluate and return result */
+        /* If true, evaluate and return result (in tail position) */
         if (lisp_is_truthy(test_result)) {
             if (result != NIL && result != NULL) {
-                return lisp_eval(lisp_car(result), env);
+                return lisp_eval_internal(lisp_car(result), env, in_tail_position);
             }
             return test_result;
         }
@@ -558,13 +590,13 @@ static int objects_equal(LispObject *a, LispObject *b) {
     }
 }
 
-static LispObject *eval_case(LispObject *args, Environment *env) {
+static LispObject *eval_case(LispObject *args, Environment *env, int in_tail_position) {
     if (args == NIL) {
         return lisp_make_error("case requires at least 1 argument");
     }
 
-    /* Evaluate key expression once */
-    LispObject *key = lisp_eval(lisp_car(args), env);
+    /* Evaluate key expression once (not in tail position) */
+    LispObject *key = lisp_eval_internal(lisp_car(args), env, 0);
     if (key->type == LISP_ERROR) {
         return key;
     }
@@ -584,7 +616,8 @@ static LispObject *eval_case(LispObject *args, Environment *env) {
         /* Check for 'else' */
         if (values->type == LISP_SYMBOL && strcmp(values->value.symbol, "else") == 0) {
             if (result != NIL && result != NULL) {
-                return lisp_eval(lisp_car(result), env);
+                /* Else clause result is in tail position */
+                return lisp_eval_internal(lisp_car(result), env, in_tail_position);
             }
             return NIL;
         }
@@ -594,7 +627,7 @@ static LispObject *eval_case(LispObject *args, Environment *env) {
             LispObject *val_list = values;
             while (val_list != NIL && val_list != NULL) {
                 LispObject *val = lisp_car(val_list);
-                LispObject *val_result = lisp_eval(val, env);
+                LispObject *val_result = lisp_eval_internal(val, env, 0);
 
                 if (val_result->type == LISP_ERROR) {
                     return val_result;
@@ -602,7 +635,8 @@ static LispObject *eval_case(LispObject *args, Environment *env) {
 
                 if (objects_equal(key, val_result)) {
                     if (result != NIL && result != NULL) {
-                        return lisp_eval(lisp_car(result), env);
+                        /* Matching clause result is in tail position */
+                        return lisp_eval_internal(lisp_car(result), env, in_tail_position);
                     }
                     return NIL;
                 }
@@ -617,8 +651,9 @@ static LispObject *eval_case(LispObject *args, Environment *env) {
     return NIL;
 }
 
-static LispObject *apply(LispObject *func, LispObject *args, Environment *env) {
+static LispObject *apply(LispObject *func, LispObject *args, Environment *env, int in_tail_position) {
     if (func->type == LISP_BUILTIN) {
+        /* Builtins are never tail-called (C boundary) */
         /* Push call frame for builtin */
         push_call_frame(env, func->value.builtin.name);
 
@@ -639,6 +674,12 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env) {
     }
 
     if (func->type == LISP_LAMBDA) {
+        /* If in tail position, return a tail call continuation */
+        if (in_tail_position) {
+            return lisp_make_tail_call(func, args);
+        }
+
+        /* Not in tail position - execute normally */
         /* Create new environment with closure as parent */
         Environment *new_env = env_create(func->value.lambda.closure);
         if (env && env->call_stack != NULL) {
@@ -703,21 +744,21 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env) {
             return err;
         }
 
-        /* Evaluate all body expressions like progn (implicit progn) */
-        LispObject *result = NIL;
-        LispObject *body = func->value.lambda.body;
+        /* Evaluate body with tail position awareness (implicit progn) */
+        /* Last expression in body is always in tail position (for non-tail calls) */
+        LispObject *result = eval_progn(func->value.lambda.body, new_env, 1);
 
-        while (body != NIL && body != NULL) {
-            LispObject *expr = lisp_car(body);
-            result = lisp_eval(expr, new_env);
+        /* Trampoline loop: unwrap any tail calls before returning */
+        while (result != NULL && result->type == LISP_TAIL_CALL) {
+            LispObject *tail_func = result->value.tail_call.func;
+            LispObject *tail_args = result->value.tail_call.args;
+            result = apply(tail_func, tail_args, new_env, 0);
+        }
 
-            if (result->type == LISP_ERROR) {
-                result = lisp_attach_stack_trace(result, new_env);
-                pop_call_frame(new_env);
-                return result;
-            }
-
-            body = lisp_cdr(body);
+        if (result->type == LISP_ERROR) {
+            result = lisp_attach_stack_trace(result, new_env);
+            pop_call_frame(new_env);
+            return result;
         }
 
         /* Pop frame */

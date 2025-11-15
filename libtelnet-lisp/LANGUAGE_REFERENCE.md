@@ -12,6 +12,7 @@ A reference for the Telnet Lisp language, covering data types, special forms, bu
 - [Truthy/Falsy Values](#truthyfalsy-values)
 - [Pattern Matching](#pattern-matching)
 - [Error Handling](#error-handling)
+- [Tail Recursion Optimization](#tail-recursion-optimization)
 - [Quick Examples](#quick-examples)
 
 ## Data Types
@@ -32,7 +33,7 @@ A reference for the Telnet Lisp language, covering data types, special forms, bu
 - `if` - Conditional evaluation
 - `define` - Define variables and functions
 - `set!` - Mutate existing variables (works inside lambdas/hooks)
-- `lambda` - Create anonymous functions with parameters (body has implicit progn: evaluates all expressions, returns last)
+- `lambda` - Create anonymous functions with parameters (body has implicit progn: evaluates all expressions, returns last with tail recursion optimization)
 - `let` - Local variable bindings (parallel evaluation, body has implicit progn)
 - `let*` - Local variable bindings (sequential evaluation, can reference previous bindings, body has implicit progn)
 - `progn` - Evaluate multiple expressions sequentially and return last value
@@ -276,6 +277,137 @@ Errors propagate automatically through:
 The call stack trace shows the full path from the error source to the top level, making debugging easier.
 
 **Note**: Telnet Lisp currently does not have try-catch or exception handling constructs. Errors propagate to the top level and terminate evaluation. This may be enhanced in future versions.
+
+## Tail Recursion Optimization
+
+Telnet Lisp implements **tail call optimization** (TCO) using a trampoline-based approach. This allows recursive functions to execute without growing the call stack, enabling efficient recursive algorithms that would otherwise cause stack overflow.
+
+### What is Tail Position?
+
+An expression is in **tail position** if it is the last operation performed before returning from a function. The result of a tail-positioned expression becomes the return value of the enclosing function without any further computation.
+
+**Tail position locations:**
+- Last expression in a lambda body
+- Last expression in `progn`, `let`, `let*`
+- Both branches of `if` (then and else)
+- Return expressions in `cond` and `case` clauses
+- Body of `do` loop (result expression)
+
+**NOT in tail position:**
+- Arguments to function calls: `(+ 1 (factorial 5))` - factorial call is NOT in tail position
+- Non-final expressions in sequence
+- Operands of arithmetic or comparison operators
+
+### How It Works
+
+When a function call appears in tail position, instead of executing it immediately and growing the stack, the interpreter:
+1. Creates a tail call object with the function and its evaluated arguments
+2. Returns this object to the trampoline loop
+3. The trampoline unwraps and executes the call iteratively
+
+This converts deep recursion into iteration at the interpreter level.
+
+### Examples
+
+**Tail-recursive factorial:**
+```lisp
+;; Tail-recursive with accumulator
+(define factorial-tail
+  (lambda (n acc)
+    (if (<= n 1)
+        acc
+        (factorial-tail (- n 1) (* n acc)))))
+
+(define factorial
+  (lambda (n)
+    (factorial-tail n 1)))
+
+(factorial 10)      ; => 3628800
+(factorial 1000)    ; Works without stack overflow!
+```
+
+**Tail-recursive fibonacci:**
+```lisp
+(define fib-iter
+  (lambda (n a b)
+    (if (= n 0)
+        a
+        (fib-iter (- n 1) b (+ a b)))))
+
+(define fibonacci
+  (lambda (n)
+    (fib-iter n 0 1)))
+
+(fibonacci 20)      ; => 6765
+(fibonacci 100)     ; => 354224848179262000000
+```
+
+**Mutually recursive functions:**
+```lisp
+(define even?
+  (lambda (n)
+    (if (= n 0)
+        #t
+        (odd? (- n 1)))))
+
+(define odd?
+  (lambda (n)
+    (if (= n 0)
+        #f
+        (even? (- n 1)))))
+
+(even? 1000)        ; => #t (works without stack overflow)
+```
+
+**Helper function in tail position:**
+```lisp
+(define format-result
+  (lambda (x)
+    (string-append "Result: " (number->string x))))
+
+(define compute-and-format
+  (lambda (x y)
+    (if (> x y)
+        (format-result (* x y))    ; Tail call
+        (format-result (+ x y))))) ; Tail call
+
+(compute-and-format 10 5)  ; => "Result: 50"
+```
+
+### Non-Tail Recursion (Still Works)
+
+Non-tail recursive functions still work but use stack space:
+
+```lisp
+;; NOT tail-recursive (multiplication happens after recursive call)
+(define factorial-normal
+  (lambda (n)
+    (if (<= n 1)
+        1
+        (* n (factorial-normal (- n 1))))))  ; NOT in tail position
+
+(factorial-normal 10)   ; => 3628800 (works but uses stack)
+```
+
+### Benefits
+
+- **No stack overflow**: Recursive algorithms can run indefinitely
+- **Constant memory**: Stack size remains constant regardless of recursion depth
+- **Performance**: Recursion is as efficient as iteration
+- **Functional style**: Write clean recursive code without worrying about stack limits
+
+### When to Use
+
+Use tail recursion when:
+- Implementing recursive algorithms (factorial, fibonacci, tree traversal)
+- Processing lists recursively
+- State machines with recursive state transitions
+- Any algorithm that would naturally use iteration
+
+Convert to tail recursion by:
+- Adding accumulator parameters
+- Passing partial results down instead of building up on return
+- Ensuring recursive call is the last operation
 
 ## Quick Examples
 

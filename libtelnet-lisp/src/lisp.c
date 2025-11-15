@@ -94,6 +94,14 @@ LispObject *lisp_make_lambda(LispObject *params, LispObject *body, Environment *
     return obj;
 }
 
+LispObject *lisp_make_tail_call(LispObject *func, LispObject *args) {
+    LispObject *obj = GC_malloc(sizeof(LispObject));
+    obj->type = LISP_TAIL_CALL;
+    obj->value.tail_call.func = func;
+    obj->value.tail_call.args = args;
+    return obj;
+}
+
 /* Object utilities */
 int lisp_is_truthy(LispObject *obj) {
     if (obj == NULL || obj == NIL) {

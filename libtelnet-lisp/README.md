@@ -17,6 +17,7 @@ See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for all function listings
 
 ### Advanced Features
 
+- **Tail Call Optimization**: Trampoline-based tail recursion enables efficient recursive algorithms without stack overflow
 - **Lexical Scoping**: Lambdas capture their environment
 - **First-Class Functions**: Functions can be passed as arguments
 - **Higher-Order Functions**: Functions that operate on functions
@@ -264,6 +265,7 @@ The `tests/` directory contains validated examples that serve as both documentat
 
 **Advanced Features:**
 
+- `tests/advanced/tail_recursion.lisp` - Tail call optimization examples (factorial, fibonacci, mutual recursion)
 - `tests/advanced/named_functions.lisp` - Named function definitions
 - `tests/advanced/do_loop.lisp` - Iteration with `do` loops
 - `tests/advanced/cond_case.lisp` - Multi-way conditionals
@@ -274,6 +276,9 @@ The `tests/` directory contains validated examples that serve as both documentat
 
 **Regression Tests:**
 
+- `tests/regression/tail_call_unwrap.lisp` - Tail call unwrapping regression tests
+- `tests/regression/tail_call_basic.lisp` - Basic tail call scenarios
+- `tests/regression/simple_tail.lisp` - Minimal tail call test
 - `tests/regression/core_features.lisp` - Core feature tests
 - `tests/regression/multiline_parsing.lisp` - Multi-line expression parsing
 
@@ -369,6 +374,7 @@ Potential additions for future versions:
 
 ### Recently Completed ✨
 
+- **Tail Call Optimization**: Trampoline-based tail recursion for efficient recursive algorithms without stack overflow
 - **UTF-8 Support**: Full Unicode string support with character-based operations (`string-length`, `substring`, `string-ref`)
 - **Enhanced File I/O**: Support for Unix, Windows, and Mac line endings
 - **Improved REPL File Mode**: Now prints all expression results when running files
@@ -390,7 +396,7 @@ Potential additions for future versions:
 
 ### High Priority
 
-- Tail call optimization for better recursion performance
+- Exception handling (`try-catch`) for error recovery
 
 ### Medium Priority
 
@@ -402,5 +408,4 @@ Potential additions for future versions:
 
 - Additional list operations (reverse, append, map, filter, fold)
 - Modules/packages for code organization
-- Exception handling (`try-catch`)
 - Namespaces for variable organization

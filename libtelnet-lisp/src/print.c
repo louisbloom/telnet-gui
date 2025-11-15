@@ -111,6 +111,10 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
     case LISP_FILE_STREAM:
         append_str(buffer, size, pos, "#<file-stream>");
         break;
+
+    case LISP_TAIL_CALL:
+        append_str(buffer, size, pos, "#<tail-call>");
+        break;
     }
 }
 
@@ -233,6 +237,10 @@ static void princ_object(LispObject *obj) {
 
     case LISP_FILE_STREAM:
         printf("#<file-stream>");
+        break;
+
+    case LISP_TAIL_CALL:
+        printf("#<tail-call>");
         break;
     }
 }

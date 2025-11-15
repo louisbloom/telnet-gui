@@ -34,7 +34,8 @@ typedef enum {
     LISP_ERROR,
     LISP_FILE_STREAM,
     LISP_VECTOR,
-    LISP_HASH_TABLE
+    LISP_HASH_TABLE,
+    LISP_TAIL_CALL
 } LispType;
 
 /* Built-in function pointer type */
@@ -80,6 +81,10 @@ struct LispObject {
             char *error;
             LispObject *stack_trace; /* List of function names */
         } error_with_stack;
+        struct {
+            LispObject *func;  /* Function to call in tail position */
+            LispObject *args;  /* Already-evaluated arguments */
+        } tail_call;
     } value;
 };
 
@@ -124,6 +129,7 @@ LispObject *lisp_make_lambda(LispObject *params, LispObject *body, Environment *
 LispObject *lisp_make_file_stream(FILE *file);
 LispObject *lisp_make_vector(size_t capacity);
 LispObject *lisp_make_hash_table(void);
+LispObject *lisp_make_tail_call(LispObject *func, LispObject *args);
 
 /* Hash table entry structure */
 struct HashEntry {
