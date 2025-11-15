@@ -560,13 +560,17 @@ int main(int argc, char **argv) {
                 SDL_Scancode scancode = event.key.keysym.scancode;
                 SDL_Keymod mod = event.key.keysym.mod;
 
+                /* Accept tab completion if active, except for TAB (cycles), ESC (cancels), and Ctrl+G (cancels) */
+                if (lisp_bridge_is_tab_mode_active()) {
+                    if (scancode != SDL_SCANCODE_TAB && scancode != SDL_SCANCODE_ESCAPE &&
+                        !(scancode == SDL_SCANCODE_G && (mod & KMOD_CTRL))) {
+                        lisp_bridge_accept_tab_completion();
+                    }
+                }
+
                 switch (scancode) {
                 case SDL_SCANCODE_RETURN:
                 case SDL_SCANCODE_KP_ENTER: {
-                    /* Accept tab completion if active */
-                    if (lisp_bridge_is_tab_mode_active()) {
-                        lisp_bridge_accept_tab_completion();
-                    }
                     /* Send input area text to terminal and telnet */
                     int length = input_area_get_length(&input_area);
                     if (length > 0) {
@@ -614,26 +618,14 @@ int main(int argc, char **argv) {
                     break;
                 }
                 case SDL_SCANCODE_BACKSPACE: {
-                    /* Accept tab completion if active */
-                    if (lisp_bridge_is_tab_mode_active()) {
-                        lisp_bridge_accept_tab_completion();
-                    }
                     input_area_backspace(&input_area);
                     break;
                 }
                 case SDL_SCANCODE_DELETE: {
-                    /* Accept tab completion if active */
-                    if (lisp_bridge_is_tab_mode_active()) {
-                        lisp_bridge_accept_tab_completion();
-                    }
                     input_area_delete_char(&input_area);
                     break;
                 }
                 case SDL_SCANCODE_LEFT: {
-                    /* Accept tab completion if active */
-                    if (lisp_bridge_is_tab_mode_active()) {
-                        lisp_bridge_accept_tab_completion();
-                    }
                     if (mod & KMOD_CTRL) {
                         input_area_move_cursor_word_left(&input_area);
                     } else {
@@ -642,10 +634,6 @@ int main(int argc, char **argv) {
                     break;
                 }
                 case SDL_SCANCODE_RIGHT: {
-                    /* Accept tab completion if active */
-                    if (lisp_bridge_is_tab_mode_active()) {
-                        lisp_bridge_accept_tab_completion();
-                    }
                     if (mod & KMOD_CTRL) {
                         input_area_move_cursor_word_right(&input_area);
                     } else {
@@ -654,93 +642,53 @@ int main(int argc, char **argv) {
                     break;
                 }
                 case SDL_SCANCODE_UP: {
-                    /* Accept tab completion if active */
-                    if (lisp_bridge_is_tab_mode_active()) {
-                        lisp_bridge_accept_tab_completion();
-                    }
                     input_area_history_prev(&input_area);
                     break;
                 }
                 case SDL_SCANCODE_DOWN: {
-                    /* Accept tab completion if active */
-                    if (lisp_bridge_is_tab_mode_active()) {
-                        lisp_bridge_accept_tab_completion();
-                    }
                     input_area_history_next(&input_area);
                     break;
                 }
                 case SDL_SCANCODE_HOME: {
-                    /* Accept tab completion if active */
-                    if (lisp_bridge_is_tab_mode_active()) {
-                        lisp_bridge_accept_tab_completion();
-                    }
                     input_area_move_cursor_home(&input_area);
                     break;
                 }
                 case SDL_SCANCODE_END: {
-                    /* Accept tab completion if active */
-                    if (lisp_bridge_is_tab_mode_active()) {
-                        lisp_bridge_accept_tab_completion();
-                    }
                     input_area_move_cursor_end(&input_area);
                     break;
                 }
                 case SDL_SCANCODE_A: {
                     if (mod & KMOD_CTRL) {
-                        /* Accept tab completion if active */
-                        if (lisp_bridge_is_tab_mode_active()) {
-                            lisp_bridge_accept_tab_completion();
-                        }
                         input_area_move_cursor_beginning(&input_area);
                     }
                     break;
                 }
                 case SDL_SCANCODE_E: {
                     if (mod & KMOD_CTRL) {
-                        /* Accept tab completion if active */
-                        if (lisp_bridge_is_tab_mode_active()) {
-                            lisp_bridge_accept_tab_completion();
-                        }
                         input_area_move_cursor_end_line(&input_area);
                     }
                     break;
                 }
                 case SDL_SCANCODE_K: {
                     if (mod & KMOD_CTRL) {
-                        /* Accept tab completion if active */
-                        if (lisp_bridge_is_tab_mode_active()) {
-                            lisp_bridge_accept_tab_completion();
-                        }
                         input_area_kill_to_end(&input_area);
                     }
                     break;
                 }
                 case SDL_SCANCODE_U: {
                     if (mod & KMOD_CTRL) {
-                        /* Accept tab completion if active */
-                        if (lisp_bridge_is_tab_mode_active()) {
-                            lisp_bridge_accept_tab_completion();
-                        }
                         input_area_kill_from_start(&input_area);
                     }
                     break;
                 }
                 case SDL_SCANCODE_W: {
                     if (mod & KMOD_CTRL) {
-                        /* Accept tab completion if active */
-                        if (lisp_bridge_is_tab_mode_active()) {
-                            lisp_bridge_accept_tab_completion();
-                        }
                         input_area_kill_word(&input_area);
                     }
                     break;
                 }
                 case SDL_SCANCODE_Y: {
                     if (mod & KMOD_CTRL) {
-                        /* Accept tab completion if active */
-                        if (lisp_bridge_is_tab_mode_active()) {
-                            lisp_bridge_accept_tab_completion();
-                        }
                         input_area_yank(&input_area);
                     }
                     break;
