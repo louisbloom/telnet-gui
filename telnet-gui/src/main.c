@@ -559,6 +559,10 @@ int main(int argc, char **argv) {
                 switch (scancode) {
                 case SDL_SCANCODE_RETURN:
                 case SDL_SCANCODE_KP_ENTER: {
+                    /* Accept tab completion if active */
+                    if (lisp_bridge_is_tab_mode_active()) {
+                        lisp_bridge_accept_tab_completion();
+                    }
                     /* Send input area text to terminal and telnet */
                     int length = input_area_get_length(&input_area);
                     if (length > 0) {
@@ -596,14 +600,26 @@ int main(int argc, char **argv) {
                     break;
                 }
                 case SDL_SCANCODE_BACKSPACE: {
+                    /* Accept tab completion if active */
+                    if (lisp_bridge_is_tab_mode_active()) {
+                        lisp_bridge_accept_tab_completion();
+                    }
                     input_area_backspace(&input_area);
                     break;
                 }
                 case SDL_SCANCODE_DELETE: {
+                    /* Accept tab completion if active */
+                    if (lisp_bridge_is_tab_mode_active()) {
+                        lisp_bridge_accept_tab_completion();
+                    }
                     input_area_delete_char(&input_area);
                     break;
                 }
                 case SDL_SCANCODE_LEFT: {
+                    /* Accept tab completion if active */
+                    if (lisp_bridge_is_tab_mode_active()) {
+                        lisp_bridge_accept_tab_completion();
+                    }
                     if (mod & KMOD_CTRL) {
                         input_area_move_cursor_word_left(&input_area);
                     } else {
@@ -612,6 +628,10 @@ int main(int argc, char **argv) {
                     break;
                 }
                 case SDL_SCANCODE_RIGHT: {
+                    /* Accept tab completion if active */
+                    if (lisp_bridge_is_tab_mode_active()) {
+                        lisp_bridge_accept_tab_completion();
+                    }
                     if (mod & KMOD_CTRL) {
                         input_area_move_cursor_word_right(&input_area);
                     } else {
@@ -620,54 +640,110 @@ int main(int argc, char **argv) {
                     break;
                 }
                 case SDL_SCANCODE_UP: {
+                    /* Accept tab completion if active */
+                    if (lisp_bridge_is_tab_mode_active()) {
+                        lisp_bridge_accept_tab_completion();
+                    }
                     input_area_history_prev(&input_area);
                     break;
                 }
                 case SDL_SCANCODE_DOWN: {
+                    /* Accept tab completion if active */
+                    if (lisp_bridge_is_tab_mode_active()) {
+                        lisp_bridge_accept_tab_completion();
+                    }
                     input_area_history_next(&input_area);
                     break;
                 }
                 case SDL_SCANCODE_HOME: {
+                    /* Accept tab completion if active */
+                    if (lisp_bridge_is_tab_mode_active()) {
+                        lisp_bridge_accept_tab_completion();
+                    }
                     input_area_move_cursor_home(&input_area);
                     break;
                 }
                 case SDL_SCANCODE_END: {
+                    /* Accept tab completion if active */
+                    if (lisp_bridge_is_tab_mode_active()) {
+                        lisp_bridge_accept_tab_completion();
+                    }
                     input_area_move_cursor_end(&input_area);
                     break;
                 }
                 case SDL_SCANCODE_A: {
                     if (mod & KMOD_CTRL) {
+                        /* Accept tab completion if active */
+                        if (lisp_bridge_is_tab_mode_active()) {
+                            lisp_bridge_accept_tab_completion();
+                        }
                         input_area_move_cursor_beginning(&input_area);
                     }
                     break;
                 }
                 case SDL_SCANCODE_E: {
                     if (mod & KMOD_CTRL) {
+                        /* Accept tab completion if active */
+                        if (lisp_bridge_is_tab_mode_active()) {
+                            lisp_bridge_accept_tab_completion();
+                        }
                         input_area_move_cursor_end_line(&input_area);
                     }
                     break;
                 }
                 case SDL_SCANCODE_K: {
                     if (mod & KMOD_CTRL) {
+                        /* Accept tab completion if active */
+                        if (lisp_bridge_is_tab_mode_active()) {
+                            lisp_bridge_accept_tab_completion();
+                        }
                         input_area_kill_to_end(&input_area);
                     }
                     break;
                 }
                 case SDL_SCANCODE_U: {
                     if (mod & KMOD_CTRL) {
+                        /* Accept tab completion if active */
+                        if (lisp_bridge_is_tab_mode_active()) {
+                            lisp_bridge_accept_tab_completion();
+                        }
                         input_area_kill_from_start(&input_area);
                     }
                     break;
                 }
                 case SDL_SCANCODE_W: {
                     if (mod & KMOD_CTRL) {
+                        /* Accept tab completion if active */
+                        if (lisp_bridge_is_tab_mode_active()) {
+                            lisp_bridge_accept_tab_completion();
+                        }
                         input_area_kill_word(&input_area);
                     }
                     break;
                 }
                 case SDL_SCANCODE_Y: {
                     if (mod & KMOD_CTRL) {
+                        /* Accept tab completion if active */
+                        if (lisp_bridge_is_tab_mode_active()) {
+                            lisp_bridge_accept_tab_completion();
+                        }
                         input_area_yank(&input_area);
+                    }
+                    break;
+                }
+                case SDL_SCANCODE_G: {
+                    if (mod & KMOD_CTRL) {
+                        /* Ctrl+G: Cancel tab completion and revert */
+                        if (lisp_bridge_is_tab_mode_active()) {
+                            int cursor_pos = input_area_get_cursor_pos(&input_area);
+                            int length = input_area_get_length(&input_area);
+                            int needs_redraw = input_area_needs_redraw(&input_area);
+                            char *buffer = input_area_get_buffer(&input_area);
+                            lisp_bridge_cancel_tab_completion(buffer, INPUT_AREA_MAX_LENGTH, &cursor_pos, &length,
+                                                              &needs_redraw);
+                            input_area_sync_state(&input_area);
+                            input_area_move_cursor(&input_area, cursor_pos);
+                        }
                     }
                     break;
                 }
@@ -703,6 +779,20 @@ int main(int argc, char **argv) {
                     input_area_move_cursor(&input_area, cursor_pos);
                     break;
                 }
+                case SDL_SCANCODE_ESCAPE: {
+                    /* ESC: Cancel tab completion and revert */
+                    if (lisp_bridge_is_tab_mode_active()) {
+                        int cursor_pos = input_area_get_cursor_pos(&input_area);
+                        int length = input_area_get_length(&input_area);
+                        int needs_redraw = input_area_needs_redraw(&input_area);
+                        char *buffer = input_area_get_buffer(&input_area);
+                        lisp_bridge_cancel_tab_completion(buffer, INPUT_AREA_MAX_LENGTH, &cursor_pos, &length,
+                                                          &needs_redraw);
+                        input_area_sync_state(&input_area);
+                        input_area_move_cursor(&input_area, cursor_pos);
+                    }
+                    break;
+                }
                 default:
                     /* Other keys are handled by SDL_TEXTINPUT */
                     break;
@@ -711,6 +801,10 @@ int main(int argc, char **argv) {
             }
 
             case SDL_TEXTINPUT: {
+                /* Accept tab completion if active (any text input exits tab mode) */
+                if (lisp_bridge_is_tab_mode_active()) {
+                    lisp_bridge_accept_tab_completion();
+                }
                 /* All text input goes to input area */
                 const char *text = event.text.text;
                 int text_len = strlen(text);

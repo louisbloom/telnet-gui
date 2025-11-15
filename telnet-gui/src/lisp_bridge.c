@@ -14,6 +14,19 @@ static Environment *lisp_env = NULL;
 static char *ansi_strip_buffer = NULL;
 static size_t ansi_strip_buffer_size = 0;
 
+/* Tab completion cycling state */
+#define MAX_COMPLETIONS 256
+#define TAB_BUFFER_SIZE 4096
+static int tab_mode_active = 0;
+static char *tab_completions[MAX_COMPLETIONS]; /* Array of completion strings */
+static int tab_completion_count = 0;
+static int tab_completion_index = 0;
+static char tab_original_buffer[TAB_BUFFER_SIZE]; /* Original buffer before tab mode */
+static int tab_original_cursor_pos = 0;
+static int tab_original_length = 0;
+static int tab_start_pos = 0;   /* Where the partial text starts */
+static int tab_partial_len = 0; /* Length of the partial text */
+
 /* Extract partial text to complete using regex pattern */
 static int extract_partial_text(const char *buffer, int cursor_pos, int length, int *start_pos, int *partial_len) {
     if (!buffer || cursor_pos < 0 || cursor_pos > length || !start_pos || !partial_len) {
@@ -30,86 +43,6 @@ static int extract_partial_text(const char *buffer, int cursor_pos, int length, 
     *start_pos = start;
     *partial_len = cursor_pos - start;
     return 1;
-}
-
-/* Find common prefix from Lisp list of strings */
-static LispObject *find_common_prefix(LispObject *list) {
-    if (!list || list == NIL || list->type != LISP_CONS) {
-        return NIL;
-    }
-
-    /* Get first string */
-    LispObject *first = list->value.cons.car;
-    if (!first || first->type != LISP_STRING) {
-        return NIL;
-    }
-
-    const char *first_str = first->value.string;
-    int first_len = strlen(first_str);
-
-    /* Check if there's a second element */
-    LispObject *rest = list->value.cons.cdr;
-    if (rest == NIL || rest->type != LISP_CONS) {
-        /* Single item: return first string */
-        return first;
-    }
-
-    /* Find minimum length across all strings */
-    int min_len = first_len;
-    LispObject *current = rest;
-    while (current != NIL && current->type == LISP_CONS) {
-        LispObject *car = current->value.cons.car;
-        if (car && car->type == LISP_STRING) {
-            int len = strlen(car->value.string);
-            if (len < min_len) {
-                min_len = len;
-            }
-        } else {
-            return NIL; /* Non-string in list */
-        }
-        current = current->value.cons.cdr;
-    }
-
-    /* Find common prefix */
-    int prefix_len = 0;
-    for (int i = 0; i < min_len; i++) {
-        char c = first_str[i];
-        int match = 1;
-
-        /* Check if all strings have this character */
-        current = rest;
-        while (current != NIL && current->type == LISP_CONS) {
-            LispObject *car = current->value.cons.car;
-            if (car && car->type == LISP_STRING) {
-                if (car->value.string[i] != c) {
-                    match = 0;
-                    break;
-                }
-            } else {
-                return NIL; /* Non-string in list */
-            }
-            current = current->value.cons.cdr;
-        }
-
-        if (!match) {
-            break;
-        }
-        prefix_len++;
-    }
-
-    if (prefix_len == 0) {
-        return NIL;
-    }
-
-    /* Create Lisp string with common prefix using stack buffer */
-    char prefix_buf[1024]; /* Reasonable limit for prefix */
-    if ((size_t)prefix_len >= sizeof(prefix_buf)) {
-        prefix_len = (int)(sizeof(prefix_buf) - 1);
-    }
-    memcpy(prefix_buf, first_str, prefix_len);
-    prefix_buf[prefix_len] = '\0';
-    LispObject *prefix = lisp_make_string(prefix_buf);
-    return prefix;
 }
 
 /* Replace partial text in buffer with completion */
@@ -248,40 +181,6 @@ static LispObject *call_completion_hook(const char *partial_text) {
     }
 
     return result ? result : NIL;
-}
-
-/* Handle completion results */
-static void handle_completion(LispObject *completions, char *buffer, int buffer_size, int *cursor_pos, int *length,
-                              int *needs_redraw, int start_pos, int partial_len) {
-    if (!completions || completions == NIL || completions->type != LISP_CONS || !buffer || !cursor_pos || !length) {
-        return;
-    }
-
-    /* Get first element */
-    LispObject *first = completions->value.cons.car;
-    if (!first || first->type != LISP_STRING) {
-        return; /* Invalid completion */
-    }
-
-    /* Check if there's a second element */
-    LispObject *rest = completions->value.cons.cdr;
-    if (rest == NIL || rest->type != LISP_CONS) {
-        /* Single item: replace partial text with completion */
-        replace_partial_text(buffer, buffer_size, cursor_pos, length, start_pos, partial_len, first->value.string);
-        if (needs_redraw) {
-            *needs_redraw = 1;
-        }
-    } else {
-        /* Multiple items: find common prefix */
-        LispObject *prefix = find_common_prefix(completions);
-        if (prefix && prefix != NIL && prefix->type == LISP_STRING && strlen(prefix->value.string) > 0) {
-            replace_partial_text(buffer, buffer_size, cursor_pos, length, start_pos, partial_len, prefix->value.string);
-            if (needs_redraw) {
-                *needs_redraw = 1;
-            }
-        }
-        /* Otherwise do nothing */
-    }
 }
 
 /* Load bootstrap Lisp file */
@@ -468,30 +367,193 @@ void lisp_bridge_cleanup(void) {
     lisp_cleanup();
 }
 
+/* Free all tab completion strings */
+static void free_tab_completions(void) {
+    for (int i = 0; i < tab_completion_count; i++) {
+        if (tab_completions[i]) {
+            free(tab_completions[i]);
+            tab_completions[i] = NULL;
+        }
+    }
+    tab_completion_count = 0;
+}
+
+/* Exit tab mode and cleanup */
+static void exit_tab_mode(void) {
+    free_tab_completions();
+    tab_mode_active = 0;
+    tab_completion_index = 0;
+    tab_start_pos = 0;
+    tab_partial_len = 0;
+}
+
+/* Enter tab mode with completions from Lisp list */
+static int enter_tab_mode(LispObject *completions, const char *buffer, int cursor_pos, int length, int start_pos,
+                          int partial_len) {
+    if (!completions || completions == NIL || completions->type != LISP_CONS || !buffer) {
+        return 0;
+    }
+
+    /* Free any existing completions */
+    free_tab_completions();
+
+    /* Save original buffer state */
+    int save_len = length < TAB_BUFFER_SIZE ? length : TAB_BUFFER_SIZE - 1;
+    memcpy(tab_original_buffer, buffer, save_len);
+    tab_original_buffer[save_len] = '\0';
+    tab_original_cursor_pos = cursor_pos;
+    tab_original_length = length;
+    tab_start_pos = start_pos;
+    tab_partial_len = partial_len;
+
+    /* Convert Lisp list to array of strings */
+    LispObject *current = completions;
+    while (current != NIL && current->type == LISP_CONS && tab_completion_count < MAX_COMPLETIONS) {
+        LispObject *car = current->value.cons.car;
+        if (car && car->type == LISP_STRING) {
+            tab_completions[tab_completion_count] = strdup(car->value.string);
+            if (tab_completions[tab_completion_count]) {
+                tab_completion_count++;
+            }
+        }
+        current = current->value.cons.cdr;
+    }
+
+    if (tab_completion_count == 0) {
+        return 0; /* No valid completions */
+    }
+
+    tab_mode_active = 1;
+    tab_completion_index = 0;
+    return 1;
+}
+
+/* Apply current completion to buffer */
+static void apply_current_completion(char *buffer, int buffer_size, int *cursor_pos, int *length) {
+    if (!tab_mode_active || tab_completion_index >= tab_completion_count || !buffer || !cursor_pos || !length) {
+        return;
+    }
+
+    const char *completion = tab_completions[tab_completion_index];
+    if (!completion) {
+        return;
+    }
+
+    /* Replace partial text with current completion */
+    replace_partial_text(buffer, buffer_size, cursor_pos, length, tab_start_pos, tab_partial_len, completion);
+
+    /* Update partial_len to match the completion we just inserted, so next cycle replaces the whole completion */
+    tab_partial_len = strlen(completion);
+}
+
+/* Cycle to next completion */
+static void cycle_next_completion(char *buffer, int buffer_size, int *cursor_pos, int *length, int *needs_redraw) {
+    if (!tab_mode_active || tab_completion_count == 0) {
+        return;
+    }
+
+    tab_completion_index = (tab_completion_index + 1) % tab_completion_count;
+    apply_current_completion(buffer, buffer_size, cursor_pos, length);
+    if (needs_redraw) {
+        *needs_redraw = 1;
+    }
+}
+
 void lisp_bridge_handle_tab(char *buffer, int buffer_size, int *cursor_pos, int *length, int *needs_redraw) {
     if (!buffer || !cursor_pos || !length || *cursor_pos < 0 || *cursor_pos > *length) {
         return;
     }
 
-    /* Extract partial text */
-    int start_pos, partial_len;
-    if (extract_partial_text(buffer, *cursor_pos, *length, &start_pos, &partial_len)) {
-        /* Extract partial text using stack buffer */
-        char partial_buf[1024]; /* Reasonable limit for partial text */
-        int copy_len = partial_len;
-        if ((size_t)copy_len >= sizeof(partial_buf)) {
-            copy_len = (int)(sizeof(partial_buf) - 1);
-        }
-        memcpy(partial_buf, &buffer[start_pos], copy_len);
-        partial_buf[copy_len] = '\0';
+    /* If already in tab mode, cycle to next completion */
+    if (tab_mode_active) {
+        cycle_next_completion(buffer, buffer_size, cursor_pos, length, needs_redraw);
+        return;
+    }
 
-        /* Call Lisp completion hook */
-        LispObject *completions = call_completion_hook(partial_buf);
-        if (completions) {
-            handle_completion(completions, buffer, buffer_size, cursor_pos, length, needs_redraw, start_pos,
-                              partial_len);
+    /* Not in tab mode - extract partial text and get completions */
+    int start_pos, partial_len;
+    if (!extract_partial_text(buffer, *cursor_pos, *length, &start_pos, &partial_len)) {
+        return;
+    }
+
+    /* Extract partial text using stack buffer */
+    char partial_buf[1024];
+    int copy_len = partial_len;
+    if ((size_t)copy_len >= sizeof(partial_buf)) {
+        copy_len = (int)(sizeof(partial_buf) - 1);
+    }
+    memcpy(partial_buf, &buffer[start_pos], copy_len);
+    partial_buf[copy_len] = '\0';
+
+    /* Call Lisp completion hook */
+    LispObject *completions = call_completion_hook(partial_buf);
+    if (!completions || completions == NIL || completions->type != LISP_CONS) {
+        return; /* No completions */
+    }
+
+    /* Count completions */
+    int count = 0;
+    LispObject *current = completions;
+    while (current != NIL && current->type == LISP_CONS && count < MAX_COMPLETIONS) {
+        LispObject *car = current->value.cons.car;
+        if (car && car->type == LISP_STRING) {
+            count++;
+        }
+        current = current->value.cons.cdr;
+    }
+
+    if (count == 0) {
+        return; /* No valid completions */
+    } else if (count == 1) {
+        /* Single completion - apply it directly without entering tab mode */
+        LispObject *first = completions->value.cons.car;
+        if (first && first->type == LISP_STRING) {
+            replace_partial_text(buffer, buffer_size, cursor_pos, length, start_pos, partial_len, first->value.string);
+            if (needs_redraw) {
+                *needs_redraw = 1;
+            }
+        }
+    } else {
+        /* Multiple completions - enter tab mode and apply first */
+        if (enter_tab_mode(completions, buffer, *cursor_pos, *length, start_pos, partial_len)) {
+            apply_current_completion(buffer, buffer_size, cursor_pos, length);
+            if (needs_redraw) {
+                *needs_redraw = 1;
+            }
         }
     }
+}
+
+/* Check if tab mode is active */
+int lisp_bridge_is_tab_mode_active(void) {
+    return tab_mode_active;
+}
+
+/* Accept current completion and exit tab mode */
+void lisp_bridge_accept_tab_completion(void) {
+    if (tab_mode_active) {
+        exit_tab_mode();
+    }
+}
+
+/* Cancel tab mode and revert to original buffer */
+void lisp_bridge_cancel_tab_completion(char *buffer, int buffer_size, int *cursor_pos, int *length, int *needs_redraw) {
+    if (!tab_mode_active || !buffer || !cursor_pos || !length) {
+        return;
+    }
+
+    /* Restore original buffer state */
+    int restore_len = tab_original_length < buffer_size ? tab_original_length : buffer_size - 1;
+    memcpy(buffer, tab_original_buffer, restore_len);
+    buffer[restore_len] = '\0';
+    *length = tab_original_length;
+    *cursor_pos = tab_original_cursor_pos;
+    if (needs_redraw) {
+        *needs_redraw = 1;
+    }
+
+    /* Exit tab mode */
+    exit_tab_mode();
 }
 
 int lisp_bridge_get_scroll_lines_per_click(void) {

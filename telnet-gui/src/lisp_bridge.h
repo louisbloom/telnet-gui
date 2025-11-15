@@ -14,8 +14,17 @@ int lisp_bridge_load_file(const char *filepath);
 /* Cleanup Lisp interpreter */
 void lisp_bridge_cleanup(void);
 
-/* Handle TAB key completion */
+/* Handle TAB key completion (cycles through completions if in tab mode) */
 void lisp_bridge_handle_tab(char *buffer, int buffer_size, int *cursor_pos, int *length, int *needs_redraw);
+
+/* Check if tab completion mode is active */
+int lisp_bridge_is_tab_mode_active(void);
+
+/* Accept current completion and exit tab mode */
+void lisp_bridge_accept_tab_completion(void);
+
+/* Cancel tab mode and revert to original buffer state */
+void lisp_bridge_cancel_tab_completion(char *buffer, int buffer_size, int *cursor_pos, int *length, int *needs_redraw);
 
 /* Get scroll lines per click from Lisp config (default: 3) */
 int lisp_bridge_get_scroll_lines_per_click(void);
