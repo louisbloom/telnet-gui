@@ -44,6 +44,9 @@ int lisp_bridge_get_scroll_to_bottom_on_telnet_input(void);
 /* Call telnet-input-hook with telnet data (stripped of ANSI codes) */
 void lisp_bridge_call_telnet_input_hook(const char *text, size_t len);
 
+/* Call user-input-hook with user input before sending to telnet (returns transformed text or original) */
+const char *lisp_bridge_call_user_input_hook(const char *text, int cursor_pos);
+
 /* Future: More functions to expose telnet-gui primitives */
 /* - Input/output hooks */
 /* - Input area manipulation */

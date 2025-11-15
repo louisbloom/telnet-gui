@@ -130,6 +130,66 @@
 (define telnet-input-hook (lambda (text) ()))
 
 ;; ============================================================================
+;; USER INPUT HOOK CONFIGURATION
+;; ============================================================================
+;; user-input-hook: Function called when user sends text to telnet server
+;;
+;; Signature: (lambda (text cursor-pos) -> string)
+;;   - text: The text user typed in input area
+;;   - cursor-pos: Cursor position in input area (integer)
+;;   - Returns: Transformed text to send (string), or original if not string
+;;
+;; This hook is called BEFORE sending text to the telnet server, allowing you
+;; to transform, filter, or replace the user's input. The returned string is
+;; sent to both the terminal (for echo) and the telnet connection.
+;;
+;; Important notes:
+;;   - Hook MUST return a string (or original text is used)
+;;   - Returned text is sent to telnet server with CRLF appended
+;;   - Hook is called for every Enter keypress (even empty input)
+;;   - Empty string return suppresses sending (only CRLF sent)
+;;
+;; Examples:
+;;
+;; Pass-through (default - no transformation):
+;;   (define user-input-hook (lambda (text cursor-pos) text))
+;;
+;; Convert to uppercase:
+;;   (define user-input-hook
+;;     (lambda (text cursor-pos)
+;;       (string-upcase text)))
+;;
+;; Add prefix to all commands:
+;;   (define user-input-hook
+;;     (lambda (text cursor-pos)
+;;       (string-append ">" text)))
+;;
+;; Command aliases:
+;;   (define user-input-hook
+;;     (lambda (text cursor-pos)
+;;       (cond
+;;         ((string= text "n") "north")
+;;         ((string= text "s") "south")
+;;         ((string= text "e") "east")
+;;         ((string= text "w") "west")
+;;         (#t text))))
+;;
+;; Cursor position aware (only transform if cursor at end):
+;;   (define user-input-hook
+;;     (lambda (text cursor-pos)
+;;       (if (= cursor-pos (string-length text))
+;;           (string-upcase text)
+;;           text)))
+;;
+;; Suppress password echoing (return empty string for specific commands):
+;;   (define user-input-hook
+;;     (lambda (text cursor-pos)
+;;       (if (string-prefix? "password " text)
+;;           ""
+;;           text)))
+(define user-input-hook (lambda (text cursor-pos) text))
+
+;; ============================================================================
 ;; MOUSE WHEEL SCROLLING CONFIGURATION
 ;; ============================================================================
 ;; *scroll-lines-per-click*: Number of terminal lines to scroll per mouse wheel click

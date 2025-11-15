@@ -575,26 +575,36 @@ int main(int argc, char **argv) {
                     int length = input_area_get_length(&input_area);
                     if (length > 0) {
                         const char *text = input_area_get_text(&input_area);
-                        /* Echo to terminal with CRLF (carriage return + line feed) */
+                        int cursor_pos = input_area_get_cursor_pos(&input_area);
+
+                        /* Call user-input-hook to transform text before sending */
+                        const char *transformed_text = lisp_bridge_call_user_input_hook(text, cursor_pos);
+                        int transformed_length = strlen(transformed_text);
+
+                        /* Echo transformed text to terminal with CRLF */
                         char echo_buf[INPUT_AREA_MAX_LENGTH + 2];
-                        memcpy(echo_buf, text, length);
-                        echo_buf[length] = '\r';
-                        echo_buf[length + 1] = '\n';
-                        terminal_feed_data(term, echo_buf, length + 2);
+                        if (transformed_length < INPUT_AREA_MAX_LENGTH) {
+                            memcpy(echo_buf, transformed_text, transformed_length);
+                            echo_buf[transformed_length] = '\r';
+                            echo_buf[transformed_length + 1] = '\n';
+                            terminal_feed_data(term, echo_buf, transformed_length + 2);
+                        }
 
                         /* Scroll to bottom on user input if configured */
                         if (lisp_bridge_get_scroll_to_bottom_on_user_input()) {
                             terminal_scroll_to_bottom(term);
                         }
 
-                        /* Send to telnet with CRLF (telnet standard) */
+                        /* Send transformed text to telnet with CRLF */
                         char telnet_buf[INPUT_AREA_MAX_LENGTH + 2];
-                        memcpy(telnet_buf, text, length);
-                        telnet_buf[length] = '\r';
-                        telnet_buf[length + 1] = '\n';
-                        int sent = telnet_send(telnet, telnet_buf, length + 2);
-                        if (sent < 0) {
-                            fprintf(stderr, "Failed to send data via telnet\n");
+                        if (transformed_length < INPUT_AREA_MAX_LENGTH) {
+                            memcpy(telnet_buf, transformed_text, transformed_length);
+                            telnet_buf[transformed_length] = '\r';
+                            telnet_buf[transformed_length + 1] = '\n';
+                            int sent = telnet_send(telnet, telnet_buf, transformed_length + 2);
+                            if (sent < 0) {
+                                fprintf(stderr, "Failed to send data via telnet\n");
+                            }
                         }
 
                         /* Add to history and clear input area */

@@ -327,6 +327,15 @@ int lisp_bridge_init(void) {
             fprintf(stderr, "Warning: Failed to initialize default telnet-input-hook\n");
         }
 
+        /* Initialize default user-input-hook */
+        char default_user_input_hook_code[] = "(lambda (text cursor-pos) text)";
+        LispObject *user_input_hook_expr = lisp_eval_string(default_user_input_hook_code, lisp_env);
+        if (user_input_hook_expr && user_input_hook_expr->type != LISP_ERROR) {
+            env_define(lisp_env, "user-input-hook", user_input_hook_expr);
+        } else {
+            fprintf(stderr, "Warning: Failed to initialize default user-input-hook\n");
+        }
+
         /* Initialize default scroll config variables if bootstrap failed */
         LispObject *scroll_lines = lisp_make_integer(3);
         env_define(lisp_env, "*scroll-lines-per-click*", scroll_lines);
@@ -730,4 +739,55 @@ void lisp_bridge_call_telnet_input_hook(const char *text, size_t len) {
         }
     }
     /* Ignore return value - hook is side-effect only */
+}
+
+const char *lisp_bridge_call_user_input_hook(const char *text, int cursor_pos) {
+    if (!lisp_env || !text) {
+        return text; /* Return original if no environment or text */
+    }
+
+    /* Look up user-input-hook */
+    LispObject *hook = env_lookup(lisp_env, "user-input-hook");
+    if (!hook || (hook->type != LISP_LAMBDA && hook->type != LISP_BUILTIN)) {
+        return text; /* Hook not found - return original */
+    }
+
+    /* Create Lisp string from input text */
+    LispObject *text_arg = lisp_make_string(text);
+    if (!text_arg || text_arg->type == LISP_ERROR) {
+        return text; /* Failed to create string - return original */
+    }
+
+    /* Create Lisp integer for cursor position */
+    LispObject *cursor_arg = lisp_make_integer(cursor_pos);
+    if (!cursor_arg || cursor_arg->type == LISP_ERROR) {
+        return text; /* Failed to create integer - return original */
+    }
+
+    /* Create argument list: (text cursor-pos) */
+    LispObject *args = lisp_make_cons(text_arg, lisp_make_cons(cursor_arg, NIL));
+
+    /* Create function call: (user-input-hook "text" cursor-pos) */
+    LispObject *call_expr = lisp_make_cons(hook, args);
+
+    /* Evaluate the function call */
+    LispObject *result = lisp_eval(call_expr, lisp_env);
+
+    /* Check for errors */
+    if (!result || result->type == LISP_ERROR) {
+        char *err_str = lisp_print(result);
+        if (err_str) {
+            fprintf(stderr, "Error in user-input-hook: %s\n", err_str);
+        }
+        return text; /* Error - return original */
+    }
+
+    /* Check if result is a string */
+    if (result->type != LISP_STRING) {
+        fprintf(stderr, "Warning: user-input-hook returned non-string, using original text\n");
+        return text; /* Not a string - return original */
+    }
+
+    /* Return the transformed string (Lisp string memory is managed by GC) */
+    return result->value.string;
 }
