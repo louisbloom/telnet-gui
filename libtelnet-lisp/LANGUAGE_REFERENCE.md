@@ -377,6 +377,36 @@ Functions for transforming lists by applying a function to each element.
 - `princ` - Print object in human-readable form (strings without quotes), returns the object
 - `prin1` - Print object in readable representation (strings with quotes), returns the object
 - `print` - Print object like `prin1` but adds newline before and after, returns the object
+- `format` - Formatted output with format directives (destination, format-string, args...)
+- `terpri` - Print newline (terminate print), returns nil
+
+**Format directives:**
+- `~A` or `~a` - Aesthetic (princ-style, no quotes on strings)
+- `~S` or `~s` - S-expression (prin1-style, with quotes on strings)
+- `~%` - Newline
+- `~~` - Literal tilde (~)
+
+**Format destination:**
+- `nil` - Return formatted string
+- `#t` - Print to stdout and return nil
+
+**Examples:**
+```lisp
+; Return as string
+(format nil "Hello, ~A!" "World")        ; => "Hello, World!"
+(format nil "~A + ~A = ~A" 2 3 5)        ; => "2 + 3 = 5"
+(format nil "String: ~S" "test")         ; => "String: \"test\""
+(format nil "Line 1~%Line 2")            ; => "Line 1\nLine 2"
+(format nil "Tilde: ~~")                 ; => "Tilde: ~"
+
+; Print to stdout
+(format #t "Hello, ~A!~%" "World")       ; Prints: Hello, World!
+                                          ; => nil
+
+; Newline
+(terpri)                                  ; Prints newline
+                                          ; => nil
+```
 
 ## Naming Conventions
 
