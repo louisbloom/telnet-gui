@@ -100,6 +100,10 @@ static LispObject *builtin_number_question(LispObject *args, Environment *env);
 static LispObject *builtin_vector_question(LispObject *args, Environment *env);
 static LispObject *builtin_hash_table_question(LispObject *args, Environment *env);
 static LispObject *builtin_string_question(LispObject *args, Environment *env);
+static LispObject *builtin_symbol_question(LispObject *args, Environment *env);
+
+/* Symbol operations */
+static LispObject *builtin_symbol_to_string(LispObject *args, Environment *env);
 
 /* Vector operations */
 static LispObject *builtin_make_vector(LispObject *args, Environment *env);
@@ -204,6 +208,10 @@ void register_builtins(Environment *env) {
     env_define(env, "vector?", lisp_make_builtin(builtin_vector_question, "vector?"));
     env_define(env, "hash-table?", lisp_make_builtin(builtin_hash_table_question, "hash-table?"));
     env_define(env, "string?", lisp_make_builtin(builtin_string_question, "string?"));
+    env_define(env, "symbol?", lisp_make_builtin(builtin_symbol_question, "symbol?"));
+
+    /* Symbol operations */
+    env_define(env, "symbol->string", lisp_make_builtin(builtin_symbol_to_string, "symbol->string"));
 
     /* Vector operations */
     env_define(env, "make-vector", lisp_make_builtin(builtin_make_vector, "make-vector"));
@@ -2284,6 +2292,29 @@ static LispObject *builtin_string_question(LispObject *args, Environment *env) {
     }
     LispObject *arg = lisp_car(args);
     return (arg->type == LISP_STRING) ? lisp_make_number(1) : NIL;
+}
+
+static LispObject *builtin_symbol_question(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("symbol? requires 1 argument");
+    }
+    LispObject *arg = lisp_car(args);
+    return (arg->type == LISP_SYMBOL) ? lisp_make_number(1) : NIL;
+}
+
+/* Symbol operations */
+
+static LispObject *builtin_symbol_to_string(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("symbol->string requires 1 argument");
+    }
+    LispObject *arg = lisp_car(args);
+    if (arg->type != LISP_SYMBOL) {
+        return lisp_make_error("symbol->string requires a symbol argument");
+    }
+    return lisp_make_string(arg->value.symbol);
 }
 
 /* Vector operations */

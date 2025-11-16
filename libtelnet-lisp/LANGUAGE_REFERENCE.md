@@ -328,6 +328,28 @@ Functions for transforming lists by applying a function to each element.
 - `string?` - Check if string
 - `vector?` - Check if vector
 - `hash-table?` - Check if hash table
+- `symbol?` - Check if symbol
+
+### Symbol Operations
+
+- `symbol?` - Check if value is a symbol
+- `symbol->string` - Convert symbol to string
+
+**Examples:**
+```lisp
+(symbol? 'foo)              ; => 1
+(symbol? 42)                ; => nil
+(symbol? "string")          ; => nil
+
+(symbol->string 'hello)     ; => "hello"
+(symbol->string '+)         ; => "+"
+(symbol->string 'my-var)    ; => "my-var"
+
+; Using with variables
+(define x 'test)
+(symbol? x)                 ; => 1
+(symbol->string x)          ; => "test"
+```
 
 ### Regex Functions (PCRE2)
 
