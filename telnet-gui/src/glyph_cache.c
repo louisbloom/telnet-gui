@@ -235,6 +235,27 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
     return texture;
 }
 
+int glyph_cache_get_glyph_width(GlyphCache *cache, uint32_t codepoint, SDL_Color fg_color, SDL_Color bg_color) {
+    (void)bg_color; /* Unused - we use black background for width measurement */
+    if (!cache)
+        return 0;
+
+    /* Ensure glyph is cached by calling glyph_cache_get */
+    SDL_Color black_bg = {0, 0, 0, 255};
+    glyph_cache_get(cache, codepoint, fg_color, black_bg, 0, 0);
+
+    /* Look up the cached entry */
+    uint32_t key = hash_key(codepoint, fg_color, black_bg, 0, 0);
+    uint32_t slot = key % cache->cache_size;
+
+    if (cache->cache[slot].key == key && cache->cache[slot].texture) {
+        return cache->cache[slot].cell_width;
+    }
+
+    /* Fallback to default cell width if not found */
+    return cache->cell_w;
+}
+
 void glyph_cache_get_cell_size(GlyphCache *cache, int *cell_w, int *cell_h) {
     *cell_w = cache->cell_w;
     *cell_h = cache->cell_h;

@@ -21,6 +21,9 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
 /* Get cell dimensions (width and height) */
 void glyph_cache_get_cell_size(GlyphCache *cache, int *cell_w, int *cell_h);
 
+/* Get the actual rendered width of a glyph (returns cached width if available, or renders and caches it) */
+int glyph_cache_get_glyph_width(GlyphCache *cache, uint32_t codepoint, SDL_Color fg_color, SDL_Color bg_color);
+
 /* Clean up and destroy the cache */
 void glyph_cache_destroy(GlyphCache *cache);
 

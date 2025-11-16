@@ -64,6 +64,9 @@ void lisp_bridge_get_mode_bg_color(int *r, int *g, int *b);
 void lisp_bridge_get_terminal_fg_color(int *r, int *g, int *b);
 void lisp_bridge_get_terminal_bg_color(int *r, int *g, int *b);
 
+/* Window chrome colors */
+void lisp_bridge_get_resize_bar_color(int *r, int *g, int *b);
+
 /* Mode data structure - set and get as Lisp variables */
 void lisp_bridge_set_connection_mode(int connected);
 void lisp_bridge_set_input_mode(int input_mode);

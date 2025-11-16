@@ -55,6 +55,9 @@ int window_is_resizing(Window *w);
 /* Get titlebar height */
 int window_get_titlebar_height(void);
 
+/* Get resize bar height */
+int window_get_resize_bar_height(void);
+
 /* Check if close button was clicked */
 WindowTitlebarAction window_check_titlebar_click(Window *w, int mouse_x, int mouse_y);
 
@@ -63,6 +66,9 @@ void window_set_title(Window *w, const char *title);
 
 /* Render the titlebar */
 void window_render_titlebar(Window *w, SDL_Renderer *renderer, const char *text);
+
+/* Render the resize bar at bottom of window */
+void window_render_resize_bar(Window *w, SDL_Renderer *renderer);
 
 /* Clean up */
 void window_destroy(Window *w);

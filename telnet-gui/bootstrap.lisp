@@ -318,6 +318,9 @@
 (define *mode-fg-color* '(150 255 150))    ; Light green text
 (define *mode-bg-color* '(45 65 85))       ; Lighter blue background
 
+;; Window chrome colors (titlebar, resize bars)
+(define *resize-bar-color* '(30 70 50))   ; Even darker greenish color for titlebar and resize bars
+
 ;; ============================================================================
 ;; MODE DATA STRUCTURE
 ;; ============================================================================
@@ -390,8 +393,8 @@
     (concat
       ;; Connection emoji - uses system emoji font if available
       (if (string= (symbol->string (alist-get "connection" mode)) "conn")
-          "🟢 "    ; Green circle for connected
-          "🔴 ")   ; Red circle for disconnected
+          "🟢"    ; Green circle for connected
+          "🔴")   ; Red circle for disconnected
       ;; Input mode emoji
       (if (string= (symbol->string (alist-get "input" mode)) "eval")
           "💻"     ; Laptop for eval mode

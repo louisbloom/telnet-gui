@@ -1,6 +1,7 @@
 /* Borderless window implementation */
 
 #include "window.h"
+#include "lisp_bridge.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -8,6 +9,7 @@
 #define BUTTON_SIZE 16
 #define BUTTON_PADDING 4
 #define RESIZE_AREA_SIZE 8
+#define RESIZE_BAR_HEIGHT 6
 
 typedef struct Button {
     int x, y, w, h;
@@ -51,14 +53,15 @@ static SDL_HitTestResult hit_test(SDL_Window *win, const SDL_Point *area, void *
         return SDL_HITTEST_DRAGGABLE;
     }
 
-    /* Bottom edge - return NORMAL so we can handle resize manually */
+    /* Resize bar at bottom - return NORMAL so we can handle resize manually */
     /* SDL's automatic resize doesn't work reliably for borderless windows on Windows */
-    if (y > win_h - RESIZE_AREA_SIZE) {
+    if (y >= win_h - RESIZE_BAR_HEIGHT) {
         return SDL_HITTEST_NORMAL;
     }
 
     /* Left/Right edges - return NORMAL so we can handle resize manually */
-    if (x < RESIZE_AREA_SIZE || x > win_w - RESIZE_AREA_SIZE) {
+    /* But not in the resize bar area at bottom */
+    if (y < win_h - RESIZE_BAR_HEIGHT && (x < RESIZE_AREA_SIZE || x > win_w - RESIZE_AREA_SIZE)) {
         return SDL_HITTEST_NORMAL;
     }
 
@@ -153,9 +156,8 @@ ResizeMode window_check_resize_area(Window *w, int x, int y) {
     if (y < TITLEBAR_HEIGHT)
         return RESIZE_NONE;
 
-    /* Bottom edge - resize area is at bottom RESIZE_AREA_SIZE pixels */
-    /* Note: Input area exclusion is handled in main.c by checking y position */
-    if (y >= height - RESIZE_AREA_SIZE) {
+    /* Resize bar at the very bottom - only RESIZE_BAR_HEIGHT pixels */
+    if (y >= height - RESIZE_BAR_HEIGHT) {
         if (x < RESIZE_AREA_SIZE)
             return RESIZE_BOTTOMLEFT;
         if (x >= width - RESIZE_AREA_SIZE)
@@ -163,11 +165,13 @@ ResizeMode window_check_resize_area(Window *w, int x, int y) {
         return RESIZE_BOTTOM;
     }
 
-    /* Left/Right edges */
-    if (x < RESIZE_AREA_SIZE)
-        return RESIZE_LEFT;
-    if (x >= width - RESIZE_AREA_SIZE)
-        return RESIZE_RIGHT;
+    /* Left/Right edges - but not in the resize bar area at bottom */
+    if (y < height - RESIZE_BAR_HEIGHT) {
+        if (x < RESIZE_AREA_SIZE)
+            return RESIZE_LEFT;
+        if (x >= width - RESIZE_AREA_SIZE)
+            return RESIZE_RIGHT;
+    }
 
     return RESIZE_NONE;
 }
@@ -302,8 +306,12 @@ void window_render_titlebar(Window *w, SDL_Renderer *renderer, const char *text)
     int w_width, w_height;
     SDL_GetWindowSize(w->window, &w_width, &w_height);
 
-    /* Draw titlebar background - dark blueish */
-    SDL_SetRenderDrawColor(renderer, 25, 40, 60, 255);
+    /* Get resize bar color from Lisp config and use for titlebar */
+    int r, g, b;
+    lisp_bridge_get_resize_bar_color(&r, &g, &b);
+
+    /* Draw titlebar background with same color as resize bar */
+    SDL_SetRenderDrawColor(renderer, r, g, b, 255);
     SDL_Rect titlebar = {0, 0, w_width, TITLEBAR_HEIGHT};
     SDL_RenderFillRect(renderer, &titlebar);
 
@@ -320,6 +328,42 @@ void window_render_titlebar(Window *w, SDL_Renderer *renderer, const char *text)
 
 int window_get_titlebar_height(void) {
     return TITLEBAR_HEIGHT;
+}
+
+int window_get_resize_bar_height(void) {
+    return RESIZE_BAR_HEIGHT;
+}
+
+void window_render_resize_bar(Window *w, SDL_Renderer *renderer) {
+    if (!w || !renderer)
+        return;
+
+    int w_width, w_height;
+    SDL_GetWindowSize(w->window, &w_width, &w_height);
+
+    /* Get resize bar color from Lisp config */
+    int r, g, b;
+    lisp_bridge_get_resize_bar_color(&r, &g, &b);
+
+    /* Draw resize bar at bottom (middle section) */
+    SDL_SetRenderDrawColor(renderer, r, g, b, 255);
+    SDL_Rect resize_bar = {0, w_height - RESIZE_BAR_HEIGHT, w_width, RESIZE_BAR_HEIGHT};
+    SDL_RenderFillRect(renderer, &resize_bar);
+
+    /* Draw brighter shade for left/right corners of resize bar */
+    int bright_r = r + (255 - r) / 3; /* Brighten by ~33% */
+    int bright_g = g + (255 - g) / 3;
+    int bright_b = b + (255 - b) / 3;
+    SDL_SetRenderDrawColor(renderer, bright_r, bright_g, bright_b, 255);
+
+    /* Left corner of bottom resize bar */
+    SDL_Rect left_corner = {0, w_height - RESIZE_BAR_HEIGHT, RESIZE_AREA_SIZE, RESIZE_BAR_HEIGHT};
+    SDL_RenderFillRect(renderer, &left_corner);
+
+    /* Right corner of bottom resize bar */
+    SDL_Rect right_corner = {w_width - RESIZE_AREA_SIZE, w_height - RESIZE_BAR_HEIGHT, RESIZE_AREA_SIZE,
+                             RESIZE_BAR_HEIGHT};
+    SDL_RenderFillRect(renderer, &right_corner);
 }
 
 void window_destroy(Window *w) {

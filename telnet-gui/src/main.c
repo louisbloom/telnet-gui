@@ -60,14 +60,14 @@ static void cleanup(void) {
 
 /* Calculate terminal size (rows, cols) based on window dimensions */
 static void calculate_terminal_size(int window_width, int window_height, int cell_w, int cell_h, int titlebar_h,
-                                    int input_area_height, int *rows, int *cols) {
+                                    int input_area_height, int resize_bar_height, int *rows, int *cols) {
     /* Calculate columns from window width */
     *cols = window_width / cell_w;
     if (*cols < 1)
         *cols = 1;
 
-    /* Calculate available height for terminal (window height minus titlebar and input area) */
-    int available_height = window_height - titlebar_h - input_area_height;
+    /* Calculate available height for terminal (window height minus titlebar, input area, and resize bar) */
+    int available_height = window_height - titlebar_h - input_area_height - resize_bar_height;
     /* Calculate number of rows that fit exactly in available space */
     /* Use integer division - this ensures terminal doesn't exceed available space */
     *rows = available_height / cell_h;
@@ -424,11 +424,12 @@ int main(int argc, char **argv) {
     /* Calculate minimum window size for terminal geometry */
     int min_width = terminal_cols * cell_w;
     /* Minimum height for terminal rows: available_height = terminal_rows * cell_h, so window_height = terminal_rows *
-     * cell_h + titlebar_h + input_area_height */
+     * cell_h + titlebar_h + input_area_height + resize_bar_height */
     /* Input area is one cell height */
     int input_area_height_local = cell_h;
-    int min_height =
-        terminal_rows * cell_h + titlebar_h + input_area_height_local; /* terminal rows + titlebar + input area */
+    int resize_bar_height_local = window_get_resize_bar_height();
+    int min_height = terminal_rows * cell_h + titlebar_h + input_area_height_local +
+                     resize_bar_height_local; /* terminal rows + titlebar + input area + resize bar */
 
     /* Get current window size */
     int current_width, current_height;
@@ -447,7 +448,7 @@ int main(int argc, char **argv) {
         new_height = min_height;
     } else {
         /* Calculate available height for terminal area */
-        int available_height = current_height - titlebar_h - input_area_height_local;
+        int available_height = current_height - titlebar_h - input_area_height_local - resize_bar_height_local;
         /* Calculate number of rows that fit */
         int rows = available_height / cell_h;
         /* Calculate remainder to determine if we should round up or down */
@@ -461,7 +462,7 @@ int main(int argc, char **argv) {
             rows = terminal_rows;
         }
         /* Calculate new height based on snapped row count */
-        new_height = rows * cell_h + titlebar_h + input_area_height_local;
+        new_height = rows * cell_h + titlebar_h + input_area_height_local + resize_bar_height_local;
     }
 
     /* Resize window if needed */
@@ -534,11 +535,12 @@ int main(int argc, char **argv) {
 
     /* Resize terminal to match initial window size */
     int input_area_height = cell_h; /* Input area is one cell height */
+    int resize_bar_height = window_get_resize_bar_height();
     int initial_width, initial_height;
     window_get_size(win, &initial_width, &initial_height);
     int initial_rows, initial_cols;
-    calculate_terminal_size(initial_width, initial_height, cell_w, cell_h, titlebar_h, input_area_height, &initial_rows,
-                            &initial_cols);
+    calculate_terminal_size(initial_width, initial_height, cell_w, cell_h, titlebar_h, input_area_height, resize_bar_height,
+                            &initial_rows, &initial_cols);
     terminal_resize(term, initial_rows, initial_cols);
     telnet_set_terminal_size(telnet, initial_cols, initial_rows);
 
@@ -564,7 +566,7 @@ int main(int argc, char **argv) {
                         /* Calculate new terminal size based on window size */
                         int new_rows, new_cols;
                         calculate_terminal_size(new_width, new_height, cell_w, cell_h, titlebar_h, input_area_height,
-                                                &new_rows, &new_cols);
+                                                resize_bar_height, &new_rows, &new_cols);
 
                         /* Update terminal size */
                         terminal_resize(term, new_rows, new_cols);
@@ -596,7 +598,7 @@ int main(int argc, char **argv) {
                         break; /* Exit immediately */
                     } else if (action == WINDOW_TITLEBAR_ACTION_MINIMIZE) {
                         SDL_MinimizeWindow(window_get_sdl_window(win));
-                    } else if (mouse_y < window_height - input_area_height) {
+                    } else if (mouse_y < window_height - input_area_height - resize_bar_height) {
                         /* Handle other clicks in terminal area */
                     }
                 }
@@ -927,16 +929,16 @@ int main(int argc, char **argv) {
                     window_get_size(win, &new_width, &new_height);
                     int new_rows, new_cols;
                     calculate_terminal_size(new_width, new_height, cell_w, cell_h, titlebar_h, input_area_height,
-                                            &new_rows, &new_cols);
+                                            resize_bar_height, &new_rows, &new_cols);
                     terminal_resize(term, new_rows, new_cols);
                     window_update_button_positions(win);
                     telnet_set_terminal_size(telnet, new_cols, new_rows);
                 }
                 window_end_resize(win);
-                /* Only handle mouse events for terminal if not in input area */
+                /* Only handle mouse events for terminal if not in input area or resize bar */
                 int win_width, win_height;
                 window_get_size(win, &win_width, &win_height);
-                if (event.button.y < win_height - input_area_height) {
+                if (event.button.y < win_height - input_area_height - resize_bar_height) {
                     input_handle_mouse(&event.button, NULL, terminal_get_vterm(term), cell_w, cell_h, titlebar_h);
                 }
                 break;
@@ -960,7 +962,7 @@ int main(int argc, char **argv) {
                         window_get_size(win, &new_width, &new_height);
                         int new_rows, new_cols;
                         calculate_terminal_size(new_width, new_height, cell_w, cell_h, titlebar_h, input_area_height,
-                                                &new_rows, &new_cols);
+                                                resize_bar_height, &new_rows, &new_cols);
                         terminal_resize(term, new_rows, new_cols);
                         window_update_button_positions(win);
                         last_terminal_resize = current_time;
@@ -994,10 +996,10 @@ int main(int argc, char **argv) {
                         current_cursor = new_cursor;
                     }
                 }
-                /* Only handle mouse events for terminal if not in input area */
+                /* Only handle mouse events for terminal if not in input area or resize bar */
                 int motion_win_width, motion_win_height;
                 window_get_size(win, &motion_win_width, &motion_win_height);
-                if (event.motion.y < motion_win_height - input_area_height) {
+                if (event.motion.y < motion_win_height - input_area_height - resize_bar_height) {
                     input_handle_mouse(NULL, &event.motion, terminal_get_vterm(term), cell_w, cell_h, titlebar_h);
                 }
                 break;
@@ -1007,10 +1009,10 @@ int main(int argc, char **argv) {
                 int mouse_x, mouse_y;
                 SDL_GetMouseState(&mouse_x, &mouse_y);
 
-                /* Check if mouse is over terminal area (not titlebar or input area) */
+                /* Check if mouse is over terminal area (not titlebar, input area, or resize bar) */
                 int wheel_win_width, wheel_win_height;
                 window_get_size(win, &wheel_win_width, &wheel_win_height);
-                if (mouse_y >= titlebar_h && mouse_y < wheel_win_height - input_area_height) {
+                if (mouse_y >= titlebar_h && mouse_y < wheel_win_height - input_area_height - resize_bar_height) {
                     /* Get scroll configuration from Lisp bridge */
                     int lines_per_click = lisp_bridge_get_scroll_lines_per_click();
                     int smooth_scrolling = lisp_bridge_get_smooth_scrolling_enabled();
@@ -1093,6 +1095,7 @@ int main(int argc, char **argv) {
             snprintf(title, sizeof(title), "Telnet: %s:%d", hostname, port);
             renderer_render(rend, term, title);
             window_render_titlebar(win, renderer, title);
+            window_render_resize_bar(win, renderer);
             terminal_mark_drawn(term);
             needs_render = 1;
         } else if (window_is_resizing(win)) {
@@ -1104,6 +1107,7 @@ int main(int argc, char **argv) {
                 snprintf(title, sizeof(title), "Telnet: %s:%d", hostname, port);
                 renderer_render(rend, term, title);
                 window_render_titlebar(win, renderer, title);
+                window_render_resize_bar(win, renderer);
                 last_resize_render = current_time;
                 needs_render = 1;
             }
@@ -1117,7 +1121,7 @@ int main(int argc, char **argv) {
             }
             renderer_render_input_area(rend, input_area_get_text(&input_area), input_area_get_length(&input_area),
                                        input_area_get_cursor_pos(&input_area), window_width, window_height,
-                                       input_area_height, input_area_mode_get_text(&input_area),
+                                       input_area_height, resize_bar_height, input_area_mode_get_text(&input_area),
                                        input_area_mode_get_length(&input_area), sel_start, sel_end);
             input_area_mark_drawn(&input_area);
             input_area_mode_mark_drawn(&input_area);

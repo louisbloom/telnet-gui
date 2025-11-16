@@ -136,12 +136,12 @@ void renderer_render(Renderer *r, Terminal *term, const char *title) {
 
 /* Render input area at bottom of screen */
 void renderer_render_input_area(Renderer *r, const char *text, int text_len, int cursor_pos, int window_width,
-                                int window_height, int input_area_height, const char *mode_text, int mode_length,
-                                int selection_start, int selection_end) {
+                                int window_height, int input_area_height, int resize_bar_height, const char *mode_text,
+                                int mode_length, int selection_start, int selection_end) {
     if (!r)
         return;
 
-    int input_area_y = window_height - input_area_height;
+    int input_area_y = window_height - input_area_height - resize_bar_height;
 
     /* Get colors from Lisp config */
     int fg_r, fg_g, fg_b, bg_r, bg_g, bg_b;
@@ -244,37 +244,29 @@ void renderer_render_input_area(Renderer *r, const char *text, int text_len, int
         lisp_bridge_get_mode_bg_color(&mode_bg_r, &mode_bg_g, &mode_bg_b);
 
         /* Calculate mode display area width with left and right padding */
-        /* Count visual characters and estimate width (emojis are ~2.2x wider than cells) */
-        int visual_char_count = 0;
-        int emoji_count = 0;
+        /* Measure actual width of each character using glyph cache */
+        int mode_text_width = 0;
         int char_idx = 0;
+        SDL_Color mode_fg_color = {mode_fg_r, mode_fg_g, mode_fg_b, 255};
+        SDL_Color mode_bg_color = {mode_bg_r, mode_bg_g, mode_bg_b, 255};
+
         while (char_idx < mode_length) {
-            int bytes = utf8_char_bytes(&mode_text[char_idx]);
-            if (bytes > 0) {
-                visual_char_count++;
-                /* 4-byte UTF-8 is likely an emoji */
-                if (bytes == 4) {
-                    emoji_count++;
-                }
-                char_idx += bytes;
+            int codepoint = utf8_get_codepoint(&mode_text[char_idx]);
+            if (codepoint > 0) {
+                /* Get actual rendered width for this glyph */
+                int glyph_width = glyph_cache_get_glyph_width(r->glyph_cache, codepoint, mode_fg_color, mode_bg_color);
+                mode_text_width += glyph_width;
+
+                /* Advance to next character */
+                int bytes = utf8_char_bytes(&mode_text[char_idx]);
+                char_idx += (bytes > 0) ? bytes : 1;
             } else {
                 /* Invalid UTF-8, skip byte */
                 char_idx++;
             }
         }
 
-        int mode_padding = 8; /* pixels of padding on each side */
-        /* Calculate text width: rendering loop advances by cell_w for each character
-         * After rendering all characters, cursor is at: start + (visual_char_count * cell_w)
-         * But glyphs may extend beyond their cell boundaries (emojis are ~22px vs 10px cell)
-         * Emojis are centered, so they extend (emoji_width - cell_w)/2 on each side
-         * The rightmost pixel is: cursor_pos + right_overhang_of_last_glyph
-         * For now, estimate that last glyph adds ~6px overhang (half of 22-10=12) */
-        int mode_text_width = visual_char_count * r->cell_w;
-        if (emoji_count > 0) {
-            /* Emoji glyphs are ~22px wide, cells are ~10px, so they overhang by ~6px on right */
-            mode_text_width += r->cell_w * 6 / 10; /* Add 60% of cell_w for emoji overhang */
-        }
+        int mode_padding = 4; /* pixels of padding on each side */
         int mode_area_width = mode_text_width + (mode_padding * 2);
         int mode_x = window_width - mode_area_width;
 
@@ -283,10 +275,8 @@ void renderer_render_input_area(Renderer *r, const char *text, int text_len, int
         SDL_Rect mode_bg = {mode_x, input_area_y, mode_area_width, input_area_height};
         SDL_RenderFillRect(r->sdl_renderer, &mode_bg);
 
-        /* Create mode color structs */
-        SDL_Color mode_fg_color = {mode_fg_r, mode_fg_g, mode_fg_b, 255};
-        SDL_Color mode_bg_color = {mode_bg_r, mode_bg_g, mode_bg_b, 255};
-        int text_x = mode_x + mode_padding; /* Start text after left padding */
+        /* Start text rendering after left padding */
+        int text_x = mode_x + mode_padding;
 
         /* Render mode text character by character (UTF-8 aware) */
         int i = 0;
@@ -305,10 +295,12 @@ void renderer_render_input_area(Renderer *r, const char *text, int text_len, int
             if (glyph) {
                 int tex_w, tex_h;
                 SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);
-                SDL_Rect dst = {text_x + (r->cell_w - tex_w) / 2, y, tex_w, tex_h};
+                /* Center glyph in its actual width space */
+                SDL_Rect dst = {text_x, y, tex_w, tex_h};
                 SDL_RenderCopy(r->sdl_renderer, glyph, NULL, &dst);
+                /* Advance by actual glyph width to match width calculation */
+                text_x += tex_w;
             }
-            text_x += r->cell_w;
             i += bytes_consumed;
         }
     }

@@ -886,6 +886,11 @@ void lisp_bridge_get_terminal_bg_color(int *r, int *g, int *b) {
     get_color_from_lisp("*terminal-bg-color*", r, g, b, 0, 0, 0); /* Black */
 }
 
+/* Window chrome colors */
+void lisp_bridge_get_resize_bar_color(int *r, int *g, int *b) {
+    get_color_from_lisp("*resize-bar-color*", r, g, b, 30, 70, 50); /* Even darker greenish */
+}
+
 /* Set connection mode in Lisp environment */
 void lisp_bridge_set_connection_mode(int connected) {
     if (!lisp_env) {

@@ -19,8 +19,8 @@ void renderer_render(Renderer *r, Terminal *term, const char *title);
 
 /* Render input area at bottom of screen */
 void renderer_render_input_area(Renderer *r, const char *text, int text_len, int cursor_pos, int window_width,
-                                 int window_height, int input_area_height, const char *mode_text, int mode_length,
-                                 int selection_start, int selection_end);
+                                 int window_height, int input_area_height, int resize_bar_height, const char *mode_text,
+                                 int mode_length, int selection_start, int selection_end);
 
 /* Clean up */
 void renderer_destroy(Renderer *r);
