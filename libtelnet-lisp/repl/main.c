@@ -18,6 +18,28 @@ static void print_prompt(void) {
     fflush(stdout);
 }
 
+static void print_help(void) {
+    printf("Telnet Lisp Interpreter v1.0\n");
+    printf("\n");
+    printf("Usage:\n");
+    printf("  lisp-repl                 Start interactive REPL\n");
+    printf("  lisp-repl -c \"CODE\"       Execute CODE and exit\n");
+    printf("  lisp-repl FILE [FILE...] Execute FILE(s) and exit\n");
+    printf("  lisp-repl -h, --help      Show this help message\n");
+    printf("\n");
+    printf("Examples:\n");
+    printf("  lisp-repl                           # Start REPL\n");
+    printf("  lisp-repl -c \"(+ 1 2 3)\"            # Execute code\n");
+    printf("  lisp-repl script.lisp               # Run file\n");
+    printf("  lisp-repl -c \"(define x 10) (* x 5)\" # Multiple expressions\n");
+    printf("\n");
+    printf("REPL Commands:\n");
+    printf("  :quit             Exit the REPL\n");
+    printf("  :load <filename>  Load and execute a Lisp file\n");
+    printf("\n");
+    printf("See LANGUAGE_REFERENCE.md for complete language documentation.\n");
+}
+
 static int handle_command(const char *input, Environment *env) {
     /* Skip leading whitespace */
     while (*input == ' ' || *input == '\t')
@@ -62,6 +84,12 @@ static int handle_command(const char *input, Environment *env) {
 int main(int argc, char **argv) {
     /* Set locale for UTF-8 support */
     setlocale(LC_ALL, "");
+
+    /* Handle help flag */
+    if (argc > 1 && (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-?") == 0)) {
+        print_help();
+        return 0;
+    }
 
     /* Initialize interpreter */
     lisp_init();

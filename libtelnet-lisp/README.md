@@ -173,6 +173,15 @@ install.bat         # Windows
 
 ## Usage
 
+### Command Line Options
+
+```bash
+lisp-repl                 # Start interactive REPL
+lisp-repl -c "CODE"       # Execute CODE and exit
+lisp-repl FILE [FILE...]  # Execute FILE(s) and exit
+lisp-repl -h, --help      # Show help message
+```
+
 ### REPL Mode
 
 Run the REPL interactively:
@@ -189,6 +198,26 @@ REPL Commands:
 
 - `:quit` - Exit the REPL
 - `:load <filename>` - Load and execute a Lisp file
+
+### Command-Line Execution
+
+Execute Lisp code directly from the command line using the `-c` flag:
+
+```bash
+# Simple expressions
+./lisp-repl -c "(+ 1 2 3)"           # Output: 6
+
+# Multiple expressions
+./lisp-repl -c "(define x 10) (* x 5)"   # Output: 10, 50
+
+# Complex operations
+./lisp-repl -c "(map (lambda (x) (* x 2)) '(1 2 3 4 5))"  # Output: (2 4 6 8 10)
+
+# String operations
+./lisp-repl -c '(concat "hello" " " "world")'  # Output: "hello world"
+```
+
+Exit code is 0 on success, 1 on error.
 
 ### Running Files
 
