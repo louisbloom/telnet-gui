@@ -6,10 +6,7 @@
 #define INPUT_AREA_MAX_LENGTH 4096
 #define INPUT_AREA_HISTORY_SIZE 100
 
-typedef enum {
-    INPUT_AREA_MODE_NORMAL = 0,
-    INPUT_AREA_MODE_EVAL = 1
-} InputAreaMode;
+typedef enum { INPUT_AREA_MODE_NORMAL = 0, INPUT_AREA_MODE_EVAL = 1 } InputAreaMode;
 
 typedef struct {
     char buffer[INPUT_AREA_MAX_LENGTH];
@@ -19,21 +16,21 @@ typedef struct {
 
     /* History management */
     char history[INPUT_AREA_HISTORY_SIZE][INPUT_AREA_MAX_LENGTH];
-    int history_count;  /* Number of entries in history */
-    int history_index;  /* -1 = new entry, 0+ = history index */
+    int history_count;                       /* Number of entries in history */
+    int history_index;                       /* -1 = new entry, 0+ = history index */
     char saved_input[INPUT_AREA_MAX_LENGTH]; /* Preserve current input during history navigation */
 
     /* Prefix search for history (when cursor at EOL during arrow up) */
     char history_search_prefix[INPUT_AREA_MAX_LENGTH]; /* Prefix to search for */
-    int history_search_active; /* 1 if prefix search is active, 0 otherwise */
+    int history_search_active;                         /* 1 if prefix search is active, 0 otherwise */
 
     /* Kill ring */
     char kill_ring[INPUT_AREA_MAX_LENGTH];
 
     /* Text selection */
-    int selection_active;   /* 1 if selection is active */
-    int selection_start;    /* Start position of selection */
-    int selection_end;      /* End position of selection */
+    int selection_active; /* 1 if selection is active */
+    int selection_start;  /* Start position of selection */
+    int selection_end;    /* End position of selection */
 
     /* Mode */
     InputAreaMode mode;
@@ -76,16 +73,16 @@ void input_area_kill_word(InputArea *area);             /* Ctrl+W */
 void input_area_yank(InputArea *area);                  /* Ctrl+Y */
 
 /* Clipboard operations */
-const char *input_area_copy(InputArea *area);           /* Ctrl+C - returns text to copy */
+const char *input_area_copy(InputArea *area);             /* Ctrl+C - returns text to copy */
 void input_area_paste(InputArea *area, const char *text); /* Ctrl+V - paste text at cursor */
-const char *input_area_get_kill_ring(InputArea *area);  /* Get last killed text */
+const char *input_area_get_kill_ring(InputArea *area);    /* Get last killed text */
 
 /* Selection management */
-void input_area_start_selection(InputArea *area);       /* Start selection at cursor */
-void input_area_clear_selection(InputArea *area);       /* Clear selection */
-int input_area_has_selection(InputArea *area);          /* Check if selection is active */
+void input_area_start_selection(InputArea *area);                           /* Start selection at cursor */
+void input_area_clear_selection(InputArea *area);                           /* Clear selection */
+int input_area_has_selection(InputArea *area);                              /* Check if selection is active */
 void input_area_get_selection_range(InputArea *area, int *start, int *end); /* Get selection range */
-int input_area_copy_selection(InputArea *area, char *dest, int dest_size); /* Copy selection to buffer */
+int input_area_copy_selection(InputArea *area, char *dest, int dest_size);  /* Copy selection to buffer */
 
 /* History management */
 void input_area_history_add(InputArea *area);
@@ -129,5 +126,8 @@ const char *input_area_mode_get_text(InputArea *area);
 int input_area_mode_get_length(InputArea *area);
 int input_area_mode_needs_redraw(InputArea *area);
 void input_area_mode_mark_drawn(InputArea *area);
+
+/* Update mode display based on connection and input mode state */
+void input_area_update_mode(InputArea *area, int connected);
 
 #endif /* INPUT_AREA_H */

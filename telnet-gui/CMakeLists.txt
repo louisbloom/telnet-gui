@@ -3,6 +3,7 @@
 # Application sources
 set(GUI_SOURCES
     src/main.c
+    src/commands.c
     src/telnet.c
     src/terminal.c
     src/window.c

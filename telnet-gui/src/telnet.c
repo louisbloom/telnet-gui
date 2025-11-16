@@ -139,7 +139,7 @@ int telnet_connect(Telnet *t, const char *hostname, int port) {
 #endif
 
     /* Send initial Telnet options */
-    telnet_send_command(t->socket, WILL, OPT_ECHO);
+    telnet_send_command(t->socket, WONT, OPT_ECHO);
     telnet_send_command(t->socket, WILL, OPT_SUPPRESS_GO_AHEAD);
     telnet_send_command(t->socket, DO, OPT_ECHO);
     telnet_send_command(t->socket, DO, OPT_SUPPRESS_GO_AHEAD);
@@ -200,8 +200,9 @@ int telnet_receive(Telnet *t, char *buffer, size_t bufsize) {
             return 0;
         }
 #endif
+        /* Connection closed or error */
         telnet_disconnect(t);
-        return received;
+        return -1;  /* Return -1 for connection closed/error (not 0 which means "would block") */
     }
 
     /* Parse Telnet commands */

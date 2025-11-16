@@ -426,3 +426,37 @@ telnet-gui.exe 2>debug.log
 - K&R braces style
 - 4-space indentation
 - Unix line endings (LF, not CRLF)
+
+### Code Formatting
+
+The project uses clang-format for consistent code style. To use the format target:
+
+1. **Ensure clang-format is in PATH before running cmake** (during configuration):
+
+   ```bash
+   # MSYS2 UCRT64 environment
+   export PATH="/ucrt64/bin:$PATH"
+   # Or if not running from MSYS2 shell:
+   export PATH="/c/msys64/ucrt64/bin:$PATH"
+   ```
+
+2. **Configure CMake** (it will detect clang-format and create the format target):
+
+   ```bash
+   cd build
+   cmake ..
+   ```
+
+3. **Format all sources**:
+
+   ```bash
+   cmake --build . --target format
+   ```
+
+**Note:** If the format target doesn't exist (`ninja: error: unknown target 'format'`), clang-format wasn't found during CMake configuration. Add clang-format to PATH and reconfigure CMake.
+
+**Alternative:** Format files manually with clang-format:
+
+```bash
+clang-format -i src/*.c src/*.h
+```

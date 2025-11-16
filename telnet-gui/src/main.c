@@ -7,6 +7,13 @@
 #include <stdbool.h>
 #include <errno.h>
 
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <sys/select.h>
+#include <sys/time.h>
+#endif
+
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
@@ -17,6 +24,7 @@
 #include "glyph_cache.h"
 #include "input.h"
 #include "input_area.h"
+#include "commands.h"
 #include "lisp_bridge.h"
 
 static int running = 1;
@@ -176,27 +184,6 @@ static void copy_terminal_selection(Terminal *term) {
 
     /* Free buffer */
     free(buffer);
-}
-
-/* Update mode display to show Lisp mode data structure */
-static void update_mode(InputArea *area, int connected) {
-    /* Update connection mode in Lisp environment */
-    lisp_bridge_set_connection_mode(connected);
-
-    /* Update input mode in Lisp environment */
-    InputAreaMode input_mode = input_area_get_mode(area);
-    lisp_bridge_set_input_mode(input_mode);
-
-    /* Get mode string from Lisp environment and update display */
-    const char *mode_text = lisp_bridge_get_mode_string();
-    input_area_mode_set_text(area, mode_text);
-}
-
-/* Handle disconnection: update state, mode display, and show message */
-static void handle_disconnection(int *connected_mode, InputArea *area, Terminal *term, const char *message) {
-    *connected_mode = 0;
-    update_mode(area, *connected_mode);
-    terminal_feed_data(term, message, strlen(message));
 }
 
 static void cleanup(void) {
@@ -677,7 +664,7 @@ int main(int argc, char **argv) {
     input_area_init(&input_area);
 
     /* Set initial connection status */
-    update_mode(&input_area, connected_mode);
+    input_area_update_mode(&input_area, connected_mode);
 
     /* Resize terminal to match initial window size */
     int input_area_height = cell_h; /* Input area is one cell height */
@@ -781,48 +768,65 @@ int main(int argc, char **argv) {
                         const char *text = input_area_get_text(&input_area);
                         int cursor_pos = input_area_get_cursor_pos(&input_area);
 
-                        /* Call user-input-hook to transform text before sending */
-                        const char *transformed_text = lisp_bridge_call_user_input_hook(text, cursor_pos);
-                        int transformed_length = strlen(transformed_text);
+                        /* Check if this is a special command starting with '/' */
+                        if (text[0] == '/') {
+                            /* Process command */
+                            process_command(text, telnet, term, &connected_mode, &input_area);
 
-                        /* Echo transformed text to terminal with CRLF */
-                        char echo_buf[INPUT_AREA_MAX_LENGTH + 2];
-                        if (transformed_length < INPUT_AREA_MAX_LENGTH) {
-                            memcpy(echo_buf, transformed_text, transformed_length);
-                            echo_buf[transformed_length] = '\r';
-                            echo_buf[transformed_length + 1] = '\n';
-                            terminal_feed_data(term, echo_buf, transformed_length + 2);
-                        }
-
-                        /* Scroll to bottom on user input if configured */
-                        if (lisp_bridge_get_scroll_to_bottom_on_user_input()) {
-                            terminal_scroll_to_bottom(term);
-                        }
-
-                        /* Send transformed text to telnet with CRLF (if connected) */
-                        if (connected_mode) {
-                            char telnet_buf[INPUT_AREA_MAX_LENGTH + 2];
-                            if (transformed_length < INPUT_AREA_MAX_LENGTH) {
-                                memcpy(telnet_buf, transformed_text, transformed_length);
-                                telnet_buf[transformed_length] = '\r';
-                                telnet_buf[transformed_length + 1] = '\n';
-                                int sent = telnet_send(telnet, telnet_buf, transformed_length + 2);
-                                if (sent < 0) {
-                                    fprintf(stderr, "Failed to send data via telnet\n");
-                                    /* Connection lost - switch to unconnected mode */
-                                    handle_disconnection(&connected_mode, &input_area, term,
-                                                         "\r\n*** Connection lost ***\r\n");
-                                }
+                            /* Scroll to bottom on command */
+                            if (lisp_bridge_get_scroll_to_bottom_on_user_input()) {
+                                terminal_scroll_to_bottom(term);
                             }
-                        } else {
-                            /* Not connected - echo message to terminal */
-                            const char *not_conn = "\r\n*** Not connected ***\r\n";
-                            terminal_feed_data(term, not_conn, strlen(not_conn));
-                        }
 
-                        /* Add to history and clear input area */
-                        input_area_history_add(&input_area);
-                        input_area_clear(&input_area);
+                            /* Add to history and clear input area */
+                            input_area_history_add(&input_area);
+                            input_area_clear(&input_area);
+                        } else {
+                            /* Normal text - call user-input-hook to transform text before sending */
+                            const char *transformed_text = lisp_bridge_call_user_input_hook(text, cursor_pos);
+                            int transformed_length = strlen(transformed_text);
+
+                            /* Echo transformed text to terminal with CRLF */
+                            char echo_buf[INPUT_AREA_MAX_LENGTH + 2];
+                            if (transformed_length < INPUT_AREA_MAX_LENGTH) {
+                                memcpy(echo_buf, transformed_text, transformed_length);
+                                echo_buf[transformed_length] = '\r';
+                                echo_buf[transformed_length + 1] = '\n';
+                                terminal_feed_data(term, echo_buf, transformed_length + 2);
+                            }
+
+                            /* Scroll to bottom on user input if configured */
+                            if (lisp_bridge_get_scroll_to_bottom_on_user_input()) {
+                                terminal_scroll_to_bottom(term);
+                            }
+
+                            /* Send transformed text to telnet with CRLF (if connected) */
+                            if (connected_mode) {
+                                char telnet_buf[INPUT_AREA_MAX_LENGTH + 2];
+                                if (transformed_length < INPUT_AREA_MAX_LENGTH) {
+                                    memcpy(telnet_buf, transformed_text, transformed_length);
+                                    telnet_buf[transformed_length] = '\r';
+                                    telnet_buf[transformed_length + 1] = '\n';
+                                    int sent = telnet_send(telnet, telnet_buf, transformed_length + 2);
+                                    if (sent < 0) {
+                                        fprintf(stderr, "Failed to send data via telnet\n");
+                                        /* Connection lost - switch to unconnected mode */
+                                        connected_mode = 0;
+                                        input_area_update_mode(&input_area, connected_mode);
+                                        terminal_feed_data(term, "\r\n*** Connection lost ***\r\n",
+                                                           strlen("\r\n*** Connection lost ***\r\n"));
+                                    }
+                                }
+                            } else {
+                                /* Not connected - echo message to terminal */
+                                const char *not_conn = "\r\n*** Not connected ***\r\n";
+                                terminal_feed_data(term, not_conn, strlen(not_conn));
+                            }
+
+                            /* Add to history and clear input area */
+                            input_area_history_add(&input_area);
+                            input_area_clear(&input_area);
+                        }
                     } else {
                         /* Even if input is empty, send CRLF for newline (if connected) */
                         if (connected_mode) {
@@ -831,8 +835,10 @@ int main(int argc, char **argv) {
                             if (sent < 0) {
                                 fprintf(stderr, "Failed to send CRLF via telnet\n");
                                 /* Connection lost - switch to unconnected mode */
-                                handle_disconnection(&connected_mode, &input_area, term,
-                                                     "\r\n*** Connection lost ***\r\n");
+                                connected_mode = 0;
+                                input_area_update_mode(&input_area, connected_mode);
+                                terminal_feed_data(term, "\r\n*** Connection lost ***\r\n",
+                                                   strlen("\r\n*** Connection lost ***\r\n"));
                             }
                         }
                         /* Echo CRLF to terminal */
@@ -1235,32 +1241,40 @@ int main(int argc, char **argv) {
 
         /* Read from socket (if connected) */
         if (connected_mode) {
-            char recv_buf[4096];
-            int received = telnet_receive(telnet, recv_buf, sizeof(recv_buf) - 1);
-            if (received > 0) {
-                /* Clear terminal selection on new input */
-                if (terminal_selection.active) {
-                    clear_terminal_selection();
-                }
-                /* Call telnet-input-hook with received data (stripped of ANSI codes) */
-                lisp_bridge_call_telnet_input_hook(recv_buf, received);
-                /* Feed original data to terminal (hook doesn't modify the data flow) */
-                terminal_feed_data(term, recv_buf, received);
+            /* Use select() to check if data is available (avoid unnecessary recv() calls) */
+            int sock = telnet_get_socket(telnet);
+            if (sock >= 0) {
+                fd_set readfds;
+                struct timeval tv = {0, 0}; /* Non-blocking check */
+                FD_ZERO(&readfds);
+                FD_SET(sock, &readfds);
 
-                /* Scroll to bottom on telnet input if configured */
-                if (lisp_bridge_get_scroll_to_bottom_on_telnet_input()) {
-                    terminal_scroll_to_bottom(term);
-                }
-            } else if (received == 0) {
-                /* Connection closed by server */
-                fprintf(stderr, "Connection closed by server\n");
-                handle_disconnection(&connected_mode, &input_area, term, "\r\n*** Connection closed by server ***\r\n");
-            } else if (received < 0) {
-                /* Error or would block - ignore EWOULDBLOCK/EAGAIN */
-                /* Other errors indicate connection lost */
-                if (errno != EWOULDBLOCK && errno != EAGAIN) {
-                    fprintf(stderr, "Connection error: %s\n", strerror(errno));
-                    handle_disconnection(&connected_mode, &input_area, term, "\r\n*** Connection lost ***\r\n");
+                int ready = select(sock + 1, &readfds, NULL, NULL, &tv);
+                if (ready > 0 && FD_ISSET(sock, &readfds)) {
+                    /* Data is available, read it */
+                    char recv_buf[4096];
+                    int received = telnet_receive(telnet, recv_buf, sizeof(recv_buf) - 1);
+                    if (received > 0) {
+                        /* Clear terminal selection on new input */
+                        if (terminal_selection.active) {
+                            clear_terminal_selection();
+                        }
+                        /* Call telnet-input-hook with received data (stripped of ANSI codes) */
+                        lisp_bridge_call_telnet_input_hook(recv_buf, received);
+                        /* Feed original data to terminal (hook doesn't modify the data flow) */
+                        terminal_feed_data(term, recv_buf, received);
+
+                        /* Scroll to bottom on telnet input if configured */
+                        if (lisp_bridge_get_scroll_to_bottom_on_telnet_input()) {
+                            terminal_scroll_to_bottom(term);
+                        }
+                    } else if (received < 0) {
+                        /* Connection closed or error (telnet_receive returns -1 for both) */
+                        connected_mode = 0;
+                        input_area_update_mode(&input_area, connected_mode);
+                        terminal_feed_data(term, "\r\n*** Connection closed ***\r\n",
+                                           strlen("\r\n*** Connection closed ***\r\n"));
+                    }
                 }
             }
         }

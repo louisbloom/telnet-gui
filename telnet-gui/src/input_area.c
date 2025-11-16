@@ -1,6 +1,7 @@
 /* Input area implementation with readline-like functionality */
 
 #include "input_area.h"
+#include "lisp_bridge.h"
 #include <string.h>
 #include <ctype.h>
 
@@ -716,4 +717,21 @@ void input_area_mode_mark_drawn(InputArea *area) {
     if (!area)
         return;
     area->mode_needs_redraw = 0;
+}
+
+/* Update mode display to show Lisp mode data structure */
+void input_area_update_mode(InputArea *area, int connected) {
+    if (!area)
+        return;
+
+    /* Update connection mode in Lisp environment */
+    lisp_bridge_set_connection_mode(connected);
+
+    /* Update input mode in Lisp environment */
+    InputAreaMode input_mode = input_area_get_mode(area);
+    lisp_bridge_set_input_mode(input_mode);
+
+    /* Get mode string from Lisp environment and update display */
+    const char *mode_text = lisp_bridge_get_mode_string();
+    input_area_mode_set_text(area, mode_text);
 }
