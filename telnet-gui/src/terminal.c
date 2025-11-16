@@ -84,9 +84,10 @@ static void evict_oldest_scrollback_line(Terminal *term) {
     /* Decrease size */
     term->scrollback_size--;
 
-    /* Adjust viewport if scrolled up */
-    if (term->viewport_offset > 0)
-        term->viewport_offset--;
+    /* Don't adjust viewport - keep it frozen at the scrolled-back position
+     * even as new content arrives. Clamp to scrollback_size to keep it valid. */
+    if (term->viewport_offset > term->scrollback_size)
+        term->viewport_offset = term->scrollback_size;
 }
 
 static int sb_pushline(int cols, const VTermScreenCell *cells, void *user) {
