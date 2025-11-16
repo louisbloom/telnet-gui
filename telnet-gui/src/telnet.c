@@ -202,7 +202,7 @@ int telnet_receive(Telnet *t, char *buffer, size_t bufsize) {
 #endif
         /* Connection closed or error */
         telnet_disconnect(t);
-        return -1;  /* Return -1 for connection closed/error (not 0 which means "would block") */
+        return -1; /* Return -1 for connection closed/error (not 0 which means "would block") */
     }
 
     /* Parse Telnet commands */
