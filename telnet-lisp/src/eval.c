@@ -427,6 +427,7 @@ static LispObject *eval_quasiquote(LispObject *expr, Environment *env) {
 }
 
 static LispObject *expand_macro(LispObject *macro, LispObject *args, Environment *env) {
+    (void)env; /* Unused - macros use their own closure environment */
     /* Create new environment with macro's closure as parent */
     Environment *new_env = env_create(macro->value.macro.closure);
 

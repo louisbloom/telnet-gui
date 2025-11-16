@@ -1,7 +1,7 @@
 /* Glyph cache implementation */
 
 #include "glyph_cache.h"
-#include "../../libtelnet-lisp/include/utf8.h"
+#include "../../telnet-lisp/include/utf8.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -179,10 +179,8 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
 
     /* Try emoji font first if this looks like an emoji codepoint */
     SDL_Surface *surface = NULL;
-    TTF_Font *selected_font = cache->font;
 
     if (is_emoji_codepoint(codepoint) && cache->emoji_font) {
-        selected_font = cache->emoji_font;
 
         /* Convert codepoint to UTF-8 for proper emoji rendering */
         char utf8[5];
@@ -194,8 +192,6 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
 
     /* If emoji font failed or not an emoji, try main font with glyph rendering */
     if (!surface) {
-        selected_font = cache->font;
-
         /* For BMP characters (< 0x10000), use glyph rendering */
         if (codepoint < 0x10000) {
             surface = TTF_RenderGlyph_Blended(cache->font, (uint16_t)codepoint, fg_color);

@@ -4,11 +4,11 @@ This library can be used independently in other projects. Here's how to package 
 
 ## Option 1: Copy into Your Project
 
-The simplest approach is to copy the `libtelnet-lisp/` directory into your project:
+The simplest approach is to copy the `telnet-lisp/` directory into your project:
 
 ```bash
 # From your project root
-cp -r /path/to/telnet-lisp/libtelnet-lisp ./libs/
+cp -r /path/to/telnet-lisp/telnet-lisp ./libs/
 ```
 
 Then in your CMakeLists.txt:
@@ -17,8 +17,8 @@ Then in your CMakeLists.txt:
 cmake_minimum_required(VERSION 3.10)
 project(YourProject LANGUAGES C)
 
-# Add libtelnet-lisp
-add_subdirectory(libs/libtelnet-lisp)
+# Add telnet-lisp
+add_subdirectory(libs/telnet-lisp)
 
 # Your application
 add_executable(myapp main.c)
@@ -36,7 +36,7 @@ project(YourProject LANGUAGES C)
 include(ExternalProject)
 
 ExternalProject_Add(libtelnet_lisp
-    SOURCE_DIR /path/to/telnet-lisp/libtelnet-lisp
+    SOURCE_DIR /path/to/telnet-lisp/telnet-lisp
     BINARY_DIR ${CMAKE_BINARY_DIR}/external/libtelnet_lisp
     CMAKE_ARGS
         -DCMAKE_BUILD_TYPE=Release
@@ -53,7 +53,7 @@ target_link_libraries(myapp ${CMAKE_BINARY_DIR}/external/libtelnet_lisp/liblisp.
 Build and install the library system-wide:
 
 ```bash
-# In libtelnet-lisp directory
+# In telnet-lisp directory
 mkdir build && cd build
 cmake ..
 cmake --build . -j
@@ -138,7 +138,7 @@ Key functions:
 To build the library and REPL independently:
 
 ```bash
-# In libtelnet-lisp directory
+# In telnet-lisp directory
 mkdir build && cd build
 cmake ..
 cmake --build .

@@ -4,9 +4,9 @@ A multi-project repository focused on **telnet-lisp** integration. This reposito
 
 ## Repository Overview
 
-This repository is organized around **libtelnet-lisp**, the core embeddable Lisp interpreter library. All projects in this repository integrate with or use telnet-lisp in various ways:
+This repository is organized around **telnet-lisp**, the core embeddable Lisp interpreter library. All projects in this repository integrate with or use telnet-lisp in various ways:
 
-- **libtelnet-lisp** - The core library: A minimal, embeddable Lisp interpreter written in C with automatic garbage collection, regex support, and UTF-8 handling
+- **telnet-lisp** - The core library: A minimal, embeddable Lisp interpreter written in C with automatic garbage collection, regex support, and UTF-8 handling
 - **telnet-gui** - GUI application: A graphical telnet client that integrates telnet-lisp for scriptable automation and command processing
 
 While these projects are independent and can be built separately, they share the common foundation of telnet-lisp integration.
@@ -15,7 +15,7 @@ While these projects are independent and can be built separately, they share the
 
 ```
 telnet-lisp/
-├── libtelnet-lisp/    # Core Lisp interpreter library (foundation)
+├── telnet-lisp/    # Core Lisp interpreter library (foundation)
 │   ├── include/       # Public headers (lisp.h, utf8.h)
 │   ├── src/          # Library source files
 │   ├── repl/         # REPL application
@@ -23,7 +23,7 @@ telnet-lisp/
 │   ├── CMakeLists.txt
 │   ├── README.md     # Library documentation
 │   └── PACKAGING.md  # Integration guide
-├── telnet-gui/       # GUI application (integrates libtelnet-lisp)
+├── telnet-gui/       # GUI application (integrates telnet-lisp)
 │   ├── src/          # GUI source files
 │   ├── CMakeLists.txt
 │   └── README.md     # GUI-specific documentation
@@ -119,9 +119,9 @@ Try some Lisp:
 >>> :quit
 ```
 
-## Core Library: libtelnet-lisp
+## Core Library: telnet-lisp
 
-**libtelnet-lisp** is the core embeddable Lisp interpreter library that serves as the foundation for all projects in this repository. It provides a complete Lisp implementation with modern features, designed for integration into applications.
+**telnet-lisp** is the core embeddable Lisp interpreter library that serves as the foundation for all projects in this repository. It provides a complete Lisp implementation with modern features, designed for integration into applications.
 
 ### Key Features
 
@@ -155,18 +155,18 @@ For complete documentation including:
 - Examples and usage patterns
 - Embedding guide
 
-See **[libtelnet-lisp/README.md](libtelnet-lisp/README.md)**.
+See **[telnet-lisp/README.md](telnet-lisp/README.md)**.
 
-To integrate libtelnet-lisp into your project, see **[libtelnet-lisp/PACKAGING.md](libtelnet-lisp/PACKAGING.md)**.
+To integrate telnet-lisp into your project, see **[telnet-lisp/PACKAGING.md](telnet-lisp/PACKAGING.md)**.
 
 ## Projects
 
 ### telnet-gui
 
-A graphical telnet client with terminal emulation, built using SDL2 and libvterm. This project integrates with **libtelnet-lisp** to provide scriptable automation and command processing capabilities.
+A graphical telnet client with terminal emulation, built using SDL2 and libvterm. This project integrates with **telnet-lisp** to provide scriptable automation and command processing capabilities.
 
 **Integration with telnet-lisp:**
-- Uses libtelnet-lisp for Lisp-based automation and scripting
+- Uses telnet-lisp for Lisp-based automation and scripting
 - Provides a GUI interface for telnet connections
 - Enables Lisp scripting within the telnet client
 
@@ -180,7 +180,7 @@ A graphical telnet client with terminal emulation, built using SDL2 and libvterm
 - SDL2 (windowing and rendering)
 - SDL2_ttf (font rendering)
 - libvterm (terminal emulation) - install from source
-- **libtelnet-lisp** (core library - included)
+- **telnet-lisp** (core library - included)
 
 **Building:**
 
@@ -208,8 +208,8 @@ cmake --build . --target telnet-gui
 Repository-level targets:
 
 - `liblisp` - Static library (core)
-- `lisp-repl` - REPL application (uses libtelnet-lisp)
-- `telnet-gui` - GUI application (uses libtelnet-lisp)
+- `lisp-repl` - REPL application (uses telnet-lisp)
+- `telnet-gui` - GUI application (uses telnet-lisp)
 - `format` - Format all source files
 - `test` - Run test suite
 - `install` - Install to system directories
@@ -267,9 +267,9 @@ cp build/compile_commands.json .
 
 ### Repository Documentation
 
-- **[libtelnet-lisp/README.md](libtelnet-lisp/README.md)** - Complete library documentation with all features, API reference, and examples
-- **[libtelnet-lisp/PACKAGING.md](libtelnet-lisp/PACKAGING.md)** - Integration guide for embedding libtelnet-lisp
-- **[libtelnet-lisp/tests/README.md](libtelnet-lisp/tests/README.md)** - Test documentation
+- **[telnet-lisp/README.md](telnet-lisp/README.md)** - Complete library documentation with all features, API reference, and examples
+- **[telnet-lisp/PACKAGING.md](telnet-lisp/PACKAGING.md)** - Integration guide for embedding telnet-lisp
+- **[telnet-lisp/tests/README.md](telnet-lisp/tests/README.md)** - Test documentation
 - **[telnet-gui/README.md](telnet-gui/README.md)** - GUI application documentation, libvterm integration notes
 
 ## License
@@ -278,4 +278,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Contributing
 
-See the library documentation in `libtelnet-lisp/README.md` for API reference and examples. All projects in this repository integrate with the core **libtelnet-lisp** library.
+See the library documentation in `telnet-lisp/README.md` for API reference and examples. All projects in this repository integrate with the core **telnet-lisp** library.

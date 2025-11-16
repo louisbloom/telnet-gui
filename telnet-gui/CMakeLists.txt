@@ -253,7 +253,7 @@ endif()
 # Link libraries - only link SDL2_ttf since it includes SDL2
 # VTERM already includes pthread
 # Need ws2_32 for Windows sockets
-# Link against libtelnet-lisp for completion hooks
+# Link against telnet-lisp for completion hooks
 # Also need GC and PCRE2 since liblisp is static
 target_link_libraries(telnet-gui PRIVATE
     ${SDL2_TTF_LIBRARIES}
@@ -268,7 +268,7 @@ target_link_libraries(telnet-gui PRIVATE
 # Include directories
 target_include_directories(telnet-gui PRIVATE
     src
-    ../libtelnet-lisp/include
+    ../telnet-lisp/include
 )
 
 # Add /usr/local/include for libvterm

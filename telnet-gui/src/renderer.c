@@ -2,7 +2,7 @@
 
 #include "renderer.h"
 #include "lisp_bridge.h"
-#include "../../libtelnet-lisp/include/utf8.h"
+#include "../../telnet-lisp/include/utf8.h"
 #include <stdlib.h>
 
 struct Renderer {

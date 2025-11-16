@@ -74,17 +74,17 @@ pkg_check_modules(GC REQUIRED bdw-gc)
 pkg_check_modules(PCRE2 REQUIRED libpcre2-8)
 
 # Add library subdirectory
-add_subdirectory(libtelnet-lisp)
+add_subdirectory(telnet-lisp)
 
 # Telnet GUI executable
 add_subdirectory(telnet-gui)
 
 # REPL executable (default application)
-add_executable(lisp-repl libtelnet-lisp/repl/main.c)
+add_executable(lisp-repl telnet-lisp/repl/main.c)
 target_link_libraries(lisp-repl liblisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
 
 # Add include directories for REPL
-target_include_directories(lisp-repl PRIVATE libtelnet-lisp/include)
+target_include_directories(lisp-repl PRIVATE telnet-lisp/include)
 
 # Add UCRT64 system include paths for REPL executable on Windows
 if(WIN32 AND EXISTS "${UCRT64_ROOT}/include")
@@ -118,7 +118,7 @@ install(TARGETS telnet-gui
     COMPONENT Runtime
 )
 
-install(FILES libtelnet-lisp/include/lisp.h
+install(FILES telnet-lisp/include/lisp.h
     DESTINATION include
 )
 
@@ -126,7 +126,7 @@ install(FILES libtelnet-lisp/include/lisp.h
 enable_testing()
 
 # Find all test files and add them with validation
-file(GLOB_RECURSE TEST_FILES "libtelnet-lisp/tests/**/*.lisp")
+file(GLOB_RECURSE TEST_FILES "telnet-lisp/tests/**/*.lisp")
 
 foreach(TEST_FILE ${TEST_FILES})
     get_filename_component(TEST_NAME ${TEST_FILE} NAME_WE)
@@ -135,8 +135,8 @@ foreach(TEST_FILE ${TEST_FILES})
     get_filename_component(CATEGORY ${TEST_DIR} NAME)
 
     add_test(NAME ${CATEGORY}_${TEST_NAME}
-        COMMAND bash ${CMAKE_SOURCE_DIR}/libtelnet-lisp/test_runner.sh ${TEST_FILE}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/libtelnet-lisp
+        COMMAND bash ${CMAKE_SOURCE_DIR}/telnet-lisp/test_runner.sh ${TEST_FILE}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/telnet-lisp
     )
 endforeach()
 
@@ -163,14 +163,14 @@ find_program(SHFMT NAMES shfmt)
 
 if(CLANG_FORMAT)
     # Collect all C source files
-    file(GLOB_RECURSE LIB_SOURCES "libtelnet-lisp/src/*.c")
-    file(GLOB_RECURSE REPL_SOURCES "libtelnet-lisp/repl/*.c")
+    file(GLOB_RECURSE LIB_SOURCES "telnet-lisp/src/*.c")
+    file(GLOB_RECURSE REPL_SOURCES "telnet-lisp/repl/*.c")
     file(GLOB_RECURSE GUI_SOURCES "telnet-gui/src/*.c")
 
     # Collect all shell scripts
     file(GLOB SHELL_SCRIPTS
         "*.sh"
-        "libtelnet-lisp/*.sh"
+        "telnet-lisp/*.sh"
     )
 
     # Format target for C sources
