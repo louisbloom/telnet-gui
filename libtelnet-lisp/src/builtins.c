@@ -109,6 +109,14 @@ static LispObject *builtin_vector_length(LispObject *args, Environment *env);
 static LispObject *builtin_vector_push_bang(LispObject *args, Environment *env);
 static LispObject *builtin_vector_pop_bang(LispObject *args, Environment *env);
 
+/* Alist and mapping operations */
+static LispObject *builtin_assoc(LispObject *args, Environment *env);
+static LispObject *builtin_assq(LispObject *args, Environment *env);
+static LispObject *builtin_assv(LispObject *args, Environment *env);
+static LispObject *builtin_alist_get(LispObject *args, Environment *env);
+static LispObject *builtin_map(LispObject *args, Environment *env);
+static LispObject *builtin_mapcar(LispObject *args, Environment *env);
+
 /* Helper for wildcard matching */
 static int match_char_class(const char **pattern, char c);
 static int wildcard_match(const char *pattern, const char *str);
@@ -152,6 +160,16 @@ void register_builtins(Environment *env) {
     env_define(env, "list", lisp_make_builtin(builtin_list, "list"));
     env_define(env, "list-length", lisp_make_builtin(builtin_list_length, "list-length"));
     env_define(env, "list-ref", lisp_make_builtin(builtin_list_ref, "list-ref"));
+
+    /* Alist operations */
+    env_define(env, "assoc", lisp_make_builtin(builtin_assoc, "assoc"));
+    env_define(env, "assq", lisp_make_builtin(builtin_assq, "assq"));
+    env_define(env, "assv", lisp_make_builtin(builtin_assv, "assv"));
+    env_define(env, "alist-get", lisp_make_builtin(builtin_alist_get, "alist-get"));
+
+    /* Mapping operations */
+    env_define(env, "map", lisp_make_builtin(builtin_map, "map"));
+    env_define(env, "mapcar", lisp_make_builtin(builtin_mapcar, "mapcar"));
 
     env_define(env, "null?", lisp_make_builtin(builtin_null_question, "null?"));
     env_define(env, "atom?", lisp_make_builtin(builtin_atom_question, "atom?"));
@@ -2632,4 +2650,243 @@ static LispObject *builtin_hash_entries(LispObject *args, Environment *env) {
     }
 
     return result;
+}
+
+/* Alist operations */
+
+/* Helper function to check equality for assoc variants */
+static int objects_equal(LispObject *a, LispObject *b) {
+    if (a == b)
+        return 1;
+    if (a == NIL || b == NIL)
+        return 0;
+    if (a->type != b->type)
+        return 0;
+
+    switch (a->type) {
+    case LISP_NUMBER:
+        return a->value.number == b->value.number;
+    case LISP_INTEGER:
+        return a->value.integer == b->value.integer;
+    case LISP_STRING:
+        return strcmp(a->value.string, b->value.string) == 0;
+    case LISP_SYMBOL:
+        return strcmp(a->value.symbol, b->value.symbol) == 0;
+    case LISP_BOOLEAN:
+        return a->value.boolean == b->value.boolean;
+    default:
+        return 0;
+    }
+}
+
+static LispObject *builtin_assoc(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("assoc requires 2 arguments");
+    }
+
+    LispObject *key = lisp_car(args);
+    LispObject *alist = lisp_car(lisp_cdr(args));
+
+    /* Iterate through association list */
+    while (alist != NIL && alist != NULL) {
+        if (alist->type != LISP_CONS) {
+            return lisp_make_error("assoc requires an association list");
+        }
+
+        LispObject *pair = lisp_car(alist);
+        if (pair != NIL && pair->type == LISP_CONS) {
+            LispObject *pair_key = lisp_car(pair);
+            if (objects_equal(key, pair_key)) {
+                return pair;
+            }
+        }
+
+        alist = lisp_cdr(alist);
+    }
+
+    return NIL;
+}
+
+static LispObject *builtin_assq(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("assq requires 2 arguments");
+    }
+
+    LispObject *key = lisp_car(args);
+    LispObject *alist = lisp_car(lisp_cdr(args));
+
+    /* Iterate through association list using pointer equality (eq) */
+    while (alist != NIL && alist != NULL) {
+        if (alist->type != LISP_CONS) {
+            return lisp_make_error("assq requires an association list");
+        }
+
+        LispObject *pair = lisp_car(alist);
+        if (pair != NIL && pair->type == LISP_CONS) {
+            LispObject *pair_key = lisp_car(pair);
+            if (key == pair_key) {
+                return pair;
+            }
+        }
+
+        alist = lisp_cdr(alist);
+    }
+
+    return NIL;
+}
+
+static LispObject *builtin_assv(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("assv requires 2 arguments");
+    }
+
+    LispObject *key = lisp_car(args);
+    LispObject *alist = lisp_car(lisp_cdr(args));
+
+    /* Iterate through association list using eqv equality (same as assoc for our purposes) */
+    while (alist != NIL && alist != NULL) {
+        if (alist->type != LISP_CONS) {
+            return lisp_make_error("assv requires an association list");
+        }
+
+        LispObject *pair = lisp_car(alist);
+        if (pair != NIL && pair->type == LISP_CONS) {
+            LispObject *pair_key = lisp_car(pair);
+            if (objects_equal(key, pair_key)) {
+                return pair;
+            }
+        }
+
+        alist = lisp_cdr(alist);
+    }
+
+    return NIL;
+}
+
+static LispObject *builtin_alist_get(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("alist-get requires at least 2 arguments");
+    }
+
+    LispObject *key = lisp_car(args);
+    LispObject *alist = lisp_car(lisp_cdr(args));
+    LispObject *default_val = NIL;
+
+    /* Optional third argument is default value */
+    if (lisp_cdr(lisp_cdr(args)) != NIL) {
+        default_val = lisp_car(lisp_cdr(lisp_cdr(args)));
+    }
+
+    /* Iterate through association list */
+    while (alist != NIL && alist != NULL) {
+        if (alist->type != LISP_CONS) {
+            return lisp_make_error("alist-get requires an association list");
+        }
+
+        LispObject *pair = lisp_car(alist);
+        if (pair != NIL && pair->type == LISP_CONS) {
+            LispObject *pair_key = lisp_car(pair);
+            if (objects_equal(key, pair_key)) {
+                return lisp_cdr(pair);
+            }
+        }
+
+        alist = lisp_cdr(alist);
+    }
+
+    return default_val;
+}
+
+/* Mapping operations */
+
+static LispObject *builtin_map(LispObject *args, Environment *env) {
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("map requires at least 2 arguments");
+    }
+
+    LispObject *func = lisp_car(args);
+    LispObject *list = lisp_car(lisp_cdr(args));
+
+    if (func->type != LISP_BUILTIN && func->type != LISP_LAMBDA) {
+        return lisp_make_error("map requires a function as first argument");
+    }
+
+    LispObject *result = NIL;
+    LispObject *tail = NULL;
+
+    while (list != NIL && list != NULL) {
+        if (list->type != LISP_CONS) {
+            return lisp_make_error("map requires a list");
+        }
+
+        LispObject *item = lisp_car(list);
+        LispObject *func_args = lisp_make_cons(item, NIL);
+
+        LispObject *mapped;
+        if (func->type == LISP_BUILTIN) {
+            mapped = func->value.builtin.func(func_args, env);
+        } else {
+            /* Lambda function - manually apply it */
+            Environment *lambda_env = env_create(func->value.lambda.closure);
+
+            /* Bind parameter to argument */
+            LispObject *params = func->value.lambda.params;
+            if (params == NIL || params->type != LISP_CONS) {
+                return lisp_make_error("map: lambda must have at least one parameter");
+            }
+
+            LispObject *param = lisp_car(params);
+            if (param->type != LISP_SYMBOL) {
+                return lisp_make_error("map: lambda parameter must be a symbol");
+            }
+
+            /* Bind the parameter to the item */
+            env_define(lambda_env, param->value.symbol, item);
+
+            /* Check for extra parameters (should only have one for map) */
+            if (lisp_cdr(params) != NIL) {
+                return lisp_make_error("map: lambda should take exactly one argument");
+            }
+
+            /* Evaluate lambda body */
+            LispObject *body = func->value.lambda.body;
+            mapped = NIL;
+            while (body != NIL && body != NULL) {
+                mapped = lisp_eval(lisp_car(body), lambda_env);
+                if (mapped->type == LISP_ERROR) {
+                    env_free(lambda_env);
+                    return mapped;
+                }
+                body = lisp_cdr(body);
+            }
+
+            env_free(lambda_env);
+        }
+
+        if (mapped->type == LISP_ERROR) {
+            return mapped;
+        }
+
+        LispObject *new_cons = lisp_make_cons(mapped, NIL);
+        if (result == NIL) {
+            result = new_cons;
+            tail = new_cons;
+        } else {
+            tail->value.cons.cdr = new_cons;
+            tail = new_cons;
+        }
+
+        list = lisp_cdr(list);
+    }
+
+    return result;
+}
+
+static LispObject *builtin_mapcar(LispObject *args, Environment *env) {
+    /* mapcar is the same as map in this implementation */
+    return builtin_map(args, env);
 }

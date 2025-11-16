@@ -67,6 +67,60 @@ int main(int argc, char **argv) {
     lisp_init();
     Environment *env = env_create_global();
 
+    /* Handle -c flag for executing code from command line */
+    if (argc > 2 && strcmp(argv[1], "-c") == 0) {
+        const char *code = argv[2];
+        const char *input = code;
+
+        while (*input) {
+            /* Skip whitespace and comments */
+            while (*input == ' ' || *input == '\t' || *input == '\n' || *input == '\r' || *input == ';') {
+                if (*input == ';') {
+                    while (*input && *input != '\n')
+                        input++;
+                } else {
+                    input++;
+                }
+            }
+
+            /* End of input */
+            if (*input == '\0')
+                break;
+
+            /* Parse expression */
+            const char *parse_start = input;
+            LispObject *expr = lisp_read(&input);
+
+            /* If input didn't advance, we're done */
+            if (expr == NULL || input == parse_start) {
+                break;
+            }
+
+            if (expr->type == LISP_ERROR) {
+                char *err_str = lisp_print(expr);
+                fprintf(stderr, "ERROR: %s\n", err_str);
+                lisp_cleanup();
+                return 1;
+            }
+
+            LispObject *result = lisp_eval(expr, env);
+
+            if (result->type == LISP_ERROR) {
+                char *err_str = lisp_print(result);
+                fprintf(stderr, "ERROR: %s\n", err_str);
+                lisp_cleanup();
+                return 1;
+            }
+
+            char *output = lisp_print(result);
+            printf("%s\n", output);
+        }
+
+        /* Exit after running code */
+        lisp_cleanup();
+        return 0;
+    }
+
     /* If file argument provided, load and execute it */
     if (argc > 1) {
         for (int i = 1; i < argc; i++) {

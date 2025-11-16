@@ -244,6 +244,58 @@ Define a macro that transforms code before evaluation.
 - `null?` - Check if list is empty
 - `atom?` - Check if value is an atom (not a list)
 
+### Association List (Alist) Functions
+
+Association lists are lists of key-value pairs represented as cons cells: `((key1 . value1) (key2 . value2) ...)`.
+
+- `assoc` - Find pair by key using value equality (equal), returns the full pair `(key . value)` or nil
+- `assq` - Find pair by key using pointer equality (eq), returns the full pair `(key . value)` or nil
+- `assv` - Find pair by key using equivalence equality (eqv), returns the full pair `(key . value)` or nil
+- `alist-get` - Get value for key, returns the value (cdr of pair) or default value if provided
+
+**Examples:**
+```lisp
+(define config '(("host" . "localhost") ("port" . 8080) ("debug" . #t)))
+
+; Find pair by key
+(assoc "host" config)           ; => ("host" . "localhost")
+(assoc "missing" config)        ; => nil
+
+; Get value directly
+(alist-get "port" config)       ; => 8080
+(alist-get "timeout" config 30) ; => 30 (default value)
+
+; Extract value from assoc result
+(cdr (assoc "debug" config))    ; => #t
+```
+
+### Mapping Functions
+
+Functions for transforming lists by applying a function to each element.
+
+- `map` - Apply function to each element of list, returns new list of results
+- `mapcar` - Same as map (Common Lisp compatibility)
+
+**Examples:**
+```lisp
+; Double each number
+(map (lambda (x) (* x 2)) '(1 2 3 4 5))  ; => (2 4 6 8 10)
+
+; Get first element of each pair
+(define people '(("Alice" . 25) ("Bob" . 30) ("Carol" . 35)))
+(map (lambda (pair) (car pair)) people)  ; => ("Alice" "Bob" "Carol")
+
+; Transform alist values
+(map (lambda (pair) (cons (car pair) (* (cdr pair) 2)))
+     '((1 . 10) (2 . 20)))               ; => ((1 . 20) (2 . 40))
+
+; Map with builtin functions
+(map car '((1 . 2) (3 . 4) (5 . 6)))    ; => (1 3 5)
+
+; String operations
+(map string-upcase '("hello" "world"))   ; => ("HELLO" "WORLD")
+```
+
 ### Vector Functions
 
 - `make-vector` - Create a vector of specified size, optionally with initial value for all elements
