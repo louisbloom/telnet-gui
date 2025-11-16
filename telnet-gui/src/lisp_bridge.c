@@ -699,6 +699,42 @@ int lisp_bridge_get_scroll_to_bottom_on_telnet_input(void) {
     return lisp_is_truthy(value) ? 1 : 0;
 }
 
+int lisp_bridge_get_input_history_size(void) {
+    if (!lisp_env) {
+        return 100; /* Default: 100 entries */
+    }
+
+    LispObject *value = env_lookup(lisp_env, "*input-history-size*");
+    if (!value || value == NIL) {
+        return 100; /* Default: 100 entries */
+    }
+
+    /* Check if it's an integer */
+    if (value->type == LISP_INTEGER) {
+        int size = (int)value->value.integer;
+        /* Clamp to reasonable range (10-1000) */
+        if (size < 10)
+            size = 10;
+        if (size > 1000)
+            size = 1000;
+        return size;
+    }
+
+    /* Check if it's a number (convert to integer) */
+    if (value->type == LISP_NUMBER) {
+        int size = (int)value->value.number;
+        /* Clamp to reasonable range (10-1000) */
+        if (size < 10)
+            size = 10;
+        if (size > 1000)
+            size = 1000;
+        return size;
+    }
+
+    /* Invalid type, return default */
+    return 100;
+}
+
 void lisp_bridge_call_telnet_input_hook(const char *text, size_t len) {
     if (!lisp_env || !text || len == 0) {
         return;

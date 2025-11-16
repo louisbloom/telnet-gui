@@ -292,6 +292,33 @@
 (define *scroll-to-bottom-on-telnet-input* #f)
 
 ;; ============================================================================
+;; INPUT HISTORY CONFIGURATION
+;; ============================================================================
+;; *input-history-size*: Maximum number of input history entries to keep
+;;
+;; This controls how many previous input commands are stored in history
+;; that you can navigate through with Up/Down arrow keys. When the buffer
+;; is full, oldest entries are automatically removed to make room for new
+;; commands (FIFO circular buffer).
+;;
+;; Values:
+;;   10   - Minimal history, uses very little memory
+;;   50   - Small history, good for simple sessions
+;;   100  - Medium history, default and recommended
+;;   200  - Large history, good for complex sessions
+;;   500  - Very large history, maximum recommended
+;;
+;; Memory usage: Each entry uses INPUT_AREA_MAX_LENGTH bytes
+;;   50 entries  ≈ 100KB (assuming 2KB per entry)
+;;   100 entries ≈ 200KB
+;;   200 entries ≈ 400KB
+;;   500 entries ≈ 1MB
+;;
+;; Note: Very large history sizes may impact performance when navigating
+;;       through history, especially on slower systems.
+(define *input-history-size* 100)
+
+;; ============================================================================
 ;; COLOR CONFIGURATION
 ;; ============================================================================
 ;; All colors are specified as RGB lists (r g b) where each component is 0-255
@@ -389,13 +416,13 @@
 ;;         (if (string= (symbol->string (alist-get "input" mode)) "eval") "E" "N"))))
 
 (define mode-render-hook
-  (lambda (mode)
-    (concat
-      ;; Connection emoji - uses system emoji font if available
-      (if (string= (symbol->string (alist-get "connection" mode)) "conn")
-          "🟢"    ; Green circle for connected
-          "🔴")   ; Red circle for disconnected
-      ;; Input mode emoji
-      (if (string= (symbol->string (alist-get "input" mode)) "eval")
-          "💻"     ; Laptop for eval mode
-          "📝"))))  ; Memo for normal mode
+    (lambda (mode)
+      (concat
+       ;; Connection emoji - uses system emoji font if available
+       (if (string= (symbol->string (alist-get "connection" mode)) "conn")
+           "🟢"    ; Green circle for connected
+           "🔴")   ; Red circle for disconnected
+       ;; Input mode emoji
+       (if (string= (symbol->string (alist-get "input" mode)) "eval")
+           "💻"     ; Laptop for eval mode
+           "📝"))))  ; Memo for normal mode

@@ -4,7 +4,7 @@
 #define INPUT_AREA_H
 
 #define INPUT_AREA_MAX_LENGTH 4096
-#define INPUT_AREA_HISTORY_SIZE 100
+#define INPUT_AREA_HISTORY_SIZE 100 /* Default, can be overridden by Lisp config */
 
 typedef enum { INPUT_AREA_MODE_NORMAL = 0, INPUT_AREA_MODE_EVAL = 1 } InputAreaMode;
 
@@ -15,7 +15,8 @@ typedef struct {
     int needs_redraw; /* Flag to indicate input area needs redraw */
 
     /* History management */
-    char history[INPUT_AREA_HISTORY_SIZE][INPUT_AREA_MAX_LENGTH];
+    char **history;                          /* Dynamic array of history entries */
+    int history_max_size;                    /* Maximum history size from Lisp config */
     int history_count;                       /* Number of entries in history */
     int history_index;                       /* -1 = new entry, 0+ = history index */
     char saved_input[INPUT_AREA_MAX_LENGTH]; /* Preserve current input during history navigation */

@@ -4,6 +4,7 @@
 #include "lisp_bridge.h"
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
 
 /* Helper: Reset history prefix search (call when user edits text) */
 static void reset_history_search(InputArea *area) {
@@ -27,6 +28,21 @@ void input_area_init(InputArea *area) {
     if (!area)
         return;
     memset(area, 0, sizeof(InputArea));
+
+    /* Get history size from Lisp config */
+    area->history_max_size = lisp_bridge_get_input_history_size();
+
+    /* Allocate history array */
+    area->history = (char **)malloc(area->history_max_size * sizeof(char *));
+    if (area->history) {
+        for (int i = 0; i < area->history_max_size; i++) {
+            area->history[i] = (char *)malloc(INPUT_AREA_MAX_LENGTH);
+            if (area->history[i]) {
+                area->history[i][0] = '\0';
+            }
+        }
+    }
+
     area->history_index = -1; /* Start with new entry */
     area->mode = INPUT_AREA_MODE_NORMAL;
     /* Initialize status area with mode indicator */
@@ -472,18 +488,25 @@ void input_area_history_add(InputArea *area) {
     if (area->length == 0)
         return;
 
-    /* Don't add duplicate of last entry */
-    if (area->history_count > 0) {
-        if (strcmp(area->buffer, area->history[area->history_count - 1]) == 0) {
-            area->history_index = -1;
-            return;
+    /* Search for duplicate anywhere in history and remove it */
+    for (int i = 0; i < area->history_count; i++) {
+        if (strcmp(area->buffer, area->history[i]) == 0) {
+            /* Found duplicate - remove it by shifting entries after it */
+            char *duplicate = area->history[i];
+            memmove(&area->history[i], &area->history[i + 1], (area->history_count - i - 1) * sizeof(char *));
+            /* Put the removed entry at the end for reuse */
+            area->history[area->history_count - 1] = duplicate;
+            area->history_count--;
+            break;
         }
     }
 
     /* Shift history if full */
-    if (area->history_count >= INPUT_AREA_HISTORY_SIZE) {
-        /* Remove oldest entry */
-        memmove(&area->history[0], &area->history[1], (INPUT_AREA_HISTORY_SIZE - 1) * INPUT_AREA_MAX_LENGTH);
+    if (area->history_count >= area->history_max_size) {
+        /* Remove oldest entry by shifting pointers */
+        char *oldest = area->history[0];
+        memmove(&area->history[0], &area->history[1], (area->history_max_size - 1) * sizeof(char *));
+        area->history[area->history_max_size - 1] = oldest;
         area->history_count--;
     }
 
