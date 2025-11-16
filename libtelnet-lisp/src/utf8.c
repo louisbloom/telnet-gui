@@ -157,3 +157,42 @@ int utf8_get_codepoint(const char *ptr) {
     }
     return -1; /* Invalid */
 }
+
+/* Encode Unicode codepoint as UTF-8 into buffer */
+/* Returns number of bytes written (1-4) or 0 if invalid */
+/* Buffer must have space for at least 5 bytes (4 UTF-8 bytes + null terminator) */
+int utf8_put_codepoint(unsigned int codepoint, char *buf) {
+    if (buf == NULL)
+        return 0;
+
+    if (codepoint < 0x80) {
+        /* 1-byte sequence (ASCII) */
+        buf[0] = (char)codepoint;
+        buf[1] = '\0';
+        return 1;
+    } else if (codepoint < 0x800) {
+        /* 2-byte sequence */
+        buf[0] = (char)(0xC0 | (codepoint >> 6));
+        buf[1] = (char)(0x80 | (codepoint & 0x3F));
+        buf[2] = '\0';
+        return 2;
+    } else if (codepoint < 0x10000) {
+        /* 3-byte sequence */
+        buf[0] = (char)(0xE0 | (codepoint >> 12));
+        buf[1] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+        buf[2] = (char)(0x80 | (codepoint & 0x3F));
+        buf[3] = '\0';
+        return 3;
+    } else if (codepoint < 0x110000) {
+        /* 4-byte sequence */
+        buf[0] = (char)(0xF0 | (codepoint >> 18));
+        buf[1] = (char)(0x80 | ((codepoint >> 12) & 0x3F));
+        buf[2] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+        buf[3] = (char)(0x80 | (codepoint & 0x3F));
+        buf[4] = '\0';
+        return 4;
+    }
+    /* Invalid codepoint */
+    buf[0] = '\0';
+    return 0;
+}

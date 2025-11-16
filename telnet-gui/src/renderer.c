@@ -2,6 +2,7 @@
 
 #include "renderer.h"
 #include "lisp_bridge.h"
+#include "../../libtelnet-lisp/include/utf8.h"
 #include <stdlib.h>
 
 struct Renderer {
@@ -200,33 +201,14 @@ void renderer_render_input_area(Renderer *r, const char *text, int text_len, int
             if (i >= text_len)
                 break;
 
-            unsigned char byte = (unsigned char)text[i];
-            uint32_t codepoint = 0;
-            int bytes_consumed = 1; /* How many bytes this character consumed */
-
-            /* Decode UTF-8 */
-            if (byte < 0x80) {
-                /* ASCII character - use byte value directly */
-                codepoint = byte;
-            } else if ((byte & 0xE0) == 0xC0 && i + 1 < text_len) {
-                /* 2-byte UTF-8 */
-                codepoint = ((byte & 0x1F) << 6) | ((unsigned char)text[i + 1] & 0x3F);
-                bytes_consumed = 2;
-            } else if ((byte & 0xF0) == 0xE0 && i + 2 < text_len) {
-                /* 3-byte UTF-8 */
-                codepoint = ((byte & 0x0F) << 12) | (((unsigned char)text[i + 1] & 0x3F) << 6) |
-                            ((unsigned char)text[i + 2] & 0x3F);
-                bytes_consumed = 3;
-            } else if ((byte & 0xF8) == 0xF0 && i + 3 < text_len) {
-                /* 4-byte UTF-8 */
-                codepoint = ((byte & 0x07) << 18) | (((unsigned char)text[i + 1] & 0x3F) << 12) |
-                            (((unsigned char)text[i + 2] & 0x3F) << 6) | ((unsigned char)text[i + 3] & 0x3F);
-                bytes_consumed = 4;
-            } else {
+            /* Decode UTF-8 using utf8 library */
+            int codepoint = utf8_get_codepoint(&text[i]);
+            if (codepoint < 0) {
                 /* Invalid UTF-8, skip byte */
                 i++;
                 continue;
             }
+            int bytes_consumed = utf8_char_bytes(&text[i]);
 
             /* Check if character is in selection - use black text for visibility on orange bg */
             SDL_Color char_fg_color = fg_color;
@@ -267,22 +249,16 @@ void renderer_render_input_area(Renderer *r, const char *text, int text_len, int
         int emoji_count = 0;
         int char_idx = 0;
         while (char_idx < mode_length) {
-            unsigned char byte = (unsigned char)mode_text[char_idx];
-            if (byte < 0x80) {
+            int bytes = utf8_char_bytes(&mode_text[char_idx]);
+            if (bytes > 0) {
                 visual_char_count++;
-                char_idx += 1;
-            } else if ((byte & 0xE0) == 0xC0) {
-                visual_char_count++;
-                char_idx += 2;
-            } else if ((byte & 0xF0) == 0xE0) {
-                visual_char_count++;
-                char_idx += 3;
-            } else if ((byte & 0xF8) == 0xF0) {
                 /* 4-byte UTF-8 is likely an emoji */
-                visual_char_count++;
-                emoji_count++;
-                char_idx += 4;
+                if (bytes == 4) {
+                    emoji_count++;
+                }
+                char_idx += bytes;
             } else {
+                /* Invalid UTF-8, skip byte */
                 char_idx++;
             }
         }
@@ -315,28 +291,14 @@ void renderer_render_input_area(Renderer *r, const char *text, int text_len, int
         /* Render mode text character by character (UTF-8 aware) */
         int i = 0;
         while (i < mode_length) {
-            unsigned char byte = (unsigned char)mode_text[i];
-            uint32_t codepoint = 0;
-            int bytes_consumed = 1;
-
-            /* Decode UTF-8 */
-            if (byte < 0x80) {
-                codepoint = byte;
-            } else if ((byte & 0xE0) == 0xC0 && i + 1 < mode_length) {
-                codepoint = ((byte & 0x1F) << 6) | ((unsigned char)mode_text[i + 1] & 0x3F);
-                bytes_consumed = 2;
-            } else if ((byte & 0xF0) == 0xE0 && i + 2 < mode_length) {
-                codepoint = ((byte & 0x0F) << 12) | (((unsigned char)mode_text[i + 1] & 0x3F) << 6) |
-                            ((unsigned char)mode_text[i + 2] & 0x3F);
-                bytes_consumed = 3;
-            } else if ((byte & 0xF8) == 0xF0 && i + 3 < mode_length) {
-                codepoint = ((byte & 0x07) << 18) | (((unsigned char)mode_text[i + 1] & 0x3F) << 12) |
-                            (((unsigned char)mode_text[i + 2] & 0x3F) << 6) | ((unsigned char)mode_text[i + 3] & 0x3F);
-                bytes_consumed = 4;
-            } else {
+            /* Decode UTF-8 using utf8 library */
+            int codepoint = utf8_get_codepoint(&mode_text[i]);
+            if (codepoint < 0) {
+                /* Invalid UTF-8, skip byte */
                 i++;
                 continue;
             }
+            int bytes_consumed = utf8_char_bytes(&mode_text[i]);
 
             /* Render the character */
             SDL_Texture *glyph = glyph_cache_get(r->glyph_cache, codepoint, mode_fg_color, mode_bg_color, 0, 0);

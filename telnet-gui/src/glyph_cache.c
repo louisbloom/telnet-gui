@@ -1,6 +1,7 @@
 /* Glyph cache implementation */
 
 #include "glyph_cache.h"
+#include "../../libtelnet-lisp/include/utf8.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -21,34 +22,6 @@ struct GlyphCache {
     int cell_w, cell_h;
     SDL_ScaleMode scale_mode;
 };
-
-/* Convert UTF-32 codepoint to UTF-8 string */
-static int codepoint_to_utf8(uint32_t codepoint, char *utf8) {
-    if (codepoint < 0x80) {
-        utf8[0] = (char)codepoint;
-        utf8[1] = '\0';
-        return 1;
-    } else if (codepoint < 0x800) {
-        utf8[0] = (char)(0xC0 | (codepoint >> 6));
-        utf8[1] = (char)(0x80 | (codepoint & 0x3F));
-        utf8[2] = '\0';
-        return 2;
-    } else if (codepoint < 0x10000) {
-        utf8[0] = (char)(0xE0 | (codepoint >> 12));
-        utf8[1] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
-        utf8[2] = (char)(0x80 | (codepoint & 0x3F));
-        utf8[3] = '\0';
-        return 3;
-    } else if (codepoint < 0x110000) {
-        utf8[0] = (char)(0xF0 | (codepoint >> 18));
-        utf8[1] = (char)(0x80 | ((codepoint >> 12) & 0x3F));
-        utf8[2] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
-        utf8[3] = (char)(0x80 | (codepoint & 0x3F));
-        utf8[4] = '\0';
-        return 4;
-    }
-    return 0;
-}
 
 /* Check if a codepoint is likely an emoji */
 static int is_emoji_codepoint(uint32_t codepoint) {
@@ -213,7 +186,7 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
 
         /* Convert codepoint to UTF-8 for proper emoji rendering */
         char utf8[5];
-        codepoint_to_utf8(codepoint, utf8);
+        utf8_put_codepoint(codepoint, utf8);
 
         /* Use UTF8 rendering for emoji (supports 32-bit codepoints) */
         surface = TTF_RenderUTF8_Blended(cache->emoji_font, utf8, fg_color);
@@ -229,7 +202,7 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
         } else {
             /* For higher codepoints, use UTF-8 rendering */
             char utf8[5];
-            codepoint_to_utf8(codepoint, utf8);
+            utf8_put_codepoint(codepoint, utf8);
             surface = TTF_RenderUTF8_Blended(cache->font, utf8, fg_color);
         }
     }

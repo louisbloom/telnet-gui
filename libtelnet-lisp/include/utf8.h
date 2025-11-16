@@ -30,4 +30,9 @@ int utf8_char_bytes(const char *ptr);
 /* Returns codepoint or -1 if invalid */
 int utf8_get_codepoint(const char *ptr);
 
+/* Encode Unicode codepoint as UTF-8 into buffer */
+/* Returns number of bytes written (1-4) or 0 if invalid */
+/* Buffer must have space for at least 5 bytes (4 UTF-8 bytes + null terminator) */
+int utf8_put_codepoint(unsigned int codepoint, char *buf);
+
 #endif /* UTF8_H */
