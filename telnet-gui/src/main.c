@@ -32,6 +32,152 @@ static SDL_Cursor *current_cursor = NULL;
 /* Input area */
 static InputArea input_area;
 
+/* Terminal selection state */
+static struct {
+    int active;                /* Selection is active */
+    int start_row;             /* Start row (viewport coordinate at time of selection) */
+    int start_col;             /* Start column */
+    int start_viewport_offset; /* Viewport offset when selection started */
+    int start_scrollback_size; /* Scrollback size when selection started */
+    int end_row;               /* End row (viewport coordinate at time of selection) */
+    int end_col;               /* End column */
+    int end_viewport_offset;   /* Viewport offset when selection ended */
+    int end_scrollback_size;   /* Scrollback size when selection ended */
+} terminal_selection = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+/* Clear terminal selection */
+static void clear_terminal_selection(void) {
+    terminal_selection.active = 0;
+    terminal_selection.start_row = 0;
+    terminal_selection.start_col = 0;
+    terminal_selection.start_viewport_offset = 0;
+    terminal_selection.start_scrollback_size = 0;
+    terminal_selection.end_row = 0;
+    terminal_selection.end_col = 0;
+    terminal_selection.end_viewport_offset = 0;
+    terminal_selection.end_scrollback_size = 0;
+}
+
+/* Start terminal selection at given viewport position */
+static void start_terminal_selection(Terminal *term, int viewport_row, int col) {
+    terminal_selection.active = 1;
+    int viewport_offset = terminal_get_viewport_offset(term);
+    int scrollback_size = terminal_get_scrollback_size(term);
+    terminal_selection.start_row = viewport_row;
+    terminal_selection.start_col = col;
+    terminal_selection.start_viewport_offset = viewport_offset;
+    terminal_selection.start_scrollback_size = scrollback_size;
+    terminal_selection.end_row = viewport_row;
+    terminal_selection.end_col = col;
+    terminal_selection.end_viewport_offset = viewport_offset;
+    terminal_selection.end_scrollback_size = scrollback_size;
+}
+
+/* Update terminal selection end position */
+static void update_terminal_selection(Terminal *term, int viewport_row, int col) {
+    if (terminal_selection.active) {
+        int viewport_offset = terminal_get_viewport_offset(term);
+        int scrollback_size = terminal_get_scrollback_size(term);
+        terminal_selection.end_row = viewport_row;
+        terminal_selection.end_col = col;
+        terminal_selection.end_viewport_offset = viewport_offset;
+        terminal_selection.end_scrollback_size = scrollback_size;
+    }
+}
+
+/* Extract selected text from terminal and copy to clipboard */
+static void copy_terminal_selection(Terminal *term) {
+    if (!terminal_selection.active)
+        return;
+
+    /* Calculate the absolute scrollback index where the selection is located */
+    int start_scrollback_index = terminal_selection.start_scrollback_size - terminal_selection.start_viewport_offset +
+                                 terminal_selection.start_row;
+    int end_scrollback_index =
+        terminal_selection.end_scrollback_size - terminal_selection.end_viewport_offset + terminal_selection.end_row;
+
+    int start_col = terminal_selection.start_col;
+    int end_col = terminal_selection.end_col;
+
+    /* Normalize selection (ensure start < end) using absolute indices */
+    if (start_scrollback_index > end_scrollback_index ||
+        (start_scrollback_index == end_scrollback_index && start_col > end_col)) {
+        /* Swap start and end */
+        int tmp_index = start_scrollback_index;
+        int tmp_col = start_col;
+        start_scrollback_index = end_scrollback_index;
+        start_col = end_col;
+        end_scrollback_index = tmp_index;
+        end_col = tmp_col;
+    }
+
+    /* Allocate buffer for selected text (rough estimate: 4 bytes per cell for UTF-8) */
+    int rows, cols;
+    terminal_get_size(term, &rows, &cols);
+    int estimated_size = (end_scrollback_index - start_scrollback_index + 1) * cols * 4 +
+                         (end_scrollback_index - start_scrollback_index + 1) + 1;
+    char *buffer = (char *)malloc(estimated_size);
+    if (!buffer)
+        return;
+
+    int buf_pos = 0;
+
+    /* Extract text row by row using absolute scrollback indices */
+    for (int idx = start_scrollback_index; idx <= end_scrollback_index; idx++) {
+        int col_start = (idx == start_scrollback_index) ? start_col : 0;
+        int col_end = (idx == end_scrollback_index) ? end_col : cols - 1;
+
+        /* Get text from this row */
+        for (int col = col_start; col <= col_end; col++) {
+            VTermScreenCell cell;
+            if (terminal_get_cell_at_scrollback_index(term, idx, col, &cell)) {
+                /* Convert cell characters to UTF-8 */
+                if (cell.chars[0]) {
+                    char utf8[5];
+                    int len = 0;
+                    uint32_t codepoint = cell.chars[0];
+
+                    /* Encode UTF-8 */
+                    if (codepoint < 0x80) {
+                        utf8[len++] = (char)codepoint;
+                    } else if (codepoint < 0x800) {
+                        utf8[len++] = (char)(0xC0 | (codepoint >> 6));
+                        utf8[len++] = (char)(0x80 | (codepoint & 0x3F));
+                    } else if (codepoint < 0x10000) {
+                        utf8[len++] = (char)(0xE0 | (codepoint >> 12));
+                        utf8[len++] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+                        utf8[len++] = (char)(0x80 | (codepoint & 0x3F));
+                    } else {
+                        utf8[len++] = (char)(0xF0 | (codepoint >> 18));
+                        utf8[len++] = (char)(0x80 | ((codepoint >> 12) & 0x3F));
+                        utf8[len++] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+                        utf8[len++] = (char)(0x80 | (codepoint & 0x3F));
+                    }
+
+                    /* Copy to buffer */
+                    for (int i = 0; i < len && buf_pos < estimated_size - 1; i++) {
+                        buffer[buf_pos++] = utf8[i];
+                    }
+                }
+            }
+        }
+
+        /* Add newline after each row except the last */
+        if (idx < end_scrollback_index && buf_pos < estimated_size - 1) {
+            buffer[buf_pos++] = '\n';
+        }
+    }
+
+    /* Null-terminate */
+    buffer[buf_pos] = '\0';
+
+    /* Copy to clipboard */
+    SDL_SetClipboardText(buffer);
+
+    /* Free buffer */
+    free(buffer);
+}
+
 /* Update mode display to show Lisp mode data structure */
 static void update_mode(InputArea *area, int connected) {
     /* Update connection mode in Lisp environment */
@@ -539,8 +685,8 @@ int main(int argc, char **argv) {
     int initial_width, initial_height;
     window_get_size(win, &initial_width, &initial_height);
     int initial_rows, initial_cols;
-    calculate_terminal_size(initial_width, initial_height, cell_w, cell_h, titlebar_h, input_area_height, resize_bar_height,
-                            &initial_rows, &initial_cols);
+    calculate_terminal_size(initial_width, initial_height, cell_w, cell_h, titlebar_h, input_area_height,
+                            resize_bar_height, &initial_rows, &initial_cols);
     terminal_resize(term, initial_rows, initial_cols);
     telnet_set_terminal_size(telnet, initial_cols, initial_rows);
 
@@ -598,8 +744,16 @@ int main(int argc, char **argv) {
                         break; /* Exit immediately */
                     } else if (action == WINDOW_TITLEBAR_ACTION_MINIMIZE) {
                         SDL_MinimizeWindow(window_get_sdl_window(win));
-                    } else if (mouse_y < window_height - input_area_height - resize_bar_height) {
-                        /* Handle other clicks in terminal area */
+                    } else if (mouse_y >= titlebar_h &&
+                               mouse_y < window_height - input_area_height - resize_bar_height) {
+                        /* Handle clicks in terminal area - start selection */
+                        if (event.button.button == SDL_BUTTON_LEFT) {
+                            /* Convert mouse coordinates to terminal cell coordinates */
+                            int term_row = (mouse_y - titlebar_h) / cell_h;
+                            int term_col = mouse_x / cell_w;
+                            /* Start selection and freeze viewport */
+                            start_terminal_selection(term, term_row, term_col);
+                        }
                     }
                 }
                 /* Mouse clicks in input area (when not in resize area) are ignored (input area is always active) */
@@ -812,8 +966,12 @@ int main(int argc, char **argv) {
                 }
                 case SDL_SCANCODE_C: {
                     if (mod & KMOD_CTRL) {
-                        /* Copy selection or all text to clipboard */
-                        if (input_area_has_selection(&input_area)) {
+                        /* Copy terminal selection if active */
+                        if (terminal_selection.active) {
+                            copy_terminal_selection(term);
+                        }
+                        /* Copy input area selection or all text to clipboard */
+                        else if (input_area_has_selection(&input_area)) {
                             char selection_buffer[INPUT_AREA_MAX_LENGTH];
                             if (input_area_copy_selection(&input_area, selection_buffer, INPUT_AREA_MAX_LENGTH) > 0) {
                                 SDL_SetClipboardText(selection_buffer);
@@ -889,8 +1047,12 @@ int main(int argc, char **argv) {
                     break;
                 }
                 case SDL_SCANCODE_ESCAPE: {
+                    /* ESC: Clear terminal selection if active */
+                    if (terminal_selection.active) {
+                        clear_terminal_selection();
+                    }
                     /* ESC: Cancel tab completion and revert */
-                    if (lisp_bridge_is_tab_mode_active()) {
+                    else if (lisp_bridge_is_tab_mode_active()) {
                         int cursor_pos = input_area_get_cursor_pos(&input_area);
                         int length = input_area_get_length(&input_area);
                         int needs_redraw = input_area_needs_redraw(&input_area);
@@ -935,6 +1097,7 @@ int main(int argc, char **argv) {
                     telnet_set_terminal_size(telnet, new_cols, new_rows);
                 }
                 window_end_resize(win);
+                /* Selection remains active after mouse button up - user can copy with Ctrl+C */
                 /* Only handle mouse events for terminal if not in input area or resize bar */
                 int win_width, win_height;
                 window_get_size(win, &win_width, &win_height);
@@ -994,6 +1157,19 @@ int main(int argc, char **argv) {
                     if (new_cursor != current_cursor) {
                         SDL_SetCursor(new_cursor);
                         current_cursor = new_cursor;
+                    }
+                }
+                /* Update selection if dragging in terminal area */
+                if (terminal_selection.active && (event.motion.state & SDL_BUTTON(SDL_BUTTON_LEFT))) {
+                    int motion_win_width, motion_win_height;
+                    window_get_size(win, &motion_win_width, &motion_win_height);
+                    if (event.motion.y >= titlebar_h &&
+                        event.motion.y < motion_win_height - input_area_height - resize_bar_height) {
+                        /* Convert mouse coordinates to terminal cell coordinates */
+                        int term_row = (event.motion.y - titlebar_h) / cell_h;
+                        int term_col = event.motion.x / cell_w;
+                        /* Update selection end position */
+                        update_terminal_selection(term, term_row, term_col);
                     }
                 }
                 /* Only handle mouse events for terminal if not in input area or resize bar */
@@ -1062,6 +1238,10 @@ int main(int argc, char **argv) {
             char recv_buf[4096];
             int received = telnet_receive(telnet, recv_buf, sizeof(recv_buf) - 1);
             if (received > 0) {
+                /* Clear terminal selection on new input */
+                if (terminal_selection.active) {
+                    clear_terminal_selection();
+                }
                 /* Call telnet-input-hook with received data (stripped of ANSI codes) */
                 lisp_bridge_call_telnet_input_hook(recv_buf, received);
                 /* Feed original data to terminal (hook doesn't modify the data flow) */
@@ -1090,10 +1270,14 @@ int main(int argc, char **argv) {
         window_get_size(win, &window_width, &window_height);
         int needs_render = 0;
 
-        if (terminal_needs_redraw(term)) {
+        if (terminal_needs_redraw(term) || terminal_selection.active) {
             char title[256];
             snprintf(title, sizeof(title), "Telnet: %s:%d", hostname, port);
-            renderer_render(rend, term, title);
+            renderer_render(rend, term, title, terminal_selection.active, terminal_selection.start_row,
+                            terminal_selection.start_col, terminal_selection.start_viewport_offset,
+                            terminal_selection.start_scrollback_size, terminal_selection.end_row,
+                            terminal_selection.end_col, terminal_selection.end_viewport_offset,
+                            terminal_selection.end_scrollback_size);
             window_render_titlebar(win, renderer, title);
             window_render_resize_bar(win, renderer);
             terminal_mark_drawn(term);
@@ -1105,7 +1289,11 @@ int main(int argc, char **argv) {
             if (current_time - last_resize_render > 33) { /* ~30 FPS during resize */
                 char title[256];
                 snprintf(title, sizeof(title), "Telnet: %s:%d", hostname, port);
-                renderer_render(rend, term, title);
+                renderer_render(rend, term, title, terminal_selection.active, terminal_selection.start_row,
+                                terminal_selection.start_col, terminal_selection.start_viewport_offset,
+                                terminal_selection.start_scrollback_size, terminal_selection.end_row,
+                                terminal_selection.end_col, terminal_selection.end_viewport_offset,
+                                terminal_selection.end_scrollback_size);
                 window_render_titlebar(win, renderer, title);
                 window_render_resize_bar(win, renderer);
                 last_resize_render = current_time;

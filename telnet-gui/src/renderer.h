@@ -14,13 +14,15 @@ typedef struct Renderer Renderer;
 Renderer *renderer_create(SDL_Renderer *sdl_renderer, GlyphCache *glyph_cache, int cell_width, int cell_height,
                           int titlebar_height);
 
-/* Render a frame */
-void renderer_render(Renderer *r, Terminal *term, const char *title);
+/* Render a frame - selection coordinates are viewport-relative with saved offsets and scrollback sizes */
+void renderer_render(Renderer *r, Terminal *term, const char *title, int selection_active, int sel_start_row,
+                     int sel_start_col, int sel_start_offset, int sel_start_scrollback, int sel_end_row,
+                     int sel_end_col, int sel_end_offset, int sel_end_scrollback);
 
 /* Render input area at bottom of screen */
 void renderer_render_input_area(Renderer *r, const char *text, int text_len, int cursor_pos, int window_width,
-                                 int window_height, int input_area_height, int resize_bar_height, const char *mode_text,
-                                 int mode_length, int selection_start, int selection_end);
+                                int window_height, int input_area_height, int resize_bar_height, const char *mode_text,
+                                int mode_length, int selection_start, int selection_end);
 
 /* Clean up */
 void renderer_destroy(Renderer *r);

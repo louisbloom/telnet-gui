@@ -375,3 +375,31 @@ if(WIN32)
         endif()
     endif()
 endif()
+
+# Format target for clang-format
+find_program(CLANG_FORMAT
+    NAMES clang-format
+    PATHS
+        /ucrt64/bin
+        C:/msys64/ucrt64/bin
+        C:/tools/msys64/ucrt64/bin
+    NO_DEFAULT_PATH
+)
+find_program(CLANG_FORMAT NAMES clang-format)
+
+if(CLANG_FORMAT)
+    # Collect all C source and header files
+    file(GLOB_RECURSE GUI_ALL_SOURCES "src/*.c" "src/*.h")
+
+    # Format target
+    add_custom_target(format
+        COMMAND ${CLANG_FORMAT} -i ${GUI_ALL_SOURCES}
+        COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
+        COMMENT "Formatting all telnet-gui C source files"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    message(STATUS "clang-format found: ${CLANG_FORMAT}")
+    message(STATUS "Use 'cmake --build . --target format' to format telnet-gui sources")
+else()
+    message(STATUS "clang-format not found - skipping format target")
+endif()

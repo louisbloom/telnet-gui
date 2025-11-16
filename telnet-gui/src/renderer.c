@@ -27,7 +27,9 @@ Renderer *renderer_create(SDL_Renderer *sdl_renderer, GlyphCache *glyph_cache, i
     return r;
 }
 
-void renderer_render(Renderer *r, Terminal *term, const char *title) {
+void renderer_render(Renderer *r, Terminal *term, const char *title, int selection_active, int sel_start_row,
+                     int sel_start_col, int sel_start_offset, int sel_start_scrollback, int sel_end_row,
+                     int sel_end_col, int sel_end_offset, int sel_end_scrollback) {
     if (!r || !term)
         return;
     (void)title; /* unused for now */
@@ -58,6 +60,34 @@ void renderer_render(Renderer *r, Terminal *term, const char *title) {
         vterm_state_get_default_colors(state, &default_fg, &default_bg);
     }
 
+    /* Calculate current viewport rows for selection using absolute scrollback positions */
+    int current_offset = terminal_get_viewport_offset(term);
+    int current_scrollback = terminal_get_scrollback_size(term);
+
+    /* Calculate the absolute scrollback index where the selection is located */
+    /* When offset > 0: viewport row R shows scrollback[scrollback_size - offset + R] */
+    /* When offset = 0: viewport row R is on live screen at position scrollback_size + R */
+    int start_scrollback_index = sel_start_scrollback - sel_start_offset + sel_start_row;
+    int end_scrollback_index = sel_end_scrollback - sel_end_offset + sel_end_row;
+
+    /* Convert absolute scrollback indices to current viewport rows */
+    /* Current viewport row 0 shows scrollback[current_scrollback - current_offset] */
+    int display_start_row = start_scrollback_index - (current_scrollback - current_offset);
+    int display_end_row = end_scrollback_index - (current_scrollback - current_offset);
+
+    /* Normalize selection (ensure start < end) for rendering */
+    int norm_start_row = display_start_row;
+    int norm_start_col = sel_start_col;
+    int norm_end_row = display_end_row;
+    int norm_end_col = sel_end_col;
+    if (selection_active && (display_start_row > display_end_row ||
+                             (display_start_row == display_end_row && sel_start_col > sel_end_col))) {
+        norm_start_row = display_end_row;
+        norm_start_col = sel_end_col;
+        norm_end_row = display_start_row;
+        norm_end_col = sel_start_col;
+    }
+
     /* Render each cell */
     for (int row = 0; row < rows; row++) {
         for (int col = 0; col < cols; col++) {
@@ -65,6 +95,20 @@ void renderer_render(Renderer *r, Terminal *term, const char *title) {
             /* Get cell considering viewport offset */
             if (!terminal_get_cell_at(term, row, col, &cell))
                 continue;
+
+            /* Check if this cell is in selection */
+            int in_selection = 0;
+            if (selection_active) {
+                if (row > norm_start_row && row < norm_end_row) {
+                    in_selection = 1;
+                } else if (row == norm_start_row && row == norm_end_row) {
+                    in_selection = (col >= norm_start_col && col <= norm_end_col);
+                } else if (row == norm_start_row) {
+                    in_selection = (col >= norm_start_col);
+                } else if (row == norm_end_row) {
+                    in_selection = (col <= norm_end_col);
+                }
+            }
 
             /* Handle background color */
             VTermColor bg_color_processed = cell.bg;
@@ -75,8 +119,15 @@ void renderer_render(Renderer *r, Terminal *term, const char *title) {
                 vterm_screen_convert_color_to_rgb(screen, &bg_color_processed);
             }
 
-            /* Draw background if not default or if RGB */
-            if (!VTERM_COLOR_IS_DEFAULT_BG(&cell.bg) && VTERM_COLOR_IS_RGB(&bg_color_processed)) {
+            /* Draw background - use selection color if in selection, otherwise cell bg */
+            if (in_selection) {
+                /* Get selection background color from Lisp config */
+                int sel_bg_r, sel_bg_g, sel_bg_b;
+                lisp_bridge_get_selection_bg_color(&sel_bg_r, &sel_bg_g, &sel_bg_b);
+                SDL_SetRenderDrawColor(r->sdl_renderer, sel_bg_r, sel_bg_g, sel_bg_b, 255);
+                SDL_Rect bg_rect = {col * r->cell_w, row * r->cell_h + r->titlebar_h, r->cell_w, r->cell_h};
+                SDL_RenderFillRect(r->sdl_renderer, &bg_rect);
+            } else if (!VTERM_COLOR_IS_DEFAULT_BG(&cell.bg) && VTERM_COLOR_IS_RGB(&bg_color_processed)) {
                 SDL_SetRenderDrawColor(r->sdl_renderer, bg_color_processed.rgb.red, bg_color_processed.rgb.green,
                                        bg_color_processed.rgb.blue, 255);
                 SDL_Rect bg_rect = {col * r->cell_w, row * r->cell_h + r->titlebar_h, r->cell_w, r->cell_h};
@@ -94,23 +145,46 @@ void renderer_render(Renderer *r, Terminal *term, const char *title) {
                     vterm_screen_convert_color_to_rgb(screen, &fg_color_processed);
                 }
 
-                /* Get default terminal colors from Lisp config */
-                int term_fg_r, term_fg_g, term_fg_b, term_bg_r, term_bg_g, term_bg_b;
-                lisp_bridge_get_terminal_fg_color(&term_fg_r, &term_fg_g, &term_fg_b);
-                lisp_bridge_get_terminal_bg_color(&term_bg_r, &term_bg_g, &term_bg_b);
+                SDL_Color fg_color, bg_color;
 
-                SDL_Color fg_color = {term_fg_r, term_fg_g, term_fg_b, 255};
-                if (VTERM_COLOR_IS_RGB(&fg_color_processed)) {
-                    fg_color.r = fg_color_processed.rgb.red;
-                    fg_color.g = fg_color_processed.rgb.green;
-                    fg_color.b = fg_color_processed.rgb.blue;
-                }
+                /* Use selection colors if in selection */
+                if (in_selection) {
+                    int sel_fg_r, sel_fg_g, sel_fg_b, sel_bg_r, sel_bg_g, sel_bg_b;
+                    lisp_bridge_get_selection_fg_color(&sel_fg_r, &sel_fg_g, &sel_fg_b);
+                    lisp_bridge_get_selection_bg_color(&sel_bg_r, &sel_bg_g, &sel_bg_b);
+                    fg_color.r = sel_fg_r;
+                    fg_color.g = sel_fg_g;
+                    fg_color.b = sel_fg_b;
+                    fg_color.a = 255;
+                    bg_color.r = sel_bg_r;
+                    bg_color.g = sel_bg_g;
+                    bg_color.b = sel_bg_b;
+                    bg_color.a = 255;
+                } else {
+                    /* Get default terminal colors from Lisp config */
+                    int term_fg_r, term_fg_g, term_fg_b, term_bg_r, term_bg_g, term_bg_b;
+                    lisp_bridge_get_terminal_fg_color(&term_fg_r, &term_fg_g, &term_fg_b);
+                    lisp_bridge_get_terminal_bg_color(&term_bg_r, &term_bg_g, &term_bg_b);
 
-                SDL_Color bg_color = {term_bg_r, term_bg_g, term_bg_b, 255};
-                if (VTERM_COLOR_IS_RGB(&bg_color_processed)) {
-                    bg_color.r = bg_color_processed.rgb.red;
-                    bg_color.g = bg_color_processed.rgb.green;
-                    bg_color.b = bg_color_processed.rgb.blue;
+                    fg_color.r = term_fg_r;
+                    fg_color.g = term_fg_g;
+                    fg_color.b = term_fg_b;
+                    fg_color.a = 255;
+                    if (VTERM_COLOR_IS_RGB(&fg_color_processed)) {
+                        fg_color.r = fg_color_processed.rgb.red;
+                        fg_color.g = fg_color_processed.rgb.green;
+                        fg_color.b = fg_color_processed.rgb.blue;
+                    }
+
+                    bg_color.r = term_bg_r;
+                    bg_color.g = term_bg_g;
+                    bg_color.b = term_bg_b;
+                    bg_color.a = 255;
+                    if (VTERM_COLOR_IS_RGB(&bg_color_processed)) {
+                        bg_color.r = bg_color_processed.rgb.red;
+                        bg_color.g = bg_color_processed.rgb.green;
+                        bg_color.b = bg_color_processed.rgb.blue;
+                    }
                 }
 
                 SDL_Texture *glyph = glyph_cache_get(r->glyph_cache, cell.chars[0], fg_color, bg_color, cell.attrs.bold,

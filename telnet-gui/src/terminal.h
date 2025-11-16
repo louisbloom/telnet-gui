@@ -67,4 +67,7 @@ void terminal_set_max_scrollback_lines(Terminal *term, int max_lines);
 /* Get cell at position considering viewport offset */
 int terminal_get_cell_at(Terminal *term, int row, int col, VTermScreenCell *cell);
 
+/* Get cell at absolute scrollback position (independent of viewport) */
+int terminal_get_cell_at_scrollback_index(Terminal *term, int scrollback_index, int col, VTermScreenCell *cell);
+
 #endif /* TERMINAL_H */

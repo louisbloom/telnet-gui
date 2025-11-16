@@ -559,3 +559,40 @@ int terminal_get_cell_at(Terminal *term, int row, int col, VTermScreenCell *cell
         }
     }
 }
+
+/* Get cell at absolute scrollback position (independent of viewport) */
+int terminal_get_cell_at_scrollback_index(Terminal *term, int scrollback_index, int col, VTermScreenCell *cell) {
+    if (!term || !cell)
+        return 0;
+
+    int rows, cols;
+    terminal_get_size(term, &rows, &cols);
+
+    if (scrollback_index < 0) {
+        /* Invalid index */
+        memset(cell, 0, sizeof(VTermScreenCell));
+        return 0;
+    } else if (scrollback_index < term->scrollback_size) {
+        /* In scrollback buffer */
+        ScrollbackLine *line = &term->scrollback[scrollback_index];
+        if (col < line->cols) {
+            *cell = line->cells[col];
+            return 1;
+        } else {
+            /* Empty cell if beyond line width */
+            memset(cell, 0, sizeof(VTermScreenCell));
+            return 1;
+        }
+    } else {
+        /* On current live screen */
+        int screen_row = scrollback_index - term->scrollback_size;
+        if (screen_row >= 0 && screen_row < rows) {
+            VTermPos pos = {screen_row, col};
+            return vterm_screen_get_cell(term->screen, pos, cell);
+        } else {
+            /* Beyond current screen */
+            memset(cell, 0, sizeof(VTermScreenCell));
+            return 0;
+        }
+    }
+}
