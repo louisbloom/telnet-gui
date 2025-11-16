@@ -5,6 +5,7 @@
 #include <string.h>
 #include <locale.h>
 #include <stdbool.h>
+#include <errno.h>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
@@ -54,7 +55,7 @@ static void calculate_terminal_size(int window_width, int window_height, int cel
 }
 
 static void print_help(const char *program_name) {
-    printf("Usage: %s [OPTIONS] <hostname> <port>\n", program_name);
+    printf("Usage: %s [OPTIONS] [hostname] [port]\n", program_name);
     printf("\n");
     printf("Options:\n");
     printf("  -h, --help              Show this help message and exit\n");
@@ -77,8 +78,10 @@ static void print_help(const char *program_name) {
     printf("                            Used to customize completion hooks and scroll settings\n");
     printf("\n");
     printf("Arguments:\n");
-    printf("  hostname                 Telnet server hostname or IP address\n");
-    printf("  port                     Telnet server port number\n");
+    printf("  hostname                 Telnet server hostname or IP address (optional)\n");
+    printf("  port                     Telnet server port number (optional)\n");
+    printf("\n");
+    printf("If hostname and port are not provided, starts in unconnected mode.\n");
     printf("\n");
     printf("Examples:\n");
     printf("  %s telnet-server 4449\n", program_name);
@@ -205,9 +208,15 @@ int main(int argc, char **argv) {
         arg_idx++;
     }
 
-    /* Validate required arguments */
-    if (hostname == NULL || port == 0) {
-        fprintf(stderr, "Error: Missing required arguments: hostname and port\n");
+    /* Connection mode: if hostname and port provided, start in connected mode */
+    int connected_mode = (hostname != NULL && port != 0);
+    if (hostname != NULL && port == 0) {
+        fprintf(stderr, "Error: If hostname is provided, port must also be provided\n");
+        fprintf(stderr, "Use --help for usage information\n");
+        return 1;
+    }
+    if (hostname == NULL && port != 0) {
+        fprintf(stderr, "Error: If port is provided, hostname must also be provided\n");
         fprintf(stderr, "Use --help for usage information\n");
         return 1;
     }
@@ -468,18 +477,23 @@ int main(int argc, char **argv) {
     /* Wire telnet to terminal for output buffering */
     terminal_set_telnet(term, telnet);
 
-    /* Connect */
-    fprintf(stderr, "Connecting to %s:%d...\n", hostname, port);
-    if (telnet_connect(telnet, hostname, port) < 0) {
-        fprintf(stderr, "Failed to connect to %s:%d\n", hostname, port);
-        telnet_destroy(telnet);
-        terminal_destroy(term);
-        renderer_destroy(rend);
-        glyph_cache_destroy(glyph_cache);
-        window_destroy(win);
-        return 1;
+    /* Connect if in connected mode */
+    if (connected_mode) {
+        fprintf(stderr, "Connecting to %s:%d...\n", hostname, port);
+        if (telnet_connect(telnet, hostname, port) < 0) {
+            fprintf(stderr, "Failed to connect to %s:%d\n", hostname, port);
+            /* Don't exit - just start in unconnected mode */
+            connected_mode = 0;
+            const char *msg = "\r\n*** Failed to connect - starting in unconnected mode ***\r\n";
+            terminal_feed_data(term, msg, strlen(msg));
+        } else {
+            const char *msg = "\r\n*** Connected ***\r\n";
+            terminal_feed_data(term, msg, strlen(msg));
+        }
+    } else {
+        const char *msg = "\r\n*** Starting in unconnected mode ***\r\n";
+        terminal_feed_data(term, msg, strlen(msg));
     }
-    fprintf(stderr, "Connected successfully\n");
 
     /* Initialize input area */
     input_area_init(&input_area);
@@ -595,27 +609,43 @@ int main(int argc, char **argv) {
                             terminal_scroll_to_bottom(term);
                         }
 
-                        /* Send transformed text to telnet with CRLF */
-                        char telnet_buf[INPUT_AREA_MAX_LENGTH + 2];
-                        if (transformed_length < INPUT_AREA_MAX_LENGTH) {
-                            memcpy(telnet_buf, transformed_text, transformed_length);
-                            telnet_buf[transformed_length] = '\r';
-                            telnet_buf[transformed_length + 1] = '\n';
-                            int sent = telnet_send(telnet, telnet_buf, transformed_length + 2);
-                            if (sent < 0) {
-                                fprintf(stderr, "Failed to send data via telnet\n");
+                        /* Send transformed text to telnet with CRLF (if connected) */
+                        if (connected_mode) {
+                            char telnet_buf[INPUT_AREA_MAX_LENGTH + 2];
+                            if (transformed_length < INPUT_AREA_MAX_LENGTH) {
+                                memcpy(telnet_buf, transformed_text, transformed_length);
+                                telnet_buf[transformed_length] = '\r';
+                                telnet_buf[transformed_length + 1] = '\n';
+                                int sent = telnet_send(telnet, telnet_buf, transformed_length + 2);
+                                if (sent < 0) {
+                                    fprintf(stderr, "Failed to send data via telnet\n");
+                                    /* Connection lost - switch to unconnected mode */
+                                    connected_mode = 0;
+                                    const char *disc_msg = "\r\n*** Connection lost ***\r\n";
+                                    terminal_feed_data(term, disc_msg, strlen(disc_msg));
+                                }
                             }
+                        } else {
+                            /* Not connected - echo message to terminal */
+                            const char *not_conn = "\r\n*** Not connected ***\r\n";
+                            terminal_feed_data(term, not_conn, strlen(not_conn));
                         }
 
                         /* Add to history and clear input area */
                         input_area_history_add(&input_area);
                         input_area_clear(&input_area);
                     } else {
-                        /* Even if input is empty, send CRLF for newline */
-                        char crlf[] = "\r\n";
-                        int sent = telnet_send(telnet, crlf, 2);
-                        if (sent < 0) {
-                            fprintf(stderr, "Failed to send CRLF via telnet\n");
+                        /* Even if input is empty, send CRLF for newline (if connected) */
+                        if (connected_mode) {
+                            char crlf[] = "\r\n";
+                            int sent = telnet_send(telnet, crlf, 2);
+                            if (sent < 0) {
+                                fprintf(stderr, "Failed to send CRLF via telnet\n");
+                                /* Connection lost - switch to unconnected mode */
+                                connected_mode = 0;
+                                const char *disc_msg = "\r\n*** Connection lost ***\r\n";
+                                terminal_feed_data(term, disc_msg, strlen(disc_msg));
+                            }
                         }
                         /* Echo CRLF to terminal */
                         terminal_feed_data(term, "\r\n", 2);
@@ -993,18 +1023,35 @@ int main(int argc, char **argv) {
             }
         }
 
-        /* Read from socket */
-        char recv_buf[4096];
-        int received = telnet_receive(telnet, recv_buf, sizeof(recv_buf) - 1);
-        if (received > 0) {
-            /* Call telnet-input-hook with received data (stripped of ANSI codes) */
-            lisp_bridge_call_telnet_input_hook(recv_buf, received);
-            /* Feed original data to terminal (hook doesn't modify the data flow) */
-            terminal_feed_data(term, recv_buf, received);
+        /* Read from socket (if connected) */
+        if (connected_mode) {
+            char recv_buf[4096];
+            int received = telnet_receive(telnet, recv_buf, sizeof(recv_buf) - 1);
+            if (received > 0) {
+                /* Call telnet-input-hook with received data (stripped of ANSI codes) */
+                lisp_bridge_call_telnet_input_hook(recv_buf, received);
+                /* Feed original data to terminal (hook doesn't modify the data flow) */
+                terminal_feed_data(term, recv_buf, received);
 
-            /* Scroll to bottom on telnet input if configured */
-            if (lisp_bridge_get_scroll_to_bottom_on_telnet_input()) {
-                terminal_scroll_to_bottom(term);
+                /* Scroll to bottom on telnet input if configured */
+                if (lisp_bridge_get_scroll_to_bottom_on_telnet_input()) {
+                    terminal_scroll_to_bottom(term);
+                }
+            } else if (received == 0) {
+                /* Connection closed by server */
+                fprintf(stderr, "Connection closed by server\n");
+                connected_mode = 0;
+                const char *disc_msg = "\r\n*** Connection closed by server ***\r\n";
+                terminal_feed_data(term, disc_msg, strlen(disc_msg));
+            } else if (received < 0) {
+                /* Error or would block - ignore EWOULDBLOCK/EAGAIN */
+                /* Other errors indicate connection lost */
+                if (errno != EWOULDBLOCK && errno != EAGAIN) {
+                    fprintf(stderr, "Connection error: %s\n", strerror(errno));
+                    connected_mode = 0;
+                    const char *disc_msg = "\r\n*** Connection lost ***\r\n";
+                    terminal_feed_data(term, disc_msg, strlen(disc_msg));
+                }
             }
         }
 
