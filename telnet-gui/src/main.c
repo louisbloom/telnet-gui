@@ -32,6 +32,27 @@ static SDL_Cursor *current_cursor = NULL;
 /* Input area */
 static InputArea input_area;
 
+/* Update mode display to show Lisp mode data structure */
+static void update_mode(InputArea *area, int connected) {
+    /* Update connection mode in Lisp environment */
+    lisp_bridge_set_connection_mode(connected);
+
+    /* Update input mode in Lisp environment */
+    InputAreaMode input_mode = input_area_get_mode(area);
+    lisp_bridge_set_input_mode(input_mode);
+
+    /* Get mode string from Lisp environment and update display */
+    const char *mode_text = lisp_bridge_get_mode_string();
+    input_area_mode_set_text(area, mode_text);
+}
+
+/* Handle disconnection: update state, mode display, and show message */
+static void handle_disconnection(int *connected_mode, InputArea *area, Terminal *term, const char *message) {
+    *connected_mode = 0;
+    update_mode(area, *connected_mode);
+    terminal_feed_data(term, message, strlen(message));
+}
+
 static void cleanup(void) {
     lisp_bridge_cleanup();
     SDL_Quit();
@@ -76,6 +97,7 @@ static void print_help(const char *program_name) {
     printf("  Other Options:\n");
     printf("    -l, --lisp-file FILE   Load and evaluate Lisp file on startup\n");
     printf("                            Used to customize completion hooks and scroll settings\n");
+    printf("    --debug-exit           Exit after initialization (for debug output)\n");
     printf("\n");
     printf("Arguments:\n");
     printf("  hostname                 Telnet server hostname or IP address (optional)\n");
@@ -84,12 +106,18 @@ static void print_help(const char *program_name) {
     printf("If hostname and port are not provided, starts in unconnected mode.\n");
     printf("\n");
     printf("Examples:\n");
+    printf("  %s\n", program_name);
+    printf("      Start in unconnected mode\n");
     printf("  %s telnet-server 4449\n", program_name);
+    printf("      Connect to telnet-server on port 4449\n");
     printf("  %s -f 20 telnet-server 4449\n", program_name);
+    printf("      Connect with 20pt font size\n");
     printf("  %s -p telnet-server 4449\n", program_name);
+    printf("      Connect using IBM Plex Mono font\n");
     printf("  %s -g 100x40 telnet-server 4449\n", program_name);
-    printf("  %s -H light -a linear example.com 23\n", program_name);
+    printf("      Connect with 100x40 terminal size\n");
     printf("  %s -l completion.lisp telnet-server 4449\n", program_name);
+    printf("      Connect and load Lisp configuration file\n");
 }
 
 int main(int argc, char **argv) {
@@ -103,6 +131,7 @@ int main(int argc, char **argv) {
     int font_size = 16;     /* Default font size */
     int terminal_cols = 80; /* Default terminal columns */
     int terminal_rows = 24; /* Default terminal rows */
+    int debug_exit = 0;     /* Exit after initialization for debug output */
 
     /* Parse command-line arguments */
     int arg_idx = 1;
@@ -189,6 +218,8 @@ int main(int argc, char **argv) {
             }
             arg_idx++;
             lisp_file = argv[arg_idx];
+        } else if (strcmp(argv[arg_idx], "--debug-exit") == 0) {
+            debug_exit = 1;
         } else {
             /* Positional arguments: hostname and port */
             if (hostname == NULL) {
@@ -498,6 +529,9 @@ int main(int argc, char **argv) {
     /* Initialize input area */
     input_area_init(&input_area);
 
+    /* Set initial connection status */
+    update_mode(&input_area, connected_mode);
+
     /* Resize terminal to match initial window size */
     int input_area_height = cell_h; /* Input area is one cell height */
     int initial_width, initial_height;
@@ -512,7 +546,7 @@ int main(int argc, char **argv) {
     SDL_Event event;
     int mouse_x = 0, mouse_y = 0;
 
-    while (running && telnet_get_state(telnet) == TELNET_STATE_CONNECTED) {
+    while (running) {
         /* Poll events */
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
@@ -620,9 +654,8 @@ int main(int argc, char **argv) {
                                 if (sent < 0) {
                                     fprintf(stderr, "Failed to send data via telnet\n");
                                     /* Connection lost - switch to unconnected mode */
-                                    connected_mode = 0;
-                                    const char *disc_msg = "\r\n*** Connection lost ***\r\n";
-                                    terminal_feed_data(term, disc_msg, strlen(disc_msg));
+                                    handle_disconnection(&connected_mode, &input_area, term,
+                                                         "\r\n*** Connection lost ***\r\n");
                                 }
                             }
                         } else {
@@ -642,9 +675,8 @@ int main(int argc, char **argv) {
                             if (sent < 0) {
                                 fprintf(stderr, "Failed to send CRLF via telnet\n");
                                 /* Connection lost - switch to unconnected mode */
-                                connected_mode = 0;
-                                const char *disc_msg = "\r\n*** Connection lost ***\r\n";
-                                terminal_feed_data(term, disc_msg, strlen(disc_msg));
+                                handle_disconnection(&connected_mode, &input_area, term,
+                                                     "\r\n*** Connection lost ***\r\n");
                             }
                         }
                         /* Echo CRLF to terminal */
@@ -1040,17 +1072,13 @@ int main(int argc, char **argv) {
             } else if (received == 0) {
                 /* Connection closed by server */
                 fprintf(stderr, "Connection closed by server\n");
-                connected_mode = 0;
-                const char *disc_msg = "\r\n*** Connection closed by server ***\r\n";
-                terminal_feed_data(term, disc_msg, strlen(disc_msg));
+                handle_disconnection(&connected_mode, &input_area, term, "\r\n*** Connection closed by server ***\r\n");
             } else if (received < 0) {
                 /* Error or would block - ignore EWOULDBLOCK/EAGAIN */
                 /* Other errors indicate connection lost */
                 if (errno != EWOULDBLOCK && errno != EAGAIN) {
                     fprintf(stderr, "Connection error: %s\n", strerror(errno));
-                    connected_mode = 0;
-                    const char *disc_msg = "\r\n*** Connection lost ***\r\n";
-                    terminal_feed_data(term, disc_msg, strlen(disc_msg));
+                    handle_disconnection(&connected_mode, &input_area, term, "\r\n*** Connection lost ***\r\n");
                 }
             }
         }
@@ -1081,19 +1109,26 @@ int main(int argc, char **argv) {
             }
         }
 
-        /* Always render input area if it needs redraw, status area needs redraw, or if terminal was rendered */
-        if (input_area_needs_redraw(&input_area) || input_area_status_needs_redraw(&input_area) || needs_render) {
+        /* Always render input area if it needs redraw, mode area needs redraw, or if terminal was rendered */
+        if (input_area_needs_redraw(&input_area) || input_area_mode_needs_redraw(&input_area) || needs_render) {
             int sel_start = 0, sel_end = 0;
             if (input_area_has_selection(&input_area)) {
                 input_area_get_selection_range(&input_area, &sel_start, &sel_end);
             }
             renderer_render_input_area(rend, input_area_get_text(&input_area), input_area_get_length(&input_area),
                                        input_area_get_cursor_pos(&input_area), window_width, window_height,
-                                       input_area_height, input_area_status_get_text(&input_area),
-                                       input_area_status_get_length(&input_area), sel_start, sel_end);
+                                       input_area_height, input_area_mode_get_text(&input_area),
+                                       input_area_mode_get_length(&input_area), sel_start, sel_end);
             input_area_mark_drawn(&input_area);
-            input_area_status_mark_drawn(&input_area);
+            input_area_mode_mark_drawn(&input_area);
             SDL_RenderPresent(window_get_sdl_renderer(win));
+
+            /* Exit after first render if debug mode enabled */
+            if (debug_exit) {
+                fprintf(stderr, "DEBUG: First render complete, exiting\n");
+                fflush(stderr);
+                running = 0;
+            }
         }
 
         SDL_Delay(16); /* Cap at ~60 FPS */

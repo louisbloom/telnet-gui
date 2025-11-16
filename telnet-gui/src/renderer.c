@@ -135,7 +135,7 @@ void renderer_render(Renderer *r, Terminal *term, const char *title) {
 
 /* Render input area at bottom of screen */
 void renderer_render_input_area(Renderer *r, const char *text, int text_len, int cursor_pos, int window_width,
-                                int window_height, int input_area_height, const char *status_text, int status_length,
+                                int window_height, int input_area_height, const char *mode_text, int mode_length,
                                 int selection_start, int selection_end) {
     if (!r)
         return;
@@ -254,50 +254,84 @@ void renderer_render_input_area(Renderer *r, const char *text, int text_len, int
     SDL_Rect cursor_line = {cursor_x, y, 2, r->cell_h};
     SDL_RenderFillRect(r->sdl_renderer, &cursor_line);
 
-    /* Render status area on the right side */
-    if (status_text && status_length > 0) {
-        /* Get status area colors from Lisp config */
-        int status_fg_r, status_fg_g, status_fg_b, status_bg_r, status_bg_g, status_bg_b;
-        lisp_bridge_get_status_fg_color(&status_fg_r, &status_fg_g, &status_fg_b);
-        lisp_bridge_get_status_bg_color(&status_bg_r, &status_bg_g, &status_bg_b);
+    /* Render mode display area on the right side */
+    if (mode_text && mode_length > 0) {
+        /* Get mode display area colors from Lisp config */
+        int mode_fg_r, mode_fg_g, mode_fg_b, mode_bg_r, mode_bg_g, mode_bg_b;
+        lisp_bridge_get_mode_fg_color(&mode_fg_r, &mode_fg_g, &mode_fg_b);
+        lisp_bridge_get_mode_bg_color(&mode_bg_r, &mode_bg_g, &mode_bg_b);
 
-        /* Calculate status area width with left and right padding */
-        int status_padding = 8; /* pixels of padding on each side */
-        int status_text_width = status_length * r->cell_w;
-        int status_area_width = status_text_width + (status_padding * 2);
-        int status_x = window_width - status_area_width;
+        /* Calculate mode display area width with left and right padding */
+        /* Count visual characters and estimate width (emojis are ~2.2x wider than cells) */
+        int visual_char_count = 0;
+        int emoji_count = 0;
+        int char_idx = 0;
+        while (char_idx < mode_length) {
+            unsigned char byte = (unsigned char)mode_text[char_idx];
+            if (byte < 0x80) {
+                visual_char_count++;
+                char_idx += 1;
+            } else if ((byte & 0xE0) == 0xC0) {
+                visual_char_count++;
+                char_idx += 2;
+            } else if ((byte & 0xF0) == 0xE0) {
+                visual_char_count++;
+                char_idx += 3;
+            } else if ((byte & 0xF8) == 0xF0) {
+                /* 4-byte UTF-8 is likely an emoji */
+                visual_char_count++;
+                emoji_count++;
+                char_idx += 4;
+            } else {
+                char_idx++;
+            }
+        }
 
-        /* Draw status area background */
-        SDL_SetRenderDrawColor(r->sdl_renderer, status_bg_r, status_bg_g, status_bg_b, 255);
-        SDL_Rect status_bg = {status_x, input_area_y, status_area_width, input_area_height};
-        SDL_RenderFillRect(r->sdl_renderer, &status_bg);
+        int mode_padding = 8; /* pixels of padding on each side */
+        /* Calculate text width: rendering loop advances by cell_w for each character
+         * After rendering all characters, cursor is at: start + (visual_char_count * cell_w)
+         * But glyphs may extend beyond their cell boundaries (emojis are ~22px vs 10px cell)
+         * Emojis are centered, so they extend (emoji_width - cell_w)/2 on each side
+         * The rightmost pixel is: cursor_pos + right_overhang_of_last_glyph
+         * For now, estimate that last glyph adds ~6px overhang (half of 22-10=12) */
+        int mode_text_width = visual_char_count * r->cell_w;
+        if (emoji_count > 0) {
+            /* Emoji glyphs are ~22px wide, cells are ~10px, so they overhang by ~6px on right */
+            mode_text_width += r->cell_w * 6 / 10; /* Add 60% of cell_w for emoji overhang */
+        }
+        int mode_area_width = mode_text_width + (mode_padding * 2);
+        int mode_x = window_width - mode_area_width;
 
-        /* Create status color structs */
-        SDL_Color status_fg_color = {status_fg_r, status_fg_g, status_fg_b, 255};
-        SDL_Color status_bg_color = {status_bg_r, status_bg_g, status_bg_b, 255};
-        int text_x = status_x + status_padding; /* Start text after left padding */
+        /* Draw mode display area background */
+        SDL_SetRenderDrawColor(r->sdl_renderer, mode_bg_r, mode_bg_g, mode_bg_b, 255);
+        SDL_Rect mode_bg = {mode_x, input_area_y, mode_area_width, input_area_height};
+        SDL_RenderFillRect(r->sdl_renderer, &mode_bg);
 
-        /* Render status text character by character (UTF-8 aware) */
+        /* Create mode color structs */
+        SDL_Color mode_fg_color = {mode_fg_r, mode_fg_g, mode_fg_b, 255};
+        SDL_Color mode_bg_color = {mode_bg_r, mode_bg_g, mode_bg_b, 255};
+        int text_x = mode_x + mode_padding; /* Start text after left padding */
+
+        /* Render mode text character by character (UTF-8 aware) */
         int i = 0;
-        while (i < status_length) {
-            unsigned char byte = (unsigned char)status_text[i];
+        while (i < mode_length) {
+            unsigned char byte = (unsigned char)mode_text[i];
             uint32_t codepoint = 0;
             int bytes_consumed = 1;
 
             /* Decode UTF-8 */
             if (byte < 0x80) {
                 codepoint = byte;
-            } else if ((byte & 0xE0) == 0xC0 && i + 1 < status_length) {
-                codepoint = ((byte & 0x1F) << 6) | ((unsigned char)status_text[i + 1] & 0x3F);
+            } else if ((byte & 0xE0) == 0xC0 && i + 1 < mode_length) {
+                codepoint = ((byte & 0x1F) << 6) | ((unsigned char)mode_text[i + 1] & 0x3F);
                 bytes_consumed = 2;
-            } else if ((byte & 0xF0) == 0xE0 && i + 2 < status_length) {
-                codepoint = ((byte & 0x0F) << 12) | (((unsigned char)status_text[i + 1] & 0x3F) << 6) |
-                            ((unsigned char)status_text[i + 2] & 0x3F);
+            } else if ((byte & 0xF0) == 0xE0 && i + 2 < mode_length) {
+                codepoint = ((byte & 0x0F) << 12) | (((unsigned char)mode_text[i + 1] & 0x3F) << 6) |
+                            ((unsigned char)mode_text[i + 2] & 0x3F);
                 bytes_consumed = 3;
-            } else if ((byte & 0xF8) == 0xF0 && i + 3 < status_length) {
-                codepoint = ((byte & 0x07) << 18) | (((unsigned char)status_text[i + 1] & 0x3F) << 12) |
-                            (((unsigned char)status_text[i + 2] & 0x3F) << 6) |
-                            ((unsigned char)status_text[i + 3] & 0x3F);
+            } else if ((byte & 0xF8) == 0xF0 && i + 3 < mode_length) {
+                codepoint = ((byte & 0x07) << 18) | (((unsigned char)mode_text[i + 1] & 0x3F) << 12) |
+                            (((unsigned char)mode_text[i + 2] & 0x3F) << 6) | ((unsigned char)mode_text[i + 3] & 0x3F);
                 bytes_consumed = 4;
             } else {
                 i++;
@@ -305,7 +339,7 @@ void renderer_render_input_area(Renderer *r, const char *text, int text_len, int
             }
 
             /* Render the character */
-            SDL_Texture *glyph = glyph_cache_get(r->glyph_cache, codepoint, status_fg_color, status_bg_color, 0, 0);
+            SDL_Texture *glyph = glyph_cache_get(r->glyph_cache, codepoint, mode_fg_color, mode_bg_color, 0, 0);
             if (glyph) {
                 int tex_w, tex_h;
                 SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);

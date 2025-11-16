@@ -29,8 +29,8 @@ void input_area_init(InputArea *area) {
     area->history_index = -1; /* Start with new entry */
     area->mode = INPUT_AREA_MODE_NORMAL;
     /* Initialize status area with mode indicator */
-    strcpy(area->status_text, "N");
-    area->status_length = 1;
+    strcpy(area->mode_text, "N");
+    area->mode_length = 1;
 }
 
 void input_area_insert_text(InputArea *area, const char *text, int text_len) {
@@ -651,13 +651,13 @@ void input_area_set_mode(InputArea *area, InputAreaMode mode) {
         area->mode = mode;
         /* Update status area text based on mode */
         if (mode == INPUT_AREA_MODE_NORMAL) {
-            strcpy(area->status_text, "N");
-            area->status_length = 1;
+            strcpy(area->mode_text, "N");
+            area->mode_length = 1;
         } else if (mode == INPUT_AREA_MODE_EVAL) {
-            strcpy(area->status_text, "E");
-            area->status_length = 1;
+            strcpy(area->mode_text, "E");
+            area->mode_length = 1;
         }
-        area->status_needs_redraw = 1;
+        area->mode_needs_redraw = 1;
         area->needs_redraw = 1;
     }
 }
@@ -668,8 +668,8 @@ InputAreaMode input_area_get_mode(InputArea *area) {
     return area->mode;
 }
 
-/* Status area management */
-void input_area_status_set_text(InputArea *area, const char *text) {
+/* Mode display area management */
+void input_area_mode_set_text(InputArea *area, const char *text) {
     if (!area || !text)
         return;
 
@@ -677,43 +677,43 @@ void input_area_status_set_text(InputArea *area, const char *text) {
     if (len >= 256)
         len = 255;
 
-    strncpy(area->status_text, text, len);
-    area->status_text[len] = '\0';
-    area->status_length = len;
-    area->status_needs_redraw = 1;
+    strncpy(area->mode_text, text, len);
+    area->mode_text[len] = '\0';
+    area->mode_length = len;
+    area->mode_needs_redraw = 1;
     area->needs_redraw = 1;
 }
 
-void input_area_status_clear(InputArea *area) {
+void input_area_mode_clear(InputArea *area) {
     if (!area)
         return;
 
-    area->status_text[0] = '\0';
-    area->status_length = 0;
-    area->status_needs_redraw = 1;
+    area->mode_text[0] = '\0';
+    area->mode_length = 0;
+    area->mode_needs_redraw = 1;
     area->needs_redraw = 1;
 }
 
-const char *input_area_status_get_text(InputArea *area) {
+const char *input_area_mode_get_text(InputArea *area) {
     if (!area)
         return NULL;
-    return area->status_text;
+    return area->mode_text;
 }
 
-int input_area_status_get_length(InputArea *area) {
+int input_area_mode_get_length(InputArea *area) {
     if (!area)
         return 0;
-    return area->status_length;
+    return area->mode_length;
 }
 
-int input_area_status_needs_redraw(InputArea *area) {
+int input_area_mode_needs_redraw(InputArea *area) {
     if (!area)
         return 0;
-    return area->status_needs_redraw;
+    return area->mode_needs_redraw;
 }
 
-void input_area_status_mark_drawn(InputArea *area) {
+void input_area_mode_mark_drawn(InputArea *area) {
     if (!area)
         return;
-    area->status_needs_redraw = 0;
+    area->mode_needs_redraw = 0;
 }

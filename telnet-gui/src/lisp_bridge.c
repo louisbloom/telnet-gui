@@ -1,6 +1,7 @@
 /* Lisp bridge implementation for telnet-gui */
 
 #include "lisp_bridge.h"
+#include "input_area.h"
 #include "lisp.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -867,13 +868,13 @@ void lisp_bridge_get_input_separator_color(int *r, int *g, int *b) {
     get_color_from_lisp("*input-separator-color*", r, g, b, 100, 100, 100); /* Gray */
 }
 
-/* Status area colors */
-void lisp_bridge_get_status_fg_color(int *r, int *g, int *b) {
-    get_color_from_lisp("*status-fg-color*", r, g, b, 150, 255, 150); /* Greenish */
+/* Mode display area colors */
+void lisp_bridge_get_mode_fg_color(int *r, int *g, int *b) {
+    get_color_from_lisp("*mode-fg-color*", r, g, b, 150, 255, 150); /* Greenish */
 }
 
-void lisp_bridge_get_status_bg_color(int *r, int *g, int *b) {
-    get_color_from_lisp("*status-bg-color*", r, g, b, 45, 65, 85); /* Lighter blue */
+void lisp_bridge_get_mode_bg_color(int *r, int *g, int *b) {
+    get_color_from_lisp("*mode-bg-color*", r, g, b, 45, 65, 85); /* Lighter blue */
 }
 
 /* Terminal default colors */
@@ -883,4 +884,105 @@ void lisp_bridge_get_terminal_fg_color(int *r, int *g, int *b) {
 
 void lisp_bridge_get_terminal_bg_color(int *r, int *g, int *b) {
     get_color_from_lisp("*terminal-bg-color*", r, g, b, 0, 0, 0); /* Black */
+}
+
+/* Set connection mode in Lisp environment */
+void lisp_bridge_set_connection_mode(int connected) {
+    if (!lisp_env) {
+        return;
+    }
+
+    /* Create connection mode symbol: conn or disc */
+    const char *conn_str = connected ? "conn" : "disc";
+    LispObject *conn_symbol = lisp_make_symbol(conn_str);
+
+    /* Define *connection-mode* variable */
+    env_define(lisp_env, "*connection-mode*", conn_symbol);
+
+    /* Update *mode* alist */
+    LispObject *connection_key = lisp_make_string("connection");
+    LispObject *input_key = lisp_make_string("input");
+
+    /* Get current input mode */
+    LispObject *input_mode_obj = env_lookup(lisp_env, "*input-mode*");
+    if (!input_mode_obj || input_mode_obj == NIL) {
+        input_mode_obj = lisp_make_symbol("normal"); /* Default */
+    }
+
+    /* Create alist: (("connection" . conn/disc) ("input" . normal/eval)) */
+    LispObject *connection_pair = lisp_make_cons(connection_key, conn_symbol);
+    LispObject *input_pair = lisp_make_cons(input_key, input_mode_obj);
+    LispObject *mode_list = lisp_make_cons(connection_pair, lisp_make_cons(input_pair, NIL));
+
+    /* Define *mode* variable */
+    env_define(lisp_env, "*mode*", mode_list);
+}
+
+/* Set input mode in Lisp environment */
+void lisp_bridge_set_input_mode(int input_mode) {
+    if (!lisp_env) {
+        return;
+    }
+
+    /* Create input mode symbol: normal or eval */
+    const char *input_str = (input_mode == INPUT_AREA_MODE_EVAL) ? "eval" : "normal";
+    LispObject *input_symbol = lisp_make_symbol(input_str);
+
+    /* Define *input-mode* variable */
+    env_define(lisp_env, "*input-mode*", input_symbol);
+
+    /* Update *mode* alist */
+    LispObject *connection_key = lisp_make_string("connection");
+    LispObject *input_key = lisp_make_string("input");
+
+    /* Get current connection mode */
+    LispObject *connection_mode_obj = env_lookup(lisp_env, "*connection-mode*");
+    if (!connection_mode_obj || connection_mode_obj == NIL) {
+        connection_mode_obj = lisp_make_symbol("disc"); /* Default */
+    }
+
+    /* Create alist: (("connection" . conn/disc) ("input" . normal/eval)) */
+    LispObject *connection_pair = lisp_make_cons(connection_key, connection_mode_obj);
+    LispObject *input_pair = lisp_make_cons(input_key, input_symbol);
+    LispObject *mode_list = lisp_make_cons(connection_pair, lisp_make_cons(input_pair, NIL));
+
+    /* Define *mode* variable */
+    env_define(lisp_env, "*mode*", mode_list);
+}
+
+/* Get mode string from Lisp environment */
+const char *lisp_bridge_get_mode_string(void) {
+    if (!lisp_env) {
+        return "((connection . disc) (input . normal))"; /* Default fallback */
+    }
+
+    /* Lookup *mode* variable */
+    LispObject *mode = env_lookup(lisp_env, "*mode*");
+    if (!mode || mode == NIL) {
+        return "((connection . disc) (input . normal))"; /* Default fallback */
+    }
+
+    /* Try to call mode-render-hook if defined */
+    LispObject *hook = env_lookup(lisp_env, "mode-render-hook");
+    if (hook && (hook->type == LISP_LAMBDA || hook->type == LISP_BUILTIN)) {
+        /* Call hook using eval_string to properly handle lambda closures */
+        LispObject *result = lisp_eval_string("(mode-render-hook *mode*)", lisp_env);
+
+        /* Check if result is a string */
+        if (result && result->type == LISP_STRING) {
+            return result->value.string;
+        }
+
+        /* Check for errors - log but continue to fallback */
+        if (result && result->type == LISP_ERROR) {
+            char *err_str = lisp_print(result);
+            if (err_str) {
+                fprintf(stderr, "Error in mode-render-hook: %s\n", err_str);
+            }
+        }
+    }
+
+    /* Fallback: Convert to string using lisp_print */
+    char *mode_str = lisp_print(mode);
+    return mode_str ? mode_str : "((connection . disc) (input . normal))";
 }

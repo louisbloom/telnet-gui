@@ -51,6 +51,8 @@ The executable will be created at `build/telnet-gui/telnet-gui.exe`.
 
 ## Usage
 
+### Basic Usage
+
 ```bash
 ./build/telnet-gui/telnet-gui.exe <hostname> <port>
 ```
@@ -59,6 +61,45 @@ Example:
 
 ```bash
 ./build/telnet-gui/telnet-gui.exe telnet-server 4449
+```
+
+### Command-Line Options
+
+```bash
+./build/telnet-gui/telnet-gui.exe [OPTIONS] [hostname] [port]
+```
+
+**Font Options:**
+- `-f, --font-size SIZE` - Set font size in points (default: 16)
+- `-p, --plex` - Use IBM Plex Mono font instead of Monaco
+- `-H, --hinting MODE` - Font hinting mode: none (default), light, normal, mono
+- `-a, --antialiasing MODE` - Anti-aliasing mode: linear (default), nearest
+
+**Terminal Options:**
+- `-g, --geometry COLSxROWS` - Set terminal size (default: 80x24)
+
+**Other Options:**
+- `-l, --lisp-file FILE` - Load Lisp configuration file on startup
+- `--debug-exit` - Exit after initialization (for capturing debug output)
+- `-h, --help` - Show help message
+
+**Examples:**
+
+```bash
+# Start in unconnected mode
+./build/telnet-gui/telnet-gui.exe
+
+# Connect with larger font
+./build/telnet-gui/telnet-gui.exe -f 20 telnet-server 4449
+
+# Use IBM Plex Mono font with custom geometry
+./build/telnet-gui/telnet-gui.exe -p -g 100x40 telnet-server 4449
+
+# Load Lisp configuration for tab completion
+./build/telnet-gui/telnet-gui.exe -l completion.lisp telnet-server 4449
+
+# Debug mode (exits after first render, capture initialization output)
+./build/telnet-gui/telnet-gui.exe --debug-exit 2>&1
 ```
 
 ## libvterm 0.3.3 Integration
@@ -219,9 +260,9 @@ if (!vterm_check_version(0, 3)) {
 
 ### References
 
-- libvterm demo: `C:\Users\tchristensen\git\libvterm\demo\main.c`
-- libvterm source: `C:\Users\tchristensen\git\libvterm\src\`
 - libvterm documentation: https://github.com/neovim/libvterm
+- libvterm demo code: https://github.com/neovim/libvterm/blob/master/demo/main.c
+- libvterm source: https://github.com/neovim/libvterm/tree/master/src
 
 ## Architecture
 
@@ -277,14 +318,106 @@ If you get a segmentation fault:
 
 ### Debugging
 
-Use GDB to debug segmentation faults:
+#### Quick Debug Mode
+
+Use `--debug-exit` to capture initialization output without manually killing the process:
+
+**From MSYS2 UCRT64 shell (recommended - DLLs automatically available):**
 
 ```bash
-gdb ./build/telnet-gui/telnet-gui.exe
+cd build/telnet-gui
+./telnet-gui.exe --debug-exit 2>&1
+```
+
+**From Git Bash (requires PATH configuration):**
+
+```bash
+export PATH="/c/msys64/ucrt64/bin:$PATH"
+cd build/telnet-gui
+./telnet-gui.exe --debug-exit 2>&1
+```
+
+**From PowerShell:**
+
+```powershell
+$env:PATH = "C:\msys64\ucrt64\bin;$env:PATH"
+cd build\telnet-gui
+.\telnet-gui.exe --debug-exit 2>&1
+```
+
+**From CMD:**
+
+```cmd
+set PATH=C:\msys64\ucrt64\bin;%PATH%
+cd build\telnet-gui
+telnet-gui.exe --debug-exit 2>&1
+```
+
+The `--debug-exit` flag makes telnet-gui exit after the first frame is rendered, which is useful for:
+- Verifying font loading and emoji support
+- Checking mode area rendering and sizing
+- Capturing bootstrap and initialization logs
+- Testing Lisp configuration without running the full application
+
+**Note:** The PATH must include the MSYS2 UCRT64 bin directory for SDL2 DLLs. Adjust paths above if your MSYS2 is installed elsewhere (e.g., `C:\tools\msys64`, scoop installations at `C:\Users\<username>\scoop\apps\msys2\...`, etc.).
+
+#### GDB Debugging
+
+Use GDB to debug segmentation faults and runtime issues (requires MSYS2 UCRT64 shell or GDB with proper PATH):
+
+**From MSYS2 UCRT64 shell:**
+
+```bash
+cd build/telnet-gui
+gdb ./telnet-gui.exe
+
+# Run with arguments
 (gdb) run telnet-server 4449
-# ... wait for crash ...
-(gdb) bt
-(gdb) info registers
+
+# Or run with debug exit
+(gdb) run --debug-exit
+
+# After crash
+(gdb) bt              # Print backtrace
+(gdb) info registers  # Show register values
+(gdb) frame 0         # Select stack frame
+(gdb) print variable  # Inspect variable values
+```
+
+**Common debugging scenarios:**
+- Segfault on startup → Check callback structure lifetime (see libvterm integration above)
+- Segfault during rendering → Check glyph cache and texture creation
+- Connection issues → Check telnet protocol negotiation
+
+#### Debug Output
+
+The application prints debug information to stderr:
+- Bootstrap file resolution paths
+- Font loading and fallback attempts
+- Emoji font detection
+- libvterm initialization
+- Mode area rendering (when using `--debug-exit`)
+
+Redirect stderr to capture logs:
+
+**Git Bash / MSYS2:**
+
+```bash
+./telnet-gui.exe 2>debug.log
+./telnet-gui.exe --debug-exit 2>&1 | tee debug.log
+```
+
+**PowerShell:**
+
+```powershell
+.\telnet-gui.exe 2>&1 | Out-File debug.log
+.\telnet-gui.exe --debug-exit 2>&1 | Tee-Object debug.log
+```
+
+**CMD:**
+
+```cmd
+telnet-gui.exe 2>debug.log
 ```
 
 ### Code Style

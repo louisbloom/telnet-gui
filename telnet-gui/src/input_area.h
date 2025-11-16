@@ -38,10 +38,10 @@ typedef struct {
     /* Mode */
     InputAreaMode mode;
 
-    /* Status area */
-    char status_text[256];
-    int status_length;
-    int status_needs_redraw;
+    /* Mode display area */
+    char mode_text[256];
+    int mode_length;
+    int mode_needs_redraw;
 } InputArea;
 
 /* Initialize input area */
@@ -122,12 +122,12 @@ void input_area_sync_state(InputArea *area);
 void input_area_set_mode(InputArea *area, InputAreaMode mode);
 InputAreaMode input_area_get_mode(InputArea *area);
 
-/* Status area management */
-void input_area_status_set_text(InputArea *area, const char *text);
-void input_area_status_clear(InputArea *area);
-const char *input_area_status_get_text(InputArea *area);
-int input_area_status_get_length(InputArea *area);
-int input_area_status_needs_redraw(InputArea *area);
-void input_area_status_mark_drawn(InputArea *area);
+/* Mode display area management */
+void input_area_mode_set_text(InputArea *area, const char *text);
+void input_area_mode_clear(InputArea *area);
+const char *input_area_mode_get_text(InputArea *area);
+int input_area_mode_get_length(InputArea *area);
+int input_area_mode_needs_redraw(InputArea *area);
+void input_area_mode_mark_drawn(InputArea *area);
 
 #endif /* INPUT_AREA_H */

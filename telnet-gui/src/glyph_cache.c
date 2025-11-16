@@ -14,12 +14,90 @@ typedef struct CacheNode {
 
 struct GlyphCache {
     TTF_Font *font;
+    TTF_Font *emoji_font; /* Fallback font for emoji characters */
     SDL_Renderer *renderer;
     CacheNode *cache;
     int cache_size;
     int cell_w, cell_h;
     SDL_ScaleMode scale_mode;
 };
+
+/* Convert UTF-32 codepoint to UTF-8 string */
+static int codepoint_to_utf8(uint32_t codepoint, char *utf8) {
+    if (codepoint < 0x80) {
+        utf8[0] = (char)codepoint;
+        utf8[1] = '\0';
+        return 1;
+    } else if (codepoint < 0x800) {
+        utf8[0] = (char)(0xC0 | (codepoint >> 6));
+        utf8[1] = (char)(0x80 | (codepoint & 0x3F));
+        utf8[2] = '\0';
+        return 2;
+    } else if (codepoint < 0x10000) {
+        utf8[0] = (char)(0xE0 | (codepoint >> 12));
+        utf8[1] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+        utf8[2] = (char)(0x80 | (codepoint & 0x3F));
+        utf8[3] = '\0';
+        return 3;
+    } else if (codepoint < 0x110000) {
+        utf8[0] = (char)(0xF0 | (codepoint >> 18));
+        utf8[1] = (char)(0x80 | ((codepoint >> 12) & 0x3F));
+        utf8[2] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+        utf8[3] = (char)(0x80 | (codepoint & 0x3F));
+        utf8[4] = '\0';
+        return 4;
+    }
+    return 0;
+}
+
+/* Check if a codepoint is likely an emoji */
+static int is_emoji_codepoint(uint32_t codepoint) {
+    /* Common emoji ranges */
+    if (codepoint >= 0x1F300 && codepoint <= 0x1F9FF)
+        return 1; /* Emoticons, symbols, pictographs */
+    if (codepoint >= 0x2600 && codepoint <= 0x26FF)
+        return 1; /* Miscellaneous symbols */
+    if (codepoint >= 0x2700 && codepoint <= 0x27BF)
+        return 1; /* Dingbats */
+    if (codepoint >= 0x1F600 && codepoint <= 0x1F64F)
+        return 1; /* Emoticons */
+    if (codepoint >= 0x1F680 && codepoint <= 0x1F6FF)
+        return 1; /* Transport and map symbols */
+    return 0;
+}
+
+/* Try to find system emoji font */
+static const char *find_emoji_font(void) {
+#ifdef _WIN32
+    /* Windows: Try Segoe UI Emoji */
+    const char *emoji_fonts[] = {"C:/Windows/Fonts/seguiemj.ttf", /* Segoe UI Emoji */
+                                 "C:\\Windows\\Fonts\\seguiemj.ttf", NULL};
+
+    for (int i = 0; emoji_fonts[i] != NULL; i++) {
+        FILE *test = fopen(emoji_fonts[i], "rb");
+        if (test) {
+            fclose(test);
+            return emoji_fonts[i];
+        }
+    }
+#elif defined(__APPLE__)
+    /* macOS: Apple Color Emoji */
+    return "/System/Library/Fonts/Apple Color Emoji.ttc";
+#else
+    /* Linux: Try common emoji fonts */
+    const char *emoji_fonts[] = {"/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+                                 "/usr/share/fonts/noto-emoji/NotoColorEmoji.ttf", NULL};
+
+    for (int i = 0; emoji_fonts[i] != NULL; i++) {
+        FILE *test = fopen(emoji_fonts[i], "rb");
+        if (test) {
+            fclose(test);
+            return emoji_fonts[i];
+        }
+    }
+#endif
+    return NULL;
+}
 
 /* Hash function for cache key */
 static uint32_t hash_key(uint32_t codepoint, SDL_Color fg, SDL_Color bg, int bold, int italic) {
@@ -95,6 +173,20 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, in
     /* Cell height: use font height (no extra spacing) */
     cache->cell_h = font_height;
 
+    /* Try to load emoji font as fallback */
+    cache->emoji_font = NULL;
+    const char *emoji_font_path = find_emoji_font();
+    if (emoji_font_path) {
+        cache->emoji_font = TTF_OpenFont(emoji_font_path, font_size);
+        if (cache->emoji_font) {
+            fprintf(stderr, "Emoji font loaded successfully from: %s\n", emoji_font_path);
+        } else {
+            fprintf(stderr, "Failed to load emoji font from: %s (%s)\n", emoji_font_path, TTF_GetError());
+        }
+    } else {
+        fprintf(stderr, "No emoji font found on system\n");
+    }
+
     return cache;
 }
 
@@ -111,7 +203,37 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
 
     /* Cache miss - render glyph with smooth anti-aliasing using Blended mode */
     /* TTF_RenderGlyph_Blended provides best quality with full alpha channel support */
-    SDL_Surface *surface = TTF_RenderGlyph_Blended(cache->font, (uint16_t)codepoint, fg_color);
+
+    /* Try emoji font first if this looks like an emoji codepoint */
+    SDL_Surface *surface = NULL;
+    TTF_Font *selected_font = cache->font;
+
+    if (is_emoji_codepoint(codepoint) && cache->emoji_font) {
+        selected_font = cache->emoji_font;
+
+        /* Convert codepoint to UTF-8 for proper emoji rendering */
+        char utf8[5];
+        codepoint_to_utf8(codepoint, utf8);
+
+        /* Use UTF8 rendering for emoji (supports 32-bit codepoints) */
+        surface = TTF_RenderUTF8_Blended(cache->emoji_font, utf8, fg_color);
+    }
+
+    /* If emoji font failed or not an emoji, try main font with glyph rendering */
+    if (!surface) {
+        selected_font = cache->font;
+
+        /* For BMP characters (< 0x10000), use glyph rendering */
+        if (codepoint < 0x10000) {
+            surface = TTF_RenderGlyph_Blended(cache->font, (uint16_t)codepoint, fg_color);
+        } else {
+            /* For higher codepoints, use UTF-8 rendering */
+            char utf8[5];
+            codepoint_to_utf8(codepoint, utf8);
+            surface = TTF_RenderUTF8_Blended(cache->font, utf8, fg_color);
+        }
+    }
+
     if (!surface)
         return NULL;
 
@@ -155,6 +277,10 @@ void glyph_cache_destroy(GlyphCache *cache) {
 
     if (cache->font) {
         TTF_CloseFont(cache->font);
+    }
+
+    if (cache->emoji_font) {
+        TTF_CloseFont(cache->emoji_font);
     }
 
     /* Clean up cache textures */

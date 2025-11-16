@@ -56,13 +56,18 @@ void lisp_bridge_get_selection_bg_color(int *r, int *g, int *b);
 void lisp_bridge_get_cursor_color(int *r, int *g, int *b);
 void lisp_bridge_get_input_separator_color(int *r, int *g, int *b);
 
-/* Status area colors */
-void lisp_bridge_get_status_fg_color(int *r, int *g, int *b);
-void lisp_bridge_get_status_bg_color(int *r, int *g, int *b);
+/* Mode display area colors */
+void lisp_bridge_get_mode_fg_color(int *r, int *g, int *b);
+void lisp_bridge_get_mode_bg_color(int *r, int *g, int *b);
 
 /* Terminal default colors */
 void lisp_bridge_get_terminal_fg_color(int *r, int *g, int *b);
 void lisp_bridge_get_terminal_bg_color(int *r, int *g, int *b);
+
+/* Mode data structure - set and get as Lisp variables */
+void lisp_bridge_set_connection_mode(int connected);
+void lisp_bridge_set_input_mode(int input_mode);
+const char *lisp_bridge_get_mode_string(void);
 
 /* Future: More functions to expose telnet-gui primitives */
 /* - Input/output hooks */

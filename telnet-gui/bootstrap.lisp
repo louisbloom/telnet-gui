@@ -314,6 +314,85 @@
 ;; Separator line between terminal and input area
 (define *input-separator-color* '(100 100 100))  ; Gray separator line
 
-;; Status area colors (mode indicator on right side of input area)
-(define *status-fg-color* '(150 255 150))    ; Light green text
-(define *status-bg-color* '(45 65 85))       ; Lighter blue background
+;; Mode display area colors (mode indicator on right side of input area)
+(define *mode-fg-color* '(150 255 150))    ; Light green text
+(define *mode-bg-color* '(45 65 85))       ; Lighter blue background
+
+;; ============================================================================
+;; MODE DATA STRUCTURE
+;; ============================================================================
+;; These variables track the current application mode state and are updated
+;; automatically by the C code. They can be read from Lisp code to query state.
+
+;; *connection-mode*: Current connection state (updated by C code)
+;;   Values: conn (connected) or disc (disconnected)
+(define *connection-mode* 'disc)
+
+;; *input-mode*: Current input area mode (updated by C code)
+;;   Values: normal (normal telnet input) or eval (Lisp evaluation mode)
+(define *input-mode* 'normal)
+
+;; *mode*: Combined mode as an alist (updated by C code)
+;;   Format: (("connection" . conn/disc) ("input" . normal/eval))
+(define *mode* '(("connection" . disc) ("input" . normal)))
+
+;; ============================================================================
+;; MODE RENDERING HOOK
+;; ============================================================================
+;; mode-render-hook: Function to render the mode display area
+;;
+;; Signature: (lambda (mode-alist) -> string)
+;;   - mode-alist: The *mode* alist ((connection . conn/disc) (input . normal/eval))
+;;   - Returns: String to display in mode area
+;;
+;; This hook allows customizing how the mode is displayed. The default
+;; implementation uses emojis for a compact visual representation.
+;;
+;; If this hook is not defined or returns a non-string, the C code will
+;; fall back to using lisp_print to show the mode alist directly.
+;;
+;; Examples:
+;;
+;; Symbol display (default - uses Unicode symbols monospace fonts support):
+;;   Connected + Normal:  "● N"
+;;   Connected + Eval:    "● E"
+;;   Disconnected + Normal: "○ N"
+;;   Disconnected + Eval:  "○ E"
+;;
+;; Emoji display (requires emoji font):
+;;   (define mode-render-hook
+;;     (lambda (mode)
+;;       (concat
+;;         (if (string= (symbol->string (alist-get "connection" mode)) "conn")
+;;             "🟢 "
+;;             "🔴 ")
+;;         (if (string= (symbol->string (alist-get "input" mode)) "eval")
+;;             "💻"
+;;             "📝"))))
+;;
+;; Text display:
+;;   (define mode-render-hook
+;;     (lambda (mode)
+;;       (concat
+;;         (if (string= (symbol->string (alist-get "connection" mode)) "conn") "CONN" "DISC")
+;;         " "
+;;         (if (string= (symbol->string (alist-get "input" mode)) "eval") "EVAL" "NORM"))))
+;;
+;; Compact text:
+;;   (define mode-render-hook
+;;     (lambda (mode)
+;;       (concat
+;;         (if (string= (symbol->string (alist-get "connection" mode)) "conn") "C" "D")
+;;         (if (string= (symbol->string (alist-get "input" mode)) "eval") "E" "N"))))
+
+(define mode-render-hook
+  (lambda (mode)
+    (concat
+      ;; Connection emoji - uses system emoji font if available
+      (if (string= (symbol->string (alist-get "connection" mode)) "conn")
+          "🟢 "    ; Green circle for connected
+          "🔴 ")   ; Red circle for disconnected
+      ;; Input mode emoji
+      (if (string= (symbol->string (alist-get "input" mode)) "eval")
+          "💻"     ; Laptop for eval mode
+          "📝"))))  ; Memo for normal mode
