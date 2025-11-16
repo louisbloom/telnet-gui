@@ -47,6 +47,23 @@ void lisp_bridge_call_telnet_input_hook(const char *text, size_t len);
 /* Call user-input-hook with user input before sending to telnet (returns transformed text or original) */
 const char *lisp_bridge_call_user_input_hook(const char *text, int cursor_pos);
 
+/* Color configuration getters - return RGB components (0-255) */
+/* Input area colors */
+void lisp_bridge_get_input_area_fg_color(int *r, int *g, int *b);
+void lisp_bridge_get_input_area_bg_color(int *r, int *g, int *b);
+void lisp_bridge_get_selection_fg_color(int *r, int *g, int *b);
+void lisp_bridge_get_selection_bg_color(int *r, int *g, int *b);
+void lisp_bridge_get_cursor_color(int *r, int *g, int *b);
+void lisp_bridge_get_input_separator_color(int *r, int *g, int *b);
+
+/* Status area colors */
+void lisp_bridge_get_status_fg_color(int *r, int *g, int *b);
+void lisp_bridge_get_status_bg_color(int *r, int *g, int *b);
+
+/* Terminal default colors */
+void lisp_bridge_get_terminal_fg_color(int *r, int *g, int *b);
+void lisp_bridge_get_terminal_bg_color(int *r, int *g, int *b);
+
 /* Future: More functions to expose telnet-gui primitives */
 /* - Input/output hooks */
 /* - Input area manipulation */

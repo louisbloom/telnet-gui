@@ -30,6 +30,11 @@ typedef struct {
     /* Kill ring */
     char kill_ring[INPUT_AREA_MAX_LENGTH];
 
+    /* Text selection */
+    int selection_active;   /* 1 if selection is active */
+    int selection_start;    /* Start position of selection */
+    int selection_end;      /* End position of selection */
+
     /* Mode */
     InputAreaMode mode;
 
@@ -69,6 +74,18 @@ void input_area_kill_to_end(InputArea *area);           /* Ctrl+K */
 void input_area_kill_from_start(InputArea *area);       /* Ctrl+U */
 void input_area_kill_word(InputArea *area);             /* Ctrl+W */
 void input_area_yank(InputArea *area);                  /* Ctrl+Y */
+
+/* Clipboard operations */
+const char *input_area_copy(InputArea *area);           /* Ctrl+C - returns text to copy */
+void input_area_paste(InputArea *area, const char *text); /* Ctrl+V - paste text at cursor */
+const char *input_area_get_kill_ring(InputArea *area);  /* Get last killed text */
+
+/* Selection management */
+void input_area_start_selection(InputArea *area);       /* Start selection at cursor */
+void input_area_clear_selection(InputArea *area);       /* Clear selection */
+int input_area_has_selection(InputArea *area);          /* Check if selection is active */
+void input_area_get_selection_range(InputArea *area, int *start, int *end); /* Get selection range */
+int input_area_copy_selection(InputArea *area, char *dest, int dest_size); /* Copy selection to buffer */
 
 /* History management */
 void input_area_history_add(InputArea *area);

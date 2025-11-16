@@ -636,6 +636,13 @@ int main(int argc, char **argv) {
                     break;
                 }
                 case SDL_SCANCODE_LEFT: {
+                    /* Start selection if Shift is pressed and no selection */
+                    if ((mod & KMOD_SHIFT) && !input_area_has_selection(&input_area)) {
+                        input_area_start_selection(&input_area);
+                    } else if (!(mod & KMOD_SHIFT)) {
+                        input_area_clear_selection(&input_area);
+                    }
+
                     if (mod & KMOD_CTRL) {
                         input_area_move_cursor_word_left(&input_area);
                     } else {
@@ -644,6 +651,13 @@ int main(int argc, char **argv) {
                     break;
                 }
                 case SDL_SCANCODE_RIGHT: {
+                    /* Start selection if Shift is pressed and no selection */
+                    if ((mod & KMOD_SHIFT) && !input_area_has_selection(&input_area)) {
+                        input_area_start_selection(&input_area);
+                    } else if (!(mod & KMOD_SHIFT)) {
+                        input_area_clear_selection(&input_area);
+                    }
+
                     if (mod & KMOD_CTRL) {
                         input_area_move_cursor_word_right(&input_area);
                     } else {
@@ -660,10 +674,24 @@ int main(int argc, char **argv) {
                     break;
                 }
                 case SDL_SCANCODE_HOME: {
+                    /* Start selection if Shift is pressed and no selection */
+                    if ((mod & KMOD_SHIFT) && !input_area_has_selection(&input_area)) {
+                        input_area_start_selection(&input_area);
+                    } else if (!(mod & KMOD_SHIFT)) {
+                        input_area_clear_selection(&input_area);
+                    }
+
                     input_area_move_cursor_home(&input_area);
                     break;
                 }
                 case SDL_SCANCODE_END: {
+                    /* Start selection if Shift is pressed and no selection */
+                    if ((mod & KMOD_SHIFT) && !input_area_has_selection(&input_area)) {
+                        input_area_start_selection(&input_area);
+                    } else if (!(mod & KMOD_SHIFT)) {
+                        input_area_clear_selection(&input_area);
+                    }
+
                     input_area_move_cursor_end(&input_area);
                     break;
                 }
@@ -682,24 +710,69 @@ int main(int argc, char **argv) {
                 case SDL_SCANCODE_K: {
                     if (mod & KMOD_CTRL) {
                         input_area_kill_to_end(&input_area);
+                        /* Copy killed text to clipboard */
+                        const char *killed = input_area_get_kill_ring(&input_area);
+                        if (killed && killed[0] != '\0') {
+                            SDL_SetClipboardText(killed);
+                        }
                     }
                     break;
                 }
                 case SDL_SCANCODE_U: {
                     if (mod & KMOD_CTRL) {
                         input_area_kill_from_start(&input_area);
+                        /* Copy killed text to clipboard */
+                        const char *killed = input_area_get_kill_ring(&input_area);
+                        if (killed && killed[0] != '\0') {
+                            SDL_SetClipboardText(killed);
+                        }
                     }
                     break;
                 }
                 case SDL_SCANCODE_W: {
                     if (mod & KMOD_CTRL) {
                         input_area_kill_word(&input_area);
+                        /* Copy killed text to clipboard */
+                        const char *killed = input_area_get_kill_ring(&input_area);
+                        if (killed && killed[0] != '\0') {
+                            SDL_SetClipboardText(killed);
+                        }
                     }
                     break;
                 }
                 case SDL_SCANCODE_Y: {
                     if (mod & KMOD_CTRL) {
                         input_area_yank(&input_area);
+                    }
+                    break;
+                }
+                case SDL_SCANCODE_C: {
+                    if (mod & KMOD_CTRL) {
+                        /* Copy selection or all text to clipboard */
+                        if (input_area_has_selection(&input_area)) {
+                            char selection_buffer[INPUT_AREA_MAX_LENGTH];
+                            if (input_area_copy_selection(&input_area, selection_buffer, INPUT_AREA_MAX_LENGTH) > 0) {
+                                SDL_SetClipboardText(selection_buffer);
+                            }
+                        } else {
+                            const char *text = input_area_copy(&input_area);
+                            if (text && text[0] != '\0') {
+                                SDL_SetClipboardText(text);
+                            }
+                        }
+                    }
+                    break;
+                }
+                case SDL_SCANCODE_V: {
+                    if (mod & KMOD_CTRL) {
+                        /* Paste text from clipboard */
+                        if (SDL_HasClipboardText()) {
+                            char *text = SDL_GetClipboardText();
+                            if (text) {
+                                input_area_paste(&input_area, text);
+                                SDL_free(text);
+                            }
+                        }
                     }
                     break;
                 }
@@ -963,10 +1036,14 @@ int main(int argc, char **argv) {
 
         /* Always render input area if it needs redraw, status area needs redraw, or if terminal was rendered */
         if (input_area_needs_redraw(&input_area) || input_area_status_needs_redraw(&input_area) || needs_render) {
+            int sel_start = 0, sel_end = 0;
+            if (input_area_has_selection(&input_area)) {
+                input_area_get_selection_range(&input_area, &sel_start, &sel_end);
+            }
             renderer_render_input_area(rend, input_area_get_text(&input_area), input_area_get_length(&input_area),
                                        input_area_get_cursor_pos(&input_area), window_width, window_height,
                                        input_area_height, input_area_status_get_text(&input_area),
-                                       input_area_status_get_length(&input_area));
+                                       input_area_status_get_length(&input_area), sel_start, sel_end);
             input_area_mark_drawn(&input_area);
             input_area_status_mark_drawn(&input_area);
             SDL_RenderPresent(window_get_sdl_renderer(win));

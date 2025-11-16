@@ -791,3 +791,96 @@ const char *lisp_bridge_call_user_input_hook(const char *text, int cursor_pos) {
     /* Return the transformed string (Lisp string memory is managed by GC) */
     return result->value.string;
 }
+
+/* Helper: Extract RGB from Lisp list (r g b) or return default */
+static void get_color_from_lisp(const char *var_name, int *r, int *g, int *b, int default_r, int default_g,
+                                int default_b) {
+    /* Set defaults */
+    *r = default_r;
+    *g = default_g;
+    *b = default_b;
+
+    if (!lisp_env) {
+        return;
+    }
+
+    LispObject *value = env_lookup(lisp_env, var_name);
+    if (!value || value == NIL || value->type != LISP_CONS) {
+        return; /* Not found or not a list */
+    }
+
+    /* Extract (r g b) from list */
+    LispObject *r_obj = lisp_car(value);
+    LispObject *rest = lisp_cdr(value);
+    if (!rest || rest->type != LISP_CONS)
+        return;
+
+    LispObject *g_obj = lisp_car(rest);
+    rest = lisp_cdr(rest);
+    if (!rest || rest->type != LISP_CONS)
+        return;
+
+    LispObject *b_obj = lisp_car(rest);
+
+    /* Convert to integers */
+    if (r_obj && (r_obj->type == LISP_INTEGER || r_obj->type == LISP_NUMBER)) {
+        int val = (r_obj->type == LISP_INTEGER) ? (int)r_obj->value.integer : (int)r_obj->value.number;
+        if (val >= 0 && val <= 255)
+            *r = val;
+    }
+
+    if (g_obj && (g_obj->type == LISP_INTEGER || g_obj->type == LISP_NUMBER)) {
+        int val = (g_obj->type == LISP_INTEGER) ? (int)g_obj->value.integer : (int)g_obj->value.number;
+        if (val >= 0 && val <= 255)
+            *g = val;
+    }
+
+    if (b_obj && (b_obj->type == LISP_INTEGER || b_obj->type == LISP_NUMBER)) {
+        int val = (b_obj->type == LISP_INTEGER) ? (int)b_obj->value.integer : (int)b_obj->value.number;
+        if (val >= 0 && val <= 255)
+            *b = val;
+    }
+}
+
+/* Input area colors */
+void lisp_bridge_get_input_area_fg_color(int *r, int *g, int *b) {
+    get_color_from_lisp("*input-area-fg-color*", r, g, b, 255, 255, 0); /* Yellow */
+}
+
+void lisp_bridge_get_input_area_bg_color(int *r, int *g, int *b) {
+    get_color_from_lisp("*input-area-bg-color*", r, g, b, 25, 40, 60); /* Dark blue */
+}
+
+void lisp_bridge_get_selection_fg_color(int *r, int *g, int *b) {
+    get_color_from_lisp("*selection-fg-color*", r, g, b, 0, 0, 0); /* Black */
+}
+
+void lisp_bridge_get_selection_bg_color(int *r, int *g, int *b) {
+    get_color_from_lisp("*selection-bg-color*", r, g, b, 255, 140, 0); /* Orange */
+}
+
+void lisp_bridge_get_cursor_color(int *r, int *g, int *b) {
+    get_color_from_lisp("*cursor-color*", r, g, b, 200, 200, 200); /* Light gray */
+}
+
+void lisp_bridge_get_input_separator_color(int *r, int *g, int *b) {
+    get_color_from_lisp("*input-separator-color*", r, g, b, 100, 100, 100); /* Gray */
+}
+
+/* Status area colors */
+void lisp_bridge_get_status_fg_color(int *r, int *g, int *b) {
+    get_color_from_lisp("*status-fg-color*", r, g, b, 150, 255, 150); /* Greenish */
+}
+
+void lisp_bridge_get_status_bg_color(int *r, int *g, int *b) {
+    get_color_from_lisp("*status-bg-color*", r, g, b, 45, 65, 85); /* Lighter blue */
+}
+
+/* Terminal default colors */
+void lisp_bridge_get_terminal_fg_color(int *r, int *g, int *b) {
+    get_color_from_lisp("*terminal-fg-color*", r, g, b, 255, 255, 255); /* White */
+}
+
+void lisp_bridge_get_terminal_bg_color(int *r, int *g, int *b) {
+    get_color_from_lisp("*terminal-bg-color*", r, g, b, 0, 0, 0); /* Black */
+}

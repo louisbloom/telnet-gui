@@ -12,6 +12,16 @@ static void reset_history_search(InputArea *area) {
     area->history_search_prefix[0] = '\0';
 }
 
+/* Helper: Clear selection (call when text is edited) */
+static void clear_selection_if_active(InputArea *area) {
+    if (!area)
+        return;
+    if (area->selection_active) {
+        area->selection_active = 0;
+        area->needs_redraw = 1;
+    }
+}
+
 void input_area_init(InputArea *area) {
     if (!area)
         return;
@@ -43,6 +53,8 @@ void input_area_insert_text(InputArea *area, const char *text, int text_len) {
 
         /* Reset history prefix search when text is edited */
         reset_history_search(area);
+        /* Clear selection when text is edited */
+        clear_selection_if_active(area);
     }
 }
 
@@ -62,6 +74,8 @@ void input_area_delete_char(InputArea *area) {
 
         /* Reset history prefix search when text is edited */
         reset_history_search(area);
+        /* Clear selection when text is edited */
+        clear_selection_if_active(area);
     }
 }
 
@@ -81,6 +95,8 @@ void input_area_backspace(InputArea *area) {
 
         /* Reset history prefix search when text is edited */
         reset_history_search(area);
+        /* Clear selection when text is edited */
+        clear_selection_if_active(area);
     }
 }
 
@@ -95,6 +111,10 @@ void input_area_move_cursor(InputArea *area, int pos) {
 
     if (area->cursor_pos != pos) {
         area->cursor_pos = pos;
+        /* Update selection end if selection is active */
+        if (area->selection_active) {
+            area->selection_end = pos;
+        }
         area->needs_redraw = 1;
     }
 }
@@ -105,6 +125,10 @@ void input_area_move_cursor_left(InputArea *area) {
 
     if (area->cursor_pos > 0) {
         area->cursor_pos--;
+        /* Update selection end if selection is active */
+        if (area->selection_active) {
+            area->selection_end = area->cursor_pos;
+        }
         area->needs_redraw = 1;
     }
 }
@@ -115,6 +139,10 @@ void input_area_move_cursor_right(InputArea *area) {
 
     if (area->cursor_pos < area->length) {
         area->cursor_pos++;
+        /* Update selection end if selection is active */
+        if (area->selection_active) {
+            area->selection_end = area->cursor_pos;
+        }
         area->needs_redraw = 1;
     }
 }
@@ -125,6 +153,10 @@ void input_area_move_cursor_home(InputArea *area) {
 
     if (area->cursor_pos != 0) {
         area->cursor_pos = 0;
+        /* Update selection end if selection is active */
+        if (area->selection_active) {
+            area->selection_end = area->cursor_pos;
+        }
         area->needs_redraw = 1;
     }
 }
@@ -135,6 +167,10 @@ void input_area_move_cursor_end(InputArea *area) {
 
     if (area->cursor_pos != area->length) {
         area->cursor_pos = area->length;
+        /* Update selection end if selection is active */
+        if (area->selection_active) {
+            area->selection_end = area->cursor_pos;
+        }
         area->needs_redraw = 1;
     }
 }
@@ -184,6 +220,10 @@ void input_area_move_cursor_word_left(InputArea *area) {
     int new_pos = find_word_start(area->buffer, area->cursor_pos);
     if (new_pos != area->cursor_pos) {
         area->cursor_pos = new_pos;
+        /* Update selection end if selection is active */
+        if (area->selection_active) {
+            area->selection_end = area->cursor_pos;
+        }
         area->needs_redraw = 1;
     }
 }
@@ -195,6 +235,10 @@ void input_area_move_cursor_word_right(InputArea *area) {
     int new_pos = find_word_end(area->buffer, area->length, area->cursor_pos);
     if (new_pos != area->cursor_pos) {
         area->cursor_pos = new_pos;
+        /* Update selection end if selection is active */
+        if (area->selection_active) {
+            area->selection_end = area->cursor_pos;
+        }
         area->needs_redraw = 1;
     }
 }
@@ -291,6 +335,106 @@ void input_area_yank(InputArea *area) {
         /* Reset history prefix search when text is edited */
         reset_history_search(area);
     }
+}
+
+const char *input_area_copy(InputArea *area) {
+    if (!area)
+        return NULL;
+
+    /* Return pointer to current buffer text (caller will copy to clipboard) */
+    return area->buffer;
+}
+
+void input_area_paste(InputArea *area, const char *text) {
+    if (!area || !text)
+        return;
+
+    int text_len = strlen(text);
+    if (text_len > 0 && area->length + text_len < INPUT_AREA_MAX_LENGTH) {
+        /* Make room for pasted text */
+        memmove(&area->buffer[area->cursor_pos + text_len], &area->buffer[area->cursor_pos],
+                area->length - area->cursor_pos);
+        /* Insert pasted text */
+        memcpy(&area->buffer[area->cursor_pos], text, text_len);
+        area->cursor_pos += text_len;
+        area->length += text_len;
+        area->buffer[area->length] = '\0';
+        area->needs_redraw = 1;
+
+        /* Reset history prefix search when text is edited */
+        reset_history_search(area);
+    }
+}
+
+const char *input_area_get_kill_ring(InputArea *area) {
+    if (!area)
+        return NULL;
+    return area->kill_ring;
+}
+
+void input_area_start_selection(InputArea *area) {
+    if (!area)
+        return;
+    area->selection_active = 1;
+    area->selection_start = area->cursor_pos;
+    area->selection_end = area->cursor_pos;
+    area->needs_redraw = 1;
+}
+
+void input_area_clear_selection(InputArea *area) {
+    if (!area)
+        return;
+    if (area->selection_active) {
+        area->selection_active = 0;
+        area->needs_redraw = 1;
+    }
+}
+
+int input_area_has_selection(InputArea *area) {
+    if (!area)
+        return 0;
+    return area->selection_active && (area->selection_start != area->selection_end);
+}
+
+void input_area_get_selection_range(InputArea *area, int *start, int *end) {
+    if (!area || !start || !end)
+        return;
+
+    if (area->selection_active) {
+        /* Return selection in ascending order */
+        if (area->selection_start < area->selection_end) {
+            *start = area->selection_start;
+            *end = area->selection_end;
+        } else {
+            *start = area->selection_end;
+            *end = area->selection_start;
+        }
+    } else {
+        *start = 0;
+        *end = 0;
+    }
+}
+
+int input_area_copy_selection(InputArea *area, char *dest, int dest_size) {
+    if (!area || !dest || dest_size <= 0)
+        return 0;
+
+    if (!input_area_has_selection(area)) {
+        dest[0] = '\0';
+        return 0;
+    }
+
+    int start, end;
+    input_area_get_selection_range(area, &start, &end);
+
+    int copy_len = end - start;
+    if (copy_len > dest_size - 1)
+        copy_len = dest_size - 1;
+
+    memcpy(dest, &area->buffer[start], copy_len);
+    dest[copy_len] = '\0';
+
+    return copy_len;
 }
 
 void input_area_history_save_current(InputArea *area) {
