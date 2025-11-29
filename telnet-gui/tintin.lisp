@@ -40,18 +40,16 @@
             (start -1)
             (depth 0)
             (i pos))
-        ;; Skip whitespace and find opening brace
+        ;; Skip until we find opening brace
         (do ((found #f))
             ((or found (>= i len)) (if found i -1))
-          (if (and (< i len) (or (string= (string-ref str i) " ") (string= (string-ref str i) "\t")))
-              (set! i (+ i 1))
-              (if (and (< i len) (string= (string-ref str i) "{"))
-                  (progn
-                    (set! start (+ i 1))
-                    (set! depth 1)
-                    (set! i (+ i 1))
-                    (set! found #t))
-                  (set! found #t))))
+          (if (and (< i len) (string= (string-ref str i) "{"))
+              (progn
+                (set! start (+ i 1))
+                (set! depth 1)
+                (set! i (+ i 1))
+                (set! found #t))
+              (set! i (+ i 1))))
         ;; If no opening brace found, return nil
         (if (< start 0)
             nil
@@ -197,10 +195,11 @@
           input
           (let ((len (string-length input))
                 (result '())
-                (i 0))
+                (i 0)
+                (invalid #f))
             (do ((done #f))
-                (done (if (null? result)
-                          ""
+                (done (if (or invalid (null? result))
+                          input
                           (let ((reversed-result (reverse result)))
                             (let ((joined (car reversed-result)))
                               (do ((rest (cdr reversed-result) (cdr rest)))
@@ -248,11 +247,10 @@
                                   (progn
                                     (set! dir ch1)
                                     (set! i (+ i 1))))
-                              ;; Not a direction - copy as-is
+                              ;; Not a direction - invalid speedwalk
                               (progn
-                                (set! result (cons ch1 result))
-                                (set! i (+ i 1))
-                                (set! num 0)))))
+                                (set! invalid #t)
+                                (set! done #t)))))
                     ;; Expand direction if we have one
                     (if (> (string-length dir) 0)
                         (do ((j 0 (+ j 1)))
@@ -410,15 +408,15 @@
             (let ((args (tintin-parse-braced-args trimmed)))
               (if (< (list-length args) 2)
                   nil
-                  (let ((name (list-ref args 0))
-                        (commands (list-ref args 1))
-                        (priority-str (if (>= (list-length args) 3)
-                                          (list-ref args 2)
-                                          nil))
-                        (priority (if priority-str
-                                      (let ((p (tintin-string-to-number priority-str)))
-                                        (if p p *tintin-default-priority*))
-                                      *tintin-default-priority*)))
+                  (let* ((name (list-ref args 0))
+                         (commands (list-ref args 1))
+                         (priority-str (if (>= (list-length args) 3)
+                                           (list-ref args 2)
+                                           nil))
+                         (priority (if priority-str
+                                       (let ((p (tintin-string-to-number priority-str)))
+                                         (if p p *tintin-default-priority*))
+                                       *tintin-default-priority*)))
                     (if (and (string? name) (> (string-length name) 0)
                              (string? commands) (> (string-length commands) 0))
                         (list name commands priority)
