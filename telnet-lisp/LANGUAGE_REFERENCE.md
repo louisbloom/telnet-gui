@@ -44,6 +44,8 @@ A reference for the Telnet Lisp language, covering data types, special forms, bu
 - `do` - Iteration loop with variable updates and exit condition
 - `cond` - Multi-way conditional with test clauses
 - `case` - Pattern matching with value-based dispatch
+- `and` - Logical AND with short-circuit evaluation (returns last truthy value or first falsy value)
+- `or` - Logical OR with short-circuit evaluation (returns first truthy value or last falsy value)
 
 ### Macros
 
@@ -229,9 +231,9 @@ Define a macro that transforms code before evaluation.
 
 ### Boolean Functions
 
-- `and` - Logical AND (returns last truthy value or nil)
-- `or` - Logical OR (returns first truthy value or nil)
-- `not` - Logical negation
+- `not` - Logical negation (returns #t for falsy values, #f for truthy values)
+
+**Note:** `and` and `or` are special forms (see Special Forms section) that provide short-circuit evaluation.
 
 ### List Functions
 
@@ -329,6 +331,7 @@ Functions for transforming lists by applying a function to each element.
 - `vector?` - Check if vector
 - `hash-table?` - Check if hash table
 - `symbol?` - Check if symbol
+- `list?` - Check if value is a list (nil or cons cell)
 
 ### Symbol Operations
 
@@ -371,6 +374,7 @@ Functions for transforming lists by applying a function to each element.
 - `write-line` - Write a line to file stream
 - `read-sexp` - Read S-expressions from file (filename or file stream) - returns single expression or list of expressions
 - `read-json` - Read JSON from file (filename or file stream) - returns Lisp data structures (objects → hash tables, arrays → vectors, etc.)
+- `load` - Load and evaluate a Lisp file (filename) - returns the result of the last expression evaluated, or an error if loading fails
 
 ### Printing Functions (Common Lisp Style)
 
@@ -769,13 +773,29 @@ Convert to tail recursion by:
 
 ### Boolean Operations
 
+`and` and `or` are special forms with short-circuit evaluation:
+
 ```lisp
+; and - returns last value if all truthy, or first falsy value
+(and)                                ; => 1 (empty and is true)
 (and 1 2 3)                          ; => 3 (returns last truthy value)
-(and 1 nil 3)                        ; => nil
-(or nil nil 5)                       ; => 5
-(or nil nil)                         ; => nil
+(and 1 nil 3)                        ; => nil (short-circuits at nil)
+(and #f (/ 1 0))                     ; => #f (doesn't evaluate division)
+
+; or - returns first truthy value, or last value if all falsy
+(or)                                 ; => nil (empty or is false)
+(or nil nil 5)                       ; => 5 (first truthy value)
+(or 1 2 3)                           ; => 1 (short-circuits at first truthy)
+(or #f "foo" (/ 1 0))                ; => "foo" (doesn't evaluate division)
+
+; not - simple negation
 (not nil)                            ; => 1
 (not 5)                              ; => nil
+
+; list? - check if value is a list (nil or cons)
+(list? '(1 2 3))                     ; => 1
+(list? nil)                          ; => 1
+(list? 42)                           ; => nil
 ```
 
 ### Number Comparisons
@@ -1029,6 +1049,10 @@ message_count                        ; => 2
 
 ; Read JSON from file
 (read-json "data.json")              ; => hash table (for objects) or other Lisp value
+
+; Load and evaluate a Lisp file
+(load "config.lisp")                 ; => result of last expression in file
+(load "my-script.lisp")              ; => loads and executes all expressions
 ```
 
 ### Vector Operations

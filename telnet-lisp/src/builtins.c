@@ -36,8 +36,6 @@ static LispObject *builtin_string_upcase(LispObject *args, Environment *env);
 static LispObject *builtin_string_downcase(LispObject *args, Environment *env);
 
 /* Boolean operations */
-static LispObject *builtin_and(LispObject *args, Environment *env);
-static LispObject *builtin_or(LispObject *args, Environment *env);
 static LispObject *builtin_not(LispObject *args, Environment *env);
 
 /* List operations */
@@ -87,6 +85,7 @@ static LispObject *builtin_read_line(LispObject *args, Environment *env);
 static LispObject *builtin_write_line(LispObject *args, Environment *env);
 static LispObject *builtin_read_sexp(LispObject *args, Environment *env);
 static LispObject *builtin_read_json(LispObject *args, Environment *env);
+static LispObject *builtin_load(LispObject *args, Environment *env);
 
 /* Common Lisp printing operations */
 static LispObject *builtin_princ(LispObject *args, Environment *env);
@@ -103,6 +102,7 @@ static LispObject *builtin_vector_question(LispObject *args, Environment *env);
 static LispObject *builtin_hash_table_question(LispObject *args, Environment *env);
 static LispObject *builtin_string_question(LispObject *args, Environment *env);
 static LispObject *builtin_symbol_question(LispObject *args, Environment *env);
+static LispObject *builtin_list_question(LispObject *args, Environment *env);
 
 /* Symbol operations */
 static LispObject *builtin_symbol_to_string(LispObject *args, Environment *env);
@@ -156,8 +156,6 @@ void register_builtins(Environment *env) {
     env_define(env, "string-upcase", lisp_make_builtin(builtin_string_upcase, "string-upcase"));
     env_define(env, "string-downcase", lisp_make_builtin(builtin_string_downcase, "string-downcase"));
 
-    env_define(env, "and", lisp_make_builtin(builtin_and, "and"));
-    env_define(env, "or", lisp_make_builtin(builtin_or, "or"));
     env_define(env, "not", lisp_make_builtin(builtin_not, "not"));
 
     env_define(env, "car", lisp_make_builtin(builtin_car, "car"));
@@ -197,6 +195,7 @@ void register_builtins(Environment *env) {
     env_define(env, "write-line", lisp_make_builtin(builtin_write_line, "write-line"));
     env_define(env, "read-sexp", lisp_make_builtin(builtin_read_sexp, "read-sexp"));
     env_define(env, "read-json", lisp_make_builtin(builtin_read_json, "read-json"));
+    env_define(env, "load", lisp_make_builtin(builtin_load, "load"));
 
     /* Common Lisp printing functions */
     env_define(env, "princ", lisp_make_builtin(builtin_princ, "princ"));
@@ -213,6 +212,7 @@ void register_builtins(Environment *env) {
     env_define(env, "hash-table?", lisp_make_builtin(builtin_hash_table_question, "hash-table?"));
     env_define(env, "string?", lisp_make_builtin(builtin_string_question, "string?"));
     env_define(env, "symbol?", lisp_make_builtin(builtin_symbol_question, "symbol?"));
+    env_define(env, "list?", lisp_make_builtin(builtin_list_question, "list?"));
 
     /* Symbol operations */
     env_define(env, "symbol->string", lisp_make_builtin(builtin_symbol_to_string, "symbol->string"));
@@ -1177,35 +1177,6 @@ static LispObject *builtin_string_downcase(LispObject *args, Environment *env) {
 }
 
 /* Boolean operations */
-static LispObject *builtin_and(LispObject *args, Environment *env) {
-    (void)env;
-    LispObject *last = lisp_make_number(1);
-
-    while (args != NIL && args != NULL) {
-        LispObject *arg = lisp_car(args);
-        if (!lisp_is_truthy(arg)) {
-            return NIL;
-        }
-        last = arg;
-        args = lisp_cdr(args);
-    }
-
-    return last;
-}
-
-static LispObject *builtin_or(LispObject *args, Environment *env) {
-    (void)env;
-    while (args != NIL && args != NULL) {
-        LispObject *arg = lisp_car(args);
-        if (lisp_is_truthy(arg)) {
-            return arg;
-        }
-        args = lisp_cdr(args);
-    }
-
-    return NIL;
-}
-
 static LispObject *builtin_not(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL) {
@@ -2204,6 +2175,28 @@ static LispObject *builtin_read_json(LispObject *args, Environment *env) {
     return result;
 }
 
+/* Load and evaluate a Lisp file */
+static LispObject *builtin_load(LispObject *args, Environment *env) {
+    if (args == NIL) {
+        return lisp_make_error("load requires 1 argument");
+    }
+
+    LispObject *filename_obj = lisp_car(args);
+    if (filename_obj->type != LISP_STRING) {
+        return lisp_make_error("load requires a string filename");
+    }
+
+    LispObject *result = lisp_load_file(filename_obj->value.string, env);
+
+    /* Return the result of the last expression evaluated, or nil if error */
+    if (result && result->type == LISP_ERROR) {
+        return result;
+    }
+
+    /* Return the last evaluated expression, or nil if file was empty */
+    return result ? result : NIL;
+}
+
 static LispObject *builtin_princ(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL) {
@@ -2440,6 +2433,16 @@ static LispObject *builtin_symbol_question(LispObject *args, Environment *env) {
     }
     LispObject *arg = lisp_car(args);
     return (arg->type == LISP_SYMBOL) ? lisp_make_number(1) : NIL;
+}
+
+static LispObject *builtin_list_question(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("list? requires 1 argument");
+    }
+    LispObject *arg = lisp_car(args);
+    /* A list is either NIL or a cons cell */
+    return (arg == NIL || arg->type == LISP_CONS) ? lisp_make_number(1) : NIL;
 }
 
 /* Symbol operations */

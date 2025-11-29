@@ -17,6 +17,8 @@ static LispObject *eval_progn(LispObject *args, Environment *env, int in_tail_po
 static LispObject *eval_do(LispObject *args, Environment *env);
 static LispObject *eval_cond(LispObject *args, Environment *env, int in_tail_position);
 static LispObject *eval_case(LispObject *args, Environment *env, int in_tail_position);
+static LispObject *eval_and(LispObject *args, Environment *env, int in_tail_position);
+static LispObject *eval_or(LispObject *args, Environment *env, int in_tail_position);
 static LispObject *apply(LispObject *func, LispObject *args, Environment *env, int in_tail_position);
 static LispObject *lisp_eval_internal(LispObject *expr, Environment *env, int in_tail_position);
 
@@ -152,6 +154,14 @@ static LispObject *eval_list(LispObject *list, Environment *env, int in_tail_pos
 
         if (strcmp(first->value.symbol, "case") == 0) {
             return eval_case(lisp_cdr(list), env, in_tail_position);
+        }
+
+        if (strcmp(first->value.symbol, "and") == 0) {
+            return eval_and(lisp_cdr(list), env, in_tail_position);
+        }
+
+        if (strcmp(first->value.symbol, "or") == 0) {
+            return eval_or(lisp_cdr(list), env, in_tail_position);
         }
     }
 
@@ -836,6 +846,78 @@ static LispObject *eval_case(LispObject *args, Environment *env, int in_tail_pos
         clauses = lisp_cdr(clauses);
     }
 
+    return NIL;
+}
+
+static LispObject *eval_and(LispObject *args, Environment *env, int in_tail_position) {
+    /* (and) => #t */
+    if (args == NIL) {
+        return lisp_make_number(1);
+    }
+
+    /* Evaluate arguments one by one until we find a falsy value */
+    while (args != NIL && args != NULL) {
+        LispObject *expr = lisp_car(args);
+        LispObject *rest = lisp_cdr(args);
+
+        /* Last expression is in tail position if parent is */
+        int is_last = (rest == NIL || rest == NULL);
+        LispObject *result = lisp_eval_internal(expr, env, is_last ? in_tail_position : 0);
+
+        if (result->type == LISP_ERROR) {
+            return result;
+        }
+
+        /* If falsy, short-circuit and return this value */
+        if (!lisp_is_truthy(result)) {
+            return result;
+        }
+
+        /* If this was the last expression, return its value */
+        if (is_last) {
+            return result;
+        }
+
+        args = rest;
+    }
+
+    /* Should never reach here, but return #t for safety */
+    return lisp_make_number(1);
+}
+
+static LispObject *eval_or(LispObject *args, Environment *env, int in_tail_position) {
+    /* (or) => #f */
+    if (args == NIL) {
+        return NIL;
+    }
+
+    /* Evaluate arguments one by one until we find a truthy value */
+    while (args != NIL && args != NULL) {
+        LispObject *expr = lisp_car(args);
+        LispObject *rest = lisp_cdr(args);
+
+        /* Last expression is in tail position if parent is */
+        int is_last = (rest == NIL || rest == NULL);
+        LispObject *result = lisp_eval_internal(expr, env, is_last ? in_tail_position : 0);
+
+        if (result->type == LISP_ERROR) {
+            return result;
+        }
+
+        /* If truthy, short-circuit and return this value */
+        if (lisp_is_truthy(result)) {
+            return result;
+        }
+
+        /* If this was the last expression, return its value */
+        if (is_last) {
+            return result;
+        }
+
+        args = rest;
+    }
+
+    /* Should never reach here, but return #f for safety */
     return NIL;
 }
 
