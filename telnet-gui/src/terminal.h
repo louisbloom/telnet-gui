@@ -5,7 +5,10 @@
 
 #include <vterm.h>
 
+#ifndef TERMINAL_TYPE_DEFINED
+#define TERMINAL_TYPE_DEFINED
 typedef struct Terminal Terminal;
+#endif
 
 /* Create a new terminal with initial size */
 Terminal *terminal_create(int rows, int cols);

@@ -6,7 +6,10 @@
 #include <stddef.h>
 
 /* Forward declaration */
+#ifndef TERMINAL_TYPE_DEFINED
+#define TERMINAL_TYPE_DEFINED
 typedef struct Terminal Terminal;
+#endif
 
 /* Initialize Lisp interpreter, environment, and load bootstrap file */
 int lisp_bridge_init(void);

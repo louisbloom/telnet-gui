@@ -177,14 +177,14 @@ int process_command(const char *text, Telnet *telnet, Terminal *term, int *conne
         test_filepath[len] = '\0';
 
         /* Show loading message */
-        char loading_msg[512];
+        char loading_msg[1024];
         snprintf(loading_msg, sizeof(loading_msg), "\r\n*** Running test: %s ***\r\n", test_filepath);
         terminal_feed_data(term, loading_msg, strlen(loading_msg));
 
         /* Load and run the test file */
         int result = lisp_bridge_load_file(test_filepath);
         if (result < 0) {
-            char error_msg[512];
+            char error_msg[1024];
             snprintf(error_msg, sizeof(error_msg), "\r\n*** Test failed: %s ***\r\n", test_filepath);
             terminal_feed_data(term, error_msg, strlen(error_msg));
         } else {
