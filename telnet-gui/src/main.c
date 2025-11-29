@@ -264,12 +264,12 @@ int main(int argc, char **argv) {
     const char *hostname = NULL;
     int port = 0;
     const char *lisp_file = NULL;
-    const char *test_file = NULL;  /* Test file for headless mode */
-    int use_plex = 0;       /* Default to Monaco font */
-    int font_size = 16;     /* Default font size */
-    int terminal_cols = 80; /* Default terminal columns */
-    int terminal_rows = 40; /* Default terminal rows */
-    int debug_exit = 0;     /* Exit after initialization for debug output */
+    const char *test_file = NULL; /* Test file for headless mode */
+    int use_plex = 0;             /* Default to Monaco font */
+    int font_size = 16;           /* Default font size */
+    int terminal_cols = 80;       /* Default terminal columns */
+    int terminal_rows = 40;       /* Default terminal rows */
+    int debug_exit = 0;           /* Exit after initialization for debug output */
 
     /* Parse command-line arguments */
     int arg_idx = 1;

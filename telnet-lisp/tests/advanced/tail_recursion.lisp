@@ -4,10 +4,10 @@
 ;; Test 1: Tail-recursive factorial
 ;; Traditional recursive factorial would stack overflow at large N
 (define factorial-tail
-  (lambda (n acc)
-    (if (<= n 1)
-        acc
-        (factorial-tail (- n 1) (* n acc)))))
+    (lambda (n acc)
+      (if (<= n 1)
+          acc
+          (factorial-tail (- n 1) (* n acc)))))
 
 (factorial-tail 5 1)                     ; => 120
 (factorial-tail 10 1)                    ; => 3628800
@@ -17,10 +17,10 @@
 
 ;; Test 3: Tail-recursive sum (count down)
 (define sum-to-n
-  (lambda (n acc)
-    (if (= n 0)
-        acc
-        (sum-to-n (- n 1) (+ n acc)))))
+    (lambda (n acc)
+      (if (= n 0)
+          acc
+          (sum-to-n (- n 1) (+ n acc)))))
 
 (sum-to-n 10 0)                          ; => 55
 (sum-to-n 100 0)                         ; => 5050
@@ -28,25 +28,25 @@
 
 ;; Test 4: Tail-recursive length
 (define length-tail
-  (lambda (lst acc)
-    (if (null? lst)
-        acc
-        (length-tail (cdr lst) (+ acc 1)))))
+    (lambda (lst acc)
+      (if (null? lst)
+          acc
+          (length-tail (cdr lst) (+ acc 1)))))
 
 (length-tail (list 1 2 3 4 5) 0)        ; => 5
 
 ;; Test 5: Mutual recursion (even?/odd?) - tests general tail call optimization
 (define is-even?
-  (lambda (n)
-    (if (= n 0)
-        #t
-        (is-odd? (- n 1)))))
+    (lambda (n)
+      (if (= n 0)
+          #t
+          (is-odd? (- n 1)))))
 
 (define is-odd?
-  (lambda (n)
-    (if (= n 0)
-        #f
-        (is-even? (- n 1)))))
+    (lambda (n)
+      (if (= n 0)
+          #f
+          (is-even? (- n 1)))))
 
 (is-even? 10)                            ; => #t
 (is-odd? 10)                             ; => #f
@@ -59,53 +59,53 @@
 
 ;; Test 6: Tail recursion with multiple returns
 (define find-first
-  (lambda (predicate lst)
-    (if (null? lst)
-        nil
-        (if (predicate (car lst))
-            (car lst)
-            (find-first predicate (cdr lst))))))
+    (lambda (predicate lst)
+      (if (null? lst)
+          nil
+          (if (predicate (car lst))
+              (car lst)
+              (find-first predicate (cdr lst))))))
 
 (find-first (lambda (x) (> x 5)) (list 1 2 3 6 7 8))  ; => 6
 
 ;; Test 7: Tail recursion in let body
 (define test-let-tail
-  (lambda (n)
-    (let ((helper (lambda (x acc)
-                    (if (<= x 0)
-                        acc
-                        (helper (- x 1) (+ acc x))))))
-      (helper n 0))))
+    (lambda (n)
+      (let ((helper (lambda (x acc)
+                      (if (<= x 0)
+                          acc
+                          (helper (- x 1) (+ acc x))))))
+	(helper n 0))))
 
 (test-let-tail 100)                      ; => 5050
 
 ;; Test 8: Tail recursion through cond
 (define collatz-length
-  (lambda (n acc)
-    (cond
-      ((= n 1) acc)
-      ((= (remainder n 2) 0) (collatz-length (quotient n 2) (+ acc 1)))
-      (else (collatz-length (+ (* 3 n) 1) (+ acc 1))))))
+    (lambda (n acc)
+      (cond
+	((= n 1) acc)
+	((= (remainder n 2) 0) (collatz-length (quotient n 2) (+ acc 1)))
+	(else (collatz-length (+ (* 3 n) 1) (+ acc 1))))))
 
 (collatz-length 10 0)                    ; => 6
 (collatz-length 27 0)                    ; => 111
 
 ;; Test 9: Tail recursion through case
 (define count-down-case
-  (lambda (n acc)
-    (case n
-      ((0) acc)
-      (else (count-down-case (- n 1) (+ acc 1))))))
+    (lambda (n acc)
+      (case n
+	((0) acc)
+	(else (count-down-case (- n 1) (+ acc 1))))))
 
 (count-down-case 10 0)                   ; => 10
 
 ;; Test 10: Tail recursion through progn (last expression)
 (define progn-tail
-  (lambda (n acc)
-    (progn
-      (define temp (+ n 1))
-      (if (<= n 0)
-          acc
-          (progn-tail (- n 1) (+ acc n))))))
+    (lambda (n acc)
+      (progn
+	(define temp (+ n 1))
+	(if (<= n 0)
+            acc
+            (progn-tail (- n 1) (+ acc n))))))
 
 (progn-tail 5 0)                         ; => 15

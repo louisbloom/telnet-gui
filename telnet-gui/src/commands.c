@@ -155,7 +155,8 @@ int process_command(const char *text, Telnet *telnet, Terminal *term, int *conne
 
         /* Remove trailing whitespace */
         size_t len = strlen(filepath);
-        while (len > 0 && (filepath[len - 1] == ' ' || filepath[len - 1] == '\t' || filepath[len - 1] == '\r' || filepath[len - 1] == '\n')) {
+        while (len > 0 && (filepath[len - 1] == ' ' || filepath[len - 1] == '\t' || filepath[len - 1] == '\r' ||
+                           filepath[len - 1] == '\n')) {
             len--;
         }
 

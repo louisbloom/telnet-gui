@@ -49,7 +49,7 @@
 (define let-tail
     (lambda (x)
       (let ((y (* x 2)))
-           (helper y))))
+        (helper y))))
 
 (let-tail 7)                    ; => "positive-14"
 

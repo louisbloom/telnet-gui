@@ -174,6 +174,17 @@ find_program(CLANG_FORMAT NAMES clang-format)
 
 find_program(SHFMT NAMES shfmt)
 
+find_program(EMACS
+    NAMES emacs
+    PATHS
+        ${UCRT64_ROOT}/bin
+        /usr/bin
+        /usr/local/bin
+        C:/Program Files/Emacs/emacs-*/bin
+    NO_DEFAULT_PATH
+)
+find_program(EMACS NAMES emacs)
+
 if(CLANG_FORMAT)
     # Collect all C source files
     file(GLOB_RECURSE LIB_SOURCES "telnet-lisp/src/*.c")
@@ -186,28 +197,85 @@ if(CLANG_FORMAT)
         "telnet-lisp/*.sh"
     )
 
+    # Collect all Lisp source files (excluding build directory)
+    file(GLOB_RECURSE LISP_SOURCES
+        "telnet-gui/*.lisp"
+        "telnet-lisp/*.lisp"
+        "telnet-lisp/tests/**/*.lisp"
+    )
+    list(FILTER LISP_SOURCES EXCLUDE REGEX ".*/build/.*")
+
     # Format target for C sources
     if(SHFMT)
-        # Format both C and shell scripts
-        add_custom_target(format
-            COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
-            COMMAND ${SHFMT} -w -i 2 ${SHELL_SCRIPTS}
-            COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
-            COMMENT "Formatting all C source files and shell scripts"
-            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        )
-        message(STATUS "clang-format found: ${CLANG_FORMAT}")
-        message(STATUS "shfmt found: ${SHFMT}")
+        if(EMACS)
+            # Format C, shell scripts, and Lisp files
+            # Build format commands for each Lisp file using wrapper script
+            set(LISP_FORMAT_COMMANDS "")
+            foreach(LISP_FILE ${LISP_SOURCES})
+                list(APPEND LISP_FORMAT_COMMANDS
+                    COMMAND bash ${CMAKE_SOURCE_DIR}/tools/format-lisp-file.sh ${LISP_FILE}
+                )
+            endforeach()
+
+            add_custom_target(format
+                COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
+                COMMAND ${SHFMT} -w -i 2 ${SHELL_SCRIPTS}
+                COMMAND ${CMAKE_COMMAND} -E echo "Formatting Lisp files..."
+                ${LISP_FORMAT_COMMANDS}
+                COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
+                COMMENT "Formatting all C, shell, and Lisp files"
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            )
+            message(STATUS "clang-format found: ${CLANG_FORMAT}")
+            message(STATUS "shfmt found: ${SHFMT}")
+            message(STATUS "emacs found: ${EMACS}")
+        else()
+            # Format C and shell scripts only (no Emacs)
+            add_custom_target(format
+                COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
+                COMMAND ${SHFMT} -w -i 2 ${SHELL_SCRIPTS}
+                COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
+                COMMENT "Formatting all C source files and shell scripts"
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            )
+            message(STATUS "clang-format found: ${CLANG_FORMAT}")
+            message(STATUS "shfmt found: ${SHFMT}")
+            message(WARNING "emacs not found - Lisp files will not be formatted")
+        endif()
     else()
-        # Format C sources only
-        add_custom_target(format
-            COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
-            COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete! (shell scripts skipped - shfmt not found)"
-            COMMENT "Formatting all C source files with clang-format"
-            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        )
-        message(STATUS "clang-format found: ${CLANG_FORMAT}")
-        message(STATUS "shfmt not found - shell scripts will not be formatted")
+        if(EMACS)
+            # Format C and Lisp files (no shfmt)
+            # Build format commands for each Lisp file using wrapper script
+            set(LISP_FORMAT_COMMANDS "")
+            foreach(LISP_FILE ${LISP_SOURCES})
+                list(APPEND LISP_FORMAT_COMMANDS
+                    COMMAND bash ${CMAKE_SOURCE_DIR}/tools/format-lisp-file.sh ${LISP_FILE}
+                )
+            endforeach()
+
+            add_custom_target(format
+                COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
+                COMMAND ${CMAKE_COMMAND} -E echo "Formatting Lisp files..."
+                ${LISP_FORMAT_COMMANDS}
+                COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
+                COMMENT "Formatting all C and Lisp files"
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            )
+            message(STATUS "clang-format found: ${CLANG_FORMAT}")
+            message(STATUS "emacs found: ${EMACS}")
+            message(WARNING "shfmt not found - shell scripts will not be formatted")
+        else()
+            # Format C sources only
+            add_custom_target(format
+                COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
+                COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
+                COMMENT "Formatting all C source files with clang-format"
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            )
+            message(STATUS "clang-format found: ${CLANG_FORMAT}")
+            message(WARNING "shfmt not found - shell scripts will not be formatted")
+            message(WARNING "emacs not found - Lisp files will not be formatted")
+        endif()
     endif()
 
     message(STATUS "Use 'cmake --build . --target format' to format sources")

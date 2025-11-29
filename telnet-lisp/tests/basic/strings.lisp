@@ -1,8 +1,8 @@
-; Advanced string operations
+					; Advanced string operations
 
-; ===========================================
-; String Type Checking (regression test for string? predicate)
-; ===========================================
+					; ===========================================
+					; String Type Checking (regression test for string? predicate)
+					; ===========================================
 
 (string? "hello")              ; => 1
 (string? "")                   ; => 1
@@ -11,28 +11,28 @@
 (string? #(1 2 3))             ; => nil
 (string? '(a b c))             ; => nil
 
-; Split test
+					; Split test
 (split "apple-banana-cherry" "-")      ; => ("apple" "banana" "cherry")
 
-; String contains
+					; String contains
 (string-contains? "hello world" "world") ; => 1
 
-; String match with wildcards
+					; String match with wildcards
 (string-match? "hello" "h*o")           ; => 1
 
-; String prefix
+					; String prefix
 (string-prefix? "hel" "hello")          ; => 1
 (string-prefix? "lis" "lisp")           ; => 1
 (string-prefix? "xyz" "hello")          ; => 0
 
-; String transformations
+					; String transformations
 (string-replace "world" "universe" "hello world")  ; => "hello universe"
 (string-replace "l" "L" "hello")                   ; => "heLLo"
 (string-replace "foo" "bar" "foofoofoo")          ; => "barbarbar"
 (string-replace "x" "y" "x")                      ; => "y"
 (string-replace "x" "y" "abc")                    ; => "abc" (no match)
 
-; String case conversion
+					; String case conversion
 (string-upcase "hello world")                     ; => "HELLO WORLD"
 (string-upcase "Hello World")                     ; => "HELLO WORLD"
 (string-upcase "123abc")                          ; => "123ABC"
@@ -40,5 +40,5 @@
 (string-downcase "Hello World")                   ; => "hello world"
 (string-downcase "123ABC")                        ; => "123abc"
 
-; String comparisons
+					; String comparisons
 (string< "abc" "def")                  ; => 1

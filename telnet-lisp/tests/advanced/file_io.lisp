@@ -61,35 +61,35 @@
 ;; ============================================
 
 (define read_all (lambda (filename)
-  (define file (open filename "r"))
-  (define lines nil)
+		   (define file (open filename "r"))
+		   (define lines nil)
 
-  (progn
-    (define line (read-line file))
-    (while (not (null line))  ; Would need while builtin
-      (set! lines (cons line lines))
-      (set! line (read-line file))))
+		   (progn
+		     (define line (read-line file))
+		     (while (not (null line))  ; Would need while builtin
+		       (set! lines (cons line lines))
+		       (set! line (read-line file))))
 
-  (close file)
-  lines))  ; Returns list of lines
+		   (close file)
+		   lines))  ; Returns list of lines
 
 ;; ============================================
 ;; Example 5: Copy file
 ;; ============================================
 
 (define copy_file (lambda (src dest)
-  (define infile (open src "r"))
-  (define outfile (open dest "w"))
+		    (define infile (open src "r"))
+		    (define outfile (open dest "w"))
 
-  (progn
-    (define line (read-line infile))
-    (while (not (null line))
-      (write-line outfile line)
-      (set! line (read-line infile))))
+		    (progn
+		      (define line (read-line infile))
+		      (while (not (null line))
+			(write-line outfile line)
+			(set! line (read-line infile))))
 
-  (close infile)
-  (close outfile)
-  dest))
+		    (close infile)
+		    (close outfile)
+		    dest))
 
 (copy_file "input.txt" "output.txt")
 
