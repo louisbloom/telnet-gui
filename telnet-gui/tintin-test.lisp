@@ -1,56 +1,96 @@
-;; TinTin++ Test Suite - Building incrementally
+;; TinTin++ Test Suite
 
-(if (not (symbol? 'terminal-echo))
-    (define terminal-echo (lambda (text) nil)))
+;; Setup - define terminal-echo if not available (for headless testing)
+(define terminal-echo (lambda (text) nil))  ; ignore
 
-(load "tintin.lisp")
+;; Load TinTin++ implementation
+(load "tintin.lisp")  ; ignore
 
-;; Test 1: Command separator
-(print "=== Test 1: Command Separator ===")
-(print (tintin-split-commands "cmd1;cmd2"))
-(print (tintin-split-commands "cmd1;;cmd2"))
+;; ============================================================================
+;; Test 1: Command Separator
+;; ============================================================================
 
+;; Split on semicolon
+(tintin-split-commands "cmd1;cmd2")        ; => ("cmd1" "cmd2")
+
+;; Empty command between separators
+(tintin-split-commands "cmd1;;cmd2")       ; => ("cmd1" "" "cmd2")
+
+;; ============================================================================
 ;; Test 2: Speedwalk
-(print "=== Test 2: Speedwalk ===")
-(print (tintin-expand-speedwalk "2s5w"))
-(print (tintin-expand-speedwalk "nesw"))
-(print (tintin-expand-speedwalk "3n"))
-(print (tintin-expand-speedwalk "2ne3s"))
-(print (tintin-expand-speedwalk "nw10e"))
+;; ============================================================================
 
-;; Test 3: Alias creation
-(print "=== Test 3: Alias Creation ===")
-(tintin-process-command "#alias {k} {kill %1}")
-(print (hash-ref *tintin-aliases* "k"))
+;; Multiple of same direction
+(tintin-expand-speedwalk "2s5w")           ; => "s;s;w;w;w;w;w"
 
-;; Test 4: Simple alias expansion
-(print "=== Test 4: Alias Expansion ===")
-(print (tintin-process-command "k orc"))
+;; Two-character directions (ne=northeast, sw=southwest)
+(tintin-expand-speedwalk "nesw")           ; => "ne;sw"
 
-;; Test 5: %0 substitution (all arguments)
-(print "=== Test 5: %0 Substitution ===")
-(tintin-process-command "#alias {say} {tell bob %0}")
-(print (tintin-process-command "say hello there"))
+;; Count with direction
+(tintin-expand-speedwalk "3n")             ; => "n;n;n"
 
-;; Test 6: Pattern matching in alias names
-(print "=== Test 6: Pattern Matching ===")
-(tintin-process-command "#alias {attack %1 with %2} {kill %1;wield %2}")
-(print (tintin-process-command "attack orc with sword"))
+;; Multiple counted directions with 2-char direction
+(tintin-expand-speedwalk "2ne3s")          ; => "ne;ne;s;s;s"
 
-;; Test 7: Full input processing (split + expand)
-(print "=== Test 7: Full Processing ===")
-(print (tintin-process-input "k orc;say hello world"))
+;; 2-char direction followed by count+direction
+(tintin-expand-speedwalk "nw10e")          ; => "nw;e;e;e;e;e;e;e;e;e;e"
 
-;; Test 8: Variable creation and retrieval
-(print "=== Test 8: Variables ===")
-(tintin-process-command "#variable {target} {orc}")
-(tintin-process-command "#variable {weapon} {sword}")
-(print (hash-ref *tintin-variables* "target"))
-(print (hash-ref *tintin-variables* "weapon"))
+;; ============================================================================
+;; Test 3: Alias Creation
+;; ============================================================================
 
-;; Test 9: Variable expansion in commands
-(print "=== Test 9: Variable Expansion ===")
-(print (tintin-process-command "k $target"))
-(print (tintin-process-command "attack $target with $weapon"))
+;; Create simple alias with %1 substitution
+(tintin-process-command "#alias {k} {kill %1}")  ; ignore
+(hash-ref *tintin-aliases* "k")                  ; => ("kill %1" 5)
 
-(print "=== Tests Complete ===")
+;; ============================================================================
+;; Test 4: Simple Alias Expansion
+;; ============================================================================
+
+;; Use the alias defined above
+(tintin-process-command "k orc")           ; => "kill orc"
+
+;; ============================================================================
+;; Test 5: %0 Substitution (All Arguments)
+;; ============================================================================
+
+;; Create alias that captures all arguments
+(tintin-process-command "#alias {say} {tell bob %0}")  ; ignore
+(tintin-process-command "say hello there")             ; => "tell bob hello there"
+
+;; ============================================================================
+;; Test 6: Pattern Matching in Alias Names
+;; ============================================================================
+
+;; Create alias with multiple pattern variables
+(tintin-process-command "#alias {attack %1 with %2} {kill %1;wield %2}")  ; ignore
+(tintin-process-command "attack orc with sword")  ; => "kill orc;wield sword"
+
+;; ============================================================================
+;; Test 7: Full Input Processing (Split + Expand)
+;; ============================================================================
+
+;; Process multiple commands with alias expansion
+(tintin-process-input "k orc;say hello world")  ; => "kill orc;tell bob hello world"
+
+;; ============================================================================
+;; Test 8: Variable Creation and Retrieval
+;; ============================================================================
+
+;; Create variables
+(tintin-process-command "#variable {target} {orc}")    ; ignore
+(tintin-process-command "#variable {weapon} {sword}")  ; ignore
+
+;; Check they were stored
+(hash-ref *tintin-variables* "target")     ; => "orc"
+(hash-ref *tintin-variables* "weapon")     ; => "sword"
+
+;; ============================================================================
+;; Test 9: Variable Expansion in Commands
+;; ============================================================================
+
+;; Use variable in simple alias
+(tintin-process-command "k $target")                      ; => "kill orc"
+
+;; Use variables in pattern matching alias
+(tintin-process-command "attack $target with $weapon")    ; => "kill orc;wield sword"

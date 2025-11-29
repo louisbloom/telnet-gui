@@ -147,8 +147,9 @@ foreach(TEST_FILE ${GUI_TEST_FILES})
     get_filename_component(TEST_NAME ${TEST_FILE} NAME_WE)
     # Pass just the test filename - file is copied to build dir by POST_BUILD
     get_filename_component(TEST_FILE_NAME ${TEST_FILE} NAME)
+    # Use telnet-lisp test_runner.sh with lisp-repl (found as ../lisp-repl.exe from telnet-gui build dir)
     add_test(NAME gui_${TEST_NAME}
-        COMMAND bash ${CMAKE_SOURCE_DIR}/telnet-gui/test_runner.sh ${TEST_FILE_NAME}
+        COMMAND bash ${CMAKE_SOURCE_DIR}/telnet-lisp/test_runner.sh ${TEST_FILE_NAME}
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/telnet-gui
     )
 endforeach()
