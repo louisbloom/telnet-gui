@@ -339,14 +339,17 @@ static LispObject *builtin_terminal_echo(LispObject *args, Environment *env) {
         return lisp_make_error("terminal-echo requires a string argument");
     }
 
-    if (!registered_terminal) {
-        return lisp_make_error("terminal-echo: terminal not registered");
-    }
-
     const char *text = text_obj->value.string;
-    size_t len = strlen(text);
 
-    terminal_feed_data(registered_terminal, text, len);
+    if (!registered_terminal) {
+        /* In headless mode (test mode), output to stdout */
+        fprintf(stdout, "%s", text);
+        fflush(stdout);
+    } else {
+        /* Normal mode: feed to terminal */
+        size_t len = strlen(text);
+        terminal_feed_data(registered_terminal, text, len);
+    }
 
     return NIL;
 }

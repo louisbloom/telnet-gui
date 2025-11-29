@@ -576,10 +576,10 @@
                                       ;; Extract all-args string for %0 substitution
                                       (let ((all-args (if (string= alias-name "%*")
                                                           expanded
-                                                          (let ((words (tintin-split-words expanded))
-                                                                (first-word-len (if (> (list-length words) 0)
-                                                                                    (string-length (list-ref words 0))
-                                                                                    0)))
+                                                          (let* ((words (tintin-split-words expanded))
+                                                                 (first-word-len (if (> (list-length words) 0)
+                                                                                     (string-length (list-ref words 0))
+                                                                                     0)))
                                                             (if (> (list-length words) 1)
                                                                 (let ((start-pos (+ first-word-len 1)))
                                                                   (if (< start-pos (string-length expanded))

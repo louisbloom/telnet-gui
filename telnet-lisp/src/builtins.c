@@ -19,6 +19,7 @@ static LispObject *builtin_lte(LispObject *args, Environment *env);
 
 /* String operations */
 static LispObject *builtin_concat(LispObject *args, Environment *env);
+static LispObject *builtin_number_to_string(LispObject *args, Environment *env);
 static LispObject *builtin_split(LispObject *args, Environment *env);
 static LispObject *builtin_string_eq(LispObject *args, Environment *env);
 static LispObject *builtin_string_lt(LispObject *args, Environment *env);
@@ -140,6 +141,7 @@ void register_builtins(Environment *env) {
     env_define(env, "<=", lisp_make_builtin(builtin_lte, "<="));
 
     env_define(env, "concat", lisp_make_builtin(builtin_concat, "concat"));
+    env_define(env, "number->string", lisp_make_builtin(builtin_number_to_string, "number->string"));
     env_define(env, "split", lisp_make_builtin(builtin_split, "split"));
     env_define(env, "string=", lisp_make_builtin(builtin_string_eq, "string="));
     env_define(env, "string<", lisp_make_builtin(builtin_string_lt, "string<"));
@@ -646,6 +648,29 @@ static LispObject *builtin_concat(LispObject *args, Environment *env) {
 
     LispObject *obj = lisp_make_string(result);
     return obj;
+}
+
+static LispObject *builtin_number_to_string(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NULL || args == NIL) {
+        return lisp_make_error("number->string: expected 1 argument");
+    }
+
+    LispObject *num = lisp_car(args);
+    if (num == NULL || num == NIL) {
+        return lisp_make_error("number->string: argument cannot be nil");
+    }
+
+    char buffer[64];
+    if (num->type == LISP_INTEGER) {
+        snprintf(buffer, sizeof(buffer), "%lld", (long long)num->value.integer);
+    } else if (num->type == LISP_NUMBER) {
+        snprintf(buffer, sizeof(buffer), "%.15g", num->value.number);
+    } else {
+        return lisp_make_error("number->string: argument must be a number");
+    }
+
+    return lisp_make_string(buffer);
 }
 
 static int match_char_class(const char **pattern, char c) {
