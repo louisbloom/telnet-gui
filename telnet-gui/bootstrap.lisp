@@ -90,7 +90,7 @@
 ;;   - This hook is SIDE-EFFECT ONLY - it cannot modify the data flow
 ;;   - Text is already stripped of ANSI codes before reaching this hook
 ;;   - Hook is called synchronously during telnet processing
-;;   - For filtering/modifying input, use telnet-input-filter (future feature)
+;;   - For filtering/modifying input, use telnet-input-filter
 ;;
 ;; Examples:
 ;;
@@ -128,6 +128,67 @@
 ;; No processing (default - silent):
 ;;   (define telnet-input-hook (lambda (text) ()))
 (define telnet-input-hook (lambda (text) ()))
+
+;; ============================================================================
+;; TELNET INPUT FILTER CONFIGURATION
+;; ============================================================================
+;; telnet-input-filter: Function called to transform telnet data before displaying in terminal
+;;
+;; Signature: (lambda (text) -> string)
+;;   - text: Raw telnet data from server (with ANSI codes preserved)
+;;   - Returns: Transformed text to display in terminal (string), or original if not string
+;;
+;; This hook is called BEFORE displaying text in the terminal, allowing you to
+;; transform, filter, or replace the telnet server's output. The returned string
+;; is what actually gets displayed in the terminal.
+;;
+;; Important notes:
+;;   - Hook MUST return a string (or original text is used)
+;;   - Receives raw telnet data including ANSI escape codes
+;;   - Hook is called for every chunk of data received from telnet server
+;;   - Can modify, filter, or replace text before it enters the terminal
+;;   - Unlike telnet-input-hook, this hook TRANSFORMS the data flow
+;;   - telnet-input-filter and telnet-input-hook can both be used together
+;;
+;; Examples:
+;;
+;; Pass-through (default - no transformation):
+;;   (define telnet-input-filter (lambda (text) text))
+;;
+;; Remove all ANSI color codes (simple version):
+;;   (define telnet-input-filter
+;;     (lambda (text)
+;;       (string-replace-all text "\033[" "")))
+;;
+;; Filter out specific patterns:
+;;   (define telnet-input-filter
+;;     (lambda (text)
+;;       (if (string-contains? "PASSWORD" text)
+;;           ""
+;;           text)))
+;;
+;; Replace text patterns:
+;;   (define telnet-input-filter
+;;     (lambda (text)
+;;       (string-replace-all text "ERROR" "***ERROR***")))
+;;
+;; Add prefix to all output:
+;;   (define telnet-input-filter
+;;     (lambda (text)
+;;       (string-append "[SERVER] " text)))
+;;
+;; Convert to uppercase:
+;;   (define telnet-input-filter
+;;     (lambda (text)
+;;       (string-upcase text)))
+;;
+;; Conditional transformation:
+;;   (define telnet-input-filter
+;;     (lambda (text)
+;;       (if (string-prefix? ">" text)
+;;           (string-append "PROMPT: " text)
+;;           text)))
+(define telnet-input-filter (lambda (text) text))
 
 ;; ============================================================================
 ;; USER INPUT HOOK CONFIGURATION
@@ -376,14 +437,19 @@
 ;;   - Returns: String to display in mode area
 ;;
 ;; This hook allows customizing how the mode is displayed. The default
-;; implementation uses emojis for a compact visual representation.
+;; no-op implementation returns the mode alist unchanged (not a string),
+;; which triggers the C code fallback to use lisp_print to show the mode
+;; alist directly.
 ;;
 ;; If this hook is not defined or returns a non-string, the C code will
 ;; fall back to using lisp_print to show the mode alist directly.
 ;;
 ;; Examples:
 ;;
-;; Symbol display (default - uses Unicode symbols monospace fonts support):
+;; No-op (default - returns mode unchanged, triggers C fallback):
+;;   (define mode-render-hook (lambda (mode) mode))
+;;
+;; Symbol display (uses Unicode symbols monospace fonts support):
 ;;   Connected + Normal:  "● N"
 ;;   Connected + Eval:    "● E"
 ;;   Disconnected + Normal: "○ N"

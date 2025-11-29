@@ -225,11 +225,13 @@ static void print_help(const char *program_name) {
     printf("  Terminal Options:\n");
     printf("    -g, --geometry GEOM     Set terminal size in characters\n");
     printf("                            GEOM format: COLSxROWS (e.g., 80x40)\n");
-    printf("                            Default: 80x24\n");
+    printf("                            Default: 80x40\n");
     printf("\n");
     printf("  Other Options:\n");
     printf("    -l, --lisp-file FILE   Load and evaluate Lisp file on startup\n");
     printf("                            Used to customize completion hooks and scroll settings\n");
+    printf("    -t, --test FILE        Run a Lisp test file in headless mode and exit\n");
+    printf("                            Returns 0 on success, non-zero on failure\n");
     printf("    --debug-exit           Exit after initialization (for debug output)\n");
     printf("\n");
     printf("Arguments:\n");
@@ -251,6 +253,8 @@ static void print_help(const char *program_name) {
     printf("      Connect with 100x40 terminal size\n");
     printf("  %s -l completion.lisp telnet-server 4449\n", program_name);
     printf("      Connect and load Lisp configuration file\n");
+    printf("  %s -t tintin_test_final.lisp\n", program_name);
+    printf("      Run a test file in headless mode\n");
 }
 
 int main(int argc, char **argv) {
@@ -260,10 +264,11 @@ int main(int argc, char **argv) {
     const char *hostname = NULL;
     int port = 0;
     const char *lisp_file = NULL;
+    const char *test_file = NULL;  /* Test file for headless mode */
     int use_plex = 0;       /* Default to Monaco font */
     int font_size = 16;     /* Default font size */
     int terminal_cols = 80; /* Default terminal columns */
-    int terminal_rows = 24; /* Default terminal rows */
+    int terminal_rows = 40; /* Default terminal rows */
     int debug_exit = 0;     /* Exit after initialization for debug output */
 
     /* Parse command-line arguments */
@@ -351,10 +356,26 @@ int main(int argc, char **argv) {
             }
             arg_idx++;
             lisp_file = argv[arg_idx];
+        } else if (strcmp(argv[arg_idx], "-t") == 0 || strcmp(argv[arg_idx], "--test") == 0) {
+            if (arg_idx + 1 >= argc) {
+                fprintf(stderr, "Error: --test requires a file path\n");
+                return 1;
+            }
+            arg_idx++;
+            test_file = argv[arg_idx];
+            /* Skip further argument processing when test mode is enabled */
+            /* Exit the loop immediately to prevent processing the file path as a positional argument */
+            break;
         } else if (strcmp(argv[arg_idx], "--debug-exit") == 0) {
             debug_exit = 1;
         } else {
             /* Positional arguments: hostname and port */
+            /* Skip if test_file is already set (test mode) */
+            if (test_file != NULL) {
+                fprintf(stderr, "Error: Unexpected argument '%s' in test mode\n", argv[arg_idx]);
+                fprintf(stderr, "Use --help for usage information\n");
+                return 1;
+            }
             if (hostname == NULL) {
                 hostname = argv[arg_idx];
             } else if (port == 0) {
@@ -392,6 +413,19 @@ int main(int argc, char **argv) {
     if (lisp_bridge_init() < 0) {
         fprintf(stderr, "Failed to initialize Lisp bridge\n");
         return 1;
+    }
+
+    /* If test mode, run test and exit (headless mode) */
+    if (test_file) {
+        printf("Running test: %s\n", test_file);
+        int result = lisp_bridge_load_file(test_file);
+        lisp_bridge_cleanup();
+        if (result < 0) {
+            fprintf(stderr, "Test failed: %s\n", test_file);
+            return 1;
+        }
+        printf("Test completed successfully: %s\n", test_file);
+        return 0;
     }
 
     /* Load user-provided Lisp file if provided */
@@ -577,7 +611,7 @@ int main(int argc, char **argv) {
     /* For height: snap to nearest full row */
     int new_height = current_height;
     if (current_height < min_height) {
-        /* If too small, use minimum (24 rows) */
+        /* If too small, use minimum (40 rows) */
         new_height = min_height;
     } else {
         /* Calculate available height for terminal area */
@@ -627,6 +661,9 @@ int main(int argc, char **argv) {
     /* Apply scrollback configuration from Lisp */
     int max_scrollback = lisp_bridge_get_max_scrollback_lines();
     terminal_set_max_scrollback_lines(term, max_scrollback);
+
+    /* Register terminal with Lisp bridge for terminal-echo builtin */
+    lisp_bridge_register_terminal(term);
 
     /* Create Telnet client */
     Telnet *telnet = telnet_create();
@@ -1261,8 +1298,12 @@ int main(int argc, char **argv) {
                         }
                         /* Call telnet-input-hook with received data (stripped of ANSI codes) */
                         lisp_bridge_call_telnet_input_hook(recv_buf, received);
-                        /* Feed original data to terminal (hook doesn't modify the data flow) */
-                        terminal_feed_data(term, recv_buf, received);
+                        /* Call telnet-input-filter to transform data before displaying in terminal */
+                        size_t filtered_len = 0;
+                        const char *filtered_data =
+                            lisp_bridge_call_telnet_input_filter(recv_buf, received, &filtered_len);
+                        /* Feed filtered data to terminal */
+                        terminal_feed_data(term, filtered_data, filtered_len);
 
                         /* Scroll to bottom on telnet input if configured */
                         if (lisp_bridge_get_scroll_to_bottom_on_telnet_input()) {

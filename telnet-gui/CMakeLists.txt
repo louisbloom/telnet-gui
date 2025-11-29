@@ -27,13 +27,24 @@ set(FONT_MONACO_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/Monaco-Regular.ttf
 set(BOOTSTRAP_SRC "${CMAKE_CURRENT_SOURCE_DIR}/bootstrap.lisp")
 set(BOOTSTRAP_DST "${CMAKE_CURRENT_BINARY_DIR}/bootstrap.lisp")
 
+# Copy test-related Lisp files to build directory
+set(TINTIN_SRC "${CMAKE_CURRENT_SOURCE_DIR}/tintin.lisp")
+set(TINTIN_DST "${CMAKE_CURRENT_BINARY_DIR}/tintin.lisp")
+set(TINTIN_TEST_SRC "${CMAKE_CURRENT_SOURCE_DIR}/tintin-test.lisp")
+set(TINTIN_TEST_DST "${CMAKE_CURRENT_BINARY_DIR}/tintin-test.lisp")
+set(COMPLETION_TEST_SRC "${CMAKE_CURRENT_SOURCE_DIR}/completion-test.lisp")
+set(COMPLETION_TEST_DST "${CMAKE_CURRENT_BINARY_DIR}/completion-test.lisp")
+
 # Create assets/fonts directory in build directory
 add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_PLEX_SRC}" "${FONT_PLEX_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_MONACO_SRC}" "${FONT_MONACO_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${BOOTSTRAP_SRC}" "${BOOTSTRAP_DST}"
-    COMMENT "Copying fonts (Monaco and IBM Plex Mono) and bootstrap.lisp to build directory"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_SRC}" "${TINTIN_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_TEST_SRC}" "${TINTIN_TEST_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${COMPLETION_TEST_SRC}" "${COMPLETION_TEST_DST}"
+    COMMENT "Copying fonts, bootstrap.lisp, and test files to build directory"
 )
 
 # Install font files with executable (in bin directory so it's relative to the executable)
@@ -376,3 +387,6 @@ if(WIN32)
         endif()
     endif()
 endif()
+
+# Note: Tests are registered in the root CMakeLists.txt to ensure
+# they are discovered after enable_testing() is called

@@ -57,7 +57,7 @@
             nil
             ;; Find matching closing brace
             (do ((found #f))
-                ((or found (>= i len)) (if found (cons (substring str start (- i 1)) i) nil))
+                ((or found (>= i len)) (if found (cons (substring str start i) (+ i 1)) nil))
               (if (>= i len)
                   (set! found #t)
                   (let ((ch (string-ref str i)))
@@ -331,11 +331,11 @@
                   (set! exact-match (cons first-word alias-data)))))
         ;; If exact match found, return it immediately
         (if exact-match
-            (let ((alias-name (car exact-match))
-                  (alias-data (cdr exact-match))
-                  (commands (car alias-data))
-                  (priority (car (cdr alias-data)))
-                  (args (if (> (list-length words) 1)
+            (let* ((alias-name (car exact-match))
+                   (alias-data (cdr exact-match))
+                   (commands (car alias-data))
+                   (priority (car (cdr alias-data)))
+                   (args (if (> (list-length words) 1)
                             (cdr words)
                             '())))
               (cons alias-name (cons commands (cons priority args))))
@@ -384,10 +384,10 @@
                                nil
                                (car sorted))))))
                   (let ((entry (car remaining)))
-                    (let ((alias-name (car entry))
-                          (alias-data (cdr entry))
-                          (commands (car alias-data))
-                          (priority (car (cdr alias-data))))
+                    (let* ((alias-name (car entry))
+                           (alias-data (cdr entry))
+                           (commands (car alias-data))
+                           (priority (car (cdr alias-data))))
                       ;; Skip catch-all for now (handle separately)
                       (if (not (string= alias-name "%*"))
                           ;; Try pattern matching
@@ -494,10 +494,10 @@
         (progn
           (terminal-echo (concat "Aliases (" (number->string count) "):\r\n"))
           ;; Sort entries by name for consistent output
-          (let ((sorted-entries (do ((remaining entries (cdr remaining))
+          (let ((sorted-entries (do ((entries-remaining entries (cdr entries-remaining))
                                      (result '()))
-                                    ((null? remaining) result)
-                                  (let ((entry (car remaining))
+                                    ((null? entries-remaining) result)
+                                  (let ((entry (car entries-remaining))
                                         (inserted #f))
                                     ;; Insert in alphabetical order
                                     (do ((r-remaining result (cdr r-remaining))
@@ -517,10 +517,10 @@
             (do ((remaining sorted-entries (cdr remaining)))
                 ((null? remaining) ())
               (let ((entry (car remaining)))
-                (let ((name (car entry))
-                      (alias-data (cdr entry))
-                      (commands (car alias-data))
-                      (priority (car (cdr alias-data))))
+                (let* ((name (car entry))
+                       (alias-data (cdr entry))
+                       (commands (car alias-data))
+                       (priority (car (cdr alias-data))))
                   (terminal-echo (concat "  " name " -> " commands " (priority: " (number->string priority) ")\r\n"))))))))))
 
 ;; ============================================================================
@@ -589,12 +589,12 @@
                                                                       ""))
                                                                 (if (> (list-length extracted-args) 0)
                                                                     ;; For pattern matches, join extracted args
-                                                                    (do ((remaining extracted-args (cdr remaining))
+                                                                    (do ((args-remaining extracted-args (cdr args-remaining))
                                                                          (result ""))
-                                                                        ((null? remaining) result)
+                                                                        ((null? args-remaining) result)
                                                                       (if (string= result "")
-                                                                          (set! result (car remaining))
-                                                                          (set! result (concat result " " (car remaining)))))
+                                                                          (set! result (car args-remaining))
+                                                                          (set! result (concat result " " (car args-remaining)))))
                                                                     ""))))))
                                         (tintin-expand-variables commands extracted-args all-args)))
                                     expanded))))))))))))))

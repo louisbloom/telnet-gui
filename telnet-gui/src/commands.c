@@ -1,6 +1,7 @@
 /* Special slash commands implementation */
 
 #include "commands.h"
+#include "lisp_bridge.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,6 +29,7 @@ int process_command(const char *text, Telnet *telnet, Terminal *term, int *conne
                                "  /connect <server> <port>      - Connect to a telnet server\r\n"
                                "  /connect <server>:<port>      - Connect to a telnet server\r\n"
                                "  /disconnect                   - Disconnect from current server\r\n"
+                               "  /test <filepath>              - Run a Lisp test file\r\n"
                                "\r\n";
         terminal_feed_data(term, help_msg, strlen(help_msg));
         return 1; /* Command processed */
@@ -134,6 +136,61 @@ int process_command(const char *text, Telnet *telnet, Terminal *term, int *conne
             terminal_get_size(term, &rows, &cols);
             telnet_set_terminal_size(telnet, cols, rows);
         }
+        return 1; /* Command processed */
+    }
+
+    /* /test command */
+    if (strncmp(cmd, "test ", 5) == 0) {
+        const char *filepath = cmd + 5; /* Skip "test " */
+
+        /* Skip leading spaces */
+        while (*filepath == ' ')
+            filepath++;
+
+        if (*filepath == '\0') {
+            const char *msg = "\r\n*** Usage: /test <filepath> ***\r\n";
+            terminal_feed_data(term, msg, strlen(msg));
+            return 1;
+        }
+
+        /* Remove trailing whitespace */
+        size_t len = strlen(filepath);
+        while (len > 0 && (filepath[len - 1] == ' ' || filepath[len - 1] == '\t' || filepath[len - 1] == '\r' || filepath[len - 1] == '\n')) {
+            len--;
+        }
+
+        if (len == 0) {
+            const char *msg = "\r\n*** Error: Invalid filepath ***\r\n";
+            terminal_feed_data(term, msg, strlen(msg));
+            return 1;
+        }
+
+        /* Copy filepath (truncate if needed) */
+        char test_filepath[512] = {0};
+        if (len >= sizeof(test_filepath)) {
+            const char *msg = "\r\n*** Error: Filepath too long ***\r\n";
+            terminal_feed_data(term, msg, strlen(msg));
+            return 1;
+        }
+        memcpy(test_filepath, filepath, len);
+        test_filepath[len] = '\0';
+
+        /* Show loading message */
+        char loading_msg[512];
+        snprintf(loading_msg, sizeof(loading_msg), "\r\n*** Running test: %s ***\r\n", test_filepath);
+        terminal_feed_data(term, loading_msg, strlen(loading_msg));
+
+        /* Load and run the test file */
+        int result = lisp_bridge_load_file(test_filepath);
+        if (result < 0) {
+            char error_msg[512];
+            snprintf(error_msg, sizeof(error_msg), "\r\n*** Test failed: %s ***\r\n", test_filepath);
+            terminal_feed_data(term, error_msg, strlen(error_msg));
+        } else {
+            const char *msg = "\r\n*** Test completed successfully ***\r\n";
+            terminal_feed_data(term, msg, strlen(msg));
+        }
+
         return 1; /* Command processed */
     }
 

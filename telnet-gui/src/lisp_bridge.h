@@ -5,6 +5,9 @@
 
 #include <stddef.h>
 
+/* Forward declaration */
+typedef struct Terminal Terminal;
+
 /* Initialize Lisp interpreter, environment, and load bootstrap file */
 int lisp_bridge_init(void);
 
@@ -47,6 +50,9 @@ int lisp_bridge_get_input_history_size(void);
 /* Call telnet-input-hook with telnet data (stripped of ANSI codes) */
 void lisp_bridge_call_telnet_input_hook(const char *text, size_t len);
 
+/* Call telnet-input-filter with telnet data (with ANSI codes) before displaying in terminal (returns transformed text or original) */
+const char *lisp_bridge_call_telnet_input_filter(const char *text, size_t len, size_t *out_len);
+
 /* Call user-input-hook with user input before sending to telnet (returns transformed text or original) */
 const char *lisp_bridge_call_user_input_hook(const char *text, int cursor_pos);
 
@@ -74,6 +80,9 @@ void lisp_bridge_get_resize_bar_color(int *r, int *g, int *b);
 void lisp_bridge_set_connection_mode(int connected);
 void lisp_bridge_set_input_mode(int input_mode);
 const char *lisp_bridge_get_mode_string(void);
+
+/* Register terminal pointer for terminal-echo builtin */
+void lisp_bridge_register_terminal(Terminal *term);
 
 /* Future: More functions to expose telnet-gui primitives */
 /* - Input/output hooks */

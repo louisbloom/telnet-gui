@@ -76,7 +76,7 @@ Example:
 - `-a, --antialiasing MODE` - Anti-aliasing mode: linear (default), nearest
 
 **Terminal Options:**
-- `-g, --geometry COLSxROWS` - Set terminal size (default: 80x24)
+- `-g, --geometry COLSxROWS` - Set terminal size (default: 80x40)
 
 **Other Options:**
 - `-l, --lisp-file FILE` - Load Lisp configuration file on startup

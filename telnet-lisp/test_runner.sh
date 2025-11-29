@@ -1,12 +1,22 @@
 #!/bin/bash
 # Test runner for Lisp test files with expected output validation
 # Usage: test_runner.sh <test_file.lisp>
+#
+# Set VERBOSE=1 environment variable for verbose output
 
 set -e
+
+# Verbose mode (can be enabled with VERBOSE=1)
+VERBOSE=${VERBOSE:-0}
 
 # Get the test file path
 TEST_FILE="$1"
 TEST_NAME=$(basename "$TEST_FILE" .lisp)
+
+if [ "$VERBOSE" = "1" ]; then
+  echo "=== Test Runner: $TEST_NAME ==="
+  echo "Test file: $TEST_FILE"
+fi
 
 if [ ! -f "$TEST_FILE" ]; then
   echo "ERROR: Test file not found: $TEST_FILE"
@@ -26,9 +36,21 @@ else
   REPL="../lisp-repl.exe"
 fi
 
+if [ "$VERBOSE" = "1" ]; then
+  echo "Using REPL: $REPL"
+  echo "Running test file..."
+fi
+
 # Run the test file and capture output
 ACTUAL_OUTPUT=$($REPL "$TEST_FILE" 2>&1 || true)
 EXIT_CODE=$?
+
+if [ "$VERBOSE" = "1" ]; then
+  echo "Exit code: $EXIT_CODE"
+  echo "--- Actual Output ---"
+  echo "$ACTUAL_OUTPUT"
+  echo "--- End Output ---"
+fi
 
 # If there's an error message, we need to handle it
 if [ $EXIT_CODE -ne 0 ]; then
@@ -51,6 +73,12 @@ fi
 # Format: (expression)  ; => expected_output
 EXPECTED_OUTPUTS=$(grep -oP '; => \K.*' "$TEST_FILE" || true)
 
+if [ "$VERBOSE" = "1" ]; then
+  echo "--- Expected Outputs ---"
+  echo "$EXPECTED_OUTPUTS"
+  echo "--- End Expected ---"
+fi
+
 if [ -z "$EXPECTED_OUTPUTS" ]; then
   # No expected outputs specified - just check it doesn't crash
   if [ $EXIT_CODE -eq 0 ]; then
@@ -65,9 +93,20 @@ fi
 # Extract actual non-empty output lines
 ACTUAL_LINES=$(echo "$ACTUAL_OUTPUT" | grep -v '^$' | grep -v 'Telnet Lisp Interpreter' | grep -v 'Type expressions' || true)
 
+if [ "$VERBOSE" = "1" ]; then
+  echo "--- Filtered Actual Lines ---"
+  echo "$ACTUAL_LINES"
+  echo "--- End Filtered ---"
+fi
+
 # Compare line by line
 EXPECTED_COUNT=$(echo "$EXPECTED_OUTPUTS" | wc -l)
 ACTUAL_COUNT=$(echo "$ACTUAL_LINES" | grep -c . || echo "0")
+
+if [ "$VERBOSE" = "1" ]; then
+  echo "Expected count: $EXPECTED_COUNT"
+  echo "Actual count: $ACTUAL_COUNT"
+fi
 
 # Basic validation: if we have expected outputs, compare them
 EXPECTED_ARRAY=()

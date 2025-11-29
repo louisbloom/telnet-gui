@@ -2,6 +2,7 @@
 
 #include "lisp_bridge.h"
 #include "input_area.h"
+#include "terminal.h"
 #include "lisp.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -11,9 +12,24 @@
 /* Lisp environment for completion hooks and future primitives */
 static Environment *lisp_env = NULL;
 
+/* Registered terminal pointer for terminal-echo builtin */
+static Terminal *registered_terminal = NULL;
+
 /* Static buffer for ANSI code stripping (pre-allocated at startup, freed on exit) */
 static char *ansi_strip_buffer = NULL;
 static size_t ansi_strip_buffer_size = 0;
+
+/* Static buffer for telnet input filter result (pre-allocated at startup, freed on exit) */
+static char *telnet_filter_buffer = NULL;
+static size_t telnet_filter_buffer_size = 0;
+
+/* Static buffer for telnet input filter temporary string conversion (pre-allocated, doubles on demand) */
+static char *telnet_filter_temp_buffer = NULL;
+static size_t telnet_filter_temp_buffer_size = 0;
+
+/* Static buffer for user input hook result (pre-allocated, doubles on demand) */
+static char *user_input_hook_buffer = NULL;
+static size_t user_input_hook_buffer_size = 0;
 
 /* Tab completion cycling state */
 #define MAX_COMPLETIONS 256
@@ -27,6 +43,37 @@ static int tab_original_cursor_pos = 0;
 static int tab_original_length = 0;
 static int tab_start_pos = 0;   /* Where the partial text starts */
 static int tab_partial_len = 0; /* Length of the partial text */
+
+/* Utility function to ensure a buffer is large enough, growing it by doubling if needed */
+static int ensure_buffer_size(char **buffer, size_t *buffer_size, size_t required_size) {
+    if (!buffer || !buffer_size) {
+        return -1;
+    }
+
+    /* If buffer doesn't exist or is too small, grow it */
+    if (!*buffer || *buffer_size < required_size) {
+        size_t new_size = required_size;
+        /* Double the size until it's large enough */
+        if (*buffer_size > 0) {
+            new_size = *buffer_size;
+            while (new_size < required_size) {
+                new_size *= 2;
+            }
+        } else {
+            /* First allocation: use minimum size if required size is smaller */
+            if (new_size < 4096) {
+                new_size = 4096; /* Minimum size */
+            }
+        }
+        char *new_buffer = realloc(*buffer, new_size);
+        if (!new_buffer) {
+            return -1; /* Allocation failed */
+        }
+        *buffer = new_buffer;
+        *buffer_size = new_size;
+    }
+    return 0; /* Success */
+}
 
 /* Extract partial text to complete using regex pattern */
 static int extract_partial_text(const char *buffer, int cursor_pos, int length, int *start_pos, int *partial_len) {
@@ -279,6 +326,31 @@ static int load_bootstrap_file(void) {
     return 0;
 }
 
+/* Builtin function: terminal-echo - Echo text to terminal display */
+static LispObject *builtin_terminal_echo(LispObject *args, Environment *env) {
+    (void)env;
+
+    if (args == NIL) {
+        return lisp_make_error("terminal-echo requires 1 argument");
+    }
+
+    LispObject *text_obj = lisp_car(args);
+    if (text_obj->type != LISP_STRING) {
+        return lisp_make_error("terminal-echo requires a string argument");
+    }
+
+    if (!registered_terminal) {
+        return lisp_make_error("terminal-echo: terminal not registered");
+    }
+
+    const char *text = text_obj->value.string;
+    size_t len = strlen(text);
+
+    terminal_feed_data(registered_terminal, text, len);
+
+    return NIL;
+}
+
 int lisp_bridge_init(void) {
     /* Initialize Lisp interpreter */
     if (lisp_init() < 0) {
@@ -297,6 +369,47 @@ int lisp_bridge_init(void) {
     ansi_strip_buffer = malloc(ansi_strip_buffer_size);
     if (!ansi_strip_buffer) {
         fprintf(stderr, "Failed to allocate ANSI strip buffer\n");
+    }
+
+    /* Allocate static buffer for telnet input filter */
+    telnet_filter_buffer_size = 4096; /* Initial size */
+    telnet_filter_buffer = malloc(telnet_filter_buffer_size);
+    if (!telnet_filter_buffer) {
+        fprintf(stderr, "Failed to allocate telnet filter buffer\n");
+        free(ansi_strip_buffer);
+        ansi_strip_buffer = NULL;
+        env_free(lisp_env);
+        lisp_env = NULL;
+        lisp_cleanup();
+        return -1;
+    }
+
+    /* Allocate static buffer for telnet input filter temporary string conversion */
+    telnet_filter_temp_buffer_size = 4096; /* Initial size */
+    telnet_filter_temp_buffer = malloc(telnet_filter_temp_buffer_size);
+    if (!telnet_filter_temp_buffer) {
+        fprintf(stderr, "Failed to allocate telnet filter temp buffer\n");
+        free(telnet_filter_buffer);
+        telnet_filter_buffer = NULL;
+        free(ansi_strip_buffer);
+        ansi_strip_buffer = NULL;
+        env_free(lisp_env);
+        lisp_env = NULL;
+        lisp_cleanup();
+        return -1;
+    }
+
+    /* Allocate static buffer for user input hook result */
+    user_input_hook_buffer_size = 4096; /* Initial size */
+    user_input_hook_buffer = malloc(user_input_hook_buffer_size);
+    if (!user_input_hook_buffer) {
+        fprintf(stderr, "Failed to allocate user input hook buffer\n");
+        free(telnet_filter_temp_buffer);
+        telnet_filter_temp_buffer = NULL;
+        free(telnet_filter_buffer);
+        telnet_filter_buffer = NULL;
+        free(ansi_strip_buffer);
+        ansi_strip_buffer = NULL;
         env_free(lisp_env);
         lisp_env = NULL;
         lisp_cleanup();
@@ -337,6 +450,15 @@ int lisp_bridge_init(void) {
             fprintf(stderr, "Warning: Failed to initialize default user-input-hook\n");
         }
 
+        /* Initialize default telnet-input-filter */
+        char default_telnet_filter_code[] = "(lambda (text) text)";
+        LispObject *telnet_filter_expr = lisp_eval_string(default_telnet_filter_code, lisp_env);
+        if (telnet_filter_expr && telnet_filter_expr->type != LISP_ERROR) {
+            env_define(lisp_env, "telnet-input-filter", telnet_filter_expr);
+        } else {
+            fprintf(stderr, "Warning: Failed to initialize default telnet-input-filter\n");
+        }
+
         /* Initialize default scroll config variables if bootstrap failed */
         LispObject *scroll_lines = lisp_make_integer(3);
         env_define(lisp_env, "*scroll-lines-per-click*", scroll_lines);
@@ -353,6 +475,10 @@ int lisp_bridge_init(void) {
         LispObject *scroll_on_telnet_input = lisp_make_boolean(0); /* false */
         env_define(lisp_env, "*scroll-to-bottom-on-telnet-input*", scroll_on_telnet_input);
     }
+
+    /* Register terminal-echo builtin */
+    LispObject *terminal_echo_builtin = lisp_make_builtin(builtin_terminal_echo, "terminal-echo");
+    env_define(lisp_env, "terminal-echo", terminal_echo_builtin);
 
     return 0;
 }
@@ -382,6 +508,21 @@ void lisp_bridge_cleanup(void) {
         free(ansi_strip_buffer);
         ansi_strip_buffer = NULL;
         ansi_strip_buffer_size = 0;
+    }
+    if (telnet_filter_buffer) {
+        free(telnet_filter_buffer);
+        telnet_filter_buffer = NULL;
+        telnet_filter_buffer_size = 0;
+    }
+    if (telnet_filter_temp_buffer) {
+        free(telnet_filter_temp_buffer);
+        telnet_filter_temp_buffer = NULL;
+        telnet_filter_temp_buffer_size = 0;
+    }
+    if (user_input_hook_buffer) {
+        free(user_input_hook_buffer);
+        user_input_hook_buffer = NULL;
+        user_input_hook_buffer_size = 0;
     }
     lisp_cleanup();
 }
@@ -825,8 +966,98 @@ const char *lisp_bridge_call_user_input_hook(const char *text, int cursor_pos) {
         return text; /* Not a string - return original */
     }
 
-    /* Return the transformed string (Lisp string memory is managed by GC) */
-    return result->value.string;
+    /* Get the transformed string from Lisp result */
+    const char *transformed = result->value.string;
+    size_t transformed_len = strlen(transformed);
+
+    /* Ensure hook buffer is large enough (double on demand) */
+    if (ensure_buffer_size(&user_input_hook_buffer, &user_input_hook_buffer_size, transformed_len + 1) < 0) {
+        return text; /* Allocation failed - return original */
+    }
+
+    /* Copy transformed string to hook buffer */
+    memcpy(user_input_hook_buffer, transformed, transformed_len);
+    user_input_hook_buffer[transformed_len] = '\0';
+
+    /* Return the transformed result */
+    return user_input_hook_buffer;
+}
+
+const char *lisp_bridge_call_telnet_input_filter(const char *text, size_t len, size_t *out_len) {
+    if (!lisp_env || !text || len == 0 || !out_len) {
+        if (out_len)
+            *out_len = len;
+        return text; /* Return original if no environment or text */
+    }
+
+    /* Look up telnet-input-filter */
+    LispObject *hook = env_lookup(lisp_env, "telnet-input-filter");
+    if (!hook || (hook->type != LISP_LAMBDA && hook->type != LISP_BUILTIN)) {
+        *out_len = len;
+        return text; /* Hook not found - return original */
+    }
+
+    /* Create null-terminated string from input text for Lisp (telnet data should be text-like) */
+    /* Ensure temp buffer is large enough (double on demand) */
+    if (ensure_buffer_size(&telnet_filter_temp_buffer, &telnet_filter_temp_buffer_size, len + 1) < 0) {
+        *out_len = len;
+        return text; /* Allocation failed - return original */
+    }
+
+    /* Copy input text to temp buffer and null-terminate */
+    memcpy(telnet_filter_temp_buffer, text, len);
+    telnet_filter_temp_buffer[len] = '\0';
+
+    /* Create Lisp string from input text */
+    LispObject *arg = lisp_make_string(telnet_filter_temp_buffer);
+    if (!arg || arg->type == LISP_ERROR) {
+        *out_len = len;
+        return text; /* Failed to create string - return original */
+    }
+
+    /* Create argument list */
+    LispObject *args = lisp_make_cons(arg, NIL);
+
+    /* Create function call: (telnet-input-filter "text") */
+    LispObject *call_expr = lisp_make_cons(hook, args);
+
+    /* Evaluate the function call */
+    LispObject *result = lisp_eval(call_expr, lisp_env);
+
+    /* Check for errors */
+    if (!result || result->type == LISP_ERROR) {
+        char *err_str = lisp_print(result);
+        if (err_str) {
+            fprintf(stderr, "Error in telnet-input-filter: %s\n", err_str);
+        }
+        *out_len = len;
+        return text; /* Error - return original */
+    }
+
+    /* Check if result is a string */
+    if (result->type != LISP_STRING) {
+        fprintf(stderr, "Warning: telnet-input-filter returned non-string, using original text\n");
+        *out_len = len;
+        return text; /* Not a string - return original */
+    }
+
+    /* Get the transformed string from Lisp result */
+    const char *transformed = result->value.string;
+    size_t transformed_len = strlen(transformed);
+
+    /* Ensure filter buffer is large enough (double on demand) */
+    if (ensure_buffer_size(&telnet_filter_buffer, &telnet_filter_buffer_size, transformed_len + 1) < 0) {
+        *out_len = len;
+        return text; /* Allocation failed - return original */
+    }
+
+    /* Copy transformed string to filter buffer */
+    memcpy(telnet_filter_buffer, transformed, transformed_len);
+    telnet_filter_buffer[transformed_len] = '\0';
+    *out_len = transformed_len;
+
+    /* Return the filtered result */
+    return telnet_filter_buffer;
 }
 
 /* Helper: Extract RGB from Lisp list (r g b) or return default */
@@ -1026,4 +1257,9 @@ const char *lisp_bridge_get_mode_string(void) {
     /* Fallback: Convert to string using lisp_print */
     char *mode_str = lisp_print(mode);
     return mode_str ? mode_str : "((connection . disc) (input . normal))";
+}
+
+/* Register terminal pointer for terminal-echo builtin */
+void lisp_bridge_register_terminal(Terminal *term) {
+    registered_terminal = term;
 }

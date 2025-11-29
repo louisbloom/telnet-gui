@@ -73,7 +73,7 @@ Telnet *telnet_create(void) {
 
     t->socket = -1;
     t->state = TELNET_STATE_DISCONNECTED;
-    t->rows = 24;
+    t->rows = 40;
     t->cols = 80;
 
     return t;

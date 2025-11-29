@@ -140,6 +140,19 @@ foreach(TEST_FILE ${TEST_FILES})
     )
 endforeach()
 
+# Find all telnet-gui test files matching *-test.lisp pattern
+file(GLOB GUI_TEST_FILES "telnet-gui/*-test.lisp")
+
+foreach(TEST_FILE ${GUI_TEST_FILES})
+    get_filename_component(TEST_NAME ${TEST_FILE} NAME_WE)
+    # Pass just the test filename - file is copied to build dir by POST_BUILD
+    get_filename_component(TEST_FILE_NAME ${TEST_FILE} NAME)
+    add_test(NAME gui_${TEST_NAME}
+        COMMAND bash ${CMAKE_SOURCE_DIR}/telnet-gui/test_runner.sh ${TEST_FILE_NAME}
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/telnet-gui
+    )
+endforeach()
+
 # Package configuration
 set(CPACK_PACKAGE_NAME "TelnetLisp")
 set(CPACK_PACKAGE_VERSION "1.0.0")
