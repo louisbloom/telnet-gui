@@ -81,7 +81,7 @@ add_subdirectory(telnet-gui)
 
 # REPL executable (default application)
 add_executable(lisp-repl telnet-lisp/repl/main.c)
-target_link_libraries(lisp-repl liblisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
+target_link_libraries(lisp-repl lisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
 
 # Add include directories for REPL
 target_include_directories(lisp-repl PRIVATE telnet-lisp/include)
@@ -106,7 +106,7 @@ if(WIN32 AND EXISTS "${UCRT64_ROOT}/include")
 endif()
 
 # Installation
-install(TARGETS lisp-repl liblisp
+install(TARGETS lisp-repl lisp
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib

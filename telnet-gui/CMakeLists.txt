@@ -266,11 +266,11 @@ endif()
 # VTERM already includes pthread
 # Need ws2_32 for Windows sockets
 # Link against telnet-lisp for completion hooks
-# Also need GC and PCRE2 since liblisp is static
+# Also need GC and PCRE2 since lisp is static
 target_link_libraries(telnet-gui PRIVATE
     ${SDL2_TTF_LIBRARIES}
     ${VTERM_LIBRARIES}
-    liblisp
+    lisp
     ${GC_LIBRARIES}
     ${PCRE2_LIBRARIES}
     ws2_32

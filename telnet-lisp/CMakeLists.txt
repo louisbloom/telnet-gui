@@ -34,7 +34,7 @@ set(LIB_SOURCES
 )
 
 # Create static library
-add_library(liblisp STATIC ${LIB_SOURCES})
+add_library(lisp STATIC ${LIB_SOURCES})
 
 # Find required packages
 find_package(PkgConfig REQUIRED)
@@ -42,10 +42,10 @@ pkg_check_modules(GC REQUIRED bdw-gc)
 pkg_check_modules(PCRE2 REQUIRED libpcre2-8)
 
 # Link libraries
-target_link_libraries(liblisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
+target_link_libraries(lisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
 
 # Include directories for library
-target_include_directories(liblisp PUBLIC include)
+target_include_directories(lisp PUBLIC include)
 
 # Add UCRT64 system include paths for clangd on Windows
 if(WIN32 AND MINGW)
@@ -56,7 +56,7 @@ endif()
 
 # Installation rules for standalone builds
 # When used as subdirectory, parent handles installation
-install(TARGETS liblisp
+install(TARGETS lisp
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
