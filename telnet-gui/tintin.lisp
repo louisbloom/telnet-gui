@@ -81,7 +81,30 @@
 (defun tintin-split-commands (str)
   (if (not (string? str))
       '()
-      (split str ";")))
+      (let ((pos 0)
+            (len (string-length str))
+            (depth 0)
+            (current "")
+            (results '()))
+        (do ()
+            ((>= pos len))
+          (let ((ch (string-ref str pos)))
+            (cond
+              ((string= ch "{")
+               (set! depth (+ depth 1))
+               (set! current (concat current ch)))
+              ((string= ch "}")
+               (set! depth (- depth 1))
+               (set! current (concat current ch)))
+              ((and (string= ch ";") (= depth 0))
+               (set! results (cons current results))
+               (set! current ""))
+              (#t
+               (set! current (concat current ch))))
+            (set! pos (+ pos 1))))
+        (if (not (string= current ""))
+            (set! results (cons current results)))
+        (reverse results))))
 
 ;; ============================================================================
 ;; TEST 2: SPEEDWALK
@@ -417,8 +440,9 @@
                         ;; Then replace %1, %2, etc. with individual args
                         (do ((i 0 (+ i 1)))
                             ((>= i (list-length args))
-                             ;; Expand speedwalk first
-                             (let ((expanded (tintin-expand-speedwalk result)))
+                             ;; Expand variables, then speedwalk
+                             (let ((expanded (tintin-expand-speedwalk
+                                               (tintin-expand-variables result))))
                                ;; Split by semicolon to handle multiple commands
                                (let ((split-commands (tintin-split-commands expanded))
                                      (has-tintin-cmd #f))
@@ -450,7 +474,8 @@
                           ((or (>= i (list-length alias-names)) matched-result)
                            ;; Process matched result or expanded command with recursive check
                            (let ((expanded (if matched-result
-                                               (tintin-expand-speedwalk matched-result)
+                                               (tintin-expand-speedwalk
+                                                 (tintin-expand-variables matched-result))
                                                (tintin-expand-speedwalk expanded-cmd))))
                              ;; Split by semicolon to handle multiple commands
                              (let ((split-commands (tintin-split-commands expanded))
@@ -530,6 +555,9 @@
   (if (not *tintin-enabled*)
       text
       (progn
+	;; Echo original input FIRST (unless it's a # command)
+	(if (not (tintin-is-command? text))
+	    (tintin-echo (concat text "\r\n")))
 	(let ((processed (tintin-process-input text))
 	      (commands nil))
 	  ;; Split processed output by semicolons
@@ -540,9 +568,7 @@
 	    (let ((cmd (list-ref commands i)))
 	      (if (not (string= cmd ""))
 		  (progn
-		    ;; Echo to terminal
-		    (tintin-echo (concat cmd "\r\n"))
-		    ;; Send to telnet server with CRLF
+		    ;; Send to telnet server with CRLF (no echo - already echoed original)
 		    (if (symbol? 'telnet-send)
 			(telnet-send (concat cmd "\r\n"))))))))
 	;; Return nil to indicate hook handled everything (proper contract)

@@ -304,3 +304,115 @@
 ;; Mixed case partial
 (tintin-process-command "#VaR {foo} {bar}")      ; ignore
 (hash-ref *tintin-variables* "foo")              ; => "bar"
+
+;; ============================================================================
+;; Test 17: Brace-Aware Command Splitting (Regression - Bug Fix)
+;; ============================================================================
+
+;; Bug: Semicolons inside braces were incorrectly splitting commands
+;; This broke aliases like #alias {ef} {gb $food; eat $food}
+
+;; Test that semicolons inside braces are NOT split
+(tintin-split-commands "#alias {ef} {gb $food; eat $food}")
+    ; => ("#alias {ef} {gb $food; eat $food}")
+
+;; Test nested braces with semicolons
+(tintin-split-commands "{a;b};{c;d}")            ; => ("{a;b}" "{c;d}")
+
+;; Test multiple levels of nesting
+(tintin-split-commands "cmd1;{a{b;c}d};cmd2")    ; => ("cmd1" "{a{b;c}d}" "cmd2")
+
+;; Test alias creation with semicolon in command
+(tintin-process-command "#alias {ef} {get food; eat food}")  ; ignore
+(hash-ref *tintin-aliases* "ef")                 ; => ("get food; eat food" 5)
+
+;; Test alias execution expands to multiple commands
+(tintin-process-command "ef")                    ; => "get food;eat food"
+
+;; ============================================================================
+;; Test 18: Variable Expansion in Alias Results (Regression - Bug Fix)
+;; ============================================================================
+
+;; Bug: $variables in alias templates were not expanded
+;; For example: #alias {lb} {look $bag} would send "look $bag" instead of "look sack"
+
+;; Create variable and alias that uses it
+(tintin-process-command "#variable {bag} {sack}")      ; ignore
+(tintin-process-command "#alias {lb} {look $bag}")    ; ignore
+
+;; Test that variable is expanded in alias result
+(tintin-process-command "lb")                          ; => "look sack"
+
+;; Test with multiple variables
+(tintin-process-command "#variable {container} {chest}")  ; ignore
+(tintin-process-command "#variable {item} {gold}")        ; ignore
+(tintin-process-command "#alias {gi} {get $item from $container}")  ; ignore
+(tintin-process-command "gi")                             ; => "get gold from chest"
+
+;; Test variable expansion with pattern matching aliases
+(tintin-process-command "#alias {loot %1} {get %1 from $container}")  ; ignore
+(tintin-process-command "loot sword")                     ; => "get sword from chest"
+
+;; Test variable expansion with semicolons in alias
+(tintin-process-command "#alias {quick} {get $item; examine $item}")  ; ignore
+(tintin-process-command "quick")                          ; => "get gold;examine gold"
+
+;; ============================================================================
+;; Test 19: Echo Original Commands (Regression - Bug Fix)
+;; ============================================================================
+
+;; Bug: Aliased commands were not echoing the original input
+;; For example: typing "bag sack" (aliased to "#var {bag} {%0}") didn't echo "bag sack"
+
+;; Clear logs
+(set! *telnet-send-log* '())                              ; ignore
+(set! *terminal-echo-log* '())                            ; ignore
+
+;; Create an alias
+(tintin-process-command "#alias {testcmd} {north}")       ; ignore
+
+;; Test that original command is echoed before processing
+(tintin-user-input-hook "testcmd" 0)                      ; ignore
+;; Should echo "testcmd\r\n" (original input)
+(> (list-length *terminal-echo-log*) 0)                   ; => #t
+(string-prefix? "testcmd" (list-ref *terminal-echo-log* 0))  ; => #t
+
+;; Clear logs
+(set! *telnet-send-log* '())                              ; ignore
+(set! *terminal-echo-log* '())                            ; ignore
+
+;; Test # commands are still echoed (existing behavior)
+(tintin-user-input-hook "#alias {x} {test}" 0)            ; ignore
+(> (list-length *terminal-echo-log*) 0)                   ; => #t
+(string-prefix? "#alias" (list-ref *terminal-echo-log* 1))  ; => #t
+
+;; ============================================================================
+;; Test 20: Combined Regression Test (All Three Bugs)
+;; ============================================================================
+
+;; Test all three fixes work together:
+;; 1. Brace-aware splitting
+;; 2. Variable expansion in aliases
+;; 3. Original command echo
+
+;; Clear logs
+(set! *telnet-send-log* '())                              ; ignore
+(set! *terminal-echo-log* '())                            ; ignore
+
+;; Create variable
+(tintin-process-command "#variable {food} {bread}")       ; ignore
+
+;; Create alias with semicolon AND variable (tests fixes 1 & 2)
+(tintin-process-command "#alias {ef} {get $food; eat $food}")  ; ignore
+
+;; Execute alias (tests all three fixes)
+(tintin-user-input-hook "ef" 0)                           ; ignore
+
+;; Verify variable was expanded and commands were sent
+(list-length *telnet-send-log*)                           ; => 2
+(list-ref *telnet-send-log* 1)                            ; => "get bread\r\n"
+(list-ref *telnet-send-log* 0)                            ; => "eat bread\r\n"
+
+;; Verify original command was echoed
+(> (list-length *terminal-echo-log*) 0)                   ; => #t
+(string-prefix? "ef" (list-ref *terminal-echo-log* 0))    ; => #t
