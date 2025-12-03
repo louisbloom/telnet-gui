@@ -214,6 +214,7 @@ Define a macro that transforms code before evaluation.
 - `string-replace` - Replace all occurrences of substring in string
 - `string-upcase` - Convert string to uppercase (UTF-8 aware, ASCII only)
 - `string-downcase` - Convert string to lowercase (UTF-8 aware, ASCII only)
+- `string->number` - Convert string to signed integer (supports leading/trailing whitespace, `+`/`-` signs)
 
 ### String Comparisons
 
@@ -243,6 +244,7 @@ Define a macro that transforms code before evaluation.
 - `list` - Create list from arguments
 - `list-length` - Get length of list
 - `list-ref` - Get element at index (0-based)
+- `reverse` - Reverse a list (returns new list with elements in reverse order)
 - `null?` - Check if list is empty
 - `atom?` - Check if value is an atom (not a list)
 

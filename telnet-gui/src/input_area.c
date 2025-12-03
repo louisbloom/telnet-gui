@@ -1,7 +1,7 @@
 /* Input area implementation with readline-like functionality */
 
 #include "input_area.h"
-#include "lisp_bridge.h"
+#include "lisp.h"
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -30,7 +30,7 @@ void input_area_init(InputArea *area) {
     memset(area, 0, sizeof(InputArea));
 
     /* Get history size from Lisp config */
-    area->history_max_size = lisp_bridge_get_input_history_size();
+    area->history_max_size = lisp_x_get_input_history_size();
 
     /* Allocate history array */
     area->history = (char **)malloc(area->history_max_size * sizeof(char *));
@@ -748,13 +748,13 @@ void input_area_update_mode(InputArea *area, int connected) {
         return;
 
     /* Update connection mode in Lisp environment */
-    lisp_bridge_set_connection_mode(connected);
+    lisp_x_set_connection_mode(connected);
 
     /* Update input mode in Lisp environment */
     InputAreaMode input_mode = input_area_get_mode(area);
-    lisp_bridge_set_input_mode(input_mode);
+    lisp_x_set_input_mode(input_mode);
 
     /* Get mode string from Lisp environment and update display */
-    const char *mode_text = lisp_bridge_get_mode_string();
+    const char *mode_text = lisp_x_get_mode_string();
     input_area_mode_set_text(area, mode_text);
 }

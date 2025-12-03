@@ -11,7 +11,7 @@ set(GUI_SOURCES
     src/glyph_cache.c
     src/input.c
     src/input_area.c
-    src/lisp_bridge.c
+    src/lisp.c
 )
 
 # Create telnet-gui executable

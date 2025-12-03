@@ -1,7 +1,18 @@
 ;; TinTin++ Test Suite
 
-;; Setup - define terminal-echo if not available (for headless testing)
-(define terminal-echo (lambda (text) nil))  ; ignore
+;; Setup - define terminal-echo and telnet-send stubs that capture calls
+(define *telnet-send-log* '())              ; ignore
+(define *terminal-echo-log* '())            ; ignore
+
+(define terminal-echo
+    (lambda (text)
+      (set! *terminal-echo-log* (cons text *terminal-echo-log*))
+      nil))  ; ignore
+
+(define telnet-send
+    (lambda (text)
+      (set! *telnet-send-log* (cons text *telnet-send-log*))
+      nil))  ; ignore
 
 ;; Load TinTin++ implementation
 (load "tintin.lisp")  ; ignore
@@ -34,6 +45,12 @@
 
 ;; 2-char direction followed by count+direction
 (tintin-expand-speedwalk "nw10e")          ; => "nw;e;e;e;e;e;e;e;e;e;e"
+
+;; Invalid speedwalk patterns (should return original unchanged)
+(tintin-expand-speedwalk "det")            ; => "det"
+(tintin-expand-speedwalk "3x")             ; => "3x"
+(tintin-expand-speedwalk "abc")            ; => "abc"
+(tintin-expand-speedwalk "n2t")            ; => "n2t"
 
 ;; ============================================================================
 ;; Test 3: Alias Creation
@@ -94,3 +111,196 @@
 
 ;; Use variables in pattern matching alias
 (tintin-process-command "attack $target with $weapon")    ; => "kill orc;wield sword"
+
+;; ============================================================================
+;; Test 10: User-Input-Hook Integration
+;; ============================================================================
+
+;; Hook should take 2 arguments and return string or nil
+(define test-result (tintin-user-input-hook "test" 0))   ; ignore
+(or (string? test-result) (null? test-result))           ; => #t
+
+;; When enabled, hook returns nil (hook handles echo/send)
+;; This is the proper contract: nil means hook handled everything
+(null? (tintin-user-input-hook "hello" 0))               ; => #t
+(null? (tintin-user-input-hook "k orc" 0))               ; => #t
+(null? (tintin-user-input-hook "3n2e" 0))                ; => #t
+
+;; Cursor position should be ignored (same result regardless)
+;; Both calls should return nil (hook handles everything)
+(and (null? (tintin-user-input-hook "test" 0))
+     (null? (tintin-user-input-hook "test" 5)))        ; => #t
+
+;; ============================================================================
+;; Test 11: Toggle Functions
+;; ============================================================================
+
+;; Initial state should be enabled
+*tintin-enabled*                                      ; => #t
+
+;; Disable should turn off processing (returns original text)
+(tintin-disable!)                                     ; ignore
+*tintin-enabled*                                      ; => #f
+(tintin-user-input-hook "k orc" 0)                   ; => "k orc"
+(tintin-user-input-hook "3n" 0)                      ; => "3n"
+(tintin-user-input-hook "hello" 0)                   ; => "hello"
+
+;; Enable should turn on processing (returns nil)
+(tintin-enable!)                                      ; ignore
+*tintin-enabled*                                      ; => #t
+(null? (tintin-user-input-hook "k orc" 0))           ; => #t
+(null? (tintin-user-input-hook "3n" 0))              ; => #t
+
+;; Toggle should switch state
+(tintin-toggle!)                                      ; ignore
+*tintin-enabled*                                      ; => #f
+(tintin-user-input-hook "test" 0)                    ; => "test"
+(tintin-toggle!)                                      ; ignore
+*tintin-enabled*                                      ; => #t
+(null? (tintin-user-input-hook "test" 0))            ; => #t
+
+;; ============================================================================
+;; Test 12: Edge Cases Through Hook
+;; ============================================================================
+
+;; Empty string (when enabled, returns nil; when disabled, returns original)
+(tintin-enable!)                                      ; ignore
+(null? (tintin-user-input-hook "" 0))                ; => #t
+
+;; Whitespace only (when enabled, returns nil)
+(null? (tintin-user-input-hook "   " 0))             ; => #t
+
+;; Hook should work when disabled (pass-through)
+(tintin-disable!)                                     ; ignore
+(tintin-user-input-hook "anything" 0)                ; => "anything"
+(tintin-user-input-hook "" 0)                        ; => ""
+(tintin-enable!)                                      ; ignore
+
+;; ============================================================================
+;; Test 13: Multiple Commands Sent Separately
+;; ============================================================================
+
+;; Clear logs
+(set! *telnet-send-log* '())                         ; ignore
+(set! *terminal-echo-log* '())                       ; ignore
+
+;; Test: "s;s" should send two separate telnet commands with CRLF
+;; Note: logs are in reverse order (most recent first)
+(tintin-user-input-hook "s;s" 0)                     ; ignore
+(list-length *telnet-send-log*)                      ; => 2
+(list-ref *telnet-send-log* 1)                       ; => "s\r\n"
+(list-ref *telnet-send-log* 0)                       ; => "s\r\n"
+
+;; Clear logs
+(set! *telnet-send-log* '())                         ; ignore
+(set! *terminal-echo-log* '())                       ; ignore
+
+;; Test: "3n" should send three "n" commands with CRLF
+(tintin-user-input-hook "3n" 0)                      ; ignore
+(list-length *telnet-send-log*)                      ; => 3
+(list-ref *telnet-send-log* 2)                       ; => "n\r\n"
+(list-ref *telnet-send-log* 1)                       ; => "n\r\n"
+(list-ref *telnet-send-log* 0)                       ; => "n\r\n"
+
+;; Clear logs
+(set! *telnet-send-log* '())                         ; ignore
+(set! *terminal-echo-log* '())                       ; ignore
+
+;; Test: Alias expansion then multiple sends with CRLF
+(tintin-process-command "#alias {go} {n;s;e;w}")     ; ignore
+(tintin-user-input-hook "go" 0)                      ; ignore
+(list-length *telnet-send-log*)                      ; => 4
+(list-ref *telnet-send-log* 3)                       ; => "n\r\n"
+(list-ref *telnet-send-log* 2)                       ; => "s\r\n"
+(list-ref *telnet-send-log* 1)                       ; => "e\r\n"
+(list-ref *telnet-send-log* 0)                       ; => "w\r\n"
+
+;; Clear logs
+(set! *telnet-send-log* '())                         ; ignore
+(set! *terminal-echo-log* '())                       ; ignore
+
+;; Test: Each command echoed to terminal with CRLF
+(tintin-user-input-hook "n;s" 0)                     ; ignore
+(list-length *terminal-echo-log*)                    ; => 2
+(list-ref *terminal-echo-log* 1)                     ; => "n\r\n"
+(list-ref *terminal-echo-log* 0)                     ; => "s\r\n"
+
+;; Clear logs
+(set! *telnet-send-log* '())                         ; ignore
+(set! *terminal-echo-log* '())                       ; ignore
+
+;; Test: Empty commands are skipped
+(tintin-user-input-hook "n;;s" 0)                    ; ignore
+(list-length *telnet-send-log*)                      ; => 2
+(list-ref *telnet-send-log* 1)                       ; => "n\r\n"
+(list-ref *telnet-send-log* 0)                       ; => "s\r\n"
+;; ============================================================================
+;; Test 14: Partial Command Matching
+;; ============================================================================
+
+;; Partial match for #alias
+(tintin-process-command "#al {k} {kill %1}")     ; ignore
+(hash-ref *tintin-aliases* "k")                  ; => ("kill %1" 5)
+
+;; Partial match for #variable
+(tintin-process-command "#var {hp} {100}")       ; ignore
+(hash-ref *tintin-variables* "hp")               ; => "100"
+
+;; Very short prefix - should match first command (alias comes before variable alphabetically)
+(tintin-process-command "#a {short} {s}")        ; ignore
+(hash-ref *tintin-aliases* "short")              ; => ("s" 5)
+
+;; Another partial for variable
+(tintin-process-command "#v {mp} {50}")          ; ignore
+(hash-ref *tintin-variables* "mp")               ; => "50"
+
+;; ============================================================================
+;; Test 15: Command Error Handling
+;; ============================================================================
+
+;; Clear echo log
+(set! *terminal-echo-log* '())                   ; ignore
+
+;; Unknown command shows error (not sent to telnet)
+(tintin-process-command "#foo bar")              ; => ""
+(list-length *terminal-echo-log*)                ; => 2
+(string-prefix? "#foo bar" (list-ref *terminal-echo-log* 1))  ; => #t
+(string-prefix? "Unknown TinTin++" (list-ref *terminal-echo-log* 0))  ; => #t
+
+;; Clear echo log
+(set! *terminal-echo-log* '())                   ; ignore
+
+;; Invalid format (just # with space)
+(tintin-process-command "# ")                    ; => ""
+(list-length *terminal-echo-log*)                ; => 2
+(string-prefix? "# " (list-ref *terminal-echo-log* 1))  ; => #t
+(string-prefix? "Invalid TinTin++" (list-ref *terminal-echo-log* 0))  ; => #t
+
+;; Clear echo log
+(set! *terminal-echo-log* '())                   ; ignore
+
+;; Malformed known command shows syntax error
+(tintin-process-command "#alias missing")        ; => ""
+(list-length *terminal-echo-log*)                ; => 2
+(string-prefix? "#alias missing" (list-ref *terminal-echo-log* 1))  ; => #t
+(string-prefix? "Syntax error" (list-ref *terminal-echo-log* 0))  ; => #t
+
+;; ============================================================================
+;; Test 16: Case Insensitive Matching
+;; ============================================================================
+
+;; Upper case command
+(tintin-process-command "#ALIAS {u} {up}")       ; ignore
+(hash-ref *tintin-aliases* "u")                  ; => ("up" 5)
+
+;; Mixed case
+(tintin-process-command "#VaRiAbLe {test} {val}")  ; ignore
+(hash-ref *tintin-variables* "test")             ; => "val"
+
+;; Upper case partial
+(tintin-process-command "#AL {d} {down}")        ; ignore
+(hash-ref *tintin-aliases* "d")                  ; => ("down" 5)
+
+;; Mixed case partial
+(tintin-process-command "#VaR {foo} {bar}")      ; ignore
+(hash-ref *tintin-variables* "foo")              ; => "bar"

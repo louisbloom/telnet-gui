@@ -3,6 +3,8 @@
 #include <string.h>
 #include <math.h>
 #include <ctype.h>
+#include <errno.h>
+#include <limits.h>
 
 /* Arithmetic operations */
 static LispObject *builtin_add(LispObject *args, Environment *env);
@@ -20,6 +22,7 @@ static LispObject *builtin_lte(LispObject *args, Environment *env);
 /* String operations */
 static LispObject *builtin_concat(LispObject *args, Environment *env);
 static LispObject *builtin_number_to_string(LispObject *args, Environment *env);
+static LispObject *builtin_string_to_number(LispObject *args, Environment *env);
 static LispObject *builtin_split(LispObject *args, Environment *env);
 static LispObject *builtin_string_eq(LispObject *args, Environment *env);
 static LispObject *builtin_string_lt(LispObject *args, Environment *env);
@@ -46,6 +49,7 @@ static LispObject *builtin_cons(LispObject *args, Environment *env);
 static LispObject *builtin_list(LispObject *args, Environment *env);
 static LispObject *builtin_list_length(LispObject *args, Environment *env);
 static LispObject *builtin_list_ref(LispObject *args, Environment *env);
+static LispObject *builtin_reverse(LispObject *args, Environment *env);
 
 /* Predicates */
 static LispObject *builtin_null_question(LispObject *args, Environment *env);
@@ -142,6 +146,7 @@ void register_builtins(Environment *env) {
 
     env_define(env, "concat", lisp_make_builtin(builtin_concat, "concat"));
     env_define(env, "number->string", lisp_make_builtin(builtin_number_to_string, "number->string"));
+    env_define(env, "string->number", lisp_make_builtin(builtin_string_to_number, "string->number"));
     env_define(env, "split", lisp_make_builtin(builtin_split, "split"));
     env_define(env, "string=", lisp_make_builtin(builtin_string_eq, "string="));
     env_define(env, "string<", lisp_make_builtin(builtin_string_lt, "string<"));
@@ -166,6 +171,7 @@ void register_builtins(Environment *env) {
     env_define(env, "list", lisp_make_builtin(builtin_list, "list"));
     env_define(env, "list-length", lisp_make_builtin(builtin_list_length, "list-length"));
     env_define(env, "list-ref", lisp_make_builtin(builtin_list_ref, "list-ref"));
+    env_define(env, "reverse", lisp_make_builtin(builtin_reverse, "reverse"));
 
     /* Alist operations */
     env_define(env, "assoc", lisp_make_builtin(builtin_assoc, "assoc"));
@@ -671,6 +677,56 @@ static LispObject *builtin_number_to_string(LispObject *args, Environment *env) 
     }
 
     return lisp_make_string(buffer);
+}
+
+static LispObject *builtin_string_to_number(LispObject *args, Environment *env) {
+    (void)env;
+
+    if (args == NULL || args == NIL) {
+        return lisp_make_error("string->number: expected 1 argument");
+    }
+
+    LispObject *str_obj = lisp_car(args);
+    if (str_obj == NULL || str_obj == NIL) {
+        return lisp_make_error("string->number: argument cannot be nil");
+    }
+    if (str_obj->type != LISP_STRING) {
+        return lisp_make_error("string->number: argument must be a string");
+    }
+
+    const char *str = str_obj->value.string;
+    if (str == NULL || *str == '\0') {
+        return lisp_make_error("string->number: empty string");
+    }
+
+    /* Skip leading whitespace */
+    while (*str && isspace((unsigned char)*str)) {
+        str++;
+    }
+
+    if (*str == '\0') {
+        return lisp_make_error("string->number: empty string");
+    }
+
+    /* Parse with strtoll */
+    char *endptr;
+    errno = 0;
+    long long value = strtoll(str, &endptr, 10);
+
+    if (errno == ERANGE) {
+        return lisp_make_error("string->number: number out of range");
+    }
+
+    /* Skip trailing whitespace */
+    while (*endptr && isspace((unsigned char)*endptr)) {
+        endptr++;
+    }
+
+    if (*endptr != '\0') {
+        return lisp_make_error("string->number: invalid number format");
+    }
+
+    return lisp_make_integer(value);
 }
 
 static int match_char_class(const char **pattern, char c) {
@@ -1313,6 +1369,35 @@ static LispObject *builtin_list_ref(LispObject *args, Environment *env) {
     }
 
     return lst->value.cons.car;
+}
+
+static LispObject *builtin_reverse(LispObject *args, Environment *env) {
+    (void)env;
+
+    if (args == NULL || args == NIL) {
+        return lisp_make_error("reverse: expected 1 argument");
+    }
+
+    LispObject *lst = lisp_car(args);
+
+    /* Handle empty list */
+    if (lst == NIL || lst == NULL) {
+        return NIL;
+    }
+
+    /* Validate it's a list */
+    if (lst->type != LISP_CONS) {
+        return lisp_make_error("reverse: argument must be a list");
+    }
+
+    /* Build reversed list iteratively */
+    LispObject *result = NIL;
+    while (lst != NIL && lst != NULL && lst->type == LISP_CONS) {
+        result = lisp_make_cons(lisp_car(lst), result);
+        lst = lisp_cdr(lst);
+    }
+
+    return result;
 }
 
 /* Predicates */

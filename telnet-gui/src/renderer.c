@@ -1,7 +1,7 @@
 /* Terminal renderer implementation */
 
 #include "renderer.h"
-#include "lisp_bridge.h"
+#include "lisp.h"
 #include "../../telnet-lisp/include/utf8.h"
 #include <stdlib.h>
 
@@ -123,7 +123,7 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
             if (in_selection) {
                 /* Get selection background color from Lisp config */
                 int sel_bg_r, sel_bg_g, sel_bg_b;
-                lisp_bridge_get_selection_bg_color(&sel_bg_r, &sel_bg_g, &sel_bg_b);
+                lisp_x_get_selection_bg_color(&sel_bg_r, &sel_bg_g, &sel_bg_b);
                 SDL_SetRenderDrawColor(r->sdl_renderer, sel_bg_r, sel_bg_g, sel_bg_b, 255);
                 SDL_Rect bg_rect = {col * r->cell_w, row * r->cell_h + r->titlebar_h, r->cell_w, r->cell_h};
                 SDL_RenderFillRect(r->sdl_renderer, &bg_rect);
@@ -150,8 +150,8 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
                 /* Use selection colors if in selection */
                 if (in_selection) {
                     int sel_fg_r, sel_fg_g, sel_fg_b, sel_bg_r, sel_bg_g, sel_bg_b;
-                    lisp_bridge_get_selection_fg_color(&sel_fg_r, &sel_fg_g, &sel_fg_b);
-                    lisp_bridge_get_selection_bg_color(&sel_bg_r, &sel_bg_g, &sel_bg_b);
+                    lisp_x_get_selection_fg_color(&sel_fg_r, &sel_fg_g, &sel_fg_b);
+                    lisp_x_get_selection_bg_color(&sel_bg_r, &sel_bg_g, &sel_bg_b);
                     fg_color.r = sel_fg_r;
                     fg_color.g = sel_fg_g;
                     fg_color.b = sel_fg_b;
@@ -163,8 +163,8 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
                 } else {
                     /* Get default terminal colors from Lisp config */
                     int term_fg_r, term_fg_g, term_fg_b, term_bg_r, term_bg_g, term_bg_b;
-                    lisp_bridge_get_terminal_fg_color(&term_fg_r, &term_fg_g, &term_fg_b);
-                    lisp_bridge_get_terminal_bg_color(&term_bg_r, &term_bg_g, &term_bg_b);
+                    lisp_x_get_terminal_fg_color(&term_fg_r, &term_fg_g, &term_fg_b);
+                    lisp_x_get_terminal_bg_color(&term_bg_r, &term_bg_g, &term_bg_b);
 
                     fg_color.r = term_fg_r;
                     fg_color.g = term_fg_g;
@@ -222,12 +222,12 @@ void renderer_render_input_area(Renderer *r, const char *text, int text_len, int
     int sel_fg_r, sel_fg_g, sel_fg_b, sel_bg_r, sel_bg_g, sel_bg_b;
     int cursor_r, cursor_g, cursor_b, sep_r, sep_g, sep_b;
 
-    lisp_bridge_get_input_area_fg_color(&fg_r, &fg_g, &fg_b);
-    lisp_bridge_get_input_area_bg_color(&bg_r, &bg_g, &bg_b);
-    lisp_bridge_get_selection_fg_color(&sel_fg_r, &sel_fg_g, &sel_fg_b);
-    lisp_bridge_get_selection_bg_color(&sel_bg_r, &sel_bg_g, &sel_bg_b);
-    lisp_bridge_get_cursor_color(&cursor_r, &cursor_g, &cursor_b);
-    lisp_bridge_get_input_separator_color(&sep_r, &sep_g, &sep_b);
+    lisp_x_get_input_area_fg_color(&fg_r, &fg_g, &fg_b);
+    lisp_x_get_input_area_bg_color(&bg_r, &bg_g, &bg_b);
+    lisp_x_get_selection_fg_color(&sel_fg_r, &sel_fg_g, &sel_fg_b);
+    lisp_x_get_selection_bg_color(&sel_bg_r, &sel_bg_g, &sel_bg_b);
+    lisp_x_get_cursor_color(&cursor_r, &cursor_g, &cursor_b);
+    lisp_x_get_input_separator_color(&sep_r, &sep_g, &sep_b);
 
     /* Draw separator line between terminal and input area */
     SDL_SetRenderDrawColor(r->sdl_renderer, sep_r, sep_g, sep_b, 255);
@@ -314,8 +314,8 @@ void renderer_render_input_area(Renderer *r, const char *text, int text_len, int
     if (mode_text && mode_length > 0) {
         /* Get mode display area colors from Lisp config */
         int mode_fg_r, mode_fg_g, mode_fg_b, mode_bg_r, mode_bg_g, mode_bg_b;
-        lisp_bridge_get_mode_fg_color(&mode_fg_r, &mode_fg_g, &mode_fg_b);
-        lisp_bridge_get_mode_bg_color(&mode_bg_r, &mode_bg_g, &mode_bg_b);
+        lisp_x_get_mode_fg_color(&mode_fg_r, &mode_fg_g, &mode_fg_b);
+        lisp_x_get_mode_bg_color(&mode_bg_r, &mode_bg_g, &mode_bg_b);
 
         /* Calculate mode display area width with left and right padding */
         /* Measure actual width of each character using glyph cache */

@@ -1,9 +1,10 @@
-/* Lisp bridge implementation for telnet-gui */
+/* Lisp implementation for telnet-gui */
 
-#include "lisp_bridge.h"
+#include "lisp.h"
 #include "input_area.h"
 #include "terminal.h"
-#include "lisp.h"
+#include "telnet.h"
+#include "../../telnet-lisp/include/lisp.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +15,7 @@ static Environment *lisp_env = NULL;
 
 /* Registered terminal pointer for terminal-echo builtin */
 static Terminal *registered_terminal = NULL;
+static Telnet *registered_telnet = NULL;
 
 /* Static buffer for ANSI code stripping (pre-allocated at startup, freed on exit) */
 static char *ansi_strip_buffer = NULL;
@@ -354,7 +356,49 @@ static LispObject *builtin_terminal_echo(LispObject *args, Environment *env) {
     return NIL;
 }
 
-int lisp_bridge_init(void) {
+static LispObject *builtin_telnet_send(LispObject *args, Environment *env) {
+    (void)env;
+
+    if (args == NIL) {
+        return lisp_make_error("telnet-send requires 1 argument");
+    }
+
+    LispObject *text_obj = lisp_car(args);
+    if (text_obj->type != LISP_STRING) {
+        return lisp_make_error("telnet-send requires a string argument");
+    }
+
+    const char *text = text_obj->value.string;
+
+    if (!registered_telnet) {
+        /* No telnet connection registered */
+        fprintf(stderr, "Warning: telnet-send called but no telnet connection registered\n");
+        return NIL;
+    }
+
+    /* Send text with CRLF appended */
+    size_t text_len = strlen(text);
+    size_t total_len = text_len + 2; /* +2 for \r\n */
+    char *buffer = malloc(total_len);
+    if (!buffer) {
+        return lisp_make_error("telnet-send: memory allocation failed");
+    }
+
+    memcpy(buffer, text, text_len);
+    buffer[text_len] = '\r';
+    buffer[text_len + 1] = '\n';
+
+    int result = telnet_send(registered_telnet, buffer, total_len);
+    free(buffer);
+
+    if (result < 0) {
+        return lisp_make_error("telnet-send: failed to send data");
+    }
+
+    return NIL;
+}
+
+int lisp_x_init(void) {
     /* Initialize Lisp interpreter */
     if (lisp_init() < 0) {
         fprintf(stderr, "Failed to initialize Lisp interpreter\n");
@@ -483,10 +527,14 @@ int lisp_bridge_init(void) {
     LispObject *terminal_echo_builtin = lisp_make_builtin(builtin_terminal_echo, "terminal-echo");
     env_define(lisp_env, "terminal-echo", terminal_echo_builtin);
 
+    /* Register telnet-send builtin */
+    LispObject *telnet_send_builtin = lisp_make_builtin(builtin_telnet_send, "telnet-send");
+    env_define(lisp_env, "telnet-send", telnet_send_builtin);
+
     return 0;
 }
 
-int lisp_bridge_load_file(const char *filepath) {
+int lisp_x_load_file(const char *filepath) {
     if (!lisp_env || !filepath) {
         return -1;
     }
@@ -502,7 +550,7 @@ int lisp_bridge_load_file(const char *filepath) {
     return 0;
 }
 
-void lisp_bridge_cleanup(void) {
+void lisp_x_cleanup(void) {
     if (lisp_env) {
         env_free(lisp_env);
         lisp_env = NULL;
@@ -622,7 +670,7 @@ static void cycle_next_completion(char *buffer, int buffer_size, int *cursor_pos
     }
 }
 
-void lisp_bridge_handle_tab(char *buffer, int buffer_size, int *cursor_pos, int *length, int *needs_redraw) {
+void lisp_x_handle_tab(char *buffer, int buffer_size, int *cursor_pos, int *length, int *needs_redraw) {
     if (!buffer || !cursor_pos || !length || *cursor_pos < 0 || *cursor_pos > *length) {
         return;
     }
@@ -688,19 +736,19 @@ void lisp_bridge_handle_tab(char *buffer, int buffer_size, int *cursor_pos, int 
 }
 
 /* Check if tab mode is active */
-int lisp_bridge_is_tab_mode_active(void) {
+int lisp_x_is_tab_mode_active(void) {
     return tab_mode_active;
 }
 
 /* Accept current completion and exit tab mode */
-void lisp_bridge_accept_tab_completion(void) {
+void lisp_x_accept_tab_completion(void) {
     if (tab_mode_active) {
         exit_tab_mode();
     }
 }
 
 /* Cancel tab mode and revert to original buffer */
-void lisp_bridge_cancel_tab_completion(char *buffer, int buffer_size, int *cursor_pos, int *length, int *needs_redraw) {
+void lisp_x_cancel_tab_completion(char *buffer, int buffer_size, int *cursor_pos, int *length, int *needs_redraw) {
     if (!tab_mode_active || !buffer || !cursor_pos || !length) {
         return;
     }
@@ -719,7 +767,7 @@ void lisp_bridge_cancel_tab_completion(char *buffer, int buffer_size, int *curso
     exit_tab_mode();
 }
 
-int lisp_bridge_get_scroll_lines_per_click(void) {
+int lisp_x_get_scroll_lines_per_click(void) {
     if (!lisp_env) {
         return 3; /* Default */
     }
@@ -754,7 +802,7 @@ int lisp_bridge_get_scroll_lines_per_click(void) {
     return 3;
 }
 
-int lisp_bridge_get_smooth_scrolling_enabled(void) {
+int lisp_x_get_smooth_scrolling_enabled(void) {
     if (!lisp_env) {
         return 1; /* Default: enabled */
     }
@@ -773,7 +821,7 @@ int lisp_bridge_get_smooth_scrolling_enabled(void) {
     return lisp_is_truthy(value) ? 1 : 0;
 }
 
-int lisp_bridge_get_max_scrollback_lines(void) {
+int lisp_x_get_max_scrollback_lines(void) {
     if (!lisp_env) {
         return 0; /* Default: unbounded */
     }
@@ -805,7 +853,7 @@ int lisp_bridge_get_max_scrollback_lines(void) {
     return 0;
 }
 
-int lisp_bridge_get_scroll_to_bottom_on_user_input(void) {
+int lisp_x_get_scroll_to_bottom_on_user_input(void) {
     if (!lisp_env) {
         return 1; /* Default: enabled */
     }
@@ -824,7 +872,7 @@ int lisp_bridge_get_scroll_to_bottom_on_user_input(void) {
     return lisp_is_truthy(value) ? 1 : 0;
 }
 
-int lisp_bridge_get_scroll_to_bottom_on_telnet_input(void) {
+int lisp_x_get_scroll_to_bottom_on_telnet_input(void) {
     if (!lisp_env) {
         return 0; /* Default: disabled */
     }
@@ -843,7 +891,7 @@ int lisp_bridge_get_scroll_to_bottom_on_telnet_input(void) {
     return lisp_is_truthy(value) ? 1 : 0;
 }
 
-int lisp_bridge_get_input_history_size(void) {
+int lisp_x_get_input_history_size(void) {
     if (!lisp_env) {
         return 100; /* Default: 100 entries */
     }
@@ -879,7 +927,7 @@ int lisp_bridge_get_input_history_size(void) {
     return 100;
 }
 
-void lisp_bridge_call_telnet_input_hook(const char *text, size_t len) {
+void lisp_x_call_telnet_input_hook(const char *text, size_t len) {
     if (!lisp_env || !text || len == 0) {
         return;
     }
@@ -922,7 +970,7 @@ void lisp_bridge_call_telnet_input_hook(const char *text, size_t len) {
     /* Ignore return value - hook is side-effect only */
 }
 
-const char *lisp_bridge_call_user_input_hook(const char *text, int cursor_pos) {
+const char *lisp_x_call_user_input_hook(const char *text, int cursor_pos) {
     if (!lisp_env || !text) {
         return text; /* Return original if no environment or text */
     }
@@ -963,10 +1011,9 @@ const char *lisp_bridge_call_user_input_hook(const char *text, int cursor_pos) {
         return text; /* Error - return original */
     }
 
-    /* Check if result is a string */
+    /* Hook contract: non-string (nil) or empty string = hook handled everything */
     if (result->type != LISP_STRING) {
-        fprintf(stderr, "Warning: user-input-hook returned non-string, using original text\n");
-        return text; /* Not a string - return original */
+        return ""; /* Non-string (nil) - hook handled echo/send */
     }
 
     /* Get the transformed string from Lisp result */
@@ -986,7 +1033,7 @@ const char *lisp_bridge_call_user_input_hook(const char *text, int cursor_pos) {
     return user_input_hook_buffer;
 }
 
-const char *lisp_bridge_call_telnet_input_filter(const char *text, size_t len, size_t *out_len) {
+const char *lisp_x_call_telnet_input_filter(const char *text, size_t len, size_t *out_len) {
     if (!lisp_env || !text || len == 0 || !out_len) {
         if (out_len)
             *out_len = len;
@@ -1114,55 +1161,55 @@ static void get_color_from_lisp(const char *var_name, int *r, int *g, int *b, in
 }
 
 /* Input area colors */
-void lisp_bridge_get_input_area_fg_color(int *r, int *g, int *b) {
+void lisp_x_get_input_area_fg_color(int *r, int *g, int *b) {
     get_color_from_lisp("*input-area-fg-color*", r, g, b, 255, 255, 0); /* Yellow */
 }
 
-void lisp_bridge_get_input_area_bg_color(int *r, int *g, int *b) {
+void lisp_x_get_input_area_bg_color(int *r, int *g, int *b) {
     get_color_from_lisp("*input-area-bg-color*", r, g, b, 25, 40, 60); /* Dark blue */
 }
 
-void lisp_bridge_get_selection_fg_color(int *r, int *g, int *b) {
+void lisp_x_get_selection_fg_color(int *r, int *g, int *b) {
     get_color_from_lisp("*selection-fg-color*", r, g, b, 0, 0, 0); /* Black */
 }
 
-void lisp_bridge_get_selection_bg_color(int *r, int *g, int *b) {
+void lisp_x_get_selection_bg_color(int *r, int *g, int *b) {
     get_color_from_lisp("*selection-bg-color*", r, g, b, 255, 140, 0); /* Orange */
 }
 
-void lisp_bridge_get_cursor_color(int *r, int *g, int *b) {
+void lisp_x_get_cursor_color(int *r, int *g, int *b) {
     get_color_from_lisp("*cursor-color*", r, g, b, 200, 200, 200); /* Light gray */
 }
 
-void lisp_bridge_get_input_separator_color(int *r, int *g, int *b) {
+void lisp_x_get_input_separator_color(int *r, int *g, int *b) {
     get_color_from_lisp("*input-separator-color*", r, g, b, 100, 100, 100); /* Gray */
 }
 
 /* Mode display area colors */
-void lisp_bridge_get_mode_fg_color(int *r, int *g, int *b) {
+void lisp_x_get_mode_fg_color(int *r, int *g, int *b) {
     get_color_from_lisp("*mode-fg-color*", r, g, b, 150, 255, 150); /* Greenish */
 }
 
-void lisp_bridge_get_mode_bg_color(int *r, int *g, int *b) {
+void lisp_x_get_mode_bg_color(int *r, int *g, int *b) {
     get_color_from_lisp("*mode-bg-color*", r, g, b, 45, 65, 85); /* Lighter blue */
 }
 
 /* Terminal default colors */
-void lisp_bridge_get_terminal_fg_color(int *r, int *g, int *b) {
+void lisp_x_get_terminal_fg_color(int *r, int *g, int *b) {
     get_color_from_lisp("*terminal-fg-color*", r, g, b, 255, 255, 255); /* White */
 }
 
-void lisp_bridge_get_terminal_bg_color(int *r, int *g, int *b) {
+void lisp_x_get_terminal_bg_color(int *r, int *g, int *b) {
     get_color_from_lisp("*terminal-bg-color*", r, g, b, 0, 0, 0); /* Black */
 }
 
 /* Window chrome colors */
-void lisp_bridge_get_resize_bar_color(int *r, int *g, int *b) {
+void lisp_x_get_resize_bar_color(int *r, int *g, int *b) {
     get_color_from_lisp("*resize-bar-color*", r, g, b, 30, 70, 50); /* Even darker greenish */
 }
 
 /* Set connection mode in Lisp environment */
-void lisp_bridge_set_connection_mode(int connected) {
+void lisp_x_set_connection_mode(int connected) {
     if (!lisp_env) {
         return;
     }
@@ -1194,7 +1241,7 @@ void lisp_bridge_set_connection_mode(int connected) {
 }
 
 /* Set input mode in Lisp environment */
-void lisp_bridge_set_input_mode(int input_mode) {
+void lisp_x_set_input_mode(int input_mode) {
     if (!lisp_env) {
         return;
     }
@@ -1226,7 +1273,7 @@ void lisp_bridge_set_input_mode(int input_mode) {
 }
 
 /* Get mode string from Lisp environment */
-const char *lisp_bridge_get_mode_string(void) {
+const char *lisp_x_get_mode_string(void) {
     if (!lisp_env) {
         return "((connection . disc) (input . normal))"; /* Default fallback */
     }
@@ -1263,6 +1310,10 @@ const char *lisp_bridge_get_mode_string(void) {
 }
 
 /* Register terminal pointer for terminal-echo builtin */
-void lisp_bridge_register_terminal(Terminal *term) {
+void lisp_x_register_terminal(Terminal *term) {
     registered_terminal = term;
+}
+
+void lisp_x_register_telnet(Telnet *t) {
+    registered_telnet = t;
 }

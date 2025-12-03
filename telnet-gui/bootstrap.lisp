@@ -29,6 +29,230 @@
 (define *completion-pattern* "\\S+$")
 
 ;; ============================================================================
+;; WORD STORE CONFIGURATION
+;; ============================================================================
+;; *completion-word-store-size*: Maximum number of words to store for completions
+;;
+;; This controls the maximum size of the word store used for completion
+;; suggestions. When the store reaches this limit, older words are removed
+;; to make room for new ones (FIFO - First In, First Out).
+;;
+;; Examples:
+;;   500  - Small store, good for limited memory
+;;   1000 - Default, balanced for most use cases
+;;   5000 - Large store, good for extensive word collection
+;;   10000 - Very large store, may use more memory
+(define *completion-word-store-size* 10000)
+
+;; Max number of completion candidates to return per prefix
+(define *completion-max-results* 64)
+
+;; Initialize word store (hash table for fast lookups)
+(define *completion-word-store* (make-hash-table))
+
+;; Initialize word order (vector for FIFO bounded storage)
+;; Initialize with nil so vector has correct size (not just capacity)
+(define *completion-word-order* (make-vector *completion-word-store-size* nil))
+
+;; Current position in the order vector (circular buffer index)
+(define *completion-word-order-index* 0)
+
+;; ============================================================================
+;; WORD STORE HELPER FUNCTIONS
+;; ============================================================================
+
+;; Helper function to trim punctuation from word boundaries
+;; Uses regex-replace to remove leading and trailing punctuation
+(defun trim-punctuation (word)
+  (if (not (and (string? word) (> (string-length word) 0)))
+      ""
+      (let* ((no-trailing (regex-replace "[.,!?;:()\\[\\]{}'\"\\-]+$" "" word))
+             (cleaned (regex-replace "^[.,!?;:()\\[\\]{}'\"\\-]+" "" no-trailing)))
+        cleaned)))
+
+;; Extract words from text as consecutive non-whitespace characters
+;; Returns a list of words (strings)
+;; Splits on whitespace only (spaces, tabs, newlines)
+;; Removes punctuation from word boundaries (preceded or followed by whitespace)
+;; Helper: Clean a single word (trim punctuation, validate)
+;; Returns cleaned word string or empty string if invalid
+(defun clean-word (word)
+  (if (and (string? word) (> (string-length word) 0))
+      (trim-punctuation word)
+      ""))
+
+;; Helper: Check if a cleaned word is valid for storage
+(defun valid-word? (cleaned)
+  (and (string? cleaned)
+       (> (string-length cleaned) 0)))
+
+;; Helper: Reverse a list
+(defun reverse-list (lst)
+  (if (null? lst)
+      '()
+      (let ((acc '()))
+        (do ((remaining lst (cdr remaining)))
+            ((null? remaining) acc)
+          (set! acc (cons (car remaining) acc))))))
+
+;; Helper: Process word list and filter valid words
+;; Preserves left-to-right order so leftmost words are added first (oldest)
+;; and rightmost words are added last (newest)
+(defun filter-valid-words (words)
+  (let ((filtered '()))
+    (do ((remaining words (cdr remaining)))
+        ((null? remaining) (reverse-list filtered))
+      (let ((cleaned (clean-word (car remaining))))
+        ;; Early continue if word is invalid
+        (if (not (valid-word? cleaned))
+            ()
+            (set! filtered (cons cleaned filtered)))))))
+
+(defun extract-words (text)
+  (if (not (string? text))
+      '()
+      (let ((words (regex-split "\\s+" text)))
+        (if (null? words)
+            '()
+            (filter-valid-words words)))))
+
+;; Helper: Normalize circular buffer index to valid range
+(defun normalize-order-index (idx vec-size)
+  (if (>= idx vec-size)
+      0
+      idx))
+
+;; Helper: Advance circular buffer index
+(defun advance-order-index (vec-size)
+  (set! *completion-word-order-index* (+ *completion-word-order-index* 1))
+  (if (>= *completion-word-order-index* vec-size)
+      (set! *completion-word-order-index* 0)))
+
+;; Helper: Evict old word from store slot and insert new word
+;; Uses reference counting to track word occurrences in circular buffer
+;; Accepts explicit vector and store to avoid capturing stale globals
+(defun insert-word-into-slot! (vec store slot old-word new-word)
+  ;; Decrement count for old word (if different from new word)
+  (if (string? old-word)
+      (if (not (and (string? new-word) (string= old-word new-word)))
+          (let ((count (hash-ref store old-word)))
+            (if (and (not (null? count)) (> count 1))
+                (hash-set! store old-word (- count 1))
+                (hash-remove! store old-word)))))
+  ;; Set new word in slot
+  (vector-set! vec slot new-word)
+  ;; Increment count for new word
+  (let ((count (hash-ref store new-word)))
+    (if (null? count)
+        (hash-set! store new-word 1)
+        (hash-set! store new-word (+ count 1)))))
+
+;; Helper: Check if word is valid for storage (length >= 3)
+(defun word-valid-for-store? (word)
+  (and (string? word)
+       (>= (string-length word) 3)))
+
+;; Add a word to the store (bounded by *completion-word-store-size*)
+;; If store is full, removes oldest word (FIFO)
+;; Words shorter than 3 characters are not stored
+;; Words are always added at newest position, even if they already exist
+;; This ensures most recently seen words appear first in completions
+(defun add-word-to-store (word)
+  ;; Early return for invalid words
+  (if (not (word-valid-for-store? word))
+      0
+      (let* ((vec *completion-word-order*)
+             (vec-size (vector-length vec)))
+        ;; Normalize index BEFORE any vector-ref to avoid OOB
+        (if (>= *completion-word-order-index* vec-size)
+            (set! *completion-word-order-index* 0))
+        ;; Always add word at newest position (even if duplicate)
+        (let* ((slot (normalize-order-index *completion-word-order-index* vec-size))
+               (old (vector-ref vec slot)))
+          (insert-word-into-slot! vec *completion-word-store* slot old word)
+          (advance-order-index vec-size)
+          1))))
+
+;; Collect all words from text and add them to the store
+(defun collect-words-from-text (text)
+  (let ((words (extract-words text)))
+    (if (null? words)
+        ()
+        (do ((remaining words (cdr remaining)))
+            ((null? remaining))
+          (add-word-to-store (car remaining))))))
+
+;; Helper: Compute circular buffer index from position
+(defun compute-circular-index (pos vec-size)
+  (if (< pos 0)
+      (+ pos vec-size)
+      pos))
+
+;; Helper: Check if word matches prefix (case-insensitive) and not seen
+(defun word-matches-prefix? (word prefix-lower seen)
+  (and (string? word)
+       (string-prefix? prefix-lower (string-downcase word))
+       (null? (hash-ref seen word))))
+
+;; Helper: Scan circular buffer for matching words (newest to oldest)
+;; Returns (cons acc count) where acc is newest-first list of matches
+(defun scan-circular-buffer (vec vec-size start prefix-lower seen max-results)
+  (let ((acc '())
+        (count 0))
+    (do ((i 0 (+ i 1)))
+        ;; Reverse acc since we cons in reverse order (newest scanned = first in list)
+        ((or (>= i vec-size) (>= count max-results)) (cons (reverse-list acc) count))
+      (let* ((pos (- start 1 i))
+             (idx (compute-circular-index pos vec-size))
+             (k (vector-ref vec idx)))
+        ;; Skip if word is nil or doesn't match
+        (if (not (string? k))
+            ()
+            (if (not (word-matches-prefix? k prefix-lower seen))
+                ()
+                (progn
+                  (hash-set! seen k 1)
+                  (set! acc (cons k acc))
+                  (set! count (+ count 1)))))))))
+
+;; Helper: Fallback scan of hash keys for remaining matches
+(defun scan-hash-keys (store prefix-lower seen acc count max-results)
+  (let ((keys (hash-keys store)))
+    ;; Early return if no keys
+    (if (null? keys)
+        acc
+        (do ((remaining keys (cdr remaining)))
+            ((or (null? remaining) (>= count max-results)) acc)
+          (let ((k (car remaining)))
+            ;; Skip if word doesn't match
+            (if (not (word-matches-prefix? k prefix-lower seen))
+                ()
+                (progn
+                  (hash-set! seen k 1)
+                  (set! acc (cons k acc))
+                  (set! count (+ count 1)))))))))
+
+;; Get all words from store that match a prefix (case-insensitive)
+;; Returns a list of matching words (strings)
+(defun get-completions-from-store (prefix)
+  ;; Early return for invalid prefix
+  (if (not (and (string? prefix) (> (string-length prefix) 0)))
+      '()
+      (let* ((p (string-downcase prefix))
+             (vec *completion-word-order*)
+             (vec-size (vector-length vec))
+             (start *completion-word-order-index*)
+             (seen (make-hash-table))
+             (result (scan-circular-buffer vec vec-size start p seen *completion-max-results*))
+             (acc (car result))
+             (count (cdr result)))
+        ;; Return early if we found matches in circular buffer
+        (if (> count 0)
+            acc
+            ;; Otherwise fallback to hash scan
+            (scan-hash-keys *completion-word-store* p seen acc count *completion-max-results*)))))
+
+;; ============================================================================
 ;; COMPLETION HOOK CONFIGURATION
 ;; ============================================================================
 ;; completion-hook: Function called when user requests tab completion
@@ -42,6 +266,11 @@
 ;;   2. Call completion-hook with the matched text
 ;;   3. Display the returned completions in a popup menu
 ;;   4. User can select a completion with arrow keys and Enter
+;;
+;; This implementation uses a word store that automatically collects words
+;; from telnet server output. Words are stored in a circular buffer with
+;; FIFO eviction. Only words >= 3 characters are stored. Completion matching
+;; is case-insensitive and returns results in newest-first order.
 ;;
 ;; Examples:
 ;;
@@ -69,9 +298,16 @@
 ;;         (princ "\n")
 ;;         '("option1" "option2" "option3"))))
 ;;
-;; No completions (default behavior):
-;;   (define completion-hook (lambda (text) ()))
-(define completion-hook (lambda (text) ()))
+;; Word store completion (uses collected words - DEFAULT):
+;;   (defun completion-hook (text)
+;;     (get-completions-from-store text))
+;;
+;; No completions:
+;;   (defun completion-hook (text) ())
+(defun completion-hook (text)
+  (if (and (string? text) (> (string-length text) 0))
+      (get-completions-from-store text)
+      '()))
 
 ;; ============================================================================
 ;; TELNET INPUT HOOK CONFIGURATION
@@ -85,6 +321,10 @@
 ;; This hook receives all text output from the telnet server AFTER ANSI
 ;; escape codes have been removed. It's called for every chunk of text
 ;; received, allowing you to monitor, log, or process server output.
+;;
+;; DEFAULT BEHAVIOR: The default implementation automatically collects words
+;; from server output for tab completion. Words >= 3 characters are stored
+;; in a bounded circular buffer (see *completion-word-store-size*).
 ;;
 ;; Important notes:
 ;;   - This hook is SIDE-EFFECT ONLY - it cannot modify the data flow
@@ -125,9 +365,14 @@
 ;;             (princ "\n"))
 ;;           ())))
 ;;
-;; No processing (default - silent):
+;; No processing (silent):
 ;;   (define telnet-input-hook (lambda (text) ()))
-(define telnet-input-hook (lambda (text) ()))
+;;
+;; Word collection for completions (DEFAULT - collects words for tab completion):
+;;   (defun telnet-input-hook (text)
+;;     (collect-words-from-text text))
+(defun telnet-input-hook (text)
+  (collect-words-from-text text))
 
 ;; ============================================================================
 ;; TELNET INPUT FILTER CONFIGURATION
@@ -195,20 +440,25 @@
 ;; ============================================================================
 ;; user-input-hook: Function called when user sends text to telnet server
 ;;
-;; Signature: (lambda (text cursor-pos) -> string)
+;; Signature: (lambda (text cursor-pos) -> string|nil)
 ;;   - text: The text user typed in input area
 ;;   - cursor-pos: Cursor position in input area (integer)
-;;   - Returns: Transformed text to send (string), or original if not string
+;;   - Returns: Transformed text to send (string), or nil if hook handled everything
+;;
+;; Hook Contract:
+;;   - Return string: C code echoes and sends the returned text (with CRLF appended)
+;;   - Return nil (or non-string): Hook has handled echo/send itself (proper way)
+;;   - Return "" (empty string): Same as nil, hook handled everything
 ;;
 ;; This hook is called BEFORE sending text to the telnet server, allowing you
-;; to transform, filter, or replace the user's input. The returned string is
-;; sent to both the terminal (for echo) and the telnet connection.
+;; to transform, filter, or replace the user's input. You can either:
+;;   1. Return transformed string for C code to echo/send
+;;   2. Return nil after handling echo/send yourself (via terminal-echo/telnet-send)
 ;;
 ;; Important notes:
-;;   - Hook MUST return a string (or original text is used)
-;;   - Returned text is sent to telnet server with CRLF appended
+;;   - Proper way to handle everything: return nil (not empty string)
+;;   - If you call terminal-echo and telnet-send yourself, return nil
 ;;   - Hook is called for every Enter keypress (even empty input)
-;;   - Empty string return suppresses sending (only CRLF sent)
 ;;
 ;; Examples:
 ;;
@@ -242,11 +492,11 @@
 ;;           (string-upcase text)
 ;;           text)))
 ;;
-;; Suppress password echoing (return empty string for specific commands):
+;; Suppress echo/send for specific commands (return nil):
 ;;   (define user-input-hook
 ;;     (lambda (text cursor-pos)
 ;;       (if (string-prefix? "password " text)
-;;           ""
+;;           ()  ; nil - hook handles it (or suppresses it)
 ;;           text)))
 (define user-input-hook (lambda (text cursor-pos) text))
 

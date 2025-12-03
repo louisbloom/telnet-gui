@@ -1,7 +1,7 @@
 /* Borderless window implementation */
 
 #include "window.h"
-#include "lisp_bridge.h"
+#include "lisp.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -308,7 +308,7 @@ void window_render_titlebar(Window *w, SDL_Renderer *renderer, const char *text)
 
     /* Get resize bar color from Lisp config and use for titlebar */
     int r, g, b;
-    lisp_bridge_get_resize_bar_color(&r, &g, &b);
+    lisp_x_get_resize_bar_color(&r, &g, &b);
 
     /* Draw titlebar background with same color as resize bar */
     SDL_SetRenderDrawColor(renderer, r, g, b, 255);
@@ -343,7 +343,7 @@ void window_render_resize_bar(Window *w, SDL_Renderer *renderer) {
 
     /* Get resize bar color from Lisp config */
     int r, g, b;
-    lisp_bridge_get_resize_bar_color(&r, &g, &b);
+    lisp_x_get_resize_bar_color(&r, &g, &b);
 
     /* Draw resize bar at bottom (middle section) */
     SDL_SetRenderDrawColor(renderer, r, g, b, 255);

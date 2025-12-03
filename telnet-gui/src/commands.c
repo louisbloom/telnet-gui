@@ -1,7 +1,7 @@
 /* Special slash commands implementation */
 
 #include "commands.h"
-#include "lisp_bridge.h"
+#include "lisp.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -182,7 +182,7 @@ int process_command(const char *text, Telnet *telnet, Terminal *term, int *conne
         terminal_feed_data(term, loading_msg, strlen(loading_msg));
 
         /* Load and run the test file */
-        int result = lisp_bridge_load_file(test_filepath);
+        int result = lisp_x_load_file(test_filepath);
         if (result < 0) {
             char error_msg[1024];
             snprintf(error_msg, sizeof(error_msg), "\r\n*** Test failed: %s ***\r\n", test_filepath);

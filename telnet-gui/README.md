@@ -95,11 +95,264 @@ Example:
 # Use IBM Plex Mono font with custom geometry
 ./build/telnet-gui/telnet-gui.exe -p -g 100x40 telnet-server 4449
 
-# Load Lisp configuration for tab completion
-./build/telnet-gui/telnet-gui.exe -l completion.lisp telnet-server 4449
+# Load custom Lisp configuration (word completion is built-in via bootstrap.lisp)
+./build/telnet-gui/telnet-gui.exe -l custom-config.lisp telnet-server 4449
 
 # Debug mode (exits after first render, capture initialization output)
 ./build/telnet-gui/telnet-gui.exe --debug-exit 2>&1
+```
+
+## Built-in Features
+
+### Word Completion
+
+The telnet-gui includes automatic word completion powered by Lisp scripting:
+
+**Features:**
+- **Automatic word collection** - Words from server output are automatically collected
+- **Tab completion** - Press TAB to complete words based on prefix
+- **Case-insensitive matching** - Matches words regardless of case
+- **Smart filtering** - Only words >= 3 characters are stored
+- **Bounded storage** - Circular buffer with FIFO eviction (configurable, default 10,000 words)
+- **Newest-first results** - Most recently seen words appear first in completions
+
+**Usage:**
+1. Connect to a server and let it send output
+2. Type a partial word (e.g., "hel")
+3. Press TAB to see completions
+4. Use arrow keys to select, Enter to accept, Escape to cancel
+
+**Configuration:**
+
+Word completion is configured in `bootstrap.lisp` (automatically loaded). You can customize:
+
+```lisp
+;; Store size (max words to keep)
+(define *completion-word-store-size* 10000)
+
+;; Max results to show per prefix
+(define *completion-max-results* 64)
+
+;; Pattern to match for completion (regex)
+(define *completion-pattern* "\\S+$")
+```
+
+To disable completion, override in your custom config:
+```bash
+# Create disable-completion.lisp
+echo '(defun completion-hook (text) ())' > disable-completion.lisp
+echo '(defun telnet-input-hook (text) ())' >> disable-completion.lisp
+
+# Load it
+./build/telnet-gui/telnet-gui.exe -l disable-completion.lisp server 4449
+```
+
+### Input Area Modes
+
+- **Normal mode** - Input sent directly to telnet server (press Ctrl+E to toggle)
+- **Eval mode** - Input evaluated as Lisp code (press Ctrl+E to toggle)
+
+### Slash Commands
+
+Available in Normal mode:
+- `/help` - Show available commands
+- `/connect <server> <port>` - Connect to server
+- `/disconnect` - Disconnect from server
+- `/test <filepath>` - Run Lisp test file
+
+### TinTin++ Emulation
+
+The telnet-gui can emulate TinTin++ scripting features. Simply load `tintin.lisp` and it automatically activates:
+
+**Usage:**
+```bash
+./build/telnet-gui/telnet-gui.exe -l telnet-gui/tintin.lisp server 4449
+```
+
+TinTin++ is automatically activated when loaded - no additional setup required.
+
+**Supported Commands:**
+
+```
+#alias {shortcut} {expansion}     - Create command alias
+#unalias {shortcut}               - Remove alias
+#action {pattern} {commands}      - Trigger on server output (regex)
+#unaction {pattern}               - Remove trigger
+#highlight {pattern} {color}      - Highlight matching text (not implemented)
+#speedwalk {directions}           - Expand direction shortcuts (e.g., "5n2e" → "n;n;n;n;n;e;e")
+#showme {text}                    - Echo text to terminal
+#nop {comment}                    - No-operation (comment)
+```
+
+**Examples:**
+
+```bash
+# Create movement aliases
+#alias {n} {north}
+#alias {s} {south}
+#alias {ggh} {get gold from corpse;go home}
+
+# Auto-cast spell on enemy appearance
+#action {^A goblin appears} {cast fireball}
+
+# Speedwalk notation
+#speedwalk {5n2e3s}
+# Expands to: n;n;n;n;n;e;e;s;s;s
+
+# Echo to terminal
+#showme {=== Starting combat sequence ===}
+```
+
+**Alias Usage:**
+
+Once aliases are defined, simply type the shortcut:
+```bash
+n          # Sends "north"
+ggh        # Sends "get gold from corpse" then "go home"
+```
+
+**How It Works:**
+
+The `tintin.lisp` file defines a `user-input-hook` that:
+1. Checks if input starts with `#` (TinTin++ command)
+2. If yes, processes the command and returns transformed input
+3. If no, checks for aliases and expands them
+4. Returns the final input to send to server
+
+**Multiple Commands:**
+
+The semicolon `;` separator sends multiple commands:
+```bash
+n;n;e;get gold;w;s;s     # Executes 6 separate commands
+```
+
+**Customization:**
+
+You can add custom aliases and configuration by creating a config file:
+```lisp
+;; custom-tintin.lisp
+;; Load TinTin++ (automatically activates)
+(load "telnet-gui/tintin.lisp")
+
+;; Pre-define common aliases
+(tintin-process-command "#alias {q} {quit}")
+(tintin-process-command "#alias {i} {inventory}")
+(tintin-process-command "#alias {n} {north}")
+(tintin-process-command "#alias {s} {south}")
+(tintin-process-command "#alias {e} {east}")
+(tintin-process-command "#alias {w} {west}")
+```
+
+Then load it:
+```bash
+./build/telnet-gui/telnet-gui.exe -l custom-tintin.lisp server 4449
+```
+
+**Testing:**
+
+Test TinTin++ features with the test suite:
+```bash
+./build/lisp-repl telnet-gui/tintin-test.lisp
+# Or automated
+./telnet-lisp/test_runner.sh telnet-gui/tintin-test.lisp
+```
+
+**Important Notes:**
+- Loading `tintin.lisp` automatically replaces the default `user-input-hook`
+- Word completion still works (uses `telnet-input-hook`, not affected)
+- To combine TinTin++ with custom input transformations, load `tintin.lisp` first, then modify `tintin-user-input-hook`
+- To temporarily disable TinTin++: `(tintin-disable!)` in eval mode (Ctrl+E)
+
+## Testing Lisp Configuration Files
+
+The telnet-gui directory contains Lisp scripts that can be loaded and tested independently:
+
+### Test Files
+
+- **tintin-test.lisp** - Test suite for TinTin++ scripting features
+- **completion-test.lisp** - Test suite for tab completion
+
+### Test Format
+
+Test files use inline expectations:
+```lisp
+(expression)        ; => expected-result
+(define x 10)       ; ignore
+(+ x 5)             ; => 15
+```
+
+- `; => value` - Expression should evaluate to this value
+- `; ignore` - Expression is evaluated but result not checked (used for setup)
+
+### Running Tests
+
+**Option 1: Using test_runner.sh (automated validation)**
+
+The test runner automatically validates output against expected results:
+
+```bash
+# From telnet-lisp directory
+./telnet-lisp/test_runner.sh telnet-gui/tintin-test.lisp
+
+# Or from build directory
+cd build
+../telnet-lisp/test_runner.sh ../telnet-gui/tintin-test.lisp
+
+# Verbose output
+VERBOSE=1 ../telnet-lisp/test_runner.sh ../telnet-gui/tintin-test.lisp
+```
+
+Output:
+```bash
+PASS: tintin-test (outputs match)
+```
+
+**Option 2: Using lisp-repl directly (manual verification)**
+
+Run the test file and manually check output:
+
+```bash
+# From project root
+./build/lisp-repl telnet-gui/tintin-test.lisp
+./build/lisp-repl telnet-gui/completion-test.lisp
+
+# Or from build directory
+cd build
+./lisp-repl ../telnet-gui/tintin-test.lisp
+```
+
+Output:
+```bash
+#<lambda:terminal-echo>
+#<lambda:telnet-send>
+("cmd1" "cmd2")
+"s;s;w;w;w;w;w"
+...
+```
+
+Compare the output with `; => expected` comments in the test file.
+
+### Creating Your Own Tests
+
+Create a `.lisp` file with test expressions:
+
+```lisp
+;; My test file
+(load "tintin.lisp")  ; ignore
+
+;; Test alias creation
+(tintin-process-command "#alias {n} {north}")  ; ignore
+(tintin-process-command "n")                   ; => "north"
+```
+
+Run with test_runner.sh:
+```bash
+./telnet-lisp/test_runner.sh my-test.lisp
+```
+
+Or manually with lisp-repl:
+```bash
+./build/lisp-repl my-test.lisp
 ```
 
 ## libvterm 0.3.3 Integration
@@ -274,20 +527,56 @@ if (!vterm_check_version(0, 3)) {
 - **glyph_cache.c**: Font glyph caching for performance
 - **window.c**: SDL window management
 - **input.c**: Keyboard and mouse input handling
+- **input_area.c**: Command input area with history and mode management
 - **telnet.c**: Telnet protocol client implementation
+- **commands.c**: Slash command processor (/help, /connect, /disconnect, /test)
+- **lisp.c**: Lisp scripting integration (hooks, colors, configuration)
 
 ### Terminal Emulation Flow
 
+**Telnet Input (Server → Terminal):**
 1. Data arrives via telnet connection
-2. `terminal_feed_data()` writes to `vterm_input_write()`
-3. libvterm parses ANSI escape sequences
-4. Screen callbacks are triggered (damage, movecursor, etc.)
-5. `renderer_render()` iterates through damaged cells
-6. SDL renders glyphs to screen
+2. Lisp `telnet-input-filter` transforms data (optional)
+3. `terminal_feed_data()` writes to `vterm_input_write()`
+4. libvterm parses ANSI escape sequences
+5. Screen callbacks are triggered (damage, movecursor, etc.)
+6. Lisp `telnet-input-hook` collects words for completion (default)
+7. `renderer_render()` iterates through damaged cells
+8. SDL renders glyphs to screen
+
+**User Input (Terminal → Telnet):**
+1. User types in input area or presses keys
+2. Lisp `user-input-hook` transforms input (optional)
+3. Input sent to telnet connection
+4. Local echo to terminal (if enabled)
+
+### Lisp Scripting System
+
+**Bootstrap Process:**
+1. `bootstrap.lisp` is automatically loaded on startup from build directory
+2. Sets up word completion, hooks, colors, and default configuration
+3. Optional user config file loaded via `-l` flag (overrides defaults)
+
+**Available Hooks:**
+- `completion-hook` - Called for TAB completion (default: word store lookup)
+- `telnet-input-hook` - Called on server output (default: collect words)
+- `telnet-input-filter` - Transform server output before display (default: pass-through)
+- `user-input-hook` - Transform user input before sending (default: pass-through)
+- `mode-render-hook` - Render custom mode display (default: emoji symbols)
+
+**Configuration Variables:**
+- Completion: `*completion-word-store-size*`, `*completion-max-results*`, `*completion-pattern*`
+- Scrolling: `*scroll-lines-per-click*`, `*smooth-scrolling-enabled*`, `*max-scrollback-lines*`
+- Colors: `*terminal-fg-color*`, `*terminal-bg-color*`, `*input-area-fg-color*`, etc.
+- History: `*input-history-size*`
+- Mode: `*connection-mode*`, `*input-mode*`, `*mode*`
+
+All variables can be customized in user config files loaded with `-l`.
 
 ### Memory Management
 
 - Terminal struct uses standard `malloc()`/`free()` (not Boehm GC)
+- Lisp objects use Boehm GC (automatic memory management)
 - libvterm manages its own internal memory
 - SDL handles graphics memory
 
