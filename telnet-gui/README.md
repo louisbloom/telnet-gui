@@ -160,108 +160,23 @@ Available in Normal mode:
 - `/disconnect` - Disconnect from server
 - `/test <filepath>` - Run Lisp test file
 
-### TinTin++ Emulation
+### TinTin++ Scripting
 
-The telnet-gui can emulate TinTin++ scripting features. Simply load `tintin.lisp` and it automatically activates:
+The telnet-gui supports TinTin++ scripting features including aliases, variables, speedwalking, and command chaining.
 
-**Usage:**
+**Quick Start:**
 ```bash
-./build/telnet-gui/telnet-gui.exe -l telnet-gui/tintin.lisp server 4449
+./build/telnet-gui/telnet-gui.exe -l telnet-gui/tintin.lisp <host> <port>
 ```
 
-TinTin++ is automatically activated when loaded - no additional setup required.
+**Features:**
+- Command aliases with pattern matching (`#alias {k} {kill %1}`)
+- Variables with substitution (`#variable {target} {orc}`, then `kill $target`)
+- Speedwalk notation (`3n2e` expands to `n;n;n;e;e`)
+- Command separation with semicolons (`north;get gold;south`)
+- Save/load configuration (`#save {config.lisp}`, `#load {config.lisp}`)
 
-**Supported Commands:**
-
-```
-#alias {shortcut} {expansion}     - Create command alias
-#unalias {shortcut}               - Remove alias
-#action {pattern} {commands}      - Trigger on server output (regex)
-#unaction {pattern}               - Remove trigger
-#highlight {pattern} {color}      - Highlight matching text (not implemented)
-#speedwalk {directions}           - Expand direction shortcuts (e.g., "5n2e" → "n;n;n;n;n;e;e")
-#showme {text}                    - Echo text to terminal
-#nop {comment}                    - No-operation (comment)
-```
-
-**Examples:**
-
-```bash
-# Create movement aliases
-#alias {n} {north}
-#alias {s} {south}
-#alias {ggh} {get gold from corpse;go home}
-
-# Auto-cast spell on enemy appearance
-#action {^A goblin appears} {cast fireball}
-
-# Speedwalk notation
-#speedwalk {5n2e3s}
-# Expands to: n;n;n;n;n;e;e;s;s;s
-
-# Echo to terminal
-#showme {=== Starting combat sequence ===}
-```
-
-**Alias Usage:**
-
-Once aliases are defined, simply type the shortcut:
-```bash
-n          # Sends "north"
-ggh        # Sends "get gold from corpse" then "go home"
-```
-
-**How It Works:**
-
-The `tintin.lisp` file defines a `user-input-hook` that:
-1. Checks if input starts with `#` (TinTin++ command)
-2. If yes, processes the command and returns transformed input
-3. If no, checks for aliases and expands them
-4. Returns the final input to send to server
-
-**Multiple Commands:**
-
-The semicolon `;` separator sends multiple commands:
-```bash
-n;n;e;get gold;w;s;s     # Executes 6 separate commands
-```
-
-**Customization:**
-
-You can add custom aliases and configuration by creating a config file:
-```lisp
-;; custom-tintin.lisp
-;; Load TinTin++ (automatically activates)
-(load "telnet-gui/tintin.lisp")
-
-;; Pre-define common aliases
-(tintin-process-command "#alias {q} {quit}")
-(tintin-process-command "#alias {i} {inventory}")
-(tintin-process-command "#alias {n} {north}")
-(tintin-process-command "#alias {s} {south}")
-(tintin-process-command "#alias {e} {east}")
-(tintin-process-command "#alias {w} {west}")
-```
-
-Then load it:
-```bash
-./build/telnet-gui/telnet-gui.exe -l custom-tintin.lisp server 4449
-```
-
-**Testing:**
-
-Test TinTin++ features with the test suite:
-```bash
-./build/lisp-repl telnet-gui/tintin-test.lisp
-# Or automated
-./telnet-lisp/test_runner.sh telnet-gui/tintin-test.lisp
-```
-
-**Important Notes:**
-- Loading `tintin.lisp` automatically replaces the default `user-input-hook`
-- Word completion still works (uses `telnet-input-hook`, not affected)
-- To combine TinTin++ with custom input transformations, load `tintin.lisp` first, then modify `tintin-user-input-hook`
-- To temporarily disable TinTin++: `(tintin-disable!)` in eval mode (Ctrl+E)
+**Full documentation:** See [TINTIN.md](TINTIN.md) for complete usage guide, examples, and implementation details
 
 ## Testing Lisp Configuration Files
 
