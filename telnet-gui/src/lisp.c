@@ -1008,7 +1008,11 @@ const char *lisp_x_call_user_input_hook(const char *text, int cursor_pos) {
         if (err_str) {
             fprintf(stderr, "Error in user-input-hook: %s\n", err_str);
         }
-        return text; /* Error - return original */
+        /* If error occurred in TinTin++ command (starts with #), suppress sending to telnet */
+        if (text && text[0] == '#') {
+            return ""; /* TinTin++ command error - don't send to telnet */
+        }
+        return text; /* Error - return original for non-TinTin++ commands */
     }
 
     /* Hook contract: non-string (nil) or empty string = hook handled everything */
