@@ -56,11 +56,13 @@ Macros are special functions that receive unevaluated arguments and return code 
 Quasiquote (`` ` ``) is like quote (`'`) but allows selective evaluation using unquote (`,`) and unquote-splicing (`,@`). This is essential for writing macros that construct code with computed values.
 
 **Syntax:**
+
 - `` `expr`` - Quasiquote (same as `(quasiquote expr)`)
 - `,expr` - Unquote: evaluate expr and insert result (same as `(unquote expr)`)
 - `,@expr` - Unquote-splicing: evaluate expr (must be a list) and splice elements (same as `(unquote-splicing expr)`)
 
 **Examples:**
+
 ```lisp
 ; Simple quasiquote (same as quote)
 `(1 2 3)  ; => (1 2 3)
@@ -86,6 +88,7 @@ Quasiquote (`` ` ``) is like quote (`'`) but allows selective evaluation using u
 ```
 
 **Common pattern in macros:**
+
 ```lisp
 ; Without quasiquote (cumbersome)
 (defmacro when (condition body)
@@ -101,18 +104,21 @@ Quasiquote (`` ` ``) is like quote (`'`) but allows selective evaluation using u
 Define a macro that transforms code before evaluation.
 
 **Syntax:**
+
 ```lisp
 (defmacro name (params...) body...)
 (defmacro name (param1 param2 . rest-params) body...)
 ```
 
 **Features:**
+
 - Macros receive arguments unevaluated
 - The macro body is evaluated to produce an expansion
 - The expansion is then evaluated in the caller's context
 - Supports rest parameters using dotted parameter list syntax
 
 **Examples:**
+
 ```lisp
 ; Simple macro that returns a quoted expression
 (defmacro simple () '(+ 1 2))
@@ -139,22 +145,26 @@ Define a macro that transforms code before evaluation.
 `defun` is a built-in macro that provides a convenient syntax for defining named functions. It's implemented using quasiquote:
 
 **Syntax:**
+
 ```lisp
 (defun name (params...) body...)
 ```
 
 **Definition:**
+
 ```lisp
 (defmacro defun (name params . body)
   `(define ,name (lambda ,params ,@body)))
 ```
 
 **Expands to:**
+
 ```lisp
 (define name (lambda (params...) body...))
 ```
 
 **Examples:**
+
 ```lisp
 ; Simple function
 (defun add-one (x) (+ x 1))
@@ -258,6 +268,7 @@ Association lists are lists of key-value pairs represented as cons cells: `((key
 - `alist-get` - Get value for key, returns the value (cdr of pair) or default value if provided
 
 **Examples:**
+
 ```lisp
 (define config '(("host" . "localhost") ("port" . 8080) ("debug" . #t)))
 
@@ -281,6 +292,7 @@ Functions for transforming lists by applying a function to each element.
 - `mapcar` - Same as map (Common Lisp compatibility)
 
 **Examples:**
+
 ```lisp
 ; Double each number
 (map (lambda (x) (* x 2)) '(1 2 3 4 5))  ; => (2 4 6 8 10)
@@ -341,6 +353,7 @@ Functions for transforming lists by applying a function to each element.
 - `symbol->string` - Convert symbol to string
 
 **Examples:**
+
 ```lisp
 (symbol? 'foo)              ; => 1
 (symbol? 42)                ; => nil
@@ -387,16 +400,19 @@ Functions for transforming lists by applying a function to each element.
 - `terpri` - Print newline (terminate print), returns nil
 
 **Format directives:**
+
 - `~A` or `~a` - Aesthetic (princ-style, no quotes on strings)
 - `~S` or `~s` - S-expression (prin1-style, with quotes on strings)
 - `~%` - Newline
 - `~~` - Literal tilde (~)
 
 **Format destination:**
+
 - `nil` - Return formatted string
 - `#t` - Print to stdout and return nil
 
 **Examples:**
+
 ```lisp
 ; Return as string
 (format nil "Hello, ~A!" "World")        ; => "Hello, World!"
@@ -465,6 +481,7 @@ Telnet Lisp implements automatic error propagation with call stack traces. When 
 ### Error Examples
 
 **Simple division by zero:**
+
 ```lisp
 (/ 1 0)
 ; => ERROR: Division by zero
@@ -473,6 +490,7 @@ Telnet Lisp implements automatic error propagation with call stack traces. When 
 ```
 
 **Error through lambda:**
+
 ```lisp
 (define divide-by-zero (lambda (x) (/ x 0)))
 (divide-by-zero 10)
@@ -483,6 +501,7 @@ Telnet Lisp implements automatic error propagation with call stack traces. When 
 ```
 
 **Deep call stack:**
+
 ```lisp
 (define inner (lambda (x) (/ x 0)))
 (define middle (lambda (x) (inner x)))
@@ -497,6 +516,7 @@ Telnet Lisp implements automatic error propagation with call stack traces. When 
 ```
 
 **Type error:**
+
 ```lisp
 (define test (lambda (x) (+ x "not a number")))
 (test 5)
@@ -517,6 +537,7 @@ Telnet Lisp implements automatic error propagation with call stack traces. When 
 ### Error Propagation
 
 Errors propagate automatically through:
+
 - Function calls (both built-in and user-defined)
 - Special forms (`if`, `let`, `do`, `cond`, `case`, etc.)
 - Nested expressions
@@ -534,6 +555,7 @@ Telnet Lisp implements **tail call optimization** (TCO) using a trampoline-based
 An expression is in **tail position** if it is the last operation performed before returning from a function. The result of a tail-positioned expression becomes the return value of the enclosing function without any further computation.
 
 **Tail position locations:**
+
 - Last expression in a lambda body
 - Last expression in `progn`, `let`, `let*`
 - Both branches of `if` (then and else)
@@ -541,6 +563,7 @@ An expression is in **tail position** if it is the last operation performed befo
 - Body of `do` loop (result expression)
 
 **NOT in tail position:**
+
 - Arguments to function calls: `(+ 1 (factorial 5))` - factorial call is NOT in tail position
 - Non-final expressions in sequence
 - Operands of arithmetic or comparison operators
@@ -548,6 +571,7 @@ An expression is in **tail position** if it is the last operation performed befo
 ### How It Works
 
 When a function call appears in tail position, instead of executing it immediately and growing the stack, the interpreter:
+
 1. Creates a tail call object with the function and its evaluated arguments
 2. Returns this object to the trampoline loop
 3. The trampoline unwraps and executes the call iteratively
@@ -557,6 +581,7 @@ This converts deep recursion into iteration at the interpreter level.
 ### Examples
 
 **Tail-recursive factorial:**
+
 ```lisp
 ;; Tail-recursive with accumulator
 (define factorial-tail
@@ -574,6 +599,7 @@ This converts deep recursion into iteration at the interpreter level.
 ```
 
 **Tail-recursive fibonacci:**
+
 ```lisp
 (define fib-iter
   (lambda (n a b)
@@ -590,6 +616,7 @@ This converts deep recursion into iteration at the interpreter level.
 ```
 
 **Mutually recursive functions:**
+
 ```lisp
 (define even?
   (lambda (n)
@@ -607,6 +634,7 @@ This converts deep recursion into iteration at the interpreter level.
 ```
 
 **Helper function in tail position:**
+
 ```lisp
 (define format-result
   (lambda (x)
@@ -646,12 +674,14 @@ Non-tail recursive functions still work but use stack space:
 ### When to Use
 
 Use tail recursion when:
+
 - Implementing recursive algorithms (factorial, fibonacci, tree traversal)
 - Processing lists recursively
 - State machines with recursive state transitions
 - Any algorithm that would naturally use iteration
 
 Convert to tail recursion by:
+
 - Adding accumulator parameters
 - Passing partial results down instead of building up on return
 - Ensuring recursive call is the last operation

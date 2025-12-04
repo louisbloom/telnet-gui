@@ -393,7 +393,6 @@ Each test file is both executable code and documentation with expected outputs m
 - `LispObject* env_lookup(Environment* env, const char* name)` - Look up variable
 - `void env_free(Environment* env)` - Free environment
 
-
 ## License
 
 This is a demonstration project. Feel free to use and modify as needed.

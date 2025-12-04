@@ -68,31 +68,61 @@ install(FILES "${BOOTSTRAP_SRC}"
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL2 REQUIRED sdl2)
 pkg_check_modules(SDL2_TTF REQUIRED SDL2_ttf)
-# Try pkg-config with /usr/local/lib/pkgconfig in path
+# Try pkg-config with /ucrt64/lib/pkgconfig (MSYS2 package) or /usr/local/lib/pkgconfig (source build)
 # Find the pkg-config file location first
-set(USR_LOCAL_PKG_CONFIG "")
+set(VTERM_PKG_CONFIG "")
 if(WIN32)
-    if(DEFINED ENV{MSYS2_ROOT})
-        if(EXISTS "$ENV{MSYS2_ROOT}/usr/local/lib/pkgconfig/vterm.pc")
-            set(USR_LOCAL_PKG_CONFIG "$ENV{MSYS2_ROOT}/usr/local/lib/pkgconfig")
+    # First check /usr/local by deriving MSYS2 root from UCRT64_ROOT (PRIORITY)
+    if(DEFINED UCRT64_ROOT)
+        # UCRT64_ROOT is like C:/msys64/ucrt64, so parent is C:/msys64
+        get_filename_component(MSYS2_ROOT_FROM_UCRT64 "${UCRT64_ROOT}" DIRECTORY)
+        if(EXISTS "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib/pkgconfig/vterm.pc")
+            set(VTERM_PKG_CONFIG "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib/pkgconfig")
+            message(STATUS "Found vterm.pc in /usr/local: ${VTERM_PKG_CONFIG}")
         endif()
     endif()
 
-    if(NOT USR_LOCAL_PKG_CONFIG)
+    # If not found, check /usr/local via MSYS2_ROOT env var (fallback)
+    if(NOT VTERM_PKG_CONFIG AND DEFINED ENV{MSYS2_ROOT})
+        if(EXISTS "$ENV{MSYS2_ROOT}/usr/local/lib/pkgconfig/vterm.pc")
+            set(VTERM_PKG_CONFIG "$ENV{MSYS2_ROOT}/usr/local/lib/pkgconfig")
+            message(STATUS "Found vterm.pc in /usr/local: ${VTERM_PKG_CONFIG}")
+        endif()
+    endif()
+
+    # If not found in /usr/local, check UCRT64 (distribution package - FALLBACK)
+    if(NOT VTERM_PKG_CONFIG AND DEFINED UCRT64_ROOT)
+        if(EXISTS "${UCRT64_ROOT}/lib/pkgconfig/vterm.pc")
+            set(VTERM_PKG_CONFIG "${UCRT64_ROOT}/lib/pkgconfig")
+            message(STATUS "Found vterm.pc in UCRT64: ${VTERM_PKG_CONFIG}")
+        endif()
+    endif()
+
+    # Search common MSYS2 locations for both UCRT64 and /usr/local
+    if(NOT VTERM_PKG_CONFIG)
         set(PKG_SEARCH_PATHS
+            # /usr/local source build locations (PRIORITY)
             "C:/msys64/usr/local/lib/pkgconfig"
             "C:/tools/msys64/usr/local/lib/pkgconfig"
             "$ENV{USERPROFILE}/scoop/apps/msys2/current/usr/local/lib/pkgconfig"
             "$ENV{ProgramFiles}/msys64/usr/local/lib/pkgconfig"
+            # UCRT64 package locations (FALLBACK)
+            "C:/msys64/ucrt64/lib/pkgconfig"
+            "C:/tools/msys64/ucrt64/lib/pkgconfig"
+            "$ENV{USERPROFILE}/scoop/apps/msys2/current/ucrt64/lib/pkgconfig"
+            "$ENV{ProgramFiles}/msys64/ucrt64/lib/pkgconfig"
         )
+        # Add Scoop versioned directories - /usr/local first
         if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
-            file(GLOB SCOOP_PKG_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*/usr/local/lib/pkgconfig")
-            list(APPEND PKG_SEARCH_PATHS ${SCOOP_PKG_VERSIONS})
+            file(GLOB SCOOP_PKG_USRLOCAL "$ENV{USERPROFILE}/scoop/apps/msys2/*/usr/local/lib/pkgconfig")
+            file(GLOB SCOOP_PKG_UCRT64 "$ENV{USERPROFILE}/scoop/apps/msys2/*/ucrt64/lib/pkgconfig")
+            list(APPEND PKG_SEARCH_PATHS ${SCOOP_PKG_USRLOCAL} ${SCOOP_PKG_UCRT64})
         endif()
 
         foreach(PKG_PATH IN LISTS PKG_SEARCH_PATHS)
             if(EXISTS "${PKG_PATH}/vterm.pc")
-                set(USR_LOCAL_PKG_CONFIG "${PKG_PATH}")
+                set(VTERM_PKG_CONFIG "${PKG_PATH}")
+                message(STATUS "Found vterm.pc at: ${VTERM_PKG_CONFIG}")
                 break()
             endif()
         endforeach()
@@ -102,9 +132,14 @@ endif()
 # Try pkg-config - CMake's pkg_check_modules caches results and may ignore ENV changes
 # So we manually call pkg-config via execute_process
 set(VTERM_FOUND FALSE)
-if(USR_LOCAL_PKG_CONFIG OR EXISTS "/usr/local/lib/pkgconfig/vterm.pc")
-    if(NOT USR_LOCAL_PKG_CONFIG AND EXISTS "/usr/local/lib/pkgconfig/vterm.pc")
-        set(USR_LOCAL_PKG_CONFIG "/usr/local/lib/pkgconfig")
+if(VTERM_PKG_CONFIG OR EXISTS "/usr/local/lib/pkgconfig/vterm.pc" OR EXISTS "/ucrt64/lib/pkgconfig/vterm.pc")
+    if(NOT VTERM_PKG_CONFIG)
+        # Try Unix-style paths (for MSYS2 shell environments)
+        if(EXISTS "/usr/local/lib/pkgconfig/vterm.pc")
+            set(VTERM_PKG_CONFIG "/usr/local/lib/pkgconfig")
+        elseif(EXISTS "/ucrt64/lib/pkgconfig/vterm.pc")
+            set(VTERM_PKG_CONFIG "/ucrt64/lib/pkgconfig")
+        endif()
     endif()
 
     # Use pkg-config executable from find_package
@@ -112,7 +147,7 @@ if(USR_LOCAL_PKG_CONFIG OR EXISTS "/usr/local/lib/pkgconfig/vterm.pc")
     if(PKG_CONFIG_EXECUTABLE)
         # Check if VS Code or user already set PKG_CONFIG_PATH
         # If so, make sure our path is included
-        set(PKG_CONFIG_UNIX_PATH "${USR_LOCAL_PKG_CONFIG}")
+        set(PKG_CONFIG_UNIX_PATH "${VTERM_PKG_CONFIG}")
         string(REPLACE "\\" "/" PKG_CONFIG_UNIX_PATH "${PKG_CONFIG_UNIX_PATH}")
 
         # Check if vterm.pc is already in PKG_CONFIG_PATH
@@ -213,52 +248,160 @@ endif()
 if(NOT VTERM_FOUND)
     set(VTERM_FOUND TRUE)
     set(VTERM_LIBRARIES vterm)
-    message(STATUS "Using libvterm from /usr/local (pkg-config not available or package not found)")
+    message(STATUS "Using libvterm from system paths (pkg-config not available or package not found)")
+    message(STATUS "  Will search: /ucrt64 (MSYS2 package) and /usr/local (source build)")
 endif()
+
+# Test if libvterm has sb_pushline4 support (unreleased feature)
+include(CheckCSourceCompiles)
+# Derive include directory from VTERM_PKG_CONFIG path
+# If vterm.pc is in /path/lib/pkgconfig, headers are in /path/include
+if(VTERM_PKG_CONFIG)
+    string(REGEX REPLACE "/lib/pkgconfig$" "/include" VTERM_TEST_INCLUDE_DIR "${VTERM_PKG_CONFIG}")
+    set(CMAKE_REQUIRED_INCLUDES "${VTERM_TEST_INCLUDE_DIR}")
+endif()
+set(CMAKE_REQUIRED_LIBRARIES ${VTERM_LIBRARIES})
+
+check_c_source_compiles("
+    #include <vterm.h>
+    int main() {
+        VTermScreenCallbacks cb;
+        cb.sb_pushline4 = NULL;
+        return 0;
+    }
+" HAVE_VTERM_PUSHLINE4)
+
+if(HAVE_VTERM_PUSHLINE4)
+    message(STATUS "libvterm has pushline4 support - enabling text reflow")
+    target_compile_definitions(telnet-gui PRIVATE HAVE_VTERM_PUSHLINE4=1)
+else()
+    message(STATUS "libvterm does not have pushline4 - text reflow disabled")
+    target_compile_definitions(telnet-gui PRIVATE HAVE_VTERM_PUSHLINE4=0)
+
+    # Check if using distribution libvterm 0.3.3 and recommend upstream
+    if(VTERM_VERSION AND VTERM_VERSION VERSION_LESS_EQUAL "0.3.3")
+        message(STATUS "")
+
+        # Determine if from source build or distribution package
+        string(FIND "${VTERM_PKG_CONFIG}" "/usr/local/" FOUND_USR_LOCAL)
+        if(FOUND_USR_LOCAL EQUAL -1)
+            # Not in /usr/local, likely distribution package
+            message(STATUS "NOTE: libvterm ${VTERM_VERSION} detected from distribution package")
+            message(STATUS "For full text reflow support, consider building from upstream source:")
+            message(STATUS "  git clone https://github.com/neovim/libvterm.git -b nvim")
+            message(STATUS "  cd libvterm && make && make install")
+            message(STATUS "This will install to /usr/local which is checked first by CMake")
+        else()
+            # In /usr/local but still lacks pushline4
+            message(STATUS "NOTE: libvterm ${VTERM_VERSION} detected in /usr/local (lacks pushline4)")
+            message(STATUS "For full text reflow support, update from nvim branch:")
+            message(STATUS "  cd <libvterm-source-dir>")
+            message(STATUS "  git checkout nvim && git pull")
+            message(STATUS "  make clean && make && make install")
+        endif()
+        message(STATUS "")
+    endif()
+endif()
+
+# Test for vterm_screen_enable_reflow
+check_c_source_compiles("
+    #include <vterm.h>
+    int main() {
+        VTerm *vt = NULL;
+        VTermScreen *screen = NULL;
+        vterm_screen_enable_reflow(screen, 1);
+        return 0;
+    }
+" HAVE_VTERM_REFLOW)
+
+if(HAVE_VTERM_REFLOW)
+    target_compile_definitions(telnet-gui PRIVATE HAVE_VTERM_REFLOW=1)
+else()
+    target_compile_definitions(telnet-gui PRIVATE HAVE_VTERM_REFLOW=0)
+endif()
+
 pkg_check_modules(GC REQUIRED bdw-gc)
 pkg_check_modules(PCRE2 REQUIRED libpcre2-8)
 
 # Link directories first
 target_link_directories(telnet-gui PRIVATE ${SDL2_LIBDIR} ${SDL2_TTF_LIBDIR} ${VTERM_LIBDIR})
 
-# Add /usr/local/lib for libvterm if not found via pkg-config
+# Add libvterm library directories if not found via pkg-config
+# Search both /ucrt64/lib (MSYS2 package) and /usr/local/lib (source build)
 if(WIN32 AND NOT VTERM_LIBDIR)
-    # Find MSYS2 root and add /usr/local/lib
-    set(USR_LOCAL_LIB "")
-    if(DEFINED ENV{MSYS2_ROOT})
-        if(EXISTS "$ENV{MSYS2_ROOT}/usr/local/lib/libvterm.a" OR EXISTS "$ENV{MSYS2_ROOT}/usr/local/lib/libvterm.dll.a")
-            set(USR_LOCAL_LIB "$ENV{MSYS2_ROOT}/usr/local/lib")
+    # Find MSYS2 root and search for libvterm in both UCRT64 and /usr/local
+    set(VTERM_LIB_DIR "")
+
+    # First check /usr/local by deriving MSYS2 root from UCRT64_ROOT (PRIORITY)
+    if(DEFINED UCRT64_ROOT)
+        get_filename_component(MSYS2_ROOT_FROM_UCRT64 "${UCRT64_ROOT}" DIRECTORY)
+        if(EXISTS "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib/libvterm.a" OR EXISTS "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib/libvterm.dll.a")
+            set(VTERM_LIB_DIR "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib")
+            message(STATUS "Found libvterm library in /usr/local: ${VTERM_LIB_DIR}")
         endif()
     endif()
 
-    if(NOT USR_LOCAL_LIB)
+    # Then check /usr/local via MSYS2_ROOT env var (fallback)
+    if(NOT VTERM_LIB_DIR AND DEFINED ENV{MSYS2_ROOT})
+        if(EXISTS "$ENV{MSYS2_ROOT}/usr/local/lib/libvterm.a" OR EXISTS "$ENV{MSYS2_ROOT}/usr/local/lib/libvterm.dll.a")
+            set(VTERM_LIB_DIR "$ENV{MSYS2_ROOT}/usr/local/lib")
+            message(STATUS "Found libvterm library in /usr/local: ${VTERM_LIB_DIR}")
+        endif()
+    endif()
+
+    # Then check UCRT64_ROOT if defined (FALLBACK)
+    if(NOT VTERM_LIB_DIR AND DEFINED UCRT64_ROOT)
+        if(EXISTS "${UCRT64_ROOT}/lib/libvterm.a" OR EXISTS "${UCRT64_ROOT}/lib/libvterm.dll.a")
+            set(VTERM_LIB_DIR "${UCRT64_ROOT}/lib")
+            message(STATUS "Found libvterm library in UCRT64: ${VTERM_LIB_DIR}")
+        endif()
+    endif()
+
+    # Search common MSYS2 locations for both UCRT64 and /usr/local
+    if(NOT VTERM_LIB_DIR)
         set(MSYS2_LIB_PATHS
+            # /usr/local source build locations (PRIORITY)
             "C:/msys64"
             "C:/tools/msys64"
             "$ENV{USERPROFILE}/scoop/apps/msys2/current"
             "$ENV{ProgramFiles}/msys64"
             "${PROGRAM_FILES_X86}/msys64"
+            # UCRT64 package locations (FALLBACK)
+            "C:/msys64/ucrt64"
+            "C:/tools/msys64/ucrt64"
+            "$ENV{USERPROFILE}/scoop/apps/msys2/current/ucrt64"
+            "$ENV{ProgramFiles}/msys64/ucrt64"
         )
         if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
-            file(GLOB SCOOP_LIB_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*")
-            list(APPEND MSYS2_LIB_PATHS ${SCOOP_LIB_VERSIONS})
+            file(GLOB SCOOP_ROOT_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*")
+            file(GLOB SCOOP_UCRT64_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*/ucrt64")
+            list(APPEND MSYS2_LIB_PATHS ${SCOOP_ROOT_VERSIONS} ${SCOOP_UCRT64_VERSIONS})
         endif()
 
         foreach(ROOT IN LISTS MSYS2_LIB_PATHS)
+            # Check /usr/local/lib first
             if(EXISTS "${ROOT}/usr/local/lib/libvterm.a" OR EXISTS "${ROOT}/usr/local/lib/libvterm.dll.a")
-                set(USR_LOCAL_LIB "${ROOT}/usr/local/lib")
-                message(STATUS "Found libvterm library at: ${USR_LOCAL_LIB}")
+                set(VTERM_LIB_DIR "${ROOT}/usr/local/lib")
+                message(STATUS "Found libvterm library at: ${VTERM_LIB_DIR}")
+                break()
+            endif()
+            # Then check UCRT64 lib location
+            if(EXISTS "${ROOT}/lib/libvterm.a" OR EXISTS "${ROOT}/lib/libvterm.dll.a")
+                set(VTERM_LIB_DIR "${ROOT}/lib")
+                message(STATUS "Found libvterm library at: ${VTERM_LIB_DIR}")
                 break()
             endif()
         endforeach()
     endif()
 
-    if(USR_LOCAL_LIB)
-        target_link_directories(telnet-gui PRIVATE "${USR_LOCAL_LIB}")
+    if(VTERM_LIB_DIR)
+        target_link_directories(telnet-gui PRIVATE "${VTERM_LIB_DIR}")
     else()
-        target_link_directories(telnet-gui PRIVATE "/usr/local/lib")
+        # Fallback: add both possible locations
+        target_link_directories(telnet-gui PRIVATE "/ucrt64/lib" "/usr/local/lib")
     endif()
 else()
+    # Unix/Linux: try both standard locations
     target_link_directories(telnet-gui PRIVATE "/usr/local/lib")
 endif()
 
@@ -283,61 +426,100 @@ target_include_directories(telnet-gui PRIVATE
     ../telnet-lisp/include
 )
 
-# Add /usr/local/include for libvterm
-# On MSYS2 Windows, we need to handle path conversion
+# Add libvterm include directories
+# Search both /ucrt64/include (MSYS2 package) and /usr/local/include (source build)
 if(WIN32)
-    set(USR_LOCAL_INCLUDE "")
+    set(VTERM_INCLUDE_DIR "")
     if(NOT DEFINED PROGRAM_FILES_X86)
         set(PROGRAM_FILES_X86 "$ENV{ProgramFiles\(x86\)}")
     endif()
 
-    # Try environment variable first
-    if(DEFINED ENV{MSYS2_ROOT})
-        if(EXISTS "$ENV{MSYS2_ROOT}/usr/local/include/vterm.h")
-            set(USR_LOCAL_INCLUDE "$ENV{MSYS2_ROOT}/usr/local/include")
+    # First check /usr/local by deriving MSYS2 root from UCRT64_ROOT (PRIORITY)
+    if(DEFINED UCRT64_ROOT)
+        get_filename_component(MSYS2_ROOT_FROM_UCRT64 "${UCRT64_ROOT}" DIRECTORY)
+        if(EXISTS "${MSYS2_ROOT_FROM_UCRT64}/usr/local/include/vterm.h")
+            set(VTERM_INCLUDE_DIR "${MSYS2_ROOT_FROM_UCRT64}/usr/local/include")
+            message(STATUS "Found libvterm headers in /usr/local: ${VTERM_INCLUDE_DIR}")
         endif()
     endif()
 
-    # Try common MSYS2 locations if not found
-    if(NOT USR_LOCAL_INCLUDE)
+    # Then check /usr/local via MSYS2_ROOT env var (fallback)
+    if(NOT VTERM_INCLUDE_DIR AND DEFINED ENV{MSYS2_ROOT})
+        if(EXISTS "$ENV{MSYS2_ROOT}/usr/local/include/vterm.h")
+            set(VTERM_INCLUDE_DIR "$ENV{MSYS2_ROOT}/usr/local/include")
+            message(STATUS "Found libvterm headers in /usr/local: ${VTERM_INCLUDE_DIR}")
+        endif()
+    endif()
+
+    # Then check UCRT64_ROOT if defined (FALLBACK)
+    if(NOT VTERM_INCLUDE_DIR AND DEFINED UCRT64_ROOT)
+        if(EXISTS "${UCRT64_ROOT}/include/vterm.h")
+            set(VTERM_INCLUDE_DIR "${UCRT64_ROOT}/include")
+            message(STATUS "Found libvterm headers in UCRT64: ${VTERM_INCLUDE_DIR}")
+        endif()
+    endif()
+
+    # Search common MSYS2 locations for both UCRT64 and /usr/local
+    if(NOT VTERM_INCLUDE_DIR)
         set(MSYS2_PATHS
+            # /usr/local source build locations (PRIORITY)
             "C:/msys64"
             "C:/tools/msys64"
             "$ENV{USERPROFILE}/scoop/apps/msys2/current"
             "$ENV{ProgramFiles}/msys64"
             "${PROGRAM_FILES_X86}/msys64"
+            # UCRT64 package locations (FALLBACK)
+            "C:/msys64/ucrt64"
+            "C:/tools/msys64/ucrt64"
+            "$ENV{USERPROFILE}/scoop/apps/msys2/current/ucrt64"
+            "$ENV{ProgramFiles}/msys64/ucrt64"
         )
 
         # Also check for versioned Scoop installations
         if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
-            file(GLOB SCOOP_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*")
-            list(APPEND MSYS2_PATHS ${SCOOP_VERSIONS})
+            file(GLOB SCOOP_ROOT_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*")
+            file(GLOB SCOOP_UCRT64_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*/ucrt64")
+            list(APPEND MSYS2_PATHS ${SCOOP_ROOT_VERSIONS} ${SCOOP_UCRT64_VERSIONS})
         endif()
 
         foreach(ROOT IN LISTS MSYS2_PATHS)
+            # Check /usr/local/include first
             if(EXISTS "${ROOT}/usr/local/include/vterm.h")
-                set(USR_LOCAL_INCLUDE "${ROOT}/usr/local/include")
-                message(STATUS "Found libvterm headers at: ${USR_LOCAL_INCLUDE}")
+                set(VTERM_INCLUDE_DIR "${ROOT}/usr/local/include")
+                message(STATUS "Found libvterm headers at: ${VTERM_INCLUDE_DIR}")
+                break()
+            endif()
+            # Then check UCRT64 include location
+            if(EXISTS "${ROOT}/include/vterm.h")
+                set(VTERM_INCLUDE_DIR "${ROOT}/include")
+                message(STATUS "Found libvterm headers at: ${VTERM_INCLUDE_DIR}")
                 break()
             endif()
         endforeach()
     endif()
 
-    # Fallback: try /usr/local/include directly (works in MSYS2 shell)
-    if(NOT USR_LOCAL_INCLUDE)
+    # Fallback: try Unix-style paths (works in MSYS2 shell)
+    if(NOT VTERM_INCLUDE_DIR)
         if(EXISTS "/usr/local/include/vterm.h")
-            set(USR_LOCAL_INCLUDE "/usr/local/include")
+            set(VTERM_INCLUDE_DIR "/usr/local/include")
             message(STATUS "Found libvterm headers at: /usr/local/include")
+        elseif(EXISTS "/ucrt64/include/vterm.h")
+            set(VTERM_INCLUDE_DIR "/ucrt64/include")
+            message(STATUS "Found libvterm headers at: /ucrt64/include")
         endif()
     endif()
 
-    if(USR_LOCAL_INCLUDE)
-        target_include_directories(telnet-gui SYSTEM PRIVATE "${USR_LOCAL_INCLUDE}")
+    if(VTERM_INCLUDE_DIR)
+        target_include_directories(telnet-gui SYSTEM PRIVATE "${VTERM_INCLUDE_DIR}")
     else()
-        message(WARNING "libvterm headers not found. Please ensure libvterm is installed in /usr/local")
-        target_include_directories(telnet-gui SYSTEM PRIVATE "/usr/local/include")
+        message(WARNING "libvterm headers not found. Please install libvterm:")
+        message(WARNING "  MSYS2 package: pacman -S mingw-w64-ucrt-x86_64-libvterm")
+        message(WARNING "  Source build: https://github.com/neovim/libvterm → make install")
+        # Fallback: add both possible locations
+        target_include_directories(telnet-gui SYSTEM PRIVATE "/ucrt64/include" "/usr/local/include")
     endif()
 else()
+    # Unix/Linux: standard location
     target_include_directories(telnet-gui SYSTEM PRIVATE "/usr/local/include")
 endif()
 

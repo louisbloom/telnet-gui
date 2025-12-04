@@ -17,27 +17,50 @@ The `telnet-gui` application provides a graphical interface for connecting to te
 
 - **SDL2**: Graphics and windowing (`mingw-w64-ucrt-x86_64-SDL2`)
 - **SDL2_ttf**: TrueType font rendering (`mingw-w64-ucrt-x86_64-SDL2_ttf`)
-- **libvterm**: Terminal emulation library (v0.3.3 or later) - installed from source in `/usr/local`
+- **libvterm**: Terminal emulation library
+  - **Distribution packages (≤0.3.3)**: Basic scrollback only, no text reflow
+  - **Upstream source (current)**: Full text reflow support (recommended)
 - **Boehm GC**: Garbage collector for Lisp backend (`mingw-w64-ucrt-x86_64-gc`)
 - **PCRE2**: Regular expression support (`mingw-w64-ucrt-x86_64-pcre2`)
 
 ### Installation (MSYS2 UCRT64)
 
+#### libvterm Installation Priority
+
+**Option 1: Build from Upstream Source (Recommended for full features)**
+
 ```bash
+# Install other dependencies first
 pacman -S mingw-w64-ucrt-x86_64-SDL2 \
           mingw-w64-ucrt-x86_64-SDL2_ttf \
           mingw-w64-ucrt-x86_64-gc \
           mingw-w64-ucrt-x86_64-pcre2
-```
 
-For libvterm, install from source:
-
-```bash
+# Build and install libvterm to /usr/local (checked first by CMake)
 git clone https://github.com/neovim/libvterm.git
 cd libvterm
 make
 make install  # Installs to /usr/local
 ```
+
+**Option 2: Use Distribution Package (Limited features)**
+
+```bash
+pacman -S mingw-w64-ucrt-x86_64-SDL2 \
+          mingw-w64-ucrt-x86_64-SDL2_ttf \
+          mingw-w64-ucrt-x86_64-libvterm \
+          mingw-w64-ucrt-x86_64-gc \
+          mingw-w64-ucrt-x86_64-pcre2
+```
+
+**Feature Detection:**
+
+CMake automatically detects libvterm capabilities at build time:
+- **Distribution packages (v0.3.3 and older)**: Basic scrollback only
+- **Upstream source (post-2024)**: Full text reflow when terminal resizes
+- **CMake priority**: Checks /usr/local first, then falls back to system packages
+
+If CMake detects v0.3.3 or older, it will suggest building from upstream source.
 
 ## Build
 
@@ -70,15 +93,18 @@ Example:
 ```
 
 **Font Options:**
+
 - `-f, --font-size SIZE` - Set font size in points (default: 16)
 - `-p, --plex` - Use IBM Plex Mono font instead of Monaco
 - `-H, --hinting MODE` - Font hinting mode: none (default), light, normal, mono
 - `-a, --antialiasing MODE` - Anti-aliasing mode: linear (default), nearest
 
 **Terminal Options:**
+
 - `-g, --geometry COLSxROWS` - Set terminal size (default: 80x40)
 
 **Other Options:**
+
 - `-l, --lisp-file FILE` - Load Lisp configuration file on startup
 - `--debug-exit` - Exit after initialization (for capturing debug output)
 - `-h, --help` - Show help message
@@ -109,6 +135,7 @@ Example:
 The telnet-gui includes automatic word completion powered by Lisp scripting:
 
 **Features:**
+
 - **Automatic word collection** - Words from server output are automatically collected
 - **Tab completion** - Press TAB to complete words based on prefix
 - **Case-insensitive matching** - Matches words regardless of case
@@ -117,6 +144,7 @@ The telnet-gui includes automatic word completion powered by Lisp scripting:
 - **Newest-first results** - Most recently seen words appear first in completions
 
 **Usage:**
+
 1. Connect to a server and let it send output
 2. Type a partial word (e.g., "hel")
 3. Press TAB to see completions
@@ -138,6 +166,7 @@ Word completion is configured in `bootstrap.lisp` (automatically loaded). You ca
 ```
 
 To disable completion, override in your custom config:
+
 ```bash
 # Create disable-completion.lisp
 echo '(defun completion-hook (text) ())' > disable-completion.lisp
@@ -155,6 +184,7 @@ echo '(defun telnet-input-hook (text) ())' >> disable-completion.lisp
 ### Slash Commands
 
 Available in Normal mode:
+
 - `/help` - Show available commands
 - `/connect <server> <port>` - Connect to server
 - `/disconnect` - Disconnect from server
@@ -165,11 +195,13 @@ Available in Normal mode:
 The telnet-gui supports TinTin++ scripting features including aliases, variables, speedwalking, and command chaining.
 
 **Quick Start:**
+
 ```bash
 ./build/telnet-gui/telnet-gui.exe -l telnet-gui/tintin.lisp <host> <port>
 ```
 
 **Features:**
+
 - Command aliases with pattern matching (`#alias {k} {kill %1}`)
 - Variables with substitution (`#variable {target} {orc}`, then `kill $target`)
 - Speedwalk notation (`3n2e` expands to `n;n;n;e;e`)
@@ -190,6 +222,7 @@ The telnet-gui directory contains Lisp scripts that can be loaded and tested ind
 ### Test Format
 
 Test files use inline expectations:
+
 ```lisp
 (expression)        ; => expected-result
 (define x 10)       ; ignore
@@ -218,6 +251,7 @@ VERBOSE=1 ../telnet-lisp/test_runner.sh ../telnet-gui/tintin-test.lisp
 ```
 
 Output:
+
 ```bash
 PASS: tintin-test (outputs match)
 ```
@@ -237,6 +271,7 @@ cd build
 ```
 
 Output:
+
 ```bash
 #<lambda:terminal-echo>
 #<lambda:telnet-send>
@@ -261,11 +296,13 @@ Create a `.lisp` file with test expressions:
 ```
 
 Run with test_runner.sh:
+
 ```bash
 ./telnet-lisp/test_runner.sh my-test.lisp
 ```
 
 Or manually with lisp-repl:
+
 ```bash
 ./build/lisp-repl my-test.lisp
 ```
@@ -285,6 +322,7 @@ When working with libvterm 0.3.3, follow these requirements **exactly** to avoid
 5. Reset screen: `vterm_screen_reset(screen, 1)` (this resets state internally and initializes encoding arrays)
 
 **Do NOT:**
+
 - Set state callbacks manually when using screen layer (screen handles this internally)
 - Reset state directly (screen reset handles it)
 - Get state before screen (screen creates it)
@@ -450,6 +488,7 @@ if (!vterm_check_version(0, 3)) {
 ### Terminal Emulation Flow
 
 **Telnet Input (Server → Terminal):**
+
 1. Data arrives via telnet connection
 2. Lisp `telnet-input-filter` transforms data (optional)
 3. `terminal_feed_data()` writes to `vterm_input_write()`
@@ -460,6 +499,7 @@ if (!vterm_check_version(0, 3)) {
 8. SDL renders glyphs to screen
 
 **User Input (Terminal → Telnet):**
+
 1. User types in input area or presses keys
 2. Lisp `user-input-hook` transforms input (optional)
 3. Input sent to telnet connection
@@ -468,11 +508,13 @@ if (!vterm_check_version(0, 3)) {
 ### Lisp Scripting System
 
 **Bootstrap Process:**
+
 1. `bootstrap.lisp` is automatically loaded on startup from build directory
 2. Sets up word completion, hooks, colors, and default configuration
 3. Optional user config file loaded via `-l` flag (overrides defaults)
 
 **Available Hooks:**
+
 - `completion-hook` - Called for TAB completion (default: word store lookup)
 - `telnet-input-hook` - Called on server output (default: collect words)
 - `telnet-input-filter` - Transform server output before display (default: pass-through)
@@ -480,6 +522,7 @@ if (!vterm_check_version(0, 3)) {
 - `mode-render-hook` - Render custom mode display (default: emoji symbols)
 
 **Configuration Variables:**
+
 - Completion: `*completion-word-store-size*`, `*completion-max-results*`, `*completion-pattern*`
 - Scrolling: `*scroll-lines-per-click*`, `*smooth-scrolling-enabled*`, `*max-scrollback-lines*`
 - Colors: `*terminal-fg-color*`, `*terminal-bg-color*`, `*input-area-fg-color*`, etc.
@@ -515,8 +558,8 @@ If you get a segmentation fault:
 ### Build Issues
 
 - Ensure all dependencies are UCRT64-compatible (no MINGW64 or MSYS)
-- Check that libvterm is installed in `/usr/local`
-- Verify `PKG_CONFIG_PATH` includes `/usr/local/lib/pkgconfig` (CMakeLists.txt handles this)
+- Check that libvterm is installed (MSYS2 package in `/ucrt64` or source build in `/usr/local`)
+- Verify `PKG_CONFIG_PATH` includes libvterm's pkgconfig directory (CMakeLists.txt auto-detects both locations)
 
 ## Development
 
@@ -558,6 +601,7 @@ telnet-gui.exe --debug-exit 2>&1
 ```
 
 The `--debug-exit` flag makes telnet-gui exit after the first frame is rendered, which is useful for:
+
 - Verifying font loading and emoji support
 - Checking mode area rendering and sizing
 - Capturing bootstrap and initialization logs
@@ -589,6 +633,7 @@ gdb ./telnet-gui.exe
 ```
 
 **Common debugging scenarios:**
+
 - Segfault on startup → Check callback structure lifetime (see libvterm integration above)
 - Segfault during rendering → Check glyph cache and texture creation
 - Connection issues → Check telnet protocol negotiation
@@ -596,6 +641,7 @@ gdb ./telnet-gui.exe
 #### Debug Output
 
 The application prints debug information to stderr:
+
 - Bootstrap file resolution paths
 - Font loading and fallback attempts
 - Emoji font detection

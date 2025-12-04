@@ -56,7 +56,7 @@ sudo apt install build-essential cmake pkg-config libgc-dev libpcre2-dev
 
 # GUI project dependencies (optional)
 sudo apt install libsdl2-dev libsdl2-ttf-dev
-# libvterm: install from source (see telnet-gui/README.md)
+# libvterm: package may not be available, install from source (see telnet-gui/README.md)
 ```
 
 **macOS:**
@@ -67,7 +67,7 @@ brew install cmake pkg-config bdw-gc pcre2
 
 # GUI project dependencies (optional)
 brew install sdl2 sdl2_ttf
-# libvterm: install from source (see telnet-gui/README.md)
+# libvterm: package may not be available, install from source (see telnet-gui/README.md)
 ```
 
 ### Building
@@ -150,6 +150,7 @@ Try some Lisp:
 ### Documentation
 
 For complete documentation including:
+
 - All available functions and special forms
 - Detailed API reference
 - Examples and usage patterns
@@ -166,29 +167,32 @@ To integrate telnet-lisp into your project, see **[telnet-lisp/PACKAGING.md](tel
 A graphical telnet client with terminal emulation, built using SDL2 and libvterm. This project integrates with **telnet-lisp** to provide scriptable automation and command processing capabilities.
 
 **Integration with telnet-lisp:**
+
 - Uses telnet-lisp for Lisp-based automation and scripting
 - Provides a GUI interface for telnet connections
 - Enables Lisp scripting within the telnet client
 
 **Key Features:**
+
 - Full VT100-compatible terminal emulation using libvterm
 - SDL2-based graphical interface with font rendering
 - Real-time rendering with efficient screen updates and glyph caching
 - Keyboard and mouse input support
 
 **Dependencies:**
+
 - SDL2 (windowing and rendering)
 - SDL2_ttf (font rendering)
-- libvterm (terminal emulation) - install from source
+- libvterm (terminal emulation) - MSYS2 package or source build
 - **telnet-lisp** (core library - included)
 
 **Building:**
 
 ```bash
-# Install GUI dependencies (MSYS2)
+# Install GUI dependencies (MSYS2 UCRT64)
 pacman -S mingw-w64-ucrt-x86_64-SDL2
 pacman -S mingw-w64-ucrt-x86_64-SDL2_ttf
-# libvterm: install from source (see telnet-gui/README.md)
+pacman -S mingw-w64-ucrt-x86_64-libvterm
 
 # Build from repository root
 cd build

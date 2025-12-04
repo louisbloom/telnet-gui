@@ -49,6 +49,7 @@ ggh         # Sends two commands: get gold, then go home
 ```
 
 **Parameter Substitution:**
+
 - `%0` - All arguments
 - `%1`, `%2`, `%3`, etc. - Individual arguments
 
@@ -252,6 +253,7 @@ Test TinTin++ features with the included test suite:
 ```
 
 The test suite covers:
+
 - Command separation and splitting
 - Speedwalk expansion
 - Alias creation and expansion

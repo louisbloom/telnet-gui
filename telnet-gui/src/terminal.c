@@ -2,6 +2,7 @@
 
 #include "terminal.h"
 #include "telnet.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -131,6 +132,7 @@ static int sb_pushline(int cols, const VTermScreenCell *cells, void *user) {
     return 1;
 }
 
+#if HAVE_VTERM_PUSHLINE4
 static int sb_pushline4(int cols, const VTermScreenCell *cells, bool continuation, void *user) {
     Terminal *term = (Terminal *)user;
     if (!term || !cells)
@@ -171,6 +173,7 @@ static int sb_pushline4(int cols, const VTermScreenCell *cells, bool continuatio
     term->scrollback_size++;
     return 1;
 }
+#endif /* HAVE_VTERM_PUSHLINE4 */
 
 static int sb_popline(int cols, VTermScreenCell *cells, void *user) {
     Terminal *term = (Terminal *)user;
@@ -313,16 +316,25 @@ Terminal *terminal_create(int rows, int cols) {
     term->callbacks.sb_pushline = sb_pushline;
     term->callbacks.sb_popline = sb_popline;
     term->callbacks.sb_clear = sb_clear;
+#if HAVE_VTERM_PUSHLINE4
     term->callbacks.sb_pushline4 = sb_pushline4;
+#endif
 
     /* Set callbacks FIRST (like demo/main.c) */
     vterm_screen_set_callbacks(term->screen, &term->callbacks, term);
 
+#if HAVE_VTERM_PUSHLINE4
     /* Enable pushline4 callback support */
     vterm_screen_callbacks_has_pushline4(term->screen);
+    fprintf(stderr, "Using libvterm with pushline4 (text reflow enabled)\n");
+#else
+    fprintf(stderr, "Using legacy libvterm (text reflow disabled)\n");
+#endif
 
+#if HAVE_VTERM_REFLOW
     /* Enable text reflow so text wraps when terminal is resized */
     vterm_screen_enable_reflow(term->screen, 1);
+#endif
 
     /* Reset screen (hard reset) - this calls vterm_state_reset internally */
     /* State reset initializes encoding arrays using UTF-8 mode */
