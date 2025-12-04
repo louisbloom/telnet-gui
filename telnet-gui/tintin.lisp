@@ -213,35 +213,76 @@
 		       (set! end-pos (+ end-pos 1)))))))
 	  (set! pos (+ pos 1))))))
 
-;; Parse N braced arguments from command string
+;; Extract space-delimited token starting at pos
+;; Returns (token . next-pos) or nil if no token found
+;; Example: (tintin-extract-token "#load Det" 6) => ("Det" . 9)
+(defun tintin-extract-token (str start-pos)
+  (if (>= start-pos (string-length str))
+      nil
+      (let ((len (string-length str))
+            (pos start-pos))
+        ;; Skip leading whitespace
+        (do ()
+            ((or (>= pos len) (not (string= (string-ref str pos) " "))))
+          (set! pos (+ pos 1)))
+        ;; Check if we have any characters left
+        (if (>= pos len)
+            nil
+            ;; Find end of token (space or end of string)
+            (let ((start pos)
+                  (end pos))
+              (do ()
+                  ((or (>= end len) (string= (string-ref str end) " ")))
+                (set! end (+ end 1)))
+              ;; Return token and position
+              (if (= start end)
+                  nil
+                  (cons (substring str start end) end)))))))
+
+;; Parse N braced OR space-delimited arguments from command string
 ;; Returns: list of N strings or nil if parsing fails
+;; Braces are optional for single-word arguments (TinTin++ standard)
 ;; Example: (tintin-parse-braced-args "#alias {k} {kill %1}" 2) => ("k" "kill %1")
+;;          (tintin-parse-braced-args "#load Det" 1) => ("Det")
 (defun tintin-parse-braced-args (input n)
   (let ((start-pos 1)       ; Start after #
         (args '())
         (success #t))
-    ;; Find first {
+    ;; Find first { OR first non-space character
     (do ()
         ((or (>= start-pos (string-length input))
-             (string= (string-ref input start-pos) "{")))
+             (string= (string-ref input start-pos) "{")
+             (not (string= (string-ref input start-pos) " "))))
       (set! start-pos (+ start-pos 1)))
 
-    ;; Extract N arguments
+    ;; Check if we found anything
     (if (>= start-pos (string-length input))
-        nil  ; No { found
-        (progn
-          (do ((i 0 (+ i 1)))
-              ((or (>= i n) (not success)))
-            (let ((arg-data (tintin-extract-braced input start-pos)))
-              (if arg-data
-                  (progn
-                    (set! args (cons (car arg-data) args))
-                    (set! start-pos (cdr arg-data)))
-                  (set! success #f))))
-
-          (if success
-              (reverse args)
-              nil)))))
+        nil  ; No arguments found
+        ;; Check if using braced or unbraced format
+        (let ((using-braces (string= (string-ref input start-pos) "{")))
+          (if using-braces
+              ;; Braced format - extract N braced arguments
+              (progn
+                (do ((i 0 (+ i 1)))
+                    ((or (>= i n) (not success)))
+                  (let ((arg-data (tintin-extract-braced input start-pos)))
+                    (if arg-data
+                        (progn
+                          (set! args (cons (car arg-data) args))
+                          (set! start-pos (cdr arg-data)))
+                        (set! success #f))))
+                (if success (reverse args) nil))
+              ;; Unbraced format - extract N space-delimited tokens
+              (progn
+                (do ((i 0 (+ i 1)))
+                    ((or (>= i n) (not success)))
+                  (let ((token-data (tintin-extract-token input start-pos)))
+                    (if token-data
+                        (progn
+                          (set! args (cons (car token-data) args))
+                          (set! start-pos (cdr token-data)))
+                        (set! success #f))))
+                (if success (reverse args) nil)))))))
 
 
 ;; Match a pattern against input and extract placeholder values

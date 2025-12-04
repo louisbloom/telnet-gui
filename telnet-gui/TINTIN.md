@@ -88,6 +88,25 @@ Semicolons inside braces are preserved (not treated as command separators):
 ef          # Sends two commands: get food, then eat food
 ```
 
+## Command Syntax
+
+All TinTin++ commands start with `#` and support two argument formats:
+
+**Braced format** (required for multi-word arguments):
+```bash
+#alias {go north} {n;n;n}
+#variable {my var} {some value}
+```
+
+**Unbraced format** (optional for single-word arguments):
+```bash
+#alias k kill
+#variable target orc
+#load config.lisp
+```
+
+Both formats work for all commands. Use braces when arguments contain spaces.
+
 ## Commands
 
 ### #alias
@@ -96,6 +115,7 @@ Create a command alias:
 
 ```bash
 #alias {name} {commands}
+#alias name commands        # Braces optional for single words
 ```
 
 **Examples:**
@@ -124,13 +144,17 @@ Define a variable:
 
 ```bash
 #variable {name} {value}
+#variable name value        # Braces optional for single words
 ```
 
 **Examples:**
 
 ```bash
 #variable {target} {goblin}
-#variable {home} {recall}
+#variable target goblin     # Same as above
+
+# Multi-word values need braces
+#variable {home} {recall;say I'm home}
 
 # Use in commands
 kill $target       # Sends: kill goblin
@@ -147,12 +171,14 @@ Save current aliases and variables to a file:
 
 ```bash
 #save {filename}
+#save filename              # Braces optional for single words
 ```
 
 **Example:**
 
 ```bash
 #save {my-config.lisp}
+#save my-config.lisp        # Same as above
 ```
 
 This creates a Lisp file with all your current aliases, variables, and settings.
@@ -163,6 +189,7 @@ Load aliases and variables from a saved file:
 
 ```bash
 #load {filename}
+#load filename              # Braces optional for single words
 ```
 
 **Example:**

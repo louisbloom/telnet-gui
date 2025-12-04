@@ -416,3 +416,42 @@
 ;; Verify original command was echoed
 (> (list-length *terminal-echo-log*) 0)                   ; => #t
 (string-prefix? "ef" (list-ref *terminal-echo-log* 0))    ; => #t
+
+;; ============================================================================
+;; Test 21: #load Command WITHOUT Braces (Braces Optional for Single Words)
+;; ============================================================================
+
+;; Clear logs
+(set! *telnet-send-log* '())                         ; ignore
+(set! *terminal-echo-log* '())                       ; ignore
+
+;; Test #load command WITHOUT braces (should now work - braces are optional)
+(tintin-process-command "#load Det")                 ; ignore
+
+;; Check what was echoed
+(>= (list-length *terminal-echo-log*) 1)             ; => #t
+;; First echo should be the command
+(list-ref *terminal-echo-log* 0)                     ; => "#load Det\r\n"
+
+;; Clear logs
+(set! *telnet-send-log* '())                         ; ignore
+(set! *terminal-echo-log* '())                       ; ignore
+
+;; Test #load command WITH braces (should still work)
+(tintin-process-command "#load {Det}")               ; ignore
+
+;; Check what was echoed
+(>= (list-length *terminal-echo-log*) 1)             ; => #t
+;; First echo should be the command with braces
+(list-ref *terminal-echo-log* 0)                     ; => "#load {Det}\r\n"
+
+;; Test #alias with mixed format (braced and unbraced)
+(tintin-process-command "#alias x north")            ; ignore
+(hash-ref *tintin-aliases* "x")                      ; => ("north" 5)
+
+(tintin-process-command "#alias {y} {south}")        ; ignore
+(hash-ref *tintin-aliases* "y")                      ; => ("south" 5)
+
+;; Test #variable without braces
+(tintin-process-command "#variable test value")      ; ignore
+(hash-ref *tintin-variables* "test")                 ; => "value"
