@@ -406,6 +406,20 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    /* Estimate initial window size based on terminal geometry and font size */
+    /* Cell dimensions roughly scale with font size: Monaco/Plex at 16pt ≈ 10x18 pixels */
+    /* Use ratio: cell_width ≈ font_size * 0.625, cell_height ≈ font_size * 1.125 */
+    int estimated_cell_w = (int)(font_size * 0.625);
+    int estimated_cell_h = (int)(font_size * 1.125);
+    int estimated_titlebar_h = 30;                 /* Titlebar height */
+    int estimated_resize_bar_h = 8;                /* Resize bar height */
+    int estimated_input_area_h = estimated_cell_h; /* Input area is one cell height */
+
+    /* Calculate initial window size from terminal geometry */
+    int initial_window_width = terminal_cols * estimated_cell_w;
+    int initial_window_height =
+        terminal_rows * estimated_cell_h + estimated_titlebar_h + estimated_input_area_h + estimated_resize_bar_h;
+
     /* Set locale for UTF-8 support */
     setlocale(LC_ALL, "");
 
@@ -451,8 +465,8 @@ int main(int argc, char **argv) {
 
     atexit(cleanup);
 
-    /* Create window */
-    Window *win = window_create("Telnet GUI", 800, 600);
+    /* Create window with estimated size based on terminal geometry */
+    Window *win = window_create("Telnet GUI", initial_window_width, initial_window_height);
     if (!win) {
         fprintf(stderr, "Failed to create window\n");
         return 1;
