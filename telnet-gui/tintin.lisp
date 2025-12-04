@@ -185,7 +185,9 @@
 ;; TEST 3: ALIAS CREATION
 ;; ============================================================================
 
-;; Extract text between braces
+;; Extract braced argument (including braces)
+;; Returns (braced-text . next-pos) or nil if no braced text found
+;; Example: "{hello {world}}" → ("{hello {world}}" . position-after-closing-brace)
 (defun tintin-extract-braced (str start-pos)
   (if (>= start-pos (string-length str))
       nil
@@ -196,14 +198,15 @@
 	    ((or (>= pos len) (string= (string-ref str pos) "{"))
 	     (if (>= pos len)
 		 nil
-		 ;; Extract until closing brace
+		 ;; Extract including braces - track depth for nested braces
 		 (let ((depth 1)
-		       (start (+ pos 1))
+		       (brace-start pos)  ; Start at opening brace
 		       (end-pos (+ pos 1)))
 		   (do ()
 		       ((or (>= end-pos len) (= depth 0))
 			(if (= depth 0)
-			    (cons (substring str start (- end-pos 1)) end-pos)
+			    ;; Return text INCLUDING braces (from brace-start to end-pos)
+			    (cons (substring str brace-start end-pos) end-pos)
 			    nil))
 		     (let ((ch (string-ref str end-pos)))
 		       (if (string= ch "{")
@@ -239,49 +242,60 @@
                   nil
                   (cons (substring str start end) end)))))))
 
-;; Parse N braced OR space-delimited arguments from command string
+;; Parse N arguments from command string (mixed format: braced or unbraced)
 ;; Returns: list of N strings or nil if parsing fails
-;; Braces are optional for single-word arguments (TinTin++ standard)
-;; Example: (tintin-parse-braced-args "#alias {k} {kill %1}" 2) => ("k" "kill %1")
-;;          (tintin-parse-braced-args "#load Det" 1) => ("Det")
-(defun tintin-parse-braced-args (input n)
+;; Each argument can be independently braced or unbraced
+;; Braced arguments preserve braces: {text} → "{text}"
+;; Example: (tintin-parse-arguments "#alias bag {kill %1}" 2) => ("bag" "{kill %1}")
+;;          (tintin-parse-arguments "#load Det" 1) => ("Det")
+(defun tintin-parse-arguments (input n)
   (let ((start-pos 1)       ; Start after #
         (args '())
         (success #t))
-    ;; Skip whitespace to find first argument
+    ;; Step 1: Skip whitespace after #
     (do ()
         ((or (>= start-pos (string-length input))
              (not (string= (string-ref input start-pos) " "))))
       (set! start-pos (+ start-pos 1)))
 
-    ;; Check if we found anything
-    (if (>= start-pos (string-length input))
-        nil  ; No arguments found
-        ;; Check if using braced or unbraced format
-        (let ((using-braces (string= (string-ref input start-pos) "{")))
-          (if using-braces
-              ;; Braced format - extract N braced arguments
-              (progn
-                (do ((i 0 (+ i 1)))
-                    ((or (>= i n) (not success)))
-                  (let ((arg-data (tintin-extract-braced input start-pos)))
-                    (if arg-data
-                        (progn
-                          (set! args (cons (car arg-data) args))
-                          (set! start-pos (cdr arg-data)))
-                        (set! success #f))))
-                (if success (reverse args) nil))
-              ;; Unbraced format - extract N space-delimited tokens
-              (progn
-                (do ((i 0 (+ i 1)))
-                    ((or (>= i n) (not success)))
-                  (let ((token-data (tintin-extract-token input start-pos)))
-                    (if token-data
-                        (progn
-                          (set! args (cons (car token-data) args))
-                          (set! start-pos (cdr token-data)))
-                        (set! success #f))))
-                (if success (reverse args) nil)))))))
+    ;; Step 2: Skip past command name (until space, {, or end)
+    (do ()
+        ((or (>= start-pos (string-length input))
+             (string= (string-ref input start-pos) " ")
+             (string= (string-ref input start-pos) "{")))
+      (set! start-pos (+ start-pos 1)))
+
+    ;; Step 3: Parse N arguments using mixed format
+    ;; Each argument can be braced or unbraced independently
+    (do ((i 0 (+ i 1)))
+        ((or (>= i n) (not success))
+         (if success (reverse args) nil))
+      ;; Skip whitespace before this argument
+      (do ()
+          ((or (>= start-pos (string-length input))
+               (not (string= (string-ref input start-pos) " "))))
+        (set! start-pos (+ start-pos 1)))
+
+      ;; Check if we have more input
+      (if (>= start-pos (string-length input))
+          (set! success #f)  ; Ran out of input before getting N arguments
+          ;; Check if this argument is braced or unbraced
+          (let ((is-braced (string= (string-ref input start-pos) "{")))
+            (if is-braced
+                ;; Extract braced argument (preserves braces)
+                (let ((arg-data (tintin-extract-braced input start-pos)))
+                  (if arg-data
+                      (progn
+                        (set! args (cons (car arg-data) args))
+                        (set! start-pos (cdr arg-data)))
+                      (set! success #f)))
+                ;; Extract unbraced token
+                (let ((token-data (tintin-extract-token input start-pos)))
+                  (if token-data
+                      (progn
+                        (set! args (cons (car token-data) args))
+                        (set! start-pos (cdr token-data)))
+                      (set! success #f)))))))))
 
 
 ;; Match a pattern against input and extract placeholder values
@@ -440,7 +454,8 @@
       ;; NEW: Intercept # commands FIRST
       (if (tintin-is-command? cmd)
           (progn
-            ;; Echo the # command to terminal
+            ;; Echo the # command to terminal (both direct and preprocessed/expanded commands)
+            ;; This ensures all TinTin++ commands are visible before evaluation
             (tintin-echo (concat cmd "\r\n"))
             ;; Process the command
             (let ((cmd-name (tintin-extract-command-name cmd)))
@@ -717,7 +732,7 @@
               (arg-count (list-ref cmd-data 1))
               (syntax-help (list-ref cmd-data 2)))
           ;; Parse arguments
-          (let ((args (tintin-parse-braced-args input arg-count)))
+          (let ((args (tintin-parse-arguments input arg-count)))
             (if args
                 ;; Success: call handler
                 (handler args)
