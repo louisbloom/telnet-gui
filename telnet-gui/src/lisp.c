@@ -1008,11 +1008,37 @@ const char *lisp_x_call_user_input_hook(const char *text, int cursor_pos) {
         if (err_str) {
             fprintf(stderr, "Error in user-input-hook: %s\n", err_str);
 
-            /* Echo error to terminal if available */
+            /* Echo error to terminal if available, replacing \n with \r\n for proper line breaks */
             if (registered_terminal) {
-                char error_msg[512];
-                snprintf(error_msg, sizeof(error_msg), "Error: %s\r\n", err_str);
-                terminal_feed_data(registered_terminal, error_msg, strlen(error_msg));
+                char error_msg[1024];
+                int out_pos = 0;
+                const char *prefix = "Error: ";
+
+                /* Add prefix */
+                for (const char *p = prefix; *p && out_pos < (int)sizeof(error_msg) - 3; p++) {
+                    error_msg[out_pos++] = *p;
+                }
+
+                /* Copy error string, replacing \n with \r\n */
+                for (const char *p = err_str; *p && out_pos < (int)sizeof(error_msg) - 3; p++) {
+                    if (*p == '\n') {
+                        error_msg[out_pos++] = '\r';
+                        error_msg[out_pos++] = '\n';
+                    } else {
+                        error_msg[out_pos++] = *p;
+                    }
+                }
+
+                /* Add final \r\n if not already present */
+                if (out_pos < 2 || error_msg[out_pos - 2] != '\r' || error_msg[out_pos - 1] != '\n') {
+                    if (out_pos < (int)sizeof(error_msg) - 2) {
+                        error_msg[out_pos++] = '\r';
+                        error_msg[out_pos++] = '\n';
+                    }
+                }
+                error_msg[out_pos] = '\0';
+
+                terminal_feed_data(registered_terminal, error_msg, out_pos);
             }
         }
         /* If error occurred in TinTin++ command (starts with #), suppress sending to telnet */
