@@ -66,16 +66,32 @@ if(WIN32)
     if(UCRT64_ROOT)
         message(STATUS "Found MSYS2 UCRT64 at: ${UCRT64_ROOT}")
 
-        # Warn if running from wrong MSYS2 environment
+        # Auto-configure toolchain when running from non-UCRT64 MSYS2 environment
         if(DEFINED ENV{MSYSTEM})
             if(NOT "$ENV{MSYSTEM}" STREQUAL "UCRT64")
-                message(WARNING "")
-                message(WARNING "You are running CMake from MSYS2 $ENV{MSYSTEM} environment!")
-                message(WARNING "This project requires UCRT64 environment.")
-                message(WARNING "")
-                message(WARNING "Solution 1: Run from PowerShell/CMD instead (recommended)")
-                message(WARNING "Solution 2: Open MSYS2 UCRT64 shell: C:\\msys64\\msys2_shell.cmd -ucrt64")
-                message(WARNING "")
+                message(STATUS "Detected MSYS2 $ENV{MSYSTEM} environment - auto-configuring UCRT64 toolchain")
+
+                # Force UCRT64 toolchain (not MINGW64!)
+                set(CMAKE_C_COMPILER "${UCRT64_ROOT}/bin/gcc.exe" CACHE FILEPATH "C compiler" FORCE)
+                set(CMAKE_CXX_COMPILER "${UCRT64_ROOT}/bin/g++.exe" CACHE FILEPATH "C++ compiler" FORCE)
+                set(CMAKE_RC_COMPILER "${UCRT64_ROOT}/bin/windres.exe" CACHE FILEPATH "RC compiler" FORCE)
+
+                # Force pkg-config to use UCRT64 packages
+                set(UCRT64_PKG_CONFIG "${UCRT64_ROOT}/bin/pkg-config.exe")
+                if(EXISTS "${UCRT64_PKG_CONFIG}")
+                    set(PKG_CONFIG_EXECUTABLE "${UCRT64_PKG_CONFIG}" CACHE FILEPATH "pkg-config" FORCE)
+                endif()
+
+                # Prepend UCRT64 pkg-config paths
+                set(UCRT64_PKG_CONFIG_PATH "${UCRT64_ROOT}/lib/pkgconfig")
+                if(DEFINED ENV{PKG_CONFIG_PATH})
+                    set(ENV{PKG_CONFIG_PATH} "${UCRT64_PKG_CONFIG_PATH}:$ENV{PKG_CONFIG_PATH}")
+                else()
+                    set(ENV{PKG_CONFIG_PATH} "${UCRT64_PKG_CONFIG_PATH}")
+                endif()
+
+                message(STATUS "  Using UCRT64 compiler: ${CMAKE_C_COMPILER}")
+                message(STATUS "  Using UCRT64 pkg-config: ${PKG_CONFIG_EXECUTABLE}")
             endif()
         endif()
     else()
