@@ -524,3 +524,10 @@
 ;; Test nested braces are preserved after stripping outer braces
 (tintin-process-command "#alias {complex} {get {item}; put {item} in bag}")  ; ignore
 (hash-ref *tintin-aliases* "complex")                 ; => ("get {item}; put {item} in bag" 5)
+
+;; Test that echo preserves braces in original input
+(set! *terminal-echo-log* '())                        ; ignore
+(tintin-process-command "#alias bag {#var bag %0}")   ; ignore
+(>= (list-length *terminal-echo-log*) 1)              ; => #t
+;; Echo should preserve braces from original input
+(string-prefix? "#alias bag {#var bag %0}" (list-ref *terminal-echo-log* 1))  ; => #t

@@ -78,33 +78,29 @@
 ;; TEST 1: COMMAND SEPARATOR
 ;; ============================================================================
 
+;; Recursive helper for splitting commands
+(defun tintin-split-loop (str pos len depth current results)
+  (if (>= pos len)
+      ;; Done - add final command if any and return reversed list
+      (if (not (string= current ""))
+          (reverse (cons current results))
+          (reverse results))
+      ;; Process current character
+      (let ((ch (string-ref str pos)))
+        (cond
+          ((string= ch "{")
+           (tintin-split-loop str (+ pos 1) len (+ depth 1) (concat current ch) results))
+          ((string= ch "}")
+           (tintin-split-loop str (+ pos 1) len (- depth 1) (concat current ch) results))
+          ((and (string= ch ";") (= depth 0))
+           (tintin-split-loop str (+ pos 1) len depth "" (cons current results)))
+          (#t
+           (tintin-split-loop str (+ pos 1) len depth (concat current ch) results))))))
+
 (defun tintin-split-commands (str)
   (if (not (string? str))
       '()
-      (let ((pos 0)
-            (len (string-length str))
-            (depth 0)
-            (current "")
-            (results '()))
-        (do ()
-            ((>= pos len))
-          (let ((ch (string-ref str pos)))
-            (cond
-              ((string= ch "{")
-               (set! depth (+ depth 1))
-               (set! current (concat current ch)))
-              ((string= ch "}")
-               (set! depth (- depth 1))
-               (set! current (concat current ch)))
-              ((and (string= ch ";") (= depth 0))
-               (set! results (cons current results))
-               (set! current ""))
-              (#t
-               (set! current (concat current ch))))
-            (set! pos (+ pos 1))))
-        (if (not (string= current ""))
-            (set! results (cons current results)))
-        (reverse results))))
+      (tintin-split-loop str 0 (string-length str) 0 "" '())))
 
 ;; ============================================================================
 ;; TEST 2: SPEEDWALK
@@ -623,7 +619,10 @@
 	    (let ((cmd (list-ref commands i)))
 	      (if (not (string= cmd ""))
 		  (progn
-		    ;; Send to telnet server with CRLF (no echo - already echoed original)
+		    ;; Echo expanded command to terminal (if different from original)
+		    (if (not (string= cmd text))
+			(tintin-echo (concat cmd "\r\n")))
+		    ;; Send to telnet server with CRLF
 		    (if (symbol? 'telnet-send)
 			(telnet-send (concat cmd "\r\n"))))))))
 	;; Return nil to indicate hook handled everything (proper contract)
