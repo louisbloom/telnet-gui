@@ -34,10 +34,21 @@ if(WIN32)
     else()
         # Try common installation paths
         set(PROGRAM_FILES_X86 "$ENV{ProgramFiles\(x86\)}")
-        file(GLOB MSYS2_INSTALLS
+
+        # Start with Scoop installations (user's intentional override)
+        set(MSYS2_INSTALLS)
+
+        # Scoop: Add both current symlink and versioned directories
+        if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
+            list(APPEND MSYS2_INSTALLS "$ENV{USERPROFILE}/scoop/apps/msys2/current")
+            file(GLOB SCOOP_MSYS2_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*")
+            list(APPEND MSYS2_INSTALLS ${SCOOP_MSYS2_VERSIONS})
+        endif()
+
+        # Then check official installations
+        list(APPEND MSYS2_INSTALLS
             "C:/msys64"
             "C:/tools/msys64"
-            "$ENV{USERPROFILE}/scoop/apps/msys2/current"
             "$ENV{ProgramFiles}/msys64"
             "${PROGRAM_FILES_X86}/msys64"
         )
@@ -49,6 +60,27 @@ if(WIN32)
                 break()
             endif()
         endforeach()
+    endif()
+
+    # Show UCRT64 detection result
+    if(UCRT64_ROOT)
+        message(STATUS "Found MSYS2 UCRT64 at: ${UCRT64_ROOT}")
+
+        # Warn if running from wrong MSYS2 environment
+        if(DEFINED ENV{MSYSTEM})
+            if(NOT "$ENV{MSYSTEM}" STREQUAL "UCRT64")
+                message(WARNING "")
+                message(WARNING "You are running CMake from MSYS2 $ENV{MSYSTEM} environment!")
+                message(WARNING "This project requires UCRT64 environment.")
+                message(WARNING "")
+                message(WARNING "Solution 1: Run from PowerShell/CMD instead (recommended)")
+                message(WARNING "Solution 2: Open MSYS2 UCRT64 shell: C:\\msys64\\msys2_shell.cmd -ucrt64")
+                message(WARNING "")
+            endif()
+        endif()
+    else()
+        message(WARNING "MSYS2 UCRT64 not found - some features may not be available")
+        message(WARNING "Install MSYS2 UCRT64 packages: pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,bdw-gc,pcre2}")
     endif()
 
     # Add UCRT64 system include paths for clangd if found
@@ -166,13 +198,19 @@ include(CPack)
 find_program(CLANG_FORMAT
     NAMES clang-format
     PATHS
+        ${UCRT64_ROOT}/bin
         /ucrt64/bin
-        C:/msys64/ucrt64/bin
-        C:/tools/msys64/ucrt64/bin
     NO_DEFAULT_PATH
 )
 find_program(CLANG_FORMAT NAMES clang-format)
 
+find_program(SHFMT
+    NAMES shfmt
+    PATHS
+        ${UCRT64_ROOT}/bin
+        /ucrt64/bin
+    NO_DEFAULT_PATH
+)
 find_program(SHFMT NAMES shfmt)
 
 find_program(EMACS
