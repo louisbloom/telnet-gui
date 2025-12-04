@@ -482,7 +482,7 @@
 
 ;; Test the exact bug case from user's example
 (tintin-process-command "#alias bag {#var bag %1}")   ; ignore
-(hash-ref *tintin-aliases* "bag")                     ; => ("{#var bag %1}" 5)
+(hash-ref *tintin-aliases* "bag")                     ; => ("#var bag %1" 5)
 
 ;; Verify the alias expansion works correctly
 (tintin-process-command "bag sack")                   ; => "#var bag sack"
@@ -493,19 +493,19 @@
 
 ;; Test all braced format
 (tintin-process-command "#alias {y} {south}")         ; ignore
-(hash-ref *tintin-aliases* "y")                       ; => ("{south}" 5)
+(hash-ref *tintin-aliases* "y")                       ; => ("south" 5)
 
 ;; Test mixed format: unbraced name + braced command
 (tintin-process-command "#alias quick {n;n;n}")       ; ignore
-(hash-ref *tintin-aliases* "quick")                   ; => ("{n;n;n}" 5)
+(hash-ref *tintin-aliases* "quick")                   ; => ("n;n;n" 5)
 
 ;; Test mixed format: braced name + unbraced command
 (tintin-process-command "#alias {slow} west")         ; ignore
 (hash-ref *tintin-aliases* "slow")                    ; => ("west" 5)
 
-;; Test that braced arguments preserve braces in expansion
+;; Test that braced arguments have braces stripped before storage
 (tintin-process-command "#alias ef {get food; eat food}")  ; ignore
-(hash-ref *tintin-aliases* "ef")                      ; => ("{get food; eat food}" 5)
+(hash-ref *tintin-aliases* "ef")                      ; => ("get food; eat food" 5)
 (tintin-process-command "ef")                         ; => "get food;eat food"
 
 ;; Test #variable with mixed format
@@ -521,6 +521,6 @@
 (tintin-process-command "#load Det")                  ; ignore
 (>= (list-length *terminal-echo-log*) 1)              ; => #t
 
-;; Test nested braces are preserved
+;; Test nested braces are preserved after stripping outer braces
 (tintin-process-command "#alias {complex} {get {item}; put {item} in bag}")  ; ignore
-(hash-ref *tintin-aliases* "complex")                 ; => ("{get {item}; put {item} in bag}" 5)
+(hash-ref *tintin-aliases* "complex")                 ; => ("get {item}; put {item} in bag" 5)

@@ -666,6 +666,18 @@
   (tintin-echo (concat "Syntax error: " syntax-help "\r\n"))
   "")
 
+;; Strip outer braces from a string if present
+;; Example: "{text}" → "text", "text" → "text", "{a{b}c}" → "a{b}c"
+(defun tintin-strip-braces (str)
+  (if (not (string? str))
+      str
+      (let ((len (string-length str)))
+        (if (and (> len 1)
+                 (string= (string-ref str 0) "{")
+                 (string= (string-ref str (- len 1)) "}"))
+            (substring str 1 (- len 1))
+            str))))
+
 ;; ============================================================================
 ;; COMMAND HANDLERS (REFACTORED)
 ;; ============================================================================
@@ -673,8 +685,8 @@
 ;; Handle #alias command
 ;; args: (name commands)
 (defun tintin-handle-alias (args)
-  (let ((name (list-ref args 0))
-        (commands (list-ref args 1))
+  (let ((name (tintin-strip-braces (list-ref args 0)))
+        (commands (tintin-strip-braces (list-ref args 1)))
         (priority 5))  ; Default priority
     (hash-set! *tintin-aliases* name (list commands priority))
     (tintin-echo (concat "Alias '" name "' created (priority: "
@@ -684,8 +696,8 @@
 ;; Handle #variable command
 ;; args: (name value)
 (defun tintin-handle-variable (args)
-  (let ((name (list-ref args 0))
-        (value (list-ref args 1)))
+  (let ((name (tintin-strip-braces (list-ref args 0)))
+        (value (tintin-strip-braces (list-ref args 1))))
     (hash-set! *tintin-variables* name value)
     (tintin-echo (concat "Variable '" name "' set to '" value "'\r\n"))
     ""))
@@ -693,7 +705,7 @@
 ;; Handle #save command
 ;; args: (filename)
 (defun tintin-handle-save (args)
-  (let ((filename (list-ref args 0)))
+  (let ((filename (tintin-strip-braces (list-ref args 0))))
     (tintin-save-state filename)
     (tintin-echo (concat "State saved to '" filename "'\r\n"))
     ""))
@@ -701,7 +713,7 @@
 ;; Handle #load command
 ;; args: (filename)
 (defun tintin-handle-load (args)
-  (let ((filename (list-ref args 0)))
+  (let ((filename (tintin-strip-braces (list-ref args 0))))
     (load filename)
     (tintin-echo (concat "State loaded from '" filename "'\r\n"))
     ""))
