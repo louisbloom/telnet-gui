@@ -1007,6 +1007,13 @@ const char *lisp_x_call_user_input_hook(const char *text, int cursor_pos) {
         char *err_str = lisp_print(result);
         if (err_str) {
             fprintf(stderr, "Error in user-input-hook: %s\n", err_str);
+
+            /* Echo error to terminal if available */
+            if (registered_terminal) {
+                char error_msg[512];
+                snprintf(error_msg, sizeof(error_msg), "Error: %s\r\n", err_str);
+                terminal_feed_data(registered_terminal, error_msg, strlen(error_msg));
+            }
         }
         /* If error occurred in TinTin++ command (starts with #), suppress sending to telnet */
         if (text && text[0] == '#') {
