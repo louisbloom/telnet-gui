@@ -125,6 +125,7 @@ LispObject *lisp_make_tail_call(LispObject *func, LispObject *args) {
 
 /* Object utilities */
 int lisp_is_truthy(LispObject *obj) {
+    /* Traditional Lisp semantics: only nil is false, everything else is true */
     if (obj == NULL || obj == NIL) {
         return 0;
     }
@@ -133,35 +134,18 @@ int lisp_is_truthy(LispObject *obj) {
         return 0;
     }
 
-    if (obj->type == LISP_STRING && strlen(obj->value.string) == 0) {
-        return 0;
-    }
-
-    /* Integer 0 is falsy */
-    if (obj->type == LISP_INTEGER && obj->value.integer == 0) {
-        return 0;
-    }
-
-    /* Boolean false (#f) is falsy */
+    /* Boolean false (#f) is falsy (since #f == nil) */
     if (obj->type == LISP_BOOLEAN && obj->value.boolean == 0) {
         return 0;
     }
 
-    /* Number 0.0 is falsy (keep existing behavior) */
-    if (obj->type == LISP_NUMBER && obj->value.number == 0.0) {
-        return 0;
-    }
-
-    /* Empty vectors are falsy */
-    if (obj->type == LISP_VECTOR && obj->value.vector.size == 0) {
-        return 0;
-    }
-
-    /* Empty hash tables are falsy */
-    if (obj->type == LISP_HASH_TABLE && obj->value.hash_table.entry_count == 0) {
-        return 0;
-    }
-
+    /* Everything else is truthy, including:
+     * - Integer 0
+     * - Float 0.0
+     * - Empty strings ""
+     * - Empty vectors
+     * - Empty hash tables
+     */
     return 1;
 }
 

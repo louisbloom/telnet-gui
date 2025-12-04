@@ -489,12 +489,16 @@ Telnet Lisp follows modern Lisp naming conventions:
 
 ## Truthy/Falsy Values
 
-Following JavaScript-like semantics:
+Following traditional Lisp semantics:
 
-- **Falsy**: `nil`, `0` (integer), empty string `""`, boolean `#f`, empty vectors, empty hash tables
-- **Truthy**: Everything else, including `0.0` (float), non-empty strings, `#t`, non-empty vectors
+- **Falsy**: Only `nil` (and `#f`, which is identical to `nil`)
+- **Truthy**: Everything else, including:
+  - Numbers: `0`, `0.0`, `42`, `-1`
+  - Strings: `""`, `"hello"`
+  - Collections: Empty vectors `#()`, empty hash tables, non-empty collections
+  - Booleans: `#t`
 
-**Note**: Integer `0` is falsy, but float `0.0` is truthy.
+**Note**: Unlike some Lisps, both integer `0` and float `0.0` are **truthy**. Only `nil` is false.
 
 ## Pattern Matching
 
@@ -904,7 +908,8 @@ Convert to tail recursion by:
 (if (> 5 3) "yes" "no")              ; => "yes"
 (if (< 5 3) "yes" "no")              ; => "no"
 (if nil "truthy" "falsy")            ; => "falsy"
-(if 0 "truthy" "falsy")              ; => "falsy" (integer 0 is falsy!)
+(if 0 "truthy" "falsy")              ; => "truthy" (only nil is falsy!)
+(if "" "truthy" "falsy")             ; => "truthy" (empty strings are truthy!)
 ```
 
 ### String Operations

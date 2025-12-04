@@ -32,7 +32,7 @@ See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for all function listings
 - **Closures**: Functions with captured variables
 - **Global State Management**: Variables persist and can be updated across the REPL session
 - **Quote Syntax**: `'expr` shorthand for `(quote expr)`, `` `expr`` for `(quasiquote expr)`, `,expr` for unquote, `,@expr` for unquote-splicing
-- **Truthy/Falsy**: JavaScript-like semantics (nil and empty strings are falsy)
+- **Truthy/Falsy**: Traditional Lisp semantics (only nil is false, everything else including 0, "", empty collections is true)
 - **Memory Management**: Automatic garbage collection with Boehm GC
 - **Regex Support**: Full PCRE2 integration for advanced pattern matching with UTF-8 support
 - **Wildcard Patterns**: Enhanced wildcard matching in `string-match?` and `split`
@@ -412,6 +412,7 @@ Potential additions for future versions:
 
 ### Recently Completed ✨
 
+- **Traditional Lisp Truthy/Falsy**: Changed to traditional Lisp semantics where only `nil` is false (December 5, 2025)
 - **Condition System**: Emacs Lisp-style error handling with `signal`, `condition-case`, `unwind-protect`, and full error introspection (December 5, 2025)
 - **Macro System**: Metaprogramming with `defmacro`, quasiquote (`` ` ``), unquote (`,`), and unquote-splicing (`,@`) for code transformation
 - **Tail Call Optimization**: Trampoline-based tail recursion for efficient recursive algorithms without stack overflow
