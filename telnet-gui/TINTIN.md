@@ -93,12 +93,14 @@ ef          # Sends two commands: get food, then eat food
 All TinTin++ commands start with `#` and support two argument formats:
 
 **Braced format** (required for multi-word arguments):
+
 ```bash
 #alias {go north} {n;n;n}
 #variable {my var} {some value}
 ```
 
 **Unbraced format** (optional for single-word arguments):
+
 ```bash
 #alias k kill
 #variable target orc
