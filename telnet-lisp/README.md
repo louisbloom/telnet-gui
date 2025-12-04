@@ -8,16 +8,23 @@ A minimal, embeddable Lisp interpreter library written in C. This implementation
 
 ### Core Language
 
-- **Data Types**: Numbers, integers, booleans, strings (UTF-8), lists, vectors, hash tables, lambdas
-- **Special Forms**: `quote`, `quasiquote`, `if`, `define`, `set!`, `lambda`, `defmacro`, `let`/`let*`, `progn`, `do`, `cond`, `case`
+- **Data Types**: Numbers, integers, booleans, strings (UTF-8), lists, vectors, hash tables, lambdas, errors
+- **Special Forms**: `quote`, `quasiquote`, `if`, `define`, `set!`, `lambda`, `defmacro`, `let`/`let*`, `progn`, `do`, `cond`, `case`, `condition-case`, `unwind-protect`
 - **Macros**: Code transformation with `defmacro`, quasiquote (`` ` ``), unquote (`,`), unquote-splicing (`,@`), and built-in `defun` macro
+- **Error Handling**: Emacs Lisp-style condition system with `signal`, `condition-case`, `unwind-protect`, and error introspection
 - **Functions**: Arithmetic, strings, lists, vectors, hash tables, regex (PCRE2), file I/O
-- **Type Predicates**: `null?`, `atom?`, `integer?`, `boolean?`, `number?`, `string?`, `vector?`, `hash-table?`
+- **Type Predicates**: `null?`, `atom?`, `integer?`, `boolean?`, `number?`, `string?`, `vector?`, `hash-table?`, `error?`
 
 See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for all function listings and examples.
 
 ### Advanced Features
 
+- **Condition System**: Emacs Lisp-style error handling with typed errors, catch/handle, and guaranteed cleanup
+  - `signal` - Raise typed errors with symbols (e.g., `'division-by-zero`)
+  - `condition-case` - Catch and handle specific error types
+  - `unwind-protect` - Guarantee cleanup code execution (like try-finally)
+  - Error introspection: `error?`, `error-type`, `error-message`, `error-stack`, `error-data`
+  - Symbol-based error types allow user-defined errors
 - **Tail Call Optimization**: Trampoline-based tail recursion enables efficient recursive algorithms without stack overflow
 - **Lexical Scoping**: Lambdas capture their environment
 - **First-Class Functions**: Functions can be passed as arguments
@@ -57,14 +64,6 @@ brew install bdw-gc pcre2                          # macOS
 
 ### Building
 
-**Quick Build:**
-
-```bash
-make
-```
-
-**CMake Build:**
-
 ```bash
 mkdir build && cd build
 cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
@@ -74,10 +73,19 @@ cmake --build .
 **Running Tests:**
 
 ```bash
-make test          # Basic tests
 cd build && ctest  # Full test suite
 ctest -R basic     # Specific category
+ctest -R advanced  # Advanced tests
+ctest -R regression # Regression tests
 ctest --verbose    # Detailed output
+
+# Run individual test files
+cd build
+./lisp-repl ../tests/basic/recursion.lisp
+
+# Or use the test runner (from project root)
+./test_runner.sh tests/basic/vectors.lisp
+VERBOSE=1 ./test_runner.sh tests/basic/hash_tables.lisp  # Verbose output
 ```
 
 See [tests/README.md](tests/README.md) for more details.
@@ -130,10 +138,10 @@ $MSYS2_ROOT = "C:\msys64"  # Or wherever MSYS2 is installed
 & "$MSYS2_ROOT\msys2_shell.cmd" -defterm -here -no-start -ucrt64 -c "pacman -S mingw-w64-ucrt-x86_64-gc mingw-w64-ucrt-x86_64-pcre2"
 
 # Build project
-& "$MSYS2_ROOT\msys2_shell.cmd" -defterm -here -no-start -ucrt64 -c "make"
+& "$MSYS2_ROOT\msys2_shell.cmd" -defterm -here -no-start -ucrt64 -c "mkdir -p build && cd build && cmake .. && cmake --build ."
 
 # Format source code
-& "$MSYS2_ROOT\msys2_shell.cmd" -defterm -here -no-start -ucrt64 -c "make format"
+& "$MSYS2_ROOT\msys2_shell.cmd" -defterm -here -no-start -ucrt64 -c "cd build && cmake --build . --target format"
 
 # Generate compile_commands.json for clangd
 & "$MSYS2_ROOT\msys2_shell.cmd" -defterm -here -no-start -ucrt64 -c "mkdir -p build && cd build && cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
@@ -160,15 +168,15 @@ objdump -p lisp-repl.exe | grep DLL
 **Installation:**
 
 ```bash
-# Linux/macOS
-sudo make install
+# Using CMake install target
+cd build
+sudo cmake --install .  # Linux/macOS
+cmake --install .       # Windows (MSYS2)
 
-# Windows (MSYS2)
-make install
-
-# Or use the install script
-./install.sh        # Linux/macOS
-install.bat         # Windows
+# Or use the install scripts (located in parent directory)
+cd ..
+sudo ./install.sh       # Linux/macOS
+./install.bat           # Windows
 ```
 
 ## Usage
@@ -238,22 +246,22 @@ The library is self-contained and can be copied into any project. For detailed p
 **Simple Integration:**
 
 ```bash
-# Copy the entire libtelnet-lisp directory into your project
-cp -r /path/to/telnet-lisp/libtelnet-lisp ./libs/
+# Copy this entire directory (telnet-lisp library) into your project
+cp -r /path/to/telnet-lisp/telnet-lisp/telnet-lisp ./libs/telnet-lisp
 ```
 
 **CMake Integration:**
 
 ```cmake
-add_subdirectory(libs/libtelnet-lisp)
-target_link_libraries(myapp liblisp)
+add_subdirectory(libs/telnet-lisp)
+target_link_libraries(myapp lisp)
 ```
 
 **Using the Library:**
 
 ```c
-#include "lisp.h"  # If copied into project
-// OR #include <lisp.h>  # If installed system-wide
+#include "lisp.h"  // If copied into project
+// OR #include <lisp.h>  // If installed system-wide
 
 int main() {
     // Initialize the interpreter (includes GC initialization)
@@ -295,6 +303,7 @@ The `tests/` directory contains validated examples that serve as both documentat
 
 **Advanced Features:**
 
+- `tests/advanced/condition-system.lisp` - Error handling with signal, condition-case, and unwind-protect
 - `tests/advanced/tail_recursion.lisp` - Tail call optimization examples (factorial, fibonacci, mutual recursion)
 - `tests/advanced/named_functions.lisp` - Named function definitions
 - `tests/advanced/do_loop.lisp` - Iteration with `do` loops
@@ -403,6 +412,7 @@ Potential additions for future versions:
 
 ### Recently Completed ✨
 
+- **Condition System**: Emacs Lisp-style error handling with `signal`, `condition-case`, `unwind-protect`, and full error introspection (December 5, 2025)
 - **Macro System**: Metaprogramming with `defmacro`, quasiquote (`` ` ``), unquote (`,`), and unquote-splicing (`,@`) for code transformation
 - **Tail Call Optimization**: Trampoline-based tail recursion for efficient recursive algorithms without stack overflow
 - **UTF-8 Support**: Full Unicode string support with character-based operations (`string-length`, `substring`, `string-ref`)
@@ -426,7 +436,7 @@ Potential additions for future versions:
 
 ### High Priority
 
-- Exception handling (`try-catch`) for error recovery
+(none - all high priority features completed!)
 
 ### Medium Priority
 

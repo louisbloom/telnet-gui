@@ -76,8 +76,25 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
         break;
 
     case LISP_ERROR: {
-        append_str(buffer, size, pos, "ERROR: ");
-        append_str(buffer, size, pos, obj->value.error_with_stack.error);
+        append_str(buffer, size, pos, "ERROR: [");
+
+        /* Print error type symbol */
+        if (obj->value.error_with_stack.error_type != NULL &&
+            obj->value.error_with_stack.error_type->type == LISP_SYMBOL) {
+            append_str(buffer, size, pos, obj->value.error_with_stack.error_type->value.symbol);
+        } else {
+            append_str(buffer, size, pos, "error");
+        }
+
+        append_str(buffer, size, pos, "] ");
+        append_str(buffer, size, pos, obj->value.error_with_stack.message);
+
+        /* Print data if present */
+        if (obj->value.error_with_stack.data != NIL && obj->value.error_with_stack.data != NULL) {
+            append_str(buffer, size, pos, " (data: ");
+            print_object(obj->value.error_with_stack.data, buffer, size, pos);
+            append_str(buffer, size, pos, ")");
+        }
 
         /* Print stack trace if available */
         if (obj->value.error_with_stack.stack_trace != NIL && obj->value.error_with_stack.stack_trace != NULL) {
@@ -213,7 +230,24 @@ static void princ_object(LispObject *obj) {
         break;
 
     case LISP_ERROR: {
-        printf("ERROR: %s", obj->value.error_with_stack.error);
+        printf("ERROR: [");
+
+        /* Print error type symbol */
+        if (obj->value.error_with_stack.error_type != NULL &&
+            obj->value.error_with_stack.error_type->type == LISP_SYMBOL) {
+            printf("%s", obj->value.error_with_stack.error_type->value.symbol);
+        } else {
+            printf("error");
+        }
+
+        printf("] %s", obj->value.error_with_stack.message);
+
+        /* Print data if present */
+        if (obj->value.error_with_stack.data != NIL && obj->value.error_with_stack.data != NULL) {
+            printf(" (data: ");
+            princ_object(obj->value.error_with_stack.data);
+            printf(")");
+        }
 
         /* Print stack trace if available */
         if (obj->value.error_with_stack.stack_trace != NIL && obj->value.error_with_stack.stack_trace != NULL) {

@@ -51,20 +51,31 @@ LispObject *lisp_make_cons(LispObject *car, LispObject *cdr) {
     return obj;
 }
 
-LispObject *lisp_make_error(const char *message) {
+/* New typed error creation function */
+LispObject *lisp_make_typed_error(LispObject *error_type, const char *message, LispObject *data, Environment *env) {
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_ERROR;
-    obj->value.error_with_stack.error = GC_strdup(message);
-    obj->value.error_with_stack.stack_trace = NIL;
+    obj->value.error_with_stack.error_type = error_type;
+    obj->value.error_with_stack.message = GC_strdup(message);
+    obj->value.error_with_stack.data = data;
+    obj->value.error_with_stack.stack_trace = (env != NULL) ? capture_call_stack(env) : NIL;
+    obj->value.error_with_stack.caught = 0; /* Not caught initially - will propagate */
     return obj;
 }
 
+/* Convenience function for creating typed errors from strings */
+LispObject *lisp_make_typed_error_simple(const char *error_type_name, const char *message, Environment *env) {
+    return lisp_make_typed_error(lisp_make_symbol(error_type_name), message, NIL, env);
+}
+
+/* Backward-compatible error creation (uses 'error type) */
+LispObject *lisp_make_error(const char *message) {
+    return lisp_make_typed_error(lisp_make_symbol("error"), message, NIL, NULL);
+}
+
+/* Backward-compatible error creation with stack trace */
 LispObject *lisp_make_error_with_stack(const char *message, Environment *env) {
-    LispObject *obj = GC_malloc(sizeof(LispObject));
-    obj->type = LISP_ERROR;
-    obj->value.error_with_stack.error = GC_strdup(message);
-    obj->value.error_with_stack.stack_trace = capture_call_stack(env);
-    return obj;
+    return lisp_make_typed_error(lisp_make_symbol("error"), message, NIL, env);
 }
 
 LispObject *lisp_attach_stack_trace(LispObject *error, Environment *env) {

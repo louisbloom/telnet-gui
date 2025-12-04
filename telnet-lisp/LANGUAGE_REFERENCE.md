@@ -46,6 +46,8 @@ A reference for the Telnet Lisp language, covering data types, special forms, bu
 - `case` - Pattern matching with value-based dispatch
 - `and` - Logical AND with short-circuit evaluation (returns last truthy value or first falsy value)
 - `or` - Logical OR with short-circuit evaluation (returns first truthy value or last falsy value)
+- `condition-case` - Catch and handle errors by type (Emacs Lisp-style exception handling)
+- `unwind-protect` - Guarantee cleanup code execution (like try-finally)
 
 ### Macros
 
@@ -346,6 +348,7 @@ Functions for transforming lists by applying a function to each element.
 - `hash-table?` - Check if hash table
 - `symbol?` - Check if symbol
 - `list?` - Check if value is a list (nil or cons cell)
+- `error?` - Check if value is an error object
 
 ### Symbol Operations
 
@@ -367,6 +370,52 @@ Functions for transforming lists by applying a function to each element.
 (define x 'test)
 (symbol? x)                 ; => 1
 (symbol->string x)          ; => "test"
+```
+
+### Error Handling Functions
+
+The condition system provides Emacs Lisp-style error handling with typed errors, catch/handle, and guaranteed cleanup.
+
+#### Error Creation and Signaling
+
+- `signal` - Raise a typed error (arguments: error-type-symbol, data)
+- `error` - Raise a generic error (arguments: message-string)
+
+#### Error Introspection
+
+- `error?` - Check if value is an error object
+- `error-type` - Get error type symbol from error object
+- `error-message` - Get error message string from error object
+- `error-stack` - Get call stack trace from error object (list of function names)
+- `error-data` - Get error data payload from error object
+
+**Examples:**
+
+```lisp
+; Raise a typed error
+(signal 'division-by-zero "Cannot divide by zero")
+; => ERROR: [division-by-zero] Cannot divide by zero
+
+; Raise a generic error
+(error "Something went wrong")
+; => ERROR: [error] Something went wrong
+
+; Catch and inspect an error
+(define err nil)
+(condition-case e
+    (signal 'my-error "test message")
+  (error (define err e)))
+
+(error? err)           ; => #t
+(error-type err)       ; => my-error
+(error-message err)    ; => "test message"
+(error-data err)       ; => "test message"
+(error-stack err)      ; => ("signal")
+
+; Error with custom data
+(condition-case e
+    (signal 'file-error '("cannot open" "file.txt" 404))
+  (error (error-data e)))  ; => ("cannot open" "file.txt" 404)
 ```
 
 ### Regex Functions (PCRE2)
@@ -469,38 +518,172 @@ Examples:
 
 ## Error Handling
 
-Telnet Lisp implements automatic error propagation with call stack traces. When an error occurs, it captures the full call stack showing the sequence of function calls that led to the error.
+Telnet Lisp implements an Emacs Lisp-style condition system with typed errors, catch/handle, and guaranteed cleanup. The system provides:
 
-### How Errors Work
+- **Typed errors**: Errors have symbol-based types (e.g., `'division-by-zero`, `'file-error`)
+- **Error catching**: `condition-case` catches and handles specific error types
+- **Guaranteed cleanup**: `unwind-protect` ensures cleanup code always runs
+- **Error introspection**: Full access to error type, message, data, and call stack
+- **Automatic propagation**: Uncaught errors propagate with call stack traces
 
-- Errors are created when invalid operations are attempted (division by zero, type mismatches, undefined symbols, etc.)
-- Errors automatically propagate up the call stack
-- Each error includes a descriptive message and the call stack
-- The call stack shows both built-in functions and user-defined functions
+### Signal and Error Creation
 
-### Error Examples
-
-**Simple division by zero:**
-
-```lisp
-(/ 1 0)
-; => ERROR: Division by zero
-;    Call stack:
-;      at "/"
-```
-
-**Error through lambda:**
+**`signal`** - Raise a typed error:
 
 ```lisp
-(define divide-by-zero (lambda (x) (/ x 0)))
-(divide-by-zero 10)
-; => ERROR: Division by zero
-;    Call stack:
-;      at "/"
-;      at "divide-by-zero"
+(signal 'division-by-zero "Cannot divide by zero")
+; => ERROR: [division-by-zero] Cannot divide by zero
+
+(signal 'file-error "Cannot open file")
+; => ERROR: [file-error] Cannot open file
+
+; With data payload
+(signal 'file-error '("cannot open" "file.txt" 404))
+; => ERROR: [file-error] ("cannot open" "file.txt" 404)
 ```
 
-**Deep call stack:**
+**`error`** - Convenience function for generic errors:
+
+```lisp
+(error "Something went wrong")
+; => ERROR: [error] Something went wrong
+```
+
+### Condition-Case (Error Catching)
+
+**Syntax:** `(condition-case VAR BODYFORM HANDLERS...)`
+
+Catch and handle specific error types:
+
+```lisp
+; Basic error catching
+(condition-case e
+    (/ 10 0)
+  (division-by-zero "Caught division by zero"))
+; => "Caught division by zero"
+
+; Multiple handlers
+(condition-case e
+    (some-risky-operation)
+  (file-error "File problem")
+  (network-error "Network problem")
+  (error "Other error"))  ; 'error catches everything
+
+; Access the error object
+(condition-case err
+    (signal 'my-error "test message")
+  (error (error-message err)))
+; => "test message"
+
+; Handler with multiple expressions (implicit progn)
+(condition-case e
+    (signal 'test-error "boom")
+  (test-error
+    (define handled #t)
+    (define result "recovered")
+    result))
+; => "recovered"
+```
+
+**Handler matching:**
+
+- Handlers are checked in order
+- First matching handler executes
+- `'error` symbol catches all error types
+- More specific handlers take precedence
+
+### Unwind-Protect (Guaranteed Cleanup)
+
+**Syntax:** `(unwind-protect BODYFORM CLEANUP...)`
+
+Guarantee cleanup code execution (like try-finally):
+
+```lisp
+; Cleanup always runs
+(define file (open "data.txt" "r"))
+(unwind-protect
+    (read-line file)
+  (close file))  ; Always closes, even on error
+
+; Multiple cleanup forms
+(define cleanup-count 0)
+(unwind-protect
+    (signal 'test-error "boom")
+  (define cleanup-count (+ cleanup-count 1))
+  (define cleanup-count (+ cleanup-count 10)))
+cleanup-count  ; => 11 (cleanup ran despite error)
+
+; Returns body result even if error
+(condition-case e
+    (unwind-protect
+        (signal 'test-error "boom")
+      (define cleaned-up #t))
+  (error "caught"))
+cleaned-up  ; => #t
+```
+
+### Error Introspection
+
+Caught errors can be inspected:
+
+```lisp
+(define my-err nil)
+(condition-case e
+    (signal 'custom-error "test message")
+  (error (define my-err e)))
+
+(error? my-err)           ; => #t
+(error-type my-err)       ; => custom-error
+(error-message my-err)    ; => "test message"
+(error-data my-err)       ; => "test message"
+(error-stack my-err)      ; => ("signal")
+```
+
+### Practical Examples
+
+**Safe division:**
+
+```lisp
+(define (safe-divide a b)
+  (condition-case err
+      (if (= b 0)
+          (signal 'division-by-zero "cannot divide by zero")
+          (/ a b))
+    (division-by-zero "Error: division by zero")
+    (error (concat "Unexpected error: " (error-message err)))))
+
+(safe-divide 10 2)  ; => 5
+(safe-divide 10 0)  ; => "Error: division by zero"
+```
+
+**Resource management:**
+
+```lisp
+(define (process-file filename)
+  (define file (open filename "r"))
+  (unwind-protect
+      (progn
+        (define content (read-line file))
+        (if (null? content)
+            (signal 'empty-file "File is empty")
+            content))
+    (close file)))  ; Always closes
+```
+
+**Nested error handling:**
+
+```lisp
+(condition-case outer
+    (condition-case inner
+        (signal 'inner-error "from inner")
+      (other-error "inner handler"))
+  (inner-error "outer caught it"))
+; => "outer caught it"
+```
+
+### Error Propagation and Call Stacks
+
+Uncaught errors automatically propagate with call stack traces:
 
 ```lisp
 (define inner (lambda (x) (/ x 0)))
@@ -515,36 +698,23 @@ Telnet Lisp implements automatic error propagation with call stack traces. When 
 ;      at "outer"
 ```
 
-**Type error:**
-
-```lisp
-(define test (lambda (x) (+ x "not a number")))
-(test 5)
-; => ERROR: + requires numbers
-;    Call stack:
-;      at "+"
-;      at "test"
-```
-
 ### Common Error Types
 
-- **Division by zero**: `(/ x 0)` or `(quotient x 0)` or `(remainder x 0)`
-- **Type errors**: Wrong type passed to function (e.g., `(+ 1 "string")`)
-- **Undefined symbols**: Using a variable that hasn't been defined
-- **Argument count mismatch**: Wrong number of arguments to lambda
-- **Invalid operations**: Invalid hash key, vector index out of bounds, etc.
+Standard error types (user-extensible):
 
-### Error Propagation
+- `'error` - Generic error (catch-all)
+- `'division-by-zero` - Division by zero
+- `'wrong-type-argument` - Wrong type passed to function
+- `'wrong-number-of-arguments` - Arity mismatch
+- `'void-variable` - Undefined symbol
+- `'file-error` - File I/O errors
+- `'range-error` - Out of bounds access
 
-Errors propagate automatically through:
+You can define custom error types using any symbol:
 
-- Function calls (both built-in and user-defined)
-- Special forms (`if`, `let`, `do`, `cond`, `case`, etc.)
-- Nested expressions
-
-The call stack trace shows the full path from the error source to the top level, making debugging easier.
-
-**Note**: Telnet Lisp currently does not have try-catch or exception handling constructs. Errors propagate to the top level and terminate evaluation. This may be enhanced in future versions.
+```lisp
+(signal 'my-custom-error "Custom error message")
+```
 
 ## Tail Recursion Optimization
 

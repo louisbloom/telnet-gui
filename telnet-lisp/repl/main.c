@@ -133,7 +133,8 @@ int main(int argc, char **argv) {
 
             LispObject *result = lisp_eval(expr, env);
 
-            if (result->type == LISP_ERROR) {
+            /* Only report uncaught errors (caught errors are just values) */
+            if (result->type == LISP_ERROR && !result->value.error_with_stack.caught) {
                 char *err_str = lisp_print(result);
                 fprintf(stderr, "ERROR: %s\n", err_str);
                 lisp_cleanup();
@@ -203,7 +204,8 @@ int main(int argc, char **argv) {
 
                 LispObject *result = lisp_eval(expr, env);
 
-                if (result->type == LISP_ERROR) {
+                /* Only report uncaught errors (caught errors are just values) */
+                if (result->type == LISP_ERROR && !result->value.error_with_stack.caught) {
                     char *err_str = lisp_print(result);
                     fprintf(stderr, "ERROR in %s: %s\n", argv[i], err_str);
                     return 1;
@@ -296,7 +298,8 @@ int main(int argc, char **argv) {
 
         LispObject *result = lisp_eval(expr, env);
 
-        if (result->type == LISP_ERROR) {
+        /* Only report uncaught errors (caught errors are just values) */
+        if (result->type == LISP_ERROR && !result->value.error_with_stack.caught) {
             char *err_str = lisp_print(result);
             printf("ERROR: %s\n", err_str);
             /* Reset buffer on error too */

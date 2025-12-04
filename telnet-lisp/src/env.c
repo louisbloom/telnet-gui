@@ -7,6 +7,7 @@ Environment *env_create(Environment *parent) {
     env->bindings = NULL;
     env->parent = parent;
     env->call_stack = NULL;
+    env->handler_stack = NULL;
     return env;
 }
 

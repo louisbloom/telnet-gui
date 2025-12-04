@@ -13,11 +13,20 @@
 typedef struct LispObject LispObject;
 typedef struct Environment Environment;
 typedef struct CallStackFrame CallStackFrame;
+typedef struct HandlerContext HandlerContext;
 
 /* Call stack frame structure */
 struct CallStackFrame {
     char *function_name;
     CallStackFrame *parent;
+};
+
+/* Handler context for condition-case */
+struct HandlerContext {
+    LispObject *handlers;        /* Assoc list: ((ERROR-SYMBOL . HANDLER-BODY) ...) */
+    LispObject *error_var_name;  /* Symbol: variable to bind error (or NIL) */
+    Environment *handler_env;    /* Environment for handler evaluation */
+    HandlerContext *parent;      /* Previous handler context */
 };
 
 /* Object types */
@@ -85,8 +94,11 @@ struct LispObject {
             size_t capacity;
         } hash_table;
         struct {
-            char *error;
-            LispObject *stack_trace; /* List of function names */
+            LispObject *error_type;     /* Symbol: 'error, 'division-by-zero, etc. */
+            char *message;              /* Human-readable error message */
+            LispObject *data;           /* Optional arbitrary data (can be NIL) */
+            LispObject *stack_trace;    /* List of function names */
+            int caught;                  /* Flag: if true, error won't propagate (caught by condition-case) */
         } error_with_stack;
         struct {
             LispObject *func;  /* Function to call in tail position */
@@ -104,6 +116,7 @@ struct Environment {
     } *bindings;
     Environment *parent;
     CallStackFrame *call_stack; /* Current call stack */
+    HandlerContext *handler_stack; /* Active condition-case handlers */
 };
 
 /* Global NIL object */
@@ -171,6 +184,8 @@ void pop_call_frame(Environment *env);
 LispObject *capture_call_stack(Environment *env);
 LispObject *lisp_make_error_with_stack(const char *message, Environment *env);
 LispObject *lisp_attach_stack_trace(LispObject *error, Environment *env);
+LispObject *lisp_make_typed_error(LispObject *error_type, const char *message, LispObject *data, Environment *env);
+LispObject *lisp_make_typed_error_simple(const char *error_type_name, const char *message, Environment *env);
 
 /* List utilities */
 LispObject *lisp_car(LispObject *obj);
