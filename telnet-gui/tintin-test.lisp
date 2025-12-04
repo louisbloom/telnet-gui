@@ -455,3 +455,18 @@
 ;; Test #variable without braces
 (tintin-process-command "#variable test value")      ; ignore
 (hash-ref *tintin-variables* "test")                 ; => "value"
+
+;; ============================================================================
+;; Test 22: Unbraced Multi-Word Command Arguments (Regression - Bug Fix)
+;; ============================================================================
+
+;; Bug: "#alias bag #var bag %0" created alias "alias" instead of "bag"
+;; Root cause: Space-skipping loop exited on first non-space (the 'a' in "alias")
+;; instead of skipping all spaces first
+
+;; Test unbraced format with multi-word command argument
+(tintin-process-command "#alias bag #var bag %0")    ; ignore
+(hash-ref *tintin-aliases* "bag")                    ; => ("#var bag %0" 5)
+
+;; Test that the alias works correctly
+(tintin-process-command "bag sack")                  ; => "#var bag sack"

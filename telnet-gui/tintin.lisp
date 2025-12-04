@@ -248,10 +248,9 @@
   (let ((start-pos 1)       ; Start after #
         (args '())
         (success #t))
-    ;; Find first { OR first non-space character
+    ;; Skip whitespace to find first argument
     (do ()
         ((or (>= start-pos (string-length input))
-             (string= (string-ref input start-pos) "{")
              (not (string= (string-ref input start-pos) " "))))
       (set! start-pos (+ start-pos 1)))
 
