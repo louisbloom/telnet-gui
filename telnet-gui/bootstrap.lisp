@@ -86,22 +86,13 @@
   (and (string? cleaned)
        (> (string-length cleaned) 0)))
 
-;; Helper: Reverse a list
-(defun reverse-list (lst)
-  (if (null? lst)
-      '()
-      (let ((acc '()))
-        (do ((remaining lst (cdr remaining)))
-            ((null? remaining) acc)
-          (set! acc (cons (car remaining) acc))))))
-
 ;; Helper: Process word list and filter valid words
 ;; Preserves left-to-right order so leftmost words are added first (oldest)
 ;; and rightmost words are added last (newest)
 (defun filter-valid-words (words)
   (let ((filtered '()))
     (do ((remaining words (cdr remaining)))
-        ((null? remaining) (reverse-list filtered))
+        ((null? remaining) (reverse filtered))
       (let ((cleaned (clean-word (car remaining))))
         ;; Early continue if word is invalid
         (if (not (valid-word? cleaned))
@@ -201,7 +192,7 @@
         (count 0))
     (do ((i 0 (+ i 1)))
         ;; Reverse acc since we cons in reverse order (newest scanned = first in list)
-        ((or (>= i vec-size) (>= count max-results)) (cons (reverse-list acc) count))
+        ((or (>= i vec-size) (>= count max-results)) (cons (reverse acc) count))
       (let* ((pos (- start 1 i))
              (idx (compute-circular-index pos vec-size))
              (k (vector-ref vec idx)))
