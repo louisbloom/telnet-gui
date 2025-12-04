@@ -404,20 +404,20 @@
             (tintin-echo (concat cmd "\r\n"))
             ;; Process the command
             (let ((cmd-name (tintin-extract-command-name cmd)))
-            (if (not cmd-name)
-                ;; Invalid # command format (e.g., "# " or "#")
-                (progn
-                  (tintin-echo (concat "Invalid TinTin++ command format: " cmd "\r\n"))
-                  "")
-                ;; Find matching command via partial prefix
-                (let ((matched (tintin-find-command cmd-name)))
-                  (if (not matched)
-                      ;; Unknown command - show error, don't send to telnet
-                      (progn
-                        (tintin-echo (concat "Unknown TinTin++ command: #" cmd-name "\r\n"))
-                        "")
-                      ;; Dispatch to generic handler (metadata-driven)
-                      (tintin-dispatch-command matched cmd))))))
+              (if (not cmd-name)
+                  ;; Invalid # command format (e.g., "# " or "#")
+                  (progn
+                    (tintin-echo (concat "Invalid TinTin++ command format: " cmd "\r\n"))
+                    "")
+                  ;; Find matching command via partial prefix
+                  (let ((matched (tintin-find-command cmd-name)))
+                    (if (not matched)
+			;; Unknown command - show error, don't send to telnet
+			(progn
+                          (tintin-echo (concat "Unknown TinTin++ command: #" cmd-name "\r\n"))
+                          "")
+			;; Dispatch to generic handler (metadata-driven)
+			(tintin-dispatch-command matched cmd))))))
           ;; NOT a # command - proceed with existing logic (variable expansion and alias lookup)
           (let ((expanded-cmd (tintin-expand-variables cmd)))
             (let ((words (split expanded-cmd " "))
@@ -442,7 +442,7 @@
                             ((>= i (list-length args))
                              ;; Expand variables, then speedwalk
                              (let ((expanded (tintin-expand-speedwalk
-                                               (tintin-expand-variables result))))
+                                              (tintin-expand-variables result))))
                                ;; Split by semicolon to handle multiple commands
                                (let ((split-commands (tintin-split-commands expanded))
                                      (has-tintin-cmd #f))
@@ -475,7 +475,7 @@
                            ;; Process matched result or expanded command with recursive check
                            (let ((expanded (if matched-result
                                                (tintin-expand-speedwalk
-                                                 (tintin-expand-variables matched-result))
+                                                (tintin-expand-variables matched-result))
                                                (tintin-expand-speedwalk expanded-cmd))))
                              ;; Split by semicolon to handle multiple commands
                              (let ((split-commands (tintin-split-commands expanded))
@@ -511,7 +511,7 @@
                                                   (list-ref match-values j)
                                                   result)))
                                   (set! matched-result result))))))))))))
-))
+      ))
 
 ;; ============================================================================
 ;; TEST 7: FULL INPUT PROCESSING
@@ -653,13 +653,13 @@
 
 ;; Register commands with metadata (now that handlers are defined)
 (hash-set! *tintin-commands* "alias"
-  (list tintin-handle-alias 2 "#alias {name} {commands}"))
+	   (list tintin-handle-alias 2 "#alias {name} {commands}"))
 (hash-set! *tintin-commands* "variable"
-  (list tintin-handle-variable 2 "#variable {name} {value}"))
+	   (list tintin-handle-variable 2 "#variable {name} {value}"))
 (hash-set! *tintin-commands* "save"
-  (list tintin-handle-save 1 "#save {filename}"))
+	   (list tintin-handle-save 1 "#save {filename}"))
 (hash-set! *tintin-commands* "load"
-  (list tintin-handle-load 1 "#load {filename}"))
+	   (list tintin-handle-load 1 "#load {filename}"))
 
 ;; ============================================================================
 ;; GENERIC COMMAND DISPATCHER (REFACTORED)

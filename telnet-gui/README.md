@@ -56,6 +56,7 @@ pacman -S mingw-w64-ucrt-x86_64-SDL2 \
 **Feature Detection:**
 
 CMake automatically detects libvterm capabilities at build time:
+
 - **Distribution packages (v0.3.3 and older)**: Basic scrollback only
 - **Upstream source (post-2024)**: Full text reflow when terminal resizes
 - **CMake priority**: Checks /usr/local first, then falls back to system packages

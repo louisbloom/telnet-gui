@@ -314,7 +314,7 @@
 
 ;; Test that semicolons inside braces are NOT split
 (tintin-split-commands "#alias {ef} {gb $food; eat $food}")
-    ; => ("#alias {ef} {gb $food; eat $food}")
+					; => ("#alias {ef} {gb $food; eat $food}")
 
 ;; Test nested braces with semicolons
 (tintin-split-commands "{a;b};{c;d}")            ; => ("{a;b}" "{c;d}")
