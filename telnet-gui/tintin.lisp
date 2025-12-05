@@ -559,27 +559,29 @@
                           (matched-result nil))
                       (do ((i 0 (+ i 1)))
                           ((or (>= i (list-length alias-names)) matched-result)
-                           ;; Process matched result or expanded command with recursive check
-                           (let ((expanded (if matched-result
-                                               (tintin-expand-speedwalk
-                                                (tintin-expand-variables matched-result))
-                                               (tintin-expand-speedwalk expanded-cmd))))
-                             ;; Split by semicolon to handle multiple commands
-                             (let ((split-commands (tintin-split-commands expanded)))
-                               ;; ALWAYS recursively process each command for alias expansion
-                               (if (> (list-length split-commands) 1)
-                                   ;; Multiple commands - process each recursively
-                                   (progn
-                                     (do ((j 0 (+ j 1)))
-                                         ((>= j (list-length split-commands)))
-                                       (let ((subcmd (list-ref split-commands j)))
-                                         (if (not (string=? subcmd ""))
-                                             (tintin-process-command subcmd))))
-                                     "")
-                                   ;; Single command - recursively process for alias expansion
-                                   (if (> (list-length split-commands) 0)
-                                       (tintin-process-command (list-ref split-commands 0))
-                                       "")))))
+                           ;; Process matched result or return expanded command
+                           (if matched-result
+                               ;; Pattern match found - expand and recurse
+                               (let ((expanded (tintin-expand-speedwalk
+                                                (tintin-expand-variables matched-result))))
+                                 ;; Split by semicolon to handle multiple commands
+                                 (let ((split-commands (tintin-split-commands expanded)))
+                                   ;; Recursively process each command for alias expansion
+                                   (if (> (list-length split-commands) 1)
+                                       ;; Multiple commands - process each recursively
+                                       (progn
+                                         (do ((j 0 (+ j 1)))
+                                             ((>= j (list-length split-commands)))
+                                           (let ((subcmd (list-ref split-commands j)))
+                                             (if (not (string=? subcmd ""))
+                                                 (tintin-process-command subcmd))))
+                                         "")
+                                       ;; Single command - recursively process for alias expansion
+                                       (if (> (list-length split-commands) 0)
+                                           (tintin-process-command (list-ref split-commands 0))
+                                           ""))))
+                               ;; No match found - return expanded command WITHOUT recursion
+                               (tintin-expand-speedwalk expanded-cmd)))
                         (let* ((pattern (list-ref alias-names i))
                                (match-values (tintin-match-pattern pattern expanded-cmd)))
                           (if match-values
