@@ -229,6 +229,7 @@ static void print_help(const char *program_name) {
     printf("\n");
     printf("  Other Options:\n");
     printf("    -l, --lisp-file FILE   Load and evaluate Lisp file on startup\n");
+    printf("                            Can be specified multiple times (loads in order)\n");
     printf("                            Used to customize completion hooks and scroll settings\n");
     printf("    -t, --test FILE        Run a Lisp test file in headless mode and exit\n");
     printf("                            Returns 0 on success, non-zero on failure\n");
@@ -253,6 +254,8 @@ static void print_help(const char *program_name) {
     printf("      Connect with 100x40 terminal size\n");
     printf("  %s -l completion.lisp telnet-server 4449\n", program_name);
     printf("      Connect and load Lisp configuration file\n");
+    printf("  %s -l tintin.lisp -l myconfig.lisp server 4449\n", program_name);
+    printf("      Load multiple Lisp files in order\n");
     printf("  %s -t tintin_test_final.lisp\n", program_name);
     printf("      Run a test file in headless mode\n");
 }
@@ -263,7 +266,8 @@ int main(int argc, char **argv) {
     SDL_ScaleMode scale_mode = SDL_ScaleModeLinear;
     const char *hostname = NULL;
     int port = 0;
-    const char *lisp_file = NULL;
+    const char *lisp_files[16]; /* Support up to 16 -l flags */
+    int lisp_file_count = 0;
     const char *test_file = NULL; /* Test file for headless mode */
     int use_plex = 0;             /* Default to Monaco font */
     int font_size = 16;           /* Default font size */
@@ -355,7 +359,12 @@ int main(int argc, char **argv) {
                 return 1;
             }
             arg_idx++;
-            lisp_file = argv[arg_idx];
+            if (lisp_file_count < 16) {
+                lisp_files[lisp_file_count++] = argv[arg_idx];
+            } else {
+                fprintf(stderr, "Error: Too many -l flags (maximum 16)\n");
+                return 1;
+            }
         } else if (strcmp(argv[arg_idx], "-t") == 0 || strcmp(argv[arg_idx], "--test") == 0) {
             if (arg_idx + 1 >= argc) {
                 fprintf(stderr, "Error: --test requires a file path\n");
@@ -688,10 +697,10 @@ int main(int argc, char **argv) {
     /* Wire telnet to terminal for output buffering */
     terminal_set_telnet(term, telnet);
 
-    /* Load user-provided Lisp file after terminal and telnet are registered */
-    if (lisp_file) {
-        if (lisp_x_load_file(lisp_file) < 0) {
-            fprintf(stderr, "Failed to load Lisp file: %s\n", lisp_file);
+    /* Load user-provided Lisp files in order after terminal and telnet are registered */
+    for (int i = 0; i < lisp_file_count; i++) {
+        if (lisp_x_load_file(lisp_files[i]) < 0) {
+            fprintf(stderr, "Failed to load Lisp file: %s\n", lisp_files[i]);
             /* Don't exit - just continue without user config */
         }
     }
