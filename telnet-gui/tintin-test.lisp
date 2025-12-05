@@ -653,3 +653,36 @@
 ;; Test Case 10: Verify with pattern matching alias (no placeholders)
 (tintin-process-command "#alias cast magic missile {c 'magic missile'}")  ; ignore
 (tintin-process-command "cast magic missile foobar")       ; => "c 'magic missile' foobar"
+
+;; ============================================================================
+;; Test 28: string=? Type Safety (Regression - Bug Fix)
+;; ============================================================================
+
+;; Bug: string=? type errors when typing aliases
+;; Root cause: Non-string values reaching string=? comparisons in alias expansion
+
+;; Clear state for clean test
+(set! *tintin-variables* (make-hash-table))  ; ignore
+(set! *tintin-aliases* (make-hash-table))    ; ignore
+
+;; Test Case 1: Simple alias with variable expansion (user's "ef" case)
+(tintin-process-command "#variable {food} {bread}")  ; ignore
+(tintin-process-command "#alias {ef} {get $food; eat $food}")  ; ignore
+(tintin-process-command "ef")                 ; => "get bread;eat bread"
+
+;; Test Case 2: Alias with no placeholders and arguments (should append)
+(tintin-process-command "#alias {mm} {c 'magic missile'}")  ; ignore
+(tintin-process-command "mm foobar")           ; => "c 'magic missile' foobar"
+
+;; Test Case 3: Nested alias expansion
+(tintin-process-command "#variable {target} {orc}")  ; ignore
+(tintin-process-command "#alias {2} {mm $target}")   ; ignore
+(tintin-process-command "2")                   ; => "c 'magic missile' orc"
+
+;; Test Case 4: Empty result from alias (edge case)
+(tintin-process-command "#alias {empty} {}")   ; ignore
+(tintin-process-command "empty")               ; => ""
+
+;; Test Case 5: Alias with pattern matching and unused args
+(tintin-process-command "#alias {k} {kill %1}")  ; ignore
+(tintin-process-command "k orc goblin")        ; => "kill orc goblin"

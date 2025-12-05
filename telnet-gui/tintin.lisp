@@ -69,6 +69,22 @@
 (define *tintin-commands* (make-hash-table))
 
 ;; ============================================================================
+;; STUB DEFINITIONS (for standalone use in lisp-repl)
+;; ============================================================================
+
+;; Define terminal-echo as printing to stdout if not already defined
+(if (not (condition-case err
+             (progn terminal-echo #t)
+           (error #f)))
+    (define terminal-echo (lambda (text) (print text) nil)))
+
+;; Define telnet-send as printing to stderr if not already defined
+(if (not (condition-case err
+             (progn telnet-send #t)
+           (error #f)))
+    (define telnet-send (lambda (text) (eprint text) nil)))
+
+;; ============================================================================
 ;; UTILITY FUNCTIONS
 ;; NOTE: string->number and reverse are now native built-in functions
 ;; ============================================================================
@@ -353,7 +369,7 @@
 		  ;; Placeholder - capture the value
 		  (set! matches (cons i-part matches))
 		  ;; Literal - must match exactly
-		  (if (not (string=? p-part i-part))
+		  (if (and (string? p-part) (string? i-part) (not (string=? p-part i-part)))
 		      (set! success #f)))))))))
 
 ;; Expand $variable references in a string
@@ -485,7 +501,7 @@
 
 ;; Process a single command
 (defun tintin-process-command (cmd)
-  (if (or (not (string? cmd)) (string=? cmd ""))
+  (if (or (not (string? cmd)) (and (string? cmd) (string=? cmd "")))
       ""
       ;; NEW: Intercept # commands FIRST
       (if (tintin-is-command? cmd)
@@ -531,53 +547,56 @@
                                                        (list-ref args i))))
                               (set! result (string-replace "%0" all-args result))
                               ;; If %0 was replaced, mark ALL args as used
-                              (if (not (string=? result old-result))
+                              (if (and (string? result) (string? old-result)
+                                       (not (string=? result old-result)))
                                   (do ((i 0 (+ i 1)))
                                       ((>= i (list-length args)))
                                     (vector-set! used-args i #t)))))
                         ;; Then replace %1, %2, etc. with individual args
                         (do ((i 0 (+ i 1)))
                             ((>= i (list-length args))
-                             ;; Append any unused arguments
-                             (let ((unused-list '()))
-                               (do ((j 0 (+ j 1)))
-                                   ((>= j (list-length args)))
-                                 (if (not (vector-ref used-args j))
-                                     (set! unused-list (cons (list-ref args j) unused-list))))
-                               ;; Build unused-args string from list
-                               (if (not (eq? unused-list '()))
-                                   (let ((unused-args "")
-                                         (reversed (reverse unused-list)))
-                                     (do ((k 0 (+ k 1)))
-                                         ((>= k (list-length reversed)))
-                                       (set! unused-args (concat unused-args
-                                                                 (if (> k 0) " " "")
-                                                                 (list-ref reversed k))))
-                                     (set! result (concat result " " unused-args)))))
-                             ;; Expand variables, then speedwalk
-                             (let ((expanded (tintin-expand-speedwalk
-                                              (tintin-expand-variables result))))
-                               ;; Split by semicolon to handle multiple commands
-                               (let ((split-commands (tintin-split-commands expanded)))
-                                 ;; ALWAYS recursively process each command for alias expansion
-                                 (if (> (list-length split-commands) 1)
-                                     ;; Multiple commands - process each recursively
-                                     (progn
-                                       (do ((j 0 (+ j 1)))
-                                           ((>= j (list-length split-commands)))
-                                         (let ((subcmd (list-ref split-commands j)))
-                                           (if (not (string=? subcmd ""))
-                                               (tintin-process-command subcmd))))
-                                       "")
-                                     ;; Single command - recursively process for alias expansion
-                                     (if (> (list-length split-commands) 0)
-                                         (tintin-process-command (list-ref split-commands 0))
-                                         "")))))
+                             (progn
+                               ;; Append any unused arguments
+                               (let ((unused-list '()))
+				 (do ((j 0 (+ j 1)))
+                                     ((>= j (list-length args)))
+                                   (if (not (vector-ref used-args j))
+                                       (set! unused-list (cons (list-ref args j) unused-list))))
+				 ;; Build unused-args string from list
+				 (if (not (eq? unused-list '()))
+                                     (let ((unused-args "")
+                                           (reversed (reverse unused-list)))
+                                       (do ((k 0 (+ k 1)))
+                                           ((>= k (list-length reversed)))
+					 (set! unused-args (concat unused-args
+                                                                   (if (> k 0) " " "")
+                                                                   (list-ref reversed k))))
+                                       (set! result (concat result " " unused-args))))
+				 ;; Expand variables, then speedwalk
+				 (let ((expanded (tintin-expand-speedwalk
+						  (tintin-expand-variables result))))
+				   ;; Split by semicolon to handle multiple commands
+				   (let ((split-commands (tintin-split-commands expanded)))
+                                     ;; ALWAYS recursively process each command for alias expansion
+                                     (if (> (list-length split-commands) 1)
+					 ;; Multiple commands - process each recursively
+					 (progn
+					   (do ((j 0 (+ j 1)))
+                                               ((>= j (list-length split-commands)))
+                                             (let ((subcmd (list-ref split-commands j)))
+                                               (if (and (string? subcmd) (not (string=? subcmd "")))
+						   (tintin-process-command subcmd))))
+					   "")
+					 ;; Single command - recursively process for alias expansion
+					 (if (> (list-length split-commands) 0)
+                                             (tintin-process-command (list-ref split-commands 0))
+                                             "")))))))  ; Added extra ) for progn
                           (let ((placeholder (concat "%" (number->string (+ i 1))))
                                 (old-result result))
                             (set! result (string-replace placeholder (list-ref args i) result))
                             ;; If placeholder was replaced, mark this arg as used
-                            (if (not (string=? result old-result))
+                            (if (and (string? result) (string? old-result)
+                                     (not (string=? result old-result)))
                                 (vector-set! used-args i #t))))))
                     ;; No simple match - try pattern matching
                     (let ((alias-names (hash-keys *tintin-aliases*))
@@ -598,7 +617,7 @@
                                          (do ((j 0 (+ j 1)))
                                              ((>= j (list-length split-commands)))
                                            (let ((subcmd (list-ref split-commands j)))
-                                             (if (not (string=? subcmd ""))
+                                             (if (and (string? subcmd) (not (string=? subcmd "")))
                                                  (tintin-process-command subcmd))))
                                          "")
                                        ;; Single command - recursively process for alias expansion
@@ -637,7 +656,7 @@
 	(do ((i 0 (+ i 1)))
 	    ((>= i (list-length commands)))
 	  (let ((processed (tintin-process-command (list-ref commands i))))
-	    (if (not (string=? processed ""))
+	    (if (and (string? processed) (not (string=? processed "")))
 		(set! results (cons processed results)))))
 	;; Reverse and join results with semicolons
 	(let ((reversed-results (reverse results))
@@ -676,10 +695,10 @@
 	  (do ((i 0 (+ i 1)))
 	      ((>= i (list-length commands)))
 	    (let ((cmd (list-ref commands i)))
-	      (if (not (string=? cmd ""))
+	      (if (and (string? cmd) (not (string=? cmd "")))
 		  (progn
 		    ;; Echo expanded command to terminal (if different from original)
-		    (if (not (string=? cmd text))
+		    (if (and (string? cmd) (string? text) (not (string=? cmd text)))
 			(tintin-echo (concat cmd "\r\n")))
 		    ;; Send to telnet server with error handling
 		    (condition-case err
