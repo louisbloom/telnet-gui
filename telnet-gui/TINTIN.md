@@ -231,6 +231,24 @@ Load aliases and variables from a saved file:
 #load {my-config.lisp}
 ```
 
+## File Path Expansion
+
+Both `#save` and `#load` commands support home directory expansion using `~/`:
+
+**Examples:**
+
+```bash
+#save {~/my-config.tin}       # Saves to home directory
+#load {~/scripts/aliases.tin} # Loads from home directory
+```
+
+**Platform Support:**
+
+- **Unix/Linux/macOS:** `~/` expands to `$HOME` (e.g., `/home/user/`)
+- **Windows:** `~/` expands to `%USERPROFILE%` (e.g., `C:\Users\User\`)
+
+**Note:** The `~` must be at the start of the path. Paths without `~/` prefix work as before (relative or absolute).
+
 ## Command Shortcuts
 
 All TinTin++ commands support:

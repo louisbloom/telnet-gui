@@ -614,6 +614,93 @@ The condition system provides Emacs Lisp-style error handling with typed errors,
 - `read-json` - Read JSON from file (filename or file stream) - returns Lisp data structures (objects → hash tables, arrays → vectors, etc.)
 - `load` - Load and evaluate a Lisp file (filename) - returns the result of the last expression evaluated, or an error if loading fails
 
+### Path Expansion Functions
+
+Cross-platform file path expansion utilities.
+
+#### `(home-directory)`
+
+Get the user's home directory path.
+
+**Returns:**
+
+- String with home directory path
+- `nil` if home directory cannot be determined
+
+**Platform behavior:**
+
+- **Unix/Linux/macOS:** Uses `$HOME` environment variable
+- **Windows:** Uses `%USERPROFILE%` or `%HOMEDRIVE%%HOMEPATH%`
+
+**Examples:**
+
+```lisp
+(home-directory)                    ; => "/home/alice" (Unix)
+(home-directory)                    ; => "C:\\Users\\Alice" (Windows)
+
+; Use in paths
+(define config-dir (concat (home-directory) "/.config"))
+; => "/home/alice/.config"
+```
+
+#### `(expand-path path)`
+
+Expand `~/` prefix in file paths to the user's home directory.
+
+**Arguments:**
+
+- `path` (string) - File path, may start with `~/`
+
+**Returns:**
+
+- String with expanded path (if path starts with `~/`)
+- Original string (if path does not start with `~/`)
+- Error if argument is not a string
+
+**Behavior:**
+
+- Detects `~/` at start of path
+- Replaces `~/` with home directory from `home-directory`
+- Handles cross-platform path separators
+- Works with both forward and backslashes after `~`
+
+**Examples:**
+
+```lisp
+; Basic expansion
+(expand-path "~/config.lisp")
+; => "/home/alice/config.lisp" (Unix)
+; => "C:\\Users\\Alice\\config.lisp" (Windows)
+
+; Subdirectories
+(expand-path "~/Documents/notes.txt")
+; => "/home/alice/Documents/notes.txt" (Unix)
+
+; No expansion (no ~/ prefix)
+(expand-path "/etc/config")         ; => "/etc/config"
+(expand-path "relative/path")       ; => "relative/path"
+(expand-path "./local.lisp")        ; => "./local.lisp"
+
+; Just ~ expands to home directory
+(expand-path "~")                   ; => "/home/alice"
+
+; Use with file I/O
+(define file (open (expand-path "~/my-config.lisp") "r"))
+(load (expand-path "~/scripts/init.lisp"))
+```
+
+**Use Cases:**
+
+- Reading/writing user configuration files
+- Loading user-specific scripts
+- Saving data to user directories
+- Cross-platform file operations
+
+**Error Handling:**
+
+- Returns error if home directory cannot be determined
+- Returns error if argument is not a string
+
 ### Printing Functions (Common Lisp Style)
 
 - `princ` - Print object in human-readable form (strings without quotes), returns the object

@@ -141,6 +141,10 @@ static LispObject *builtin_eq_predicate(LispObject *args, Environment *env);
 static LispObject *builtin_equal_predicate(LispObject *args, Environment *env);
 static LispObject *builtin_string_eq_predicate(LispObject *args, Environment *env);
 
+/* Path expansion functions */
+static LispObject *builtin_home_directory(LispObject *args, Environment *env);
+static LispObject *builtin_expand_path(LispObject *args, Environment *env);
+
 /* Helper for wildcard matching */
 static int match_char_class(const char **pattern, char c);
 static int wildcard_match(const char *pattern, const char *str);
@@ -221,6 +225,10 @@ void register_builtins(Environment *env) {
     env_define(env, "read-sexp", lisp_make_builtin(builtin_read_sexp, "read-sexp"));
     env_define(env, "read-json", lisp_make_builtin(builtin_read_json, "read-json"));
     env_define(env, "load", lisp_make_builtin(builtin_load, "load"));
+
+    /* Path expansion functions */
+    env_define(env, "home-directory", lisp_make_builtin(builtin_home_directory, "home-directory"));
+    env_define(env, "expand-path", lisp_make_builtin(builtin_expand_path, "expand-path"));
 
     /* Common Lisp printing functions */
     env_define(env, "princ", lisp_make_builtin(builtin_princ, "princ"));
@@ -2596,6 +2604,106 @@ static LispObject *builtin_terpri(LispObject *args, Environment *env) {
     printf("\n");
     fflush(stdout);
     return NIL;
+}
+
+/* Path expansion functions */
+
+/* Get user's home directory path (cross-platform)
+ * Unix/Linux/macOS: $HOME
+ * Windows: %USERPROFILE% or %HOMEDRIVE%%HOMEPATH%
+ * Returns: String with home directory or NIL if not found
+ */
+static LispObject *builtin_home_directory(LispObject *args, Environment *env) {
+    (void)args; /* Takes no arguments */
+    (void)env;
+
+    const char *home = NULL;
+
+#if defined(_WIN32) || defined(_WIN64)
+    /* Windows: Try USERPROFILE first */
+    home = getenv("USERPROFILE");
+
+    /* Fallback: HOMEDRIVE + HOMEPATH */
+    if (home == NULL) {
+        const char *homedrive = getenv("HOMEDRIVE");
+        const char *homepath = getenv("HOMEPATH");
+
+        if (homedrive != NULL && homepath != NULL) {
+            size_t len = strlen(homedrive) + strlen(homepath) + 1;
+            char *combined = GC_malloc(len);
+            snprintf(combined, len, "%s%s", homedrive, homepath);
+            home = combined;
+        }
+    }
+#else
+    /* Unix/Linux/macOS: Use HOME */
+    home = getenv("HOME");
+#endif
+
+    if (home == NULL) {
+        return NIL; /* No home directory found */
+    }
+
+    return lisp_make_string(home);
+}
+
+/* Expand ~/ in file paths to home directory (cross-platform)
+ * Takes: String (file path)
+ * Returns: String (expanded path) or original if no ~/ prefix
+ * Example: (expand-path "~/config.lisp") => "/home/user/config.lisp"
+ */
+static LispObject *builtin_expand_path(LispObject *args, Environment *env) {
+    if (args == NIL) {
+        return lisp_make_error("expand-path requires 1 argument");
+    }
+
+    LispObject *path_obj = lisp_car(args);
+    if (path_obj->type != LISP_STRING) {
+        return lisp_make_error("expand-path requires a string argument");
+    }
+
+    const char *path = path_obj->value.string;
+
+    /* Check if path starts with ~/ */
+    if (path[0] != '~' || (path[1] != '/' && path[1] != '\\' && path[1] != '\0')) {
+        /* Not a ~/ path - return original */
+        return path_obj;
+    }
+
+    /* Get home directory */
+    LispObject *home_obj = builtin_home_directory(NIL, env);
+    if (home_obj == NIL || home_obj->type != LISP_STRING) {
+        /* No home directory - return error */
+        return lisp_make_error("expand-path: cannot determine home directory");
+    }
+
+    const char *home = home_obj->value.string;
+
+    /* Calculate expanded path length */
+    /* If path is just "~", use home directory directly */
+    if (path[1] == '\0') {
+        return home_obj;
+    }
+
+    /* Skip ~/ or ~\ */
+    const char *rest = path + 2;
+
+    /* Build expanded path: home + / + rest */
+    size_t home_len = strlen(home);
+    size_t rest_len = strlen(rest);
+    size_t total_len = home_len + 1 + rest_len + 1;
+
+    char *expanded = GC_malloc(total_len);
+
+#if defined(_WIN32) || defined(_WIN64)
+    /* Windows: Use backslash separator */
+    snprintf(expanded, total_len, "%s\\%s", home, rest);
+#else
+    /* Unix: Use forward slash separator */
+    snprintf(expanded, total_len, "%s/%s", home, rest);
+#endif
+
+    return lisp_make_string(expanded);
 }
 
 /* Type predicates */

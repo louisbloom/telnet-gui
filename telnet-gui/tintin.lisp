@@ -885,6 +885,8 @@
 ;; args: (filename)
 (defun tintin-handle-save (args)
   (let ((filename (tintin-strip-braces (list-ref args 0))))
+    ;; Expand ~/path if present
+    (set! filename (expand-path filename))
     (tintin-save-state filename)
     (tintin-echo (concat "State saved to '" filename "'\r\n"))
     ""))
@@ -893,6 +895,8 @@
 ;; args: (filename)
 (defun tintin-handle-load (args)
   (let ((filename (tintin-strip-braces (list-ref args 0))))
+    ;; Expand ~/path if present
+    (set! filename (expand-path filename))
     (load filename)
     (tintin-echo (concat "State loaded from '" filename "'\r\n"))
     ""))
