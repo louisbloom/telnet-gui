@@ -1,33 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
-project(TelnetLisp VERSION 1.0.0 LANGUAGES C)
 
-# Default to user install directory (no admin privileges required)
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-    if(WIN32)
-        set(CMAKE_INSTALL_PREFIX "$ENV{USERPROFILE}/telnet-lisp" CACHE PATH "Install path prefix" FORCE)
-    else()
-        set(CMAKE_INSTALL_PREFIX "$ENV{HOME}/telnet-lisp" CACHE PATH "Install path prefix" FORCE)
-    endif()
-endif()
-
-# Export compile commands for clangd
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-# Set C standard
-set(CMAKE_C_STANDARD 99)
-set(CMAKE_C_STANDARD_REQUIRED ON)
-
-# Compiler flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -pedantic")
-
-# Debug/Release flags
-set(CMAKE_C_FLAGS_DEBUG "-g -O0")
-set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
-
-# For Windows UCRT64, prefer static linking to avoid msys-2.0.dll
-if(WIN32)
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc")
-
+# IMPORTANT: Detect and set UCRT64 compiler BEFORE project() command
+# This ensures CMake uses the correct compiler from the start
+if(WIN32 AND NOT CMAKE_C_COMPILER)
     # Detect MSYS2/UCRT64 installation in common locations
     if(DEFINED ENV{MSYS2_ROOT})
         set(UCRT64_ROOT "$ENV{MSYS2_ROOT}/ucrt64")
@@ -62,41 +37,106 @@ if(WIN32)
         endforeach()
     endif()
 
-    # Show UCRT64 detection result
     if(UCRT64_ROOT)
         message(STATUS "Found MSYS2 UCRT64 at: ${UCRT64_ROOT}")
+        message(STATUS "Configuring UCRT64 toolchain before project initialization")
 
-        # Auto-configure toolchain when running from non-UCRT64 MSYS2 environment
-        if(DEFINED ENV{MSYSTEM})
-            if(NOT "$ENV{MSYSTEM}" STREQUAL "UCRT64")
-                message(STATUS "Detected MSYS2 $ENV{MSYSTEM} environment - auto-configuring UCRT64 toolchain")
+        # Set UCRT64 compiler BEFORE project() command
+        set(CMAKE_C_COMPILER "${UCRT64_ROOT}/bin/gcc.exe" CACHE FILEPATH "C compiler" FORCE)
+        set(CMAKE_CXX_COMPILER "${UCRT64_ROOT}/bin/g++.exe" CACHE FILEPATH "C++ compiler" FORCE)
+        set(CMAKE_RC_COMPILER "${UCRT64_ROOT}/bin/windres.exe" CACHE FILEPATH "RC compiler" FORCE)
 
-                # Force UCRT64 toolchain (not MINGW64!)
-                set(CMAKE_C_COMPILER "${UCRT64_ROOT}/bin/gcc.exe" CACHE FILEPATH "C compiler" FORCE)
-                set(CMAKE_CXX_COMPILER "${UCRT64_ROOT}/bin/g++.exe" CACHE FILEPATH "C++ compiler" FORCE)
-                set(CMAKE_RC_COMPILER "${UCRT64_ROOT}/bin/windres.exe" CACHE FILEPATH "RC compiler" FORCE)
-
-                # Force pkg-config to use UCRT64 packages
-                set(UCRT64_PKG_CONFIG "${UCRT64_ROOT}/bin/pkg-config.exe")
-                if(EXISTS "${UCRT64_PKG_CONFIG}")
-                    set(PKG_CONFIG_EXECUTABLE "${UCRT64_PKG_CONFIG}" CACHE FILEPATH "pkg-config" FORCE)
-                endif()
-
-                # Prepend UCRT64 pkg-config paths
-                set(UCRT64_PKG_CONFIG_PATH "${UCRT64_ROOT}/lib/pkgconfig")
-                if(DEFINED ENV{PKG_CONFIG_PATH})
-                    set(ENV{PKG_CONFIG_PATH} "${UCRT64_PKG_CONFIG_PATH}:$ENV{PKG_CONFIG_PATH}")
-                else()
-                    set(ENV{PKG_CONFIG_PATH} "${UCRT64_PKG_CONFIG_PATH}")
-                endif()
-
-                message(STATUS "  Using UCRT64 compiler: ${CMAKE_C_COMPILER}")
-                message(STATUS "  Using UCRT64 pkg-config: ${PKG_CONFIG_EXECUTABLE}")
-            endif()
+        # Force pkg-config to use UCRT64 packages
+        set(UCRT64_PKG_CONFIG "${UCRT64_ROOT}/bin/pkg-config.exe")
+        if(EXISTS "${UCRT64_PKG_CONFIG}")
+            set(PKG_CONFIG_EXECUTABLE "${UCRT64_PKG_CONFIG}" CACHE FILEPATH "pkg-config" FORCE)
         endif()
+
+        # Prepend UCRT64 pkg-config paths
+        set(UCRT64_PKG_CONFIG_PATH "${UCRT64_ROOT}/lib/pkgconfig")
+        if(DEFINED ENV{PKG_CONFIG_PATH})
+            set(ENV{PKG_CONFIG_PATH} "${UCRT64_PKG_CONFIG_PATH}:$ENV{PKG_CONFIG_PATH}")
+        else()
+            set(ENV{PKG_CONFIG_PATH} "${UCRT64_PKG_CONFIG_PATH}")
+        endif()
+
+        message(STATUS "  Using UCRT64 compiler: ${CMAKE_C_COMPILER}")
+        message(STATUS "  Using UCRT64 pkg-config: ${PKG_CONFIG_EXECUTABLE}")
+    endif()
+endif()
+
+project(TelnetLisp VERSION 1.0.0 LANGUAGES C)
+
+# Default to user install directory (no admin privileges required)
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    if(WIN32)
+        set(CMAKE_INSTALL_PREFIX "$ENV{USERPROFILE}/telnet-lisp" CACHE PATH "Install path prefix" FORCE)
     else()
-        message(WARNING "MSYS2 UCRT64 not found - some features may not be available")
-        message(WARNING "Install MSYS2 UCRT64 packages: pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,bdw-gc,pcre2}")
+        set(CMAKE_INSTALL_PREFIX "$ENV{HOME}/telnet-lisp" CACHE PATH "Install path prefix" FORCE)
+    endif()
+endif()
+
+# Export compile commands for clangd
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Set C standard
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
+# Compiler flags
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -pedantic")
+
+# Debug/Release flags
+set(CMAKE_C_FLAGS_DEBUG "-g -O0")
+set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
+
+# For Windows UCRT64, prefer static linking to avoid msys-2.0.dll
+if(WIN32)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc")
+
+    # UCRT64_ROOT was already set before project() if needed
+    # This section handles cases where we're already in UCRT64 environment
+    if(NOT DEFINED UCRT64_ROOT)
+        # Detect MSYS2/UCRT64 installation in common locations
+        if(DEFINED ENV{MSYS2_ROOT})
+            set(UCRT64_ROOT "$ENV{MSYS2_ROOT}/ucrt64")
+        else()
+            # Try common installation paths
+            set(PROGRAM_FILES_X86 "$ENV{ProgramFiles\(x86\)}")
+
+            # Start with Scoop installations (user's intentional override)
+            set(MSYS2_INSTALLS)
+
+            # Scoop: Add both current symlink and versioned directories
+            if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
+                list(APPEND MSYS2_INSTALLS "$ENV{USERPROFILE}/scoop/apps/msys2/current")
+                file(GLOB SCOOP_MSYS2_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*")
+                list(APPEND MSYS2_INSTALLS ${SCOOP_MSYS2_VERSIONS})
+            endif()
+
+            # Then check official installations
+            list(APPEND MSYS2_INSTALLS
+                "C:/msys64"
+                "C:/tools/msys64"
+                "$ENV{ProgramFiles}/msys64"
+                "${PROGRAM_FILES_X86}/msys64"
+            )
+
+            # Find the first existing MSYS2 installation
+            foreach(path IN LISTS MSYS2_INSTALLS)
+                if(EXISTS "${path}")
+                    set(UCRT64_ROOT "${path}/ucrt64")
+                    break()
+                endif()
+            endforeach()
+        endif()
+
+        if(UCRT64_ROOT)
+            message(STATUS "Found MSYS2 UCRT64 at: ${UCRT64_ROOT}")
+        else()
+            message(WARNING "MSYS2 UCRT64 not found - some features may not be available")
+            message(WARNING "Install MSYS2 UCRT64 packages: pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,bdw-gc,pcre2}")
+        endif()
     endif()
 
     # Add UCRT64 system include paths for clangd if found
@@ -285,11 +325,12 @@ if(CLANG_FORMAT)
     if(SHFMT)
         if(EMACS)
             # Format C, shell scripts, and Lisp files
-            # Build format commands for each Lisp file using wrapper script
+            # Build format commands for each Lisp file using stdin/stdout formatter (same as VSCode)
             set(LISP_FORMAT_COMMANDS "")
             foreach(LISP_FILE ${LISP_SOURCES})
+                # Use bash script on all platforms (same Emacs settings as VSCode)
                 list(APPEND LISP_FORMAT_COMMANDS
-                    COMMAND bash ${CMAKE_SOURCE_DIR}/tools/format-lisp-file.sh ${LISP_FILE}
+                    COMMAND bash "${CMAKE_SOURCE_DIR}/tools/format-lisp-file-stdin.sh" "${LISP_FILE}"
                 )
             endforeach()
 
@@ -355,11 +396,12 @@ if(CLANG_FORMAT)
     else()
         if(EMACS)
             # Format C and Lisp files (no shfmt)
-            # Build format commands for each Lisp file using wrapper script
+            # Build format commands for each Lisp file using stdin/stdout formatter (same as VSCode)
             set(LISP_FORMAT_COMMANDS "")
             foreach(LISP_FILE ${LISP_SOURCES})
+                # Use bash script on all platforms (same Emacs settings as VSCode)
                 list(APPEND LISP_FORMAT_COMMANDS
-                    COMMAND bash ${CMAKE_SOURCE_DIR}/tools/format-lisp-file.sh ${LISP_FILE}
+                    COMMAND bash "${CMAKE_SOURCE_DIR}/tools/format-lisp-file-stdin.sh" "${LISP_FILE}"
                 )
             endforeach()
 

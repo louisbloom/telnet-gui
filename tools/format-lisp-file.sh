@@ -20,16 +20,19 @@ fi
 # Disable hooks that might cause hangs
 # Suppress stderr output (Emacs warnings)
 emacs --batch --quick \
-    --eval "(progn (setq inhibit-startup-message t inhibit-startup-echo-area-message t)" \
+    --eval "(setq inhibit-startup-message t)" \
+    --eval "(setq inhibit-startup-echo-area-message t)" \
     --eval "(setq enable-local-variables nil)" \
     --eval "(setq enable-local-eval nil)" \
     --eval "(setq indent-tabs-mode nil)" \
+    --eval "(setq lisp-indent-offset 2)" \
+    --eval "(setq lisp-body-indent 2)" \
     --eval "(find-file-literally \"$FILE\")" \
     --eval "(lisp-mode)" \
     --eval "(untabify (point-min) (point-max))" \
     --eval "(indent-region (point-min) (point-max))" \
     --eval "(save-buffer)" \
     --eval "(kill-buffer)" \
-    --eval "(kill-emacs))" 2>/dev/null
+    --eval "(kill-emacs)" 2>/dev/null
 
 exit 0

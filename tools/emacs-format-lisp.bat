@@ -33,17 +33,20 @@ REM --quick: Skip loading user config (faster, avoids hooks)
 REM find-file-literally: Avoid auto-mode hooks and processing
 REM Disable hooks that might cause hangs
 emacs --batch --quick ^
-    --eval "(progn (setq inhibit-startup-message t inhibit-startup-echo-area-message t)" ^
+    --eval "(setq inhibit-startup-message t)" ^
+    --eval "(setq inhibit-startup-echo-area-message t)" ^
     --eval "(setq enable-local-variables nil)" ^
     --eval "(setq enable-local-eval nil)" ^
     --eval "(setq indent-tabs-mode nil)" ^
+    --eval "(setq lisp-indent-offset 2)" ^
+    --eval "(setq lisp-body-indent 2)" ^
     --eval "(find-file-literally \"%TEMP_FILE_FORWARD%\")" ^
     --eval "(lisp-mode)" ^
     --eval "(untabify (point-min) (point-max))" ^
     --eval "(indent-region (point-min) (point-max))" ^
     --eval "(save-buffer)" ^
     --eval "(kill-buffer)" ^
-    --eval "(kill-emacs))" 2>nul
+    --eval "(kill-emacs)" 2>nul
 
 REM Output the formatted file
 type "%TEMP_FILE%"

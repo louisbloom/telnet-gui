@@ -74,28 +74,39 @@ brew install sdl2 sdl2_ttf
 
 Build all projects from the repository root:
 
+**Using CMake Presets (recommended):**
+
 ```bash
-# Create build directory
-mkdir build && cd build
-
-# Configure CMake
-cmake .. -G Ninja
-
-# Build everything
-cmake --build .
+# Configure and build
+cmake --preset default
+cmake --build build
 
 # Or build specific targets
-cmake --build . --target liblisp      # Core library only
-cmake --build . --target lisp-repl     # REPL application
-cmake --build . --target telnet-gui    # GUI application (requires GUI deps)
+cmake --build build --target liblisp      # Core library only
+cmake --build build --target lisp-repl    # REPL application
+cmake --build build --target telnet-gui   # GUI application (requires GUI deps)
 ```
 
-**Alternative with MinGW Makefiles (Windows):**
+**Using Ninja directly:**
 
 ```bash
-cmake .. -G "MinGW Makefiles"
-cmake --build .
+# Configure with Ninja generator
+cmake -B build -G Ninja
+
+# Build everything
+cmake --build build
+
+# Or build specific targets
+cmake --build build --target liblisp      # Core library only
+cmake --build build --target lisp-repl    # REPL application
+cmake --build build --target telnet-gui   # GUI application (requires GUI deps)
 ```
+
+**Notes for Windows:**
+
+- CMake automatically detects and uses UCRT64 toolchain when available (Scoop or MSYS2 installation)
+- Works from PowerShell, cmd, or MSYS2 shells without manual environment configuration
+- If CMake defaults to NMake Makefiles, use `-G Ninja` or the CMake preset
 
 ### Running the REPL
 
@@ -195,8 +206,8 @@ pacman -S mingw-w64-ucrt-x86_64-SDL2_ttf
 pacman -S mingw-w64-ucrt-x86_64-libvterm
 
 # Build from repository root
-cd build
-cmake --build . --target telnet-gui
+cmake --preset default           # or: cmake -B build -G Ninja
+cmake --build build --target telnet-gui
 ```
 
 **Usage:**
@@ -221,9 +232,8 @@ Repository-level targets:
 View all targets:
 
 ```bash
-cd build
-cmake .. -G Ninja
-cmake --build . --target help
+cmake --preset default              # or: cmake -B build -G Ninja
+cmake --build build --target help
 ```
 
 ## Formatting Code
@@ -255,6 +265,8 @@ The repository uses **CMake** as the primary build system, providing:
 
 - Cross-platform support
 - Multiple generator support (Ninja, Makefiles, etc.)
+- CMake Presets for simplified configuration (CMakePresets.json)
+- Automatic UCRT64 toolchain detection on Windows
 - Integrated testing with CTest
 - Code formatting with clang-format
 - Install targets for system integration

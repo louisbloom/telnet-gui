@@ -3,21 +3,21 @@
 
 ;; All available commands
 (define all-commands '("help" "hello" "helicopter" "list" "lisp" "listen"
-                       "test" "telnet" "terminal" "temp" "show" "shell" "shutdown"))  ; ignore
+                        "test" "telnet" "terminal" "temp" "show" "shell" "shutdown"))  ; ignore
 
 ;; Helper function to filter commands that match the prefix
 (define filter-commands
-    (lambda (prefix commands)
-      (if (null? commands)
-          ()
-          (if (string-prefix? prefix (car commands))
-              (cons (car commands) (filter-commands prefix (cdr commands)))
-              (filter-commands prefix (cdr commands))))))  ; ignore
+  (lambda (prefix commands)
+    (if (null? commands)
+      ()
+      (if (string-prefix? prefix (car commands))
+        (cons (car commands) (filter-commands prefix (cdr commands)))
+        (filter-commands prefix (cdr commands))))))  ; ignore
 
 ;; Simple completion hook that filters all commands
 (define completion-hook
-    (lambda (text)
-      (filter-commands text all-commands)))  ; ignore
+  (lambda (text)
+    (filter-commands text all-commands)))  ; ignore
 
 ;; ============================================================================
 ;; Test 1: Filter commands with "hel" prefix

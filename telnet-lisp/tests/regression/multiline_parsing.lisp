@@ -7,75 +7,75 @@
 ;; ===========================================
 
 (+
- 1
- 2
- 3
- )                                        ; => 6
+  1
+  2
+  3
+  )                                        ; => 6
 
 ;; ===========================================
 ;; Test 2: Nested multi-line expressions
 ;; ===========================================
 
 (+
- 1
- (+
-  2
-  3
-  )
- )                                        ; => 6
+  1
+  (+
+    2
+    3
+    )
+  )                                        ; => 6
 
 ;; ===========================================
 ;; Test 3: Multi-line hash table operations
 ;; ===========================================
 
 (define ht
-    (make-hash-table)
+  (make-hash-table)
   )
 
 (hash-set!
- ht
- "name"
- "Alice"
- )
+  ht
+  "name"
+  "Alice"
+  )
 
 (hash-ref
- ht
- "name"
- )                                        ; => "Alice"
+  ht
+  "name"
+  )                                        ; => "Alice"
 
 ;; ===========================================
 ;; Test 4: Multi-line vector operations
 ;; ===========================================
 
 (define v
-    (make-vector 5)
+  (make-vector 5)
   )
 
 (vector-push!
- v
- 42
- )
+  v
+  42
+  )
 
 (vector-push!
- v
- 100
- )
+  v
+  100
+  )
 
 (vector-ref
- v
- 0
- )                                        ; => 42
+  v
+  0
+  )                                        ; => 42
 
 ;; ===========================================
 ;; Test 5: Complex nested multi-line conditional
 ;; ===========================================
 
 (define result
-    (if
-     (> 10 5)
-     (+ 1 2 3)
-     (- 5 2)
-     )
+  (if
+    (> 10 5)
+    (+ 1 2 3)
+    (- 5 2)
+    )
   )
 
 result                                    ; => 6
@@ -85,7 +85,7 @@ result                                    ; => 6
 ;; ===========================================
 
 (define s
-    "This is a (test) string"
+  "This is a (test) string"
   )
 
 s                                         ; => "This is a (test) string"

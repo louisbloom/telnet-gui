@@ -5,14 +5,14 @@
 (define *terminal-echo-log* '())            ; ignore
 
 (define terminal-echo
-    (lambda (text)
-      (set! *terminal-echo-log* (cons text *terminal-echo-log*))
-      nil))  ; ignore
+  (lambda (text)
+    (set! *terminal-echo-log* (cons text *terminal-echo-log*))
+    nil))  ; ignore
 
 (define telnet-send
-    (lambda (text)
-      (set! *telnet-send-log* (cons text *telnet-send-log*))
-      nil))  ; ignore
+  (lambda (text)
+    (set! *telnet-send-log* (cons text *telnet-send-log*))
+    nil))  ; ignore
 
 ;; Load TinTin++ implementation
 (load "tintin.lisp")  ; ignore
@@ -129,7 +129,7 @@
 ;; Cursor position should be ignored (same result regardless)
 ;; Both calls should return nil (hook handles everything)
 (and (null? (tintin-user-input-hook "test" 0))
-     (null? (tintin-user-input-hook "test" 5)))        ; => #t
+  (null? (tintin-user-input-hook "test" 5)))        ; => #t
 
 ;; ============================================================================
 ;; Test 11: Toggle Functions
@@ -314,7 +314,7 @@
 
 ;; Test that semicolons inside braces are NOT split
 (tintin-split-commands "#alias {ef} {gb $food; eat $food}")
-					; => ("#alias {ef} {gb $food; eat $food}")
+                                        ; => ("#alias {ef} {gb $food; eat $food}")
 
 ;; Test nested braces with semicolons
 (tintin-split-commands "{a;b};{c;d}")            ; => ("{a;b}" "{c;d}")

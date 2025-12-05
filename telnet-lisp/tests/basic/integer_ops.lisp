@@ -29,9 +29,9 @@
 
 ;; Practical example: Filter even numbers
 (define test_even (lambda (n)
-		    (if (even? n)
-			"even"
-			"odd")))
+                    (if (even? n)
+                      "even"
+                      "odd")))
 
 (test_even 8)       ; => "even"
 (test_even 9)       ; => "odd"

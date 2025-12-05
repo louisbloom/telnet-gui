@@ -262,10 +262,34 @@ endif()
 include(CheckCSourceCompiles)
 # Derive include directory from VTERM_PKG_CONFIG path
 # If vterm.pc is in /path/lib/pkgconfig, headers are in /path/include
+set(VTERM_TEST_INCLUDES "")
 if(VTERM_PKG_CONFIG)
     string(REGEX REPLACE "/lib/pkgconfig$" "/include" VTERM_TEST_INCLUDE_DIR "${VTERM_PKG_CONFIG}")
-    set(CMAKE_REQUIRED_INCLUDES "${VTERM_TEST_INCLUDE_DIR}")
+    list(APPEND VTERM_TEST_INCLUDES "${VTERM_TEST_INCLUDE_DIR}")
 endif()
+
+# Add UCRT64 system includes when running on Windows with forced UCRT64 toolchain
+# This ensures check_c_source_compiles can find system headers
+if(WIN32 AND DEFINED UCRT64_ROOT)
+    list(APPEND VTERM_TEST_INCLUDES "${UCRT64_ROOT}/include")
+
+    # Add GCC include paths if available
+    file(GLOB GCC_VERSIONS "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/*")
+    if(GCC_VERSIONS)
+        list(SORT GCC_VERSIONS)
+        list(REVERSE GCC_VERSIONS)
+        list(GET GCC_VERSIONS 0 GCC_FIRST)
+        get_filename_component(GCC_VERSION "${GCC_FIRST}" NAME)
+        list(APPEND VTERM_TEST_INCLUDES
+            "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/${GCC_VERSION}/include")
+        if(EXISTS "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/${GCC_VERSION}/include-fixed")
+            list(APPEND VTERM_TEST_INCLUDES
+                "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/${GCC_VERSION}/include-fixed")
+        endif()
+    endif()
+endif()
+
+set(CMAKE_REQUIRED_INCLUDES ${VTERM_TEST_INCLUDES})
 set(CMAKE_REQUIRED_LIBRARIES ${VTERM_LIBRARIES})
 
 check_c_source_compiles("

@@ -9,8 +9,8 @@
 
 ;; Multiple dependent bindings building up a computation
 (let* ((a 10)
-       (b (* a 2))
-       (c (+ b 5)))
+        (b (* a 2))
+        (c (+ b 5)))
   c)                                    ; => 25
 
 ;; Comparison: let evaluates bindings in parallel (x not in scope for y)
@@ -22,26 +22,26 @@
 
 ;; Sequential computation with multiple steps
 (let* ((start 100)
-       (increased (* start 1.5))
-       (decreased (- increased 10)))
+        (increased (* start 1.5))
+        (decreased (- increased 10)))
   decreased)                             ; => 140
 
 ;; Complex example: building a greeting message step by step
 (let* ((name "Alice")
-       (greeting (concat "Hello, " name))
-       (length (strlen greeting)))
+        (greeting (concat "Hello, " name))
+        (length (strlen greeting)))
   length)                                ; => 12
 
 ;; Demonstrates the sequential nature of let*
 (let* ((x 10)
-       (y (* x 2))
-       (z (+ y 5)))
+        (y (* x 2))
+        (z (+ y 5)))
   z)                                     ; => 25
 
 ;; All bindings evaluate before the body
 (let* ((a 1)
-       (b (+ a 1))
-       (c (+ b 1)))
+        (b (+ a 1))
+        (c (+ b 1)))
   (+ a b c))                             ; => 6
 
 ;; ===========================================
@@ -56,7 +56,7 @@
 
 ;; Multiple body expressions with side effects - should evaluate all and return last
 (let* ((count 0)
-       (value 100))
+        (value 100))
   (set! count (+ count 1))
   (set! count (+ count 1))
   (set! count (+ count 1))
