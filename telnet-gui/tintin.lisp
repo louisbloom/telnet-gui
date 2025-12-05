@@ -78,6 +78,45 @@
 ;; TEST 1: COMMAND SEPARATOR
 ;; ============================================================================
 
+;; Helper: Trim leading and trailing whitespace from string
+(defun tintin-trim (str)
+  (if (not (string? str))
+      ""
+      (let ((len (string-length str)))
+        (if (= len 0)
+            ""
+            ;; Find first non-whitespace character
+            (let ((start (tintin-find-first-non-ws str 0 len)))
+              (if (>= start len)
+                  ""  ; All whitespace
+                  ;; Find last non-whitespace character
+                  (let ((end (tintin-find-last-non-ws str (- len 1))))
+                    (substring str start (+ end 1)))))))))
+
+;; Helper: Find first non-whitespace character index
+(defun tintin-find-first-non-ws (str pos len)
+  (if (>= pos len)
+      pos
+      (let ((ch (string-ref str pos)))
+        (if (or (string=? ch " ")
+                (string=? ch "\t")
+                (string=? ch "\r")
+                (string=? ch "\n"))
+            (tintin-find-first-non-ws str (+ pos 1) len)
+            pos))))
+
+;; Helper: Find last non-whitespace character index
+(defun tintin-find-last-non-ws (str pos)
+  (if (< pos 0)
+      -1
+      (let ((ch (string-ref str pos)))
+        (if (or (string=? ch " ")
+                (string=? ch "\t")
+                (string=? ch "\r")
+                (string=? ch "\n"))
+            (tintin-find-last-non-ws str (- pos 1))
+            pos))))
+
 ;; Recursive helper for splitting commands
 (defun tintin-split-loop (str pos len depth current results)
   (if (>= pos len)
@@ -100,7 +139,8 @@
 (defun tintin-split-commands (str)
   (if (not (string? str))
       '()
-      (tintin-split-loop str 0 (string-length str) 0 "" '())))
+      ;; Split commands and trim whitespace from each
+      (map tintin-trim (tintin-split-loop str 0 (string-length str) 0 "" '()))))
 
 ;; ============================================================================
 ;; TEST 2: SPEEDWALK
@@ -630,9 +670,8 @@
 				   (eq? *connection-mode* 'conn))
 			      ;; Connected - send the command
 			      (telnet-send (concat cmd "\r\n"))
-			      ;; Not connected - show friendly message (once per input)
-			      (if (and (not (eq? *connection-mode* 'conn))
-				       (= i 0))
+			      ;; Not connected - show friendly message
+			      (if (not (eq? *connection-mode* 'conn))
 				  (tintin-echo "\r\n*** Not connected ***\r\n"))))
 		      ;; Catch any send errors
 		      (error
