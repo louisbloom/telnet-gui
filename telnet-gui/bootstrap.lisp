@@ -125,7 +125,7 @@
 (defun insert-word-into-slot! (vec store slot old-word new-word)
   ;; Decrement count for old word (if different from new word)
   (if (string? old-word)
-      (if (not (and (string? new-word) (string= old-word new-word)))
+      (if (not (and (string? new-word) (string=? old-word new-word)))
           (let ((count (hash-ref store old-word)))
             (if (and (not (null? count)) (> count 1))
                 (hash-set! store old-word (- count 1))
@@ -470,10 +470,10 @@
 ;;   (define user-input-hook
 ;;     (lambda (text cursor-pos)
 ;;       (cond
-;;         ((string= text "n") "north")
-;;         ((string= text "s") "south")
-;;         ((string= text "e") "east")
-;;         ((string= text "w") "west")
+;;         ((string=? text "n") "north")
+;;         ((string=? text "s") "south")
+;;         ((string=? text "e") "east")
+;;         ((string=? text "w") "west")
 ;;         (#t text))))
 ;;
 ;; Cursor position aware (only transform if cursor at end):
@@ -700,10 +700,10 @@
 ;;   (define mode-render-hook
 ;;     (lambda (mode)
 ;;       (concat
-;;         (if (string= (symbol->string (alist-get "connection" mode)) "conn")
+;;         (if (string=? (symbol->string (alist-get "connection" mode)) "conn")
 ;;             "🟢 "
 ;;             "🔴 ")
-;;         (if (string= (symbol->string (alist-get "input" mode)) "eval")
+;;         (if (string=? (symbol->string (alist-get "input" mode)) "eval")
 ;;             "💻"
 ;;             "📝"))))
 ;;
@@ -711,25 +711,25 @@
 ;;   (define mode-render-hook
 ;;     (lambda (mode)
 ;;       (concat
-;;         (if (string= (symbol->string (alist-get "connection" mode)) "conn") "CONN" "DISC")
+;;         (if (string=? (symbol->string (alist-get "connection" mode)) "conn") "CONN" "DISC")
 ;;         " "
-;;         (if (string= (symbol->string (alist-get "input" mode)) "eval") "EVAL" "NORM"))))
+;;         (if (string=? (symbol->string (alist-get "input" mode)) "eval") "EVAL" "NORM"))))
 ;;
 ;; Compact text:
 ;;   (define mode-render-hook
 ;;     (lambda (mode)
 ;;       (concat
-;;         (if (string= (symbol->string (alist-get "connection" mode)) "conn") "C" "D")
-;;         (if (string= (symbol->string (alist-get "input" mode)) "eval") "E" "N"))))
+;;         (if (string=? (symbol->string (alist-get "connection" mode)) "conn") "C" "D")
+;;         (if (string=? (symbol->string (alist-get "input" mode)) "eval") "E" "N"))))
 
 (define mode-render-hook
     (lambda (mode)
       (concat
        ;; Connection emoji - uses system emoji font if available
-       (if (string= (symbol->string (alist-get "connection" mode)) "conn")
+       (if (string=? (symbol->string (alist-get "connection" mode)) "conn")
            "🟢"    ; Green circle for connected
            "🔴")   ; Red circle for disconnected
        ;; Input mode emoji
-       (if (string= (symbol->string (alist-get "input" mode)) "eval")
+       (if (string=? (symbol->string (alist-get "input" mode)) "eval")
            "💻"     ; Laptop for eval mode
            "📝"))))  ; Memo for normal mode

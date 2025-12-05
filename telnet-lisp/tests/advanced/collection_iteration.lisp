@@ -106,7 +106,7 @@ entries                                 ; => (("name" . "Alice") ("age" . 30) ("
   (let ((entry (car remaining)))
     (let ((key (car entry))
           (val (cdr entry)))
-      (if (string= val "admin")
+      (if (string=? val "admin")
           (set! admins (+ admins 1))))))
 
 ;; ===========================================

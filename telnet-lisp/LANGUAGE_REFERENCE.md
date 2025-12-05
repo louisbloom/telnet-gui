@@ -267,13 +267,11 @@ String equality - returns true if `str1` and `str2` have identical character seq
 (string=? "foo" "bar")               ; => nil
 ```
 
-**Note:** `string=` (without `?`) also exists for compatibility.
-
 **Practical Usage Guide:**
 
 - **`eq?`** - For symbols, checking if two variables point to same object
 - **`=`** - For numeric comparisons (supports integers and floats)
-- **`string=?`** or **`string=`** - For string equality
+- **`string=?`** - For string equality
 - **`equal?`** - Default choice for "are these values the same?" checks (lists, vectors, hash tables, any data structures)
 
 ### String Functions
@@ -290,7 +288,6 @@ String equality - returns true if `str1` and `str2` have identical character seq
 
 ### String Comparisons
 
-- `string=` - String equality
 - `string<` - String less than (lexicographic)
 - `string>` - String greater than (lexicographic)
 - `string<=` - String less than or equal (lexicographic)
@@ -983,7 +980,7 @@ Convert to tail recursion by:
 (split "foo*bar*baz" "*")            ; => ("foo" "bar" "baz")
 
 ; String comparisons
-(string= "hello" "hello")            ; => 1
+(string=? "hello" "hello")           ; => 1
 (string< "abc" "def")                ; => 1
 (string-contains? "hello world" "world") ; => 1
 (string-match? "hello" "h*o")        ; => 1

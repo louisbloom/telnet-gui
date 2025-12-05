@@ -82,17 +82,17 @@
 (defun tintin-split-loop (str pos len depth current results)
   (if (>= pos len)
       ;; Done - add final command if any and return reversed list
-      (if (not (string= current ""))
+      (if (not (string=? current ""))
           (reverse (cons current results))
           (reverse results))
       ;; Process current character
       (let ((ch (string-ref str pos)))
         (cond
-          ((string= ch "{")
+          ((string=? ch "{")
            (tintin-split-loop str (+ pos 1) len (+ depth 1) (concat current ch) results))
-          ((string= ch "}")
+          ((string=? ch "}")
            (tintin-split-loop str (+ pos 1) len (- depth 1) (concat current ch) results))
-          ((and (string= ch ";") (= depth 0))
+          ((and (string=? ch ";") (= depth 0))
            (tintin-split-loop str (+ pos 1) len depth "" (cons current results)))
           (#t
            (tintin-split-loop str (+ pos 1) len depth (concat current ch) results))))))
@@ -110,15 +110,15 @@
 (defun tintin-is-digit? (ch)
   (and (string? ch)
        (= (string-length ch) 1)
-       (or (string= ch "0") (string= ch "1") (string= ch "2") (string= ch "3")
-	   (string= ch "4") (string= ch "5") (string= ch "6") (string= ch "7")
-	   (string= ch "8") (string= ch "9"))))
+       (or (string=? ch "0") (string=? ch "1") (string=? ch "2") (string=? ch "3")
+	   (string=? ch "4") (string=? ch "5") (string=? ch "6") (string=? ch "7")
+	   (string=? ch "8") (string=? ch "9"))))
 
 ;; Check if a string is a valid direction
 (defun tintin-is-direction? (str)
-  (or (string= str "n") (string= str "e") (string= str "s") (string= str "w")
-      (string= str "u") (string= str "d")
-      (string= str "ne") (string= str "nw") (string= str "se") (string= str "sw")))
+  (or (string=? str "n") (string=? str "e") (string=? str "s") (string=? str "w")
+      (string=? str "u") (string=? str "d")
+      (string=? str "ne") (string=? str "nw") (string=? str "se") (string=? str "sw")))
 
 ;; Expand speedwalk string like "3n2e" to "n;n;n;e;e"
 (defun tintin-expand-speedwalk (input)
@@ -159,8 +159,8 @@
 			    (set! pos (+ pos 1)))))))
 
 	    ;; Expand direction N times (only if we found a valid direction)
-	    (if (not (string= direction ""))
-		(let ((count (if (string= count-str "") 1 (string->number count-str))))
+	    (if (not (string=? direction ""))
+		(let ((count (if (string=? count-str "") 1 (string->number count-str))))
 		  (do ((i 0 (+ i 1)))
 		      ((>= i count))
 		    (set! result (cons direction result)))))))
@@ -191,7 +191,7 @@
 	    (len (string-length str)))
 	;; Find opening brace
 	(do ()
-	    ((or (>= pos len) (string= (string-ref str pos) "{"))
+	    ((or (>= pos len) (string=? (string-ref str pos) "{"))
 	     (if (>= pos len)
 		 nil
 		 ;; Extract including braces - track depth for nested braces
@@ -205,9 +205,9 @@
 			    (cons (substring str brace-start end-pos) end-pos)
 			    nil))
 		     (let ((ch (string-ref str end-pos)))
-		       (if (string= ch "{")
+		       (if (string=? ch "{")
 			   (set! depth (+ depth 1))
-			   (if (string= ch "}")
+			   (if (string=? ch "}")
 			       (set! depth (- depth 1))))
 		       (set! end-pos (+ end-pos 1)))))))
 	  (set! pos (+ pos 1))))))
@@ -222,7 +222,7 @@
             (pos start-pos))
         ;; Skip leading whitespace
         (do ()
-            ((or (>= pos len) (not (string= (string-ref str pos) " "))))
+            ((or (>= pos len) (not (string=? (string-ref str pos) " "))))
           (set! pos (+ pos 1)))
         ;; Check if we have any characters left
         (if (>= pos len)
@@ -231,7 +231,7 @@
             (let ((start pos)
                   (end pos))
               (do ()
-                  ((or (>= end len) (string= (string-ref str end) " ")))
+                  ((or (>= end len) (string=? (string-ref str end) " ")))
                 (set! end (+ end 1)))
               ;; Return token and position
               (if (= start end)
@@ -251,14 +251,14 @@
     ;; Step 1: Skip whitespace after #
     (do ()
         ((or (>= start-pos (string-length input))
-             (not (string= (string-ref input start-pos) " "))))
+             (not (string=? (string-ref input start-pos) " "))))
       (set! start-pos (+ start-pos 1)))
 
     ;; Step 2: Skip past command name (until space, {, or end)
     (do ()
         ((or (>= start-pos (string-length input))
-             (string= (string-ref input start-pos) " ")
-             (string= (string-ref input start-pos) "{")))
+             (string=? (string-ref input start-pos) " ")
+             (string=? (string-ref input start-pos) "{")))
       (set! start-pos (+ start-pos 1)))
 
     ;; Step 3: Parse N arguments using mixed format
@@ -269,14 +269,14 @@
       ;; Skip whitespace before this argument
       (do ()
           ((or (>= start-pos (string-length input))
-               (not (string= (string-ref input start-pos) " "))))
+               (not (string=? (string-ref input start-pos) " "))))
         (set! start-pos (+ start-pos 1)))
 
       ;; Check if we have more input
       (if (>= start-pos (string-length input))
           (set! success #f)  ; Ran out of input before getting N arguments
           ;; Check if this argument is braced or unbraced
-          (let ((is-braced (string= (string-ref input start-pos) "{")))
+          (let ((is-braced (string=? (string-ref input start-pos) "{")))
             (if is-braced
                 ;; Extract braced argument (preserves braces)
                 (let ((arg-data (tintin-extract-braced input start-pos)))
@@ -313,7 +313,7 @@
 		  ;; Placeholder - capture the value
 		  (set! matches (cons i-part matches))
 		  ;; Literal - must match exactly
-		  (if (not (string= p-part i-part))
+		  (if (not (string=? p-part i-part))
 		      (set! success #f)))))))))
 
 ;; Expand $variable references in a string
@@ -397,7 +397,7 @@
 (defun tintin-is-command? (str)
   (and (string? str)
        (> (string-length str) 0)
-       (string= (string-ref str 0) "#")))
+       (string=? (string-ref str 0) "#")))
 
 ;; Extract command name from TinTin++ command string
 ;; Example: "#alias {k} {kill}" → "alias"
@@ -410,7 +410,7 @@
             (pos 1))  ; Start after #
         ;; Skip any whitespace after #
         (do ()
-            ((or (>= pos len) (not (string= (string-ref str pos) " "))))
+            ((or (>= pos len) (not (string=? (string-ref str pos) " "))))
           (set! pos (+ pos 1)))
         ;; Check if we have any characters left
         (if (>= pos len)
@@ -420,8 +420,8 @@
                   (end pos))
               (do ()
                   ((or (>= end len)
-                       (string= (string-ref str end) " ")
-                       (string= (string-ref str end) "{")))
+                       (string=? (string-ref str end) " ")
+                       (string=? (string-ref str end) "{")))
                 (set! end (+ end 1)))
               ;; Extract and lowercase the command name
               (if (= start end)
@@ -445,7 +445,7 @@
 
 ;; Process a single command
 (defun tintin-process-command (cmd)
-  (if (or (not (string? cmd)) (string= cmd ""))
+  (if (or (not (string? cmd)) (string=? cmd ""))
       ""
       ;; NEW: Intercept # commands FIRST
       (if (tintin-is-command? cmd)
@@ -509,7 +509,7 @@
                                        (do ((j 0 (+ j 1)))
                                            ((>= j (list-length split-commands)))
                                          (let ((subcmd (list-ref split-commands j)))
-                                           (if (not (string= subcmd ""))
+                                           (if (not (string=? subcmd ""))
                                                (tintin-process-command subcmd))))
                                        "")  ; Return empty - commands were processed
                                      ;; No # commands, return expanded result
@@ -543,7 +543,7 @@
                                      (do ((j 0 (+ j 1)))
                                          ((>= j (list-length split-commands)))
                                        (let ((subcmd (list-ref split-commands j)))
-                                         (if (not (string= subcmd ""))
+                                         (if (not (string=? subcmd ""))
                                              (tintin-process-command subcmd))))
                                      "")  ; Return empty - commands were processed
                                    ;; No # commands, return expanded result
@@ -578,7 +578,7 @@
 	(do ((i 0 (+ i 1)))
 	    ((>= i (list-length commands)))
 	  (let ((processed (tintin-process-command (list-ref commands i))))
-	    (if (not (string= processed ""))
+	    (if (not (string=? processed ""))
 		(set! results (cons processed results)))))
 	;; Reverse and join results with semicolons
 	(let ((reversed-results (reverse results))
@@ -617,10 +617,10 @@
 	  (do ((i 0 (+ i 1)))
 	      ((>= i (list-length commands)))
 	    (let ((cmd (list-ref commands i)))
-	      (if (not (string= cmd ""))
+	      (if (not (string=? cmd ""))
 		  (progn
 		    ;; Echo expanded command to terminal (if different from original)
-		    (if (not (string= cmd text))
+		    (if (not (string=? cmd text))
 			(tintin-echo (concat cmd "\r\n")))
 		    ;; Send to telnet server with error handling
 		    (condition-case err
@@ -684,8 +684,8 @@
       str
       (let ((len (string-length str)))
         (if (and (> len 1)
-                 (string= (string-ref str 0) "{")
-                 (string= (string-ref str (- len 1)) "}"))
+                 (string=? (string-ref str 0) "{")
+                 (string=? (string-ref str (- len 1)) "}"))
             (substring str 1 (- len 1))
             str))))
 

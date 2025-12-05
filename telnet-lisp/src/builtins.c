@@ -24,7 +24,6 @@ static LispObject *builtin_concat(LispObject *args, Environment *env);
 static LispObject *builtin_number_to_string(LispObject *args, Environment *env);
 static LispObject *builtin_string_to_number(LispObject *args, Environment *env);
 static LispObject *builtin_split(LispObject *args, Environment *env);
-static LispObject *builtin_string_eq(LispObject *args, Environment *env);
 static LispObject *builtin_string_lt(LispObject *args, Environment *env);
 static LispObject *builtin_string_gt(LispObject *args, Environment *env);
 static LispObject *builtin_string_lte(LispObject *args, Environment *env);
@@ -162,7 +161,6 @@ void register_builtins(Environment *env) {
     env_define(env, "number->string", lisp_make_builtin(builtin_number_to_string, "number->string"));
     env_define(env, "string->number", lisp_make_builtin(builtin_string_to_number, "string->number"));
     env_define(env, "split", lisp_make_builtin(builtin_split, "split"));
-    env_define(env, "string=", lisp_make_builtin(builtin_string_eq, "string="));
     env_define(env, "string<", lisp_make_builtin(builtin_string_lt, "string<"));
     env_define(env, "string>", lisp_make_builtin(builtin_string_gt, "string>"));
     env_define(env, "string<=", lisp_make_builtin(builtin_string_lte, "string<="));
@@ -903,22 +901,6 @@ static LispObject *builtin_split(LispObject *args, Environment *env) {
     }
 
     return result;
-}
-
-static LispObject *builtin_string_eq(LispObject *args, Environment *env) {
-    (void)env;
-    if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("string= requires 2 arguments");
-    }
-
-    LispObject *a = lisp_car(args);
-    LispObject *b = lisp_car(lisp_cdr(args));
-
-    if (a->type != LISP_STRING || b->type != LISP_STRING) {
-        return lisp_make_error("string= requires strings");
-    }
-
-    return (strcmp(a->value.string, b->value.string) == 0) ? lisp_make_number(1) : NIL;
 }
 
 static LispObject *builtin_string_lt(LispObject *args, Environment *env) {
