@@ -857,29 +857,76 @@
         (substring str 1 (- len 1))
         str))))
 
+;; List all defined aliases
+(defun tintin-list-aliases ()
+  (let ((alias-entries (hash-entries *tintin-aliases*))
+         (count (hash-count *tintin-aliases*)))
+    (if (= count 0)
+      (progn
+        (tintin-echo "No aliases defined.\r\n")
+        "")
+      (progn
+        (tintin-echo (concat "Aliases (" (number->string count) "):\r\n"))
+        (do ((i 0 (+ i 1)))
+          ((>= i (list-length alias-entries)))
+          (let* ((entry (list-ref alias-entries i))
+                  (name (car entry))
+                  (value (cdr entry))
+                  (commands (car value))
+                  (priority (car (cdr value))))
+            (tintin-echo (concat "  " name " → " commands
+                           " (priority: " (number->string priority) ")\r\n"))))
+        ""))))
+
+;; List all defined variables
+(defun tintin-list-variables ()
+  (let ((var-entries (hash-entries *tintin-variables*))
+         (count (hash-count *tintin-variables*)))
+    (if (= count 0)
+      (progn
+        (tintin-echo "No variables defined.\r\n")
+        "")
+      (progn
+        (tintin-echo (concat "Variables (" (number->string count) "):\r\n"))
+        (do ((i 0 (+ i 1)))
+          ((>= i (list-length var-entries)))
+          (let* ((entry (list-ref var-entries i))
+                  (name (car entry))
+                  (value (cdr entry)))
+            (tintin-echo (concat "  " name " = " value "\r\n"))))
+        ""))))
+
 ;; ============================================================================
 ;; COMMAND HANDLERS (REFACTORED)
 ;; ============================================================================
 
 ;; Handle #alias command
-;; args: (name commands)
+;; args: () or (name commands)
 (defun tintin-handle-alias (args)
-  (let ((name (tintin-strip-braces (list-ref args 0)))
-         (commands (tintin-strip-braces (list-ref args 1)))
-         (priority 5))  ; Default priority
-    (hash-set! *tintin-aliases* name (list commands priority))
-    (tintin-echo (concat "Alias '" name "' created (priority: "
-                   (number->string priority) ")\r\n"))
-    ""))
+  (if (or (null? args) (= 0 (list-length args)))
+    ;; No arguments - list all aliases
+    (tintin-list-aliases)
+    ;; Two arguments - create alias
+    (let ((name (tintin-strip-braces (list-ref args 0)))
+           (commands (tintin-strip-braces (list-ref args 1)))
+           (priority 5))  ; Default priority
+      (hash-set! *tintin-aliases* name (list commands priority))
+      (tintin-echo (concat "Alias '" name "' created: " name " → " commands
+                     " (priority: " (number->string priority) ")\r\n"))
+      "")))
 
 ;; Handle #variable command
-;; args: (name value)
+;; args: () or (name value)
 (defun tintin-handle-variable (args)
-  (let ((name (tintin-strip-braces (list-ref args 0)))
-         (value (tintin-strip-braces (list-ref args 1))))
-    (hash-set! *tintin-variables* name value)
-    (tintin-echo (concat "Variable '" name "' set to '" value "'\r\n"))
-    ""))
+  (if (or (null? args) (= 0 (list-length args)))
+    ;; No arguments - list all variables
+    (tintin-list-variables)
+    ;; Two arguments - create variable
+    (let ((name (tintin-strip-braces (list-ref args 0)))
+           (value (tintin-strip-braces (list-ref args 1))))
+      (hash-set! *tintin-variables* name value)
+      (tintin-echo (concat "Variable '" name "' set to '" value "'\r\n"))
+      "")))
 
 ;; Handle #save command
 ;; args: (filename)
@@ -915,6 +962,28 @@
 ;; GENERIC COMMAND DISPATCHER (REFACTORED)
 ;; ============================================================================
 
+;; Check if a TinTin++ command has any arguments
+;; Returns #t if arguments present, #f if just command name
+(defun tintin-has-arguments? (input)
+  (let ((len (string-length input))
+         (pos 1))  ; Start after #
+    ;; Skip whitespace after #
+    (do ()
+      ((or (>= pos len) (not (string=? (string-ref input pos) " "))))
+      (set! pos (+ pos 1)))
+    ;; Skip command name
+    (do ()
+      ((or (>= pos len)
+         (string=? (string-ref input pos) " ")
+         (string=? (string-ref input pos) "{")))
+      (set! pos (+ pos 1)))
+    ;; Skip whitespace after command name
+    (do ()
+      ((or (>= pos len) (not (string=? (string-ref input pos) " "))))
+      (set! pos (+ pos 1)))
+    ;; If we have more characters, there are arguments
+    (< pos len)))
+
 ;; Dispatch a TinTin++ command using metadata-driven approach
 ;; cmd-name: matched command name (e.g., "alias")
 ;; input: original input string (e.g., "#alias {k} {kill %1}")
@@ -926,13 +995,16 @@
       (let ((handler (list-ref cmd-data 0))
              (arg-count (list-ref cmd-data 1))
              (syntax-help (list-ref cmd-data 2)))
-        ;; Parse arguments
-        (let ((args (tintin-parse-arguments input arg-count)))
-          (if args
-            ;; Success: call handler
-            (handler args)
-            ;; Parse failed: show syntax error
-            (tintin-syntax-error syntax-help)))))))
+        ;; Check if input has any arguments after command name
+        (let ((has-args (tintin-has-arguments? input)))
+          (if (not has-args)
+            ;; No arguments - call handler with empty list
+            (handler '())
+            ;; Has arguments - parse and validate
+            (let ((args (tintin-parse-arguments input arg-count)))
+              (if args
+                (handler args)
+                (tintin-syntax-error syntax-help)))))))))
 
 ;; ============================================================================
 ;; AUTO-ACTIVATION

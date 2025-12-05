@@ -717,3 +717,53 @@
 ;; Test Case 5: Verify single-command aliases still work
 (tintin-process-command "#alias {single} {look}")  ; ignore
 (tintin-process-command "single")  ; => "look"
+
+;; ============================================================================
+;; TEST: List aliases when no arguments
+;; ============================================================================
+
+(print "Test: #alias with no arguments (no aliases defined)...")
+(hash-clear! *tintin-aliases*)
+(define result-noalias (tintin-process-command "#alias"))
+(assert-equal result-noalias "" "Should return empty string")
+;; Output should be "No aliases defined.\r\n" but we can't easily test echo
+
+;; Define some aliases
+(tintin-process-command "#alias {k} {kill %1}")
+(tintin-process-command "#alias {n} {north}")
+
+(print "Test: #alias with no arguments (with aliases defined)...")
+(define result-withalias (tintin-process-command "#alias"))
+(assert-equal result-withalias "" "Should return empty string")
+;; Output should list 2 aliases
+
+;; ============================================================================
+;; TEST: List variables when no arguments
+;; ============================================================================
+
+(print "Test: #variable with no arguments (no variables defined)...")
+(hash-clear! *tintin-variables*)
+(define result-novar (tintin-process-command "#variable"))
+(assert-equal result-novar "" "Should return empty string")
+;; Output should be "No variables defined.\r\n"
+
+;; Define some variables
+(tintin-process-command "#variable {target} {orc}")
+(tintin-process-command "#variable {hp} {100}")
+
+(print "Test: #variable with no arguments (with variables defined)...")
+(define result-withvar (tintin-process-command "#variable"))
+(assert-equal result-withvar "" "Should return empty string")
+;; Output should list 2 variables
+
+;; ============================================================================
+;; TEST: Alias creation shows expansion
+;; ============================================================================
+
+(print "Test: Alias creation shows what it expands to...")
+(hash-clear! *tintin-aliases*)
+(define result-create (tintin-process-command "#alias {ggh} {get gold;go home}"))
+(assert-equal result-create "" "Should return empty string")
+;; Echo should show: "Alias 'ggh' created: ggh → get gold;go home (priority: 5)\r\n"
+(define alias-data (hash-ref *tintin-aliases* "ggh"))
+(assert-equal (car alias-data) "get gold;go home" "Should store correct expansion")

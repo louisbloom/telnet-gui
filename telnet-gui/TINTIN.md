@@ -144,9 +144,10 @@ Both formats work for all commands. Use braces when arguments contain spaces.
 
 ### #alias
 
-Create a command alias:
+Create a command alias or list all aliases:
 
 ```bash
+#alias                      # List all defined aliases
 #alias {name} {commands}
 #alias name commands        # Braces optional for single words
 ```
@@ -154,14 +155,24 @@ Create a command alias:
 **Examples:**
 
 ```bash
+# List all aliases
+#alias
+Aliases (3):
+  k → kill %1 (priority: 5)
+  n → north (priority: 5)
+  ggh → get gold;go home (priority: 5)
+
 # Simple alias
 #alias {n} {north}
+Alias 'n' created: n → north (priority: 5)
 
 # Alias with argument
 #alias {k} {kill %1}
+Alias 'k' created: k → kill %1 (priority: 5)
 
 # Multiple commands
 #alias {loot} {get all from corpse;bury corpse}
+Alias 'loot' created: loot → get all from corpse;bury corpse (priority: 5)
 
 # All arguments
 #alias {say} {tell bob %0}
@@ -173,9 +184,10 @@ say hello there    # Sends: tell bob hello there
 
 ### #variable
 
-Define a variable:
+Define a variable or list all variables:
 
 ```bash
+#variable                   # List all defined variables
 #variable {name} {value}
 #variable name value        # Braces optional for single words
 ```
@@ -183,7 +195,16 @@ Define a variable:
 **Examples:**
 
 ```bash
+# List all variables
+#variable
+Variables (2):
+  target = goblin
+  weapon = sword
+
+# Define variable
 #variable {target} {goblin}
+Variable 'target' set to 'goblin'
+
 #variable target goblin     # Same as above
 
 # Multi-word values need braces
