@@ -9,11 +9,20 @@ TEMP_FILE=$(mktemp /tmp/lisp-format-XXXXXX.lisp)
 cat > "$TEMP_FILE"
 
 # Use Emacs in batch mode to indent the entire buffer
-emacs --batch \
-    --eval "(progn (find-file \"$TEMP_FILE\")" \
+# --quick: Skip loading user config (faster, avoids hooks)
+# find-file-literally: Avoid auto-mode hooks and processing
+# Disable hooks that might cause hangs
+emacs --batch --quick \
+    --eval "(progn (setq inhibit-startup-message t inhibit-startup-echo-area-message t)" \
+    --eval "(setq enable-local-variables nil)" \
+    --eval "(setq enable-local-eval nil)" \
+    --eval "(setq indent-tabs-mode nil)" \
+    --eval "(find-file-literally \"$TEMP_FILE\")" \
     --eval "(lisp-mode)" \
+    --eval "(untabify (point-min) (point-max))" \
     --eval "(indent-region (point-min) (point-max))" \
     --eval "(save-buffer)" \
+    --eval "(kill-buffer)" \
     --eval "(kill-emacs))" 2>/dev/null
 
 # Output the formatted file

@@ -1,0 +1,23 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Batch files must use CRLF in work tree (Windows requirement)
+*.bat text eol=crlf
+
+# Shell scripts use LF (Unix requirement)
+*.sh text eol=lf
+
+# Lisp files use LF (Unix requirement)
+*.lisp text eol=lf
+
+# C/C++ files use LF
+*.{c,h} text eol=lf
+
+# CMake files use LF
+*.{cmake,CMakeLists.txt} text eol=lf
+
+# Markdown files use LF
+*.md text eol=lf
+
+# Text files use LF
+*.txt text eol=lf

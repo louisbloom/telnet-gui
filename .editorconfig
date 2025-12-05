@@ -22,3 +22,9 @@ indent_size = 4
 [*.lisp]
 indent_style = space
 indent_size = 2
+
+# Batch files: CRLF line endings (Windows requirement)
+[*.bat]
+end_of_line = crlf
+indent_style = space
+indent_size = 4
