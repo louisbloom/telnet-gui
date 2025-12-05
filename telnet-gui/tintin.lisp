@@ -539,15 +539,21 @@
                         (do ((i 0 (+ i 1)))
                             ((>= i (list-length args))
                              ;; Append any unused arguments
-                             (let ((unused-args ""))
+                             (let ((unused-list '()))
                                (do ((j 0 (+ j 1)))
                                    ((>= j (list-length args)))
                                  (if (not (vector-ref used-args j))
-                                     (set! unused-args (concat unused-args
-                                                               (if (string=? unused-args "") "" " ")
-                                                               (list-ref args j)))))
-                               (if (not (string=? unused-args ""))
-                                   (set! result (concat result " " unused-args))))
+                                     (set! unused-list (cons (list-ref args j) unused-list))))
+                               ;; Build unused-args string from list
+                               (if (not (eq? unused-list '()))
+                                   (let ((unused-args "")
+                                         (reversed (reverse unused-list)))
+                                     (do ((k 0 (+ k 1)))
+                                         ((>= k (list-length reversed)))
+                                       (set! unused-args (concat unused-args
+                                                                 (if (> k 0) " " "")
+                                                                 (list-ref reversed k))))
+                                     (set! result (concat result " " unused-args)))))
                              ;; Expand variables, then speedwalk
                              (let ((expanded (tintin-expand-speedwalk
                                               (tintin-expand-variables result))))
