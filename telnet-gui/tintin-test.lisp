@@ -686,3 +686,34 @@
 ;; Test Case 5: Alias with pattern matching and unused args
 (tintin-process-command "#alias {k} {kill %1}")  ; ignore
 (tintin-process-command "k orc goblin")        ; => "kill orc goblin"
+
+;; ============================================================================
+;; Test 29: Multi-Command Alias Expansion (Regression - Bug Fix)
+;; ============================================================================
+
+;; Bug: Aliases with semicolons return empty string instead of expanded commands
+;; Root cause: Recursive processing discards results from multiple subcommands
+
+;; Test Case 1: Simple multi-command alias
+(tintin-process-command "#alias {test} {north;south}")  ; ignore
+(tintin-process-command "test")  ; => "north;south"
+
+;; Test Case 2: Multi-command alias with variable expansion
+(tintin-process-command "#variable {dir} {east}")  ; ignore
+(tintin-process-command "#alias {go} {$dir;west}")  ; ignore
+(tintin-process-command "go")  ; => "east;west"
+
+;; Test Case 3: Nested multi-command alias (user's "ef" case)
+(tintin-process-command "#variable {food} {pie}")  ; ignore
+(tintin-process-command "#variable {bag} {sack}")  ; ignore
+(tintin-process-command "#alias {gb} {get %0 $bag}")  ; ignore
+(tintin-process-command "#alias {ef} {gb $food; eat $food}")  ; ignore
+(tintin-process-command "ef")  ; => "get pie sack;eat pie"
+
+;; Test Case 4: Three commands
+(tintin-process-command "#alias {tri} {a;b;c}")  ; ignore
+(tintin-process-command "tri")  ; => "a;b;c"
+
+;; Test Case 5: Verify single-command aliases still work
+(tintin-process-command "#alias {single} {look}")  ; ignore
+(tintin-process-command "single")  ; => "look"

@@ -579,14 +579,25 @@
 				   (let ((split-commands (tintin-split-commands expanded)))
                                      ;; ALWAYS recursively process each command for alias expansion
                                      (if (> (list-length split-commands) 1)
-					 ;; Multiple commands - process each recursively
-					 (progn
+					 ;; Multiple commands - collect results and join with semicolons
+					 (let ((sub-results '()))
 					   (do ((j 0 (+ j 1)))
                                                ((>= j (list-length split-commands)))
                                              (let ((subcmd (list-ref split-commands j)))
                                                (if (and (string? subcmd) (not (string=? subcmd "")))
-						   (tintin-process-command subcmd))))
-					   "")
+						   (let ((result (tintin-process-command subcmd)))
+						     (if (and (string? result) (not (string=? result "")))
+							 (set! sub-results (cons result sub-results)))))))
+					   ;; Join with semicolons
+					   (if (eq? sub-results '())
+					       ""
+					       (let ((reversed (reverse sub-results))
+						     (output ""))
+						 (do ((k 0 (+ k 1)))
+						     ((>= k (list-length reversed)) output)
+						   (set! output (concat output
+									(if (> k 0) ";" "")
+									(list-ref reversed k)))))))
 					 ;; Single command - recursively process for alias expansion
 					 (if (> (list-length split-commands) 0)
                                              (tintin-process-command (list-ref split-commands 0))
@@ -612,14 +623,25 @@
                                  (let ((split-commands (tintin-split-commands expanded)))
                                    ;; Recursively process each command for alias expansion
                                    (if (> (list-length split-commands) 1)
-                                       ;; Multiple commands - process each recursively
-                                       (progn
+                                       ;; Multiple commands - collect results and join with semicolons
+                                       (let ((sub-results '()))
                                          (do ((j 0 (+ j 1)))
                                              ((>= j (list-length split-commands)))
                                            (let ((subcmd (list-ref split-commands j)))
                                              (if (and (string? subcmd) (not (string=? subcmd "")))
-                                                 (tintin-process-command subcmd))))
-                                         "")
+                                                 (let ((result (tintin-process-command subcmd)))
+                                                   (if (and (string? result) (not (string=? result "")))
+                                                       (set! sub-results (cons result sub-results)))))))
+                                         ;; Join with semicolons
+                                         (if (eq? sub-results '())
+                                             ""
+                                             (let ((reversed (reverse sub-results))
+                                                   (output ""))
+                                               (do ((k 0 (+ k 1)))
+                                                   ((>= k (list-length reversed)) output)
+                                                 (set! output (concat output
+                                                                      (if (> k 0) ";" "")
+                                                                      (list-ref reversed k)))))))
                                        ;; Single command - recursively process for alias expansion
                                        (if (> (list-length split-commands) 0)
                                            (tintin-process-command (list-ref split-commands 0))
