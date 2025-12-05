@@ -64,6 +64,12 @@ install(FILES "${BOOTSTRAP_SRC}"
     COMPONENT Runtime
 )
 
+# Install tintin.lisp with executable (in bin directory so it's relative to the executable)
+install(FILES "${TINTIN_SRC}"
+    DESTINATION "bin"
+    COMPONENT Runtime
+)
+
 # Find required packages
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL2 REQUIRED sdl2)
