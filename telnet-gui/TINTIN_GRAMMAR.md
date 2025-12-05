@@ -28,7 +28,9 @@ expandable      = token | variable ;
 
 (* Speedwalk Notation *)
 speedwalk       = { digit } direction { { digit } direction } ;
-direction       = "n" | "s" | "e" | "w" | "u" | "d" | "ne" | "nw" | "se" | "sw" ;
+direction       = cardinal_dir | diagonal_dir ;
+cardinal_dir    = "n" | "s" | "e" | "w" | "u" | "d" ;
+diagonal_dir    = "ne" | "nw" | "se" | "sw" ;  (* Only if *tintin-speedwalk-diagonals* is true *)
 
 (* Variable and Placeholder Expansion *)
 variable        = "$" identifier ;
@@ -58,6 +60,7 @@ char            = ? any character except { } ? ;
 ### 2. Mixed Format Arguments
 
 After extracting the command name, repeatedly:
+
 1. Skip whitespace
 2. If next char is '{': extract braced argument
 3. Otherwise: extract unbraced token
@@ -66,6 +69,7 @@ After extracting the command name, repeatedly:
 **Key feature:** Arguments can mix braced and unbraced formats independently.
 
 Examples:
+
 - `#alias bag {kill %1}` - arg[0]="bag" (unbraced), arg[1]="{kill %1}" (braced)
 - `#variable {my var} value` - arg[0]="{my var}" (braced), arg[1]="value" (unbraced)
 
@@ -78,6 +82,7 @@ Examples:
 - **IMPORTANT:** Preserve braces in the extracted value
 
 Examples:
+
 - `{simple text}` → extract as `"{simple text}"`
 - `{nested {braces}}` → extract as `"{nested {braces}}"`
 - `{cmd1;cmd2}` → semicolon is literal, extract as `"{cmd1;cmd2}"`
@@ -89,6 +94,7 @@ Examples:
 - Extract until whitespace or end of line
 
 Examples:
+
 - `bag` → extract as `"bag"`
 - `#var` → extract as `"#var"` (# is allowed in argument)
 
@@ -100,6 +106,7 @@ Examples:
 - Applied recursively in alias results
 
 Example:
+
 ```
 #variable {target} {orc}
 kill $target  → expands to "kill orc"
@@ -112,14 +119,36 @@ kill $target  → expands to "kill orc"
 - Applied **after** alias matching
 
 Example:
+
 ```
 #alias {k} {kill %1}
 k orc  → expands to "kill orc"
 ```
 
+### 7. Speedwalk Diagonal Directions
+
+Diagonal directions (`ne`, `nw`, `se`, `sw`) are **disabled by default** and controlled by the `*tintin-speedwalk-diagonals*` flag:
+
+**When disabled** (default: `*tintin-speedwalk-diagonals* = #f`):
+
+```
+ne     → "n;e"        (parsed as two separate cardinal directions)
+2ne3nw → "n;n;e;n;n;n;w"  (seven commands)
+```
+
+**When enabled** (`*tintin-speedwalk-diagonals* = #t`):
+
+```
+ne     → "ne"         (parsed as single diagonal direction)
+2ne3nw → "ne;ne;nw;nw;nw"  (five commands)
+```
+
+The parser checks the flag before accepting two-character direction sequences.
+
 ## Examples with Parse Trees
 
 ### Example 1: Mixed Format
+
 ```
 Input: #alias bag {#var bag %1}
 
@@ -134,6 +163,7 @@ Result: Creates alias "bag" with command "{#var bag %1}"
 ```
 
 ### Example 2: All Braced
+
 ```
 Input: #variable {my var} {some value}
 
@@ -148,6 +178,7 @@ Result: Creates variable "my var" with value "some value"
 ```
 
 ### Example 3: All Unbraced
+
 ```
 Input: #alias k kill
 
@@ -162,6 +193,7 @@ Result: Creates alias "k" with command "kill"
 ```
 
 ### Example 4: Nested Braces
+
 ```
 Input: #alias {ef} {get {food}; eat {food}}
 
@@ -178,16 +210,19 @@ Result: Creates alias "ef" with nested braces in command
 ## Edge Cases
 
 ### Empty Arguments
+
 ```
 #alias {} {}  → Creates alias with empty name and empty command
 ```
 
 ### Special Characters in Arguments
+
 ```
 #alias {test!} {echo @#$%}  → All characters allowed inside braces
 ```
 
 ### Command Name Prefix Matching
+
 ```
 #al {k} {kill}    → "al" matches "alias"
 #var {x} {10}     → "var" matches "variable"
@@ -195,6 +230,7 @@ Result: Creates alias "ef" with nested braces in command
 ```
 
 ### Semicolons
+
 ```
 Regular: n;s;e      → Three separate commands
 Braced: {n;s;e}     → Single argument with semicolons
@@ -208,3 +244,10 @@ Braced: {n;s;e}     → Single argument with semicolons
 4. **Nested braces** require depth tracking
 5. **Variable expansion** happens before alias matching
 6. **Placeholder substitution** happens after alias matching
+7. **Error handling** uses Emacs Lisp-style condition system:
+   - File I/O wrapped in `condition-case` to catch open/load failures
+   - `unwind-protect` guarantees resource cleanup (file handles)
+   - Data validation prevents crashes from malformed inputs
+   - String-to-number conversion wrapped to handle out-of-range errors
+8. **Speedwalk diagonal directions** controlled by runtime flag `*tintin-speedwalk-diagonals*`
+9. **Invalid speedwalk patterns** return original input unchanged (graceful degradation)

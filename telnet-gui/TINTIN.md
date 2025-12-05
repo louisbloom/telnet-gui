@@ -31,10 +31,29 @@ Expand directional shortcuts automatically:
 ```bash
 3n2e        # Expands to: n;n;n;e;e
 5s          # Expands to: s;s;s;s;s
-2ne3w       # Expands to: ne;ne;w;w;w
 ```
 
-**Supported directions:** `n`, `s`, `e`, `w`, `u`, `d`, `ne`, `nw`, `se`, `sw`
+**Supported directions:** `n`, `s`, `e`, `w`, `u`, `d`
+
+**Diagonal directions:** `ne`, `nw`, `se`, `sw` are **disabled by default**. When disabled, they parse as separate single-character directions:
+
+```bash
+ne          # Expands to: n;e (two commands)
+2ne3nw      # Expands to: n;n;e;n;n;n;w (seven commands)
+```
+
+Enable diagonal directions at runtime (see Runtime Control section below):
+
+```lisp
+(set! *tintin-speedwalk-diagonals* #t)
+```
+
+With diagonals enabled:
+
+```bash
+ne          # Expands to: ne (single command)
+2ne3w       # Expands to: ne;ne;w;w;w (five commands)
+```
 
 ### Aliases
 
@@ -269,6 +288,17 @@ Toggle TinTin++ processing on/off at runtime using eval mode (Ctrl+E):
 
 When disabled, all input passes through unchanged.
 
+### Speedwalk Diagonal Directions
+
+Enable or disable diagonal directions (ne, nw, se, sw):
+
+```lisp
+(set! *tintin-speedwalk-diagonals* #t)    ; Enable diagonals
+(set! *tintin-speedwalk-diagonals* #f)    ; Disable diagonals (default)
+```
+
+This setting is persisted when you save your configuration with `#save`.
+
 ## Testing
 
 Test TinTin++ features with the included test suite:
@@ -284,16 +314,18 @@ Test TinTin++ features with the included test suite:
 The test suite covers:
 
 - Command separation and splitting
-- Speedwalk expansion
+- Speedwalk expansion (including diagonal directions toggle)
 - Alias creation and expansion
 - Variable creation and expansion
 - Pattern matching
 - User input hook integration
 - Partial command matching
 - Case-insensitive matching
+- Error handling (file I/O, data validation)
 - Brace-aware splitting (regression test)
 - Variable expansion in aliases (regression test)
 - Command echo behavior (regression test)
+- Mixed format argument parsing (regression test)
 
 ## Implementation Details
 
@@ -341,6 +373,29 @@ This intercepts all user input before it's sent to the telnet server. The hook r
 
 Word completion uses a separate hook (`telnet-input-hook`) and is not affected by TinTin++ processing.
 
+### Error Handling
+
+TinTin++ uses the Emacs Lisp-style condition system for robust error handling:
+
+**File I/O errors** are caught and displayed with helpful messages:
+
+```lisp
+#save /invalid/path/file.lisp
+; Displays: "Failed to save state to '/invalid/path/file.lisp': Cannot open file"
+
+#load nonexistent.lisp
+; Displays: "Failed to load 'nonexistent.lisp': file-not-found"
+```
+
+**Resource cleanup** uses `unwind-protect` to guarantee file handles are closed even on errors.
+
+**Data validation** prevents crashes from malformed input:
+
+- Empty commands return empty strings (no crash)
+- Undefined variables stay as literal text (`$undefined` → `$undefined`)
+- Invalid speedwalk patterns return unchanged (`abc` → `abc`)
+- Out-of-range numbers in speedwalk are handled gracefully
+
 ## Limitations
 
 This is a minimal TinTin++ implementation focused on core scripting features. Not all TinTin++ commands are implemented. Currently supported:
@@ -354,16 +409,39 @@ This is a minimal TinTin++ implementation focused on core scripting features. No
 
 ## Source Files
 
-- **tintin.lisp** - Full implementation (lines 1-690)
-- **tintin-test.lisp** - Test suite (20 tests, all passing)
-- **TINTIN.md** - This documentation file
+- **tintin.lisp** - Full implementation (791 lines)
+- **tintin-test.lisp** - Test suite (26 tests, 605 lines)
+- **TINTIN.md** - User documentation (this file)
+- **TINTIN_GRAMMAR.md** - Formal grammar specification
 
-## Recent Fixes
+## Recent Changes
 
-Three bugs were fixed in commit `a466d7b`:
+### Error Handling Improvements (Latest)
+
+Added comprehensive error handling using the Emacs Lisp-style condition system:
+
+1. **File I/O protection** - `condition-case` wraps `open`/`load` operations
+2. **Resource cleanup** - `unwind-protect` guarantees file handles are closed
+3. **Data validation** - Defensive checks prevent crashes from malformed data
+4. **Graceful degradation** - Invalid inputs return sensible defaults instead of crashing
+5. **Connection status checking** - Checks `*connection-mode*` before sending to prevent errors when disconnected
+6. **Telnet-send error wrapping** - `condition-case` catches send failures and shows friendly messages instead of REPL stack traces
+
+### Speedwalk Diagonal Directions (Latest)
+
+Added `*tintin-speedwalk-diagonals*` flag (default `#f`):
+
+- When disabled: `"ne"` → `"n;e"` (two separate directions)
+- When enabled: `"ne"` → `"ne"` (single diagonal direction)
+- Setting is persisted in saved configurations
+
+### Bug Fixes (Commit a466d7b)
+
+Fixed three parser bugs:
 
 1. **Brace-aware splitting** - Semicolons inside `{}` are now preserved
 2. **Variable expansion** - Variables in alias results are now expanded
 3. **Command echo** - Original input is now echoed before alias expansion
+4. **Mixed format parsing** - Correctly handles unbraced name + braced command
 
 All fixes include regression tests to prevent future breakage.

@@ -7,6 +7,32 @@
 LispObject nil_obj = {.type = LISP_NIL};
 LispObject *NIL = &nil_obj;
 
+/* Global symbol intern table */
+LispObject *symbol_table = NULL;
+
+/* Pre-interned special form symbols for fast comparison */
+LispObject *sym_quote = NULL;
+LispObject *sym_quasiquote = NULL;
+LispObject *sym_unquote = NULL;
+LispObject *sym_unquote_splicing = NULL;
+LispObject *sym_if = NULL;
+LispObject *sym_define = NULL;
+LispObject *sym_set = NULL;
+LispObject *sym_lambda = NULL;
+LispObject *sym_defmacro = NULL;
+LispObject *sym_let = NULL;
+LispObject *sym_let_star = NULL;
+LispObject *sym_progn = NULL;
+LispObject *sym_do = NULL;
+LispObject *sym_cond = NULL;
+LispObject *sym_case = NULL;
+LispObject *sym_and = NULL;
+LispObject *sym_or = NULL;
+LispObject *sym_condition_case = NULL;
+LispObject *sym_unwind_protect = NULL;
+LispObject *sym_else = NULL;
+LispObject *sym_error = NULL;
+
 /* Object creation functions */
 LispObject *lisp_make_number(double value) {
     LispObject *obj = GC_malloc(sizeof(LispObject));
@@ -36,11 +62,32 @@ LispObject *lisp_make_string(const char *value) {
     return obj;
 }
 
-LispObject *lisp_make_symbol(const char *name) {
+LispObject *lisp_intern(const char *name) {
+    /* Initialize symbol table on first use */
+    if (symbol_table == NULL) {
+        symbol_table = lisp_make_hash_table();
+    }
+
+    /* Look up symbol in intern table */
+    struct HashEntry *entry = hash_table_get_entry(symbol_table, name);
+    if (entry != NULL) {
+        return entry->value; /* Return existing symbol */
+    }
+
+    /* Create new symbol */
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_SYMBOL;
     obj->value.symbol = GC_strdup(name);
+
+    /* Add to intern table */
+    hash_table_set_entry(symbol_table, name, obj);
+
     return obj;
+}
+
+/* Keep old name for backward compatibility, but redirect to intern */
+LispObject *lisp_make_symbol(const char *name) {
+    return lisp_intern(name);
 }
 
 LispObject *lisp_make_cons(LispObject *car, LispObject *cdr) {
@@ -65,17 +112,17 @@ LispObject *lisp_make_typed_error(LispObject *error_type, const char *message, L
 
 /* Convenience function for creating typed errors from strings */
 LispObject *lisp_make_typed_error_simple(const char *error_type_name, const char *message, Environment *env) {
-    return lisp_make_typed_error(lisp_make_symbol(error_type_name), message, NIL, env);
+    return lisp_make_typed_error(lisp_intern(error_type_name), message, NIL, env);
 }
 
 /* Backward-compatible error creation (uses 'error type) */
 LispObject *lisp_make_error(const char *message) {
-    return lisp_make_typed_error(lisp_make_symbol("error"), message, NIL, NULL);
+    return lisp_make_typed_error(sym_error, message, NIL, NULL);
 }
 
 /* Backward-compatible error creation with stack trace */
 LispObject *lisp_make_error_with_stack(const char *message, Environment *env) {
-    return lisp_make_typed_error(lisp_make_symbol("error"), message, NIL, env);
+    return lisp_make_typed_error(sym_error, message, NIL, env);
 }
 
 LispObject *lisp_attach_stack_trace(LispObject *error, Environment *env) {
@@ -221,6 +268,32 @@ static Environment *global_env = NULL;
 int lisp_init(void) {
     /* Initialize Boehm GC */
     GC_INIT();
+
+    /* Initialize symbol intern table */
+    symbol_table = lisp_make_hash_table();
+
+    /* Pre-intern special form symbols */
+    sym_quote = lisp_intern("quote");
+    sym_quasiquote = lisp_intern("quasiquote");
+    sym_unquote = lisp_intern("unquote");
+    sym_unquote_splicing = lisp_intern("unquote-splicing");
+    sym_if = lisp_intern("if");
+    sym_define = lisp_intern("define");
+    sym_set = lisp_intern("set!");
+    sym_lambda = lisp_intern("lambda");
+    sym_defmacro = lisp_intern("defmacro");
+    sym_let = lisp_intern("let");
+    sym_let_star = lisp_intern("let*");
+    sym_progn = lisp_intern("progn");
+    sym_do = lisp_intern("do");
+    sym_cond = lisp_intern("cond");
+    sym_case = lisp_intern("case");
+    sym_and = lisp_intern("and");
+    sym_or = lisp_intern("or");
+    sym_condition_case = lisp_intern("condition-case");
+    sym_unwind_protect = lisp_intern("unwind-protect");
+    sym_else = lisp_intern("else");
+    sym_error = lisp_intern("error");
 
     if (global_env == NULL) {
         global_env = env_create_global();

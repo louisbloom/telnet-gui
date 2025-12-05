@@ -152,6 +152,32 @@ LispObject *lisp_make_vector(size_t capacity);
 LispObject *lisp_make_hash_table(void);
 LispObject *lisp_make_tail_call(LispObject *func, LispObject *args);
 
+/* Symbol interning */
+LispObject *lisp_intern(const char *name);
+
+/* Pre-interned special form symbols (for fast pointer comparison) */
+extern LispObject *sym_quote;
+extern LispObject *sym_quasiquote;
+extern LispObject *sym_unquote;
+extern LispObject *sym_unquote_splicing;
+extern LispObject *sym_if;
+extern LispObject *sym_define;
+extern LispObject *sym_set;
+extern LispObject *sym_lambda;
+extern LispObject *sym_defmacro;
+extern LispObject *sym_let;
+extern LispObject *sym_let_star;
+extern LispObject *sym_progn;
+extern LispObject *sym_do;
+extern LispObject *sym_cond;
+extern LispObject *sym_case;
+extern LispObject *sym_and;
+extern LispObject *sym_or;
+extern LispObject *sym_condition_case;
+extern LispObject *sym_unwind_protect;
+extern LispObject *sym_else;
+extern LispObject *sym_error;
+
 /* Hash table entry structure */
 struct HashEntry {
     char *key;

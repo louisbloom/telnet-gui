@@ -137,6 +137,11 @@ static LispObject *builtin_error_data(LispObject *args, Environment *env);
 static LispObject *builtin_signal(LispObject *args, Environment *env);
 static LispObject *builtin_error(LispObject *args, Environment *env);
 
+/* Equality predicates */
+static LispObject *builtin_eq_predicate(LispObject *args, Environment *env);
+static LispObject *builtin_equal_predicate(LispObject *args, Environment *env);
+static LispObject *builtin_string_eq_predicate(LispObject *args, Environment *env);
+
 /* Helper for wildcard matching */
 static int match_char_class(const char **pattern, char c);
 static int wildcard_match(const char *pattern, const char *str);
@@ -187,6 +192,11 @@ void register_builtins(Environment *env) {
     env_define(env, "assq", lisp_make_builtin(builtin_assq, "assq"));
     env_define(env, "assv", lisp_make_builtin(builtin_assv, "assv"));
     env_define(env, "alist-get", lisp_make_builtin(builtin_alist_get, "alist-get"));
+
+    /* Equality predicates */
+    env_define(env, "eq?", lisp_make_builtin(builtin_eq_predicate, "eq?"));
+    env_define(env, "equal?", lisp_make_builtin(builtin_equal_predicate, "equal?"));
+    env_define(env, "string=?", lisp_make_builtin(builtin_string_eq_predicate, "string=?"));
 
     /* Mapping operations */
     env_define(env, "map", lisp_make_builtin(builtin_map, "map"));
@@ -2955,27 +2965,81 @@ static LispObject *builtin_hash_entries(LispObject *args, Environment *env) {
 
 /* Alist operations */
 
-/* Helper function to check equality for assoc variants */
-static int objects_equal(LispObject *a, LispObject *b) {
+/* Helper function to check deep structural equality (used by assoc, equal?, etc.) */
+static int objects_equal_recursive(LispObject *a, LispObject *b) {
+    /* Fast path: pointer equality */
     if (a == b)
         return 1;
+
+    /* NIL checks */
     if (a == NIL || b == NIL)
         return 0;
+
+    /* Type mismatch */
     if (a->type != b->type)
         return 0;
 
     switch (a->type) {
     case LISP_NUMBER:
         return a->value.number == b->value.number;
+
     case LISP_INTEGER:
         return a->value.integer == b->value.integer;
+
     case LISP_STRING:
         return strcmp(a->value.string, b->value.string) == 0;
+
     case LISP_SYMBOL:
         return strcmp(a->value.symbol, b->value.symbol) == 0;
+
     case LISP_BOOLEAN:
         return a->value.boolean == b->value.boolean;
+
+    case LISP_CONS:
+        /* Recursive list comparison */
+        return objects_equal_recursive(a->value.cons.car, b->value.cons.car) &&
+               objects_equal_recursive(a->value.cons.cdr, b->value.cons.cdr);
+
+    case LISP_VECTOR:
+        /* Compare vector lengths */
+        if (a->value.vector.size != b->value.vector.size) {
+            return 0;
+        }
+        /* Compare each element */
+        for (size_t i = 0; i < a->value.vector.size; i++) {
+            if (!objects_equal_recursive(a->value.vector.items[i], b->value.vector.items[i])) {
+                return 0;
+            }
+        }
+        return 1;
+
+    case LISP_HASH_TABLE:
+        /* Compare hash table sizes */
+        if (a->value.hash_table.entry_count != b->value.hash_table.entry_count) {
+            return 0;
+        }
+        /* Compare each key-value pair */
+        /* Iterate through all buckets in hash table a */
+        struct HashEntry **a_buckets = (struct HashEntry **)a->value.hash_table.buckets;
+        for (size_t i = 0; i < a->value.hash_table.bucket_count; i++) {
+            struct HashEntry *entry = a_buckets[i];
+            while (entry != NULL) {
+                /* Look up the key in hash table b */
+                struct HashEntry *b_entry = hash_table_get_entry(b, entry->key);
+                if (b_entry == NULL) {
+                    return 0; /* Key doesn't exist in b */
+                }
+                /* Compare values */
+                if (!objects_equal_recursive(entry->value, b_entry->value)) {
+                    return 0;
+                }
+                entry = entry->next;
+            }
+        }
+        return 1;
+
     default:
+        /* For other types (lambdas, builtins, etc.), use pointer equality */
         return 0;
     }
 }
@@ -2998,7 +3062,7 @@ static LispObject *builtin_assoc(LispObject *args, Environment *env) {
         LispObject *pair = lisp_car(alist);
         if (pair != NIL && pair->type == LISP_CONS) {
             LispObject *pair_key = lisp_car(pair);
-            if (objects_equal(key, pair_key)) {
+            if (objects_equal_recursive(key, pair_key)) {
                 return pair;
             }
         }
@@ -3056,7 +3120,7 @@ static LispObject *builtin_assv(LispObject *args, Environment *env) {
         LispObject *pair = lisp_car(alist);
         if (pair != NIL && pair->type == LISP_CONS) {
             LispObject *pair_key = lisp_car(pair);
-            if (objects_equal(key, pair_key)) {
+            if (objects_equal_recursive(key, pair_key)) {
                 return pair;
             }
         }
@@ -3091,7 +3155,7 @@ static LispObject *builtin_alist_get(LispObject *args, Environment *env) {
         LispObject *pair = lisp_car(alist);
         if (pair != NIL && pair->type == LISP_CONS) {
             LispObject *pair_key = lisp_car(pair);
-            if (objects_equal(key, pair_key)) {
+            if (objects_equal_recursive(key, pair_key)) {
                 return lisp_cdr(pair);
             }
         }
@@ -3100,6 +3164,58 @@ static LispObject *builtin_alist_get(LispObject *args, Environment *env) {
     }
 
     return default_val;
+}
+
+/* Equality predicates */
+
+static LispObject *builtin_eq_predicate(LispObject *args, Environment *env) {
+    (void)env;
+    /* Validate exactly 2 arguments */
+    if (args == NIL || args->value.cons.cdr == NIL || args->value.cons.cdr->value.cons.cdr != NIL) {
+        return lisp_make_error("eq? expects exactly 2 arguments");
+    }
+
+    LispObject *a = args->value.cons.car;
+    LispObject *b = args->value.cons.cdr->value.cons.car;
+
+    /* Pointer equality - same object in memory */
+    return (a == b) ? lisp_make_number(1) : NIL;
+}
+
+static LispObject *builtin_equal_predicate(LispObject *args, Environment *env) {
+    (void)env;
+    /* Validate exactly 2 arguments */
+    if (args == NIL || args->value.cons.cdr == NIL || args->value.cons.cdr->value.cons.cdr != NIL) {
+        return lisp_make_error("equal? expects exactly 2 arguments");
+    }
+
+    LispObject *a = args->value.cons.car;
+    LispObject *b = args->value.cons.cdr->value.cons.car;
+
+    /* Use recursive structural equality */
+    return objects_equal_recursive(a, b) ? lisp_make_number(1) : NIL;
+}
+
+static LispObject *builtin_string_eq_predicate(LispObject *args, Environment *env) {
+    (void)env;
+    /* Validate exactly 2 arguments */
+    if (args == NIL || args->value.cons.cdr == NIL || args->value.cons.cdr->value.cons.cdr != NIL) {
+        return lisp_make_error("string=? expects exactly 2 arguments");
+    }
+
+    LispObject *a = args->value.cons.car;
+    LispObject *b = args->value.cons.cdr->value.cons.car;
+
+    /* Type validation */
+    if (a->type != LISP_STRING) {
+        return lisp_make_error("string=?: first argument must be a string");
+    }
+    if (b->type != LISP_STRING) {
+        return lisp_make_error("string=?: second argument must be a string");
+    }
+
+    /* String comparison */
+    return (strcmp(a->value.string, b->value.string) == 0) ? lisp_make_number(1) : NIL;
 }
 
 /* Mapping operations */
@@ -3218,7 +3334,7 @@ static LispObject *builtin_error_type(LispObject *args, Environment *env) {
         return obj->value.error_with_stack.error_type;
     }
     /* Fallback to 'error symbol if somehow NULL */
-    return lisp_make_symbol("error");
+    return sym_error;
 }
 
 /* error-message - Get error message string */

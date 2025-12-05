@@ -264,9 +264,8 @@ static LispObject *read_quote(const char **input) {
     }
 
     /* Build (quote <quoted>) */
-    LispObject *quote_sym = lisp_make_symbol("quote");
     LispObject *quoted_list = lisp_make_cons(quoted, NIL);
-    return lisp_make_cons(quote_sym, quoted_list);
+    return lisp_make_cons(sym_quote, quoted_list);
 }
 
 static LispObject *read_backquote(const char **input) {
@@ -277,9 +276,8 @@ static LispObject *read_backquote(const char **input) {
     }
 
     /* Build (quasiquote <expr>) */
-    LispObject *quasiquote_sym = lisp_make_symbol("quasiquote");
     LispObject *expr_list = lisp_make_cons(expr, NIL);
-    return lisp_make_cons(quasiquote_sym, expr_list);
+    return lisp_make_cons(sym_quasiquote, expr_list);
 }
 
 static LispObject *read_unquote(const char **input) {
@@ -290,9 +288,8 @@ static LispObject *read_unquote(const char **input) {
     }
 
     /* Build (unquote <expr>) */
-    LispObject *unquote_sym = lisp_make_symbol("unquote");
     LispObject *expr_list = lisp_make_cons(expr, NIL);
-    return lisp_make_cons(unquote_sym, expr_list);
+    return lisp_make_cons(sym_unquote, expr_list);
 }
 
 static LispObject *read_unquote_splicing(const char **input) {
@@ -303,9 +300,8 @@ static LispObject *read_unquote_splicing(const char **input) {
     }
 
     /* Build (unquote-splicing <expr>) */
-    LispObject *unquote_splicing_sym = lisp_make_symbol("unquote-splicing");
     LispObject *expr_list = lisp_make_cons(expr, NIL);
-    return lisp_make_cons(unquote_splicing_sym, expr_list);
+    return lisp_make_cons(sym_unquote_splicing, expr_list);
 }
 
 LispObject *lisp_read(const char **input) {

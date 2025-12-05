@@ -531,3 +531,75 @@
 (>= (list-length *terminal-echo-log*) 1)              ; => #t
 ;; Echo should preserve braces from original input
 (string-prefix? "#alias bag {#var bag %0}" (list-ref *terminal-echo-log* 1))  ; => #t
+
+;; ============================================================================
+;; Test 24: Error Handling - File I/O
+;; ============================================================================
+
+;; Test save to valid location (should succeed)
+(define save-result (tintin-save-state "/tmp/tintin-test.lisp"))  ; ignore
+(string? save-result)                                  ; => #t
+
+;; Test load non-existent file (should return empty string, not crash)
+(set! *terminal-echo-log* '())                         ; ignore
+(tintin-handle-load (list "nonexistent-file.lisp"))    ; => ""
+;; Should have error message
+(> (list-length *terminal-echo-log*) 0)                ; => #t
+(string-prefix? "Failed to load" (list-ref *terminal-echo-log* 0))  ; => #t
+
+;; ============================================================================
+;; Test 25: Error Handling - Data Validation
+;; ============================================================================
+
+;; Test empty command (should not crash)
+(tintin-process-command "")                            ; => ""
+
+;; Test undefined variable expansion (should keep literal text)
+(define *tintin-variables* (make-hash-table))         ; ignore
+(tintin-expand-variables "$undefined")                 ; => "$undefined"
+
+;; Test empty string split (should not crash)
+(define test-words (split "" " "))                     ; => ()
+(define test-first (if (null? test-words) "" (car test-words)))  ; => ""
+
+;; ============================================================================
+;; Test 26: Speedwalk Diagonal Directions Flag
+;; ============================================================================
+
+;; Diagonal directions should be disabled by default
+(define diag-initial *tintin-speedwalk-diagonals*)    ; ignore
+(null? diag-initial)                                   ; => #t
+
+;; Test single-char directions (should always work)
+(tintin-expand-speedwalk "3n2e")                       ; => "n;n;n;e;e"
+
+;; Test diagonal without number - should parse as two separate directions when disabled
+(tintin-expand-speedwalk "ne")                         ; => "n;e"
+
+;; Test diagonal with numbers - should parse each direction separately when disabled
+(tintin-expand-speedwalk "2ne3nw")                     ; => "n;n;e;n;n;n;w"
+
+;; Enable diagonal directions
+(set! *tintin-speedwalk-diagonals* #t)                ; ignore
+*tintin-speedwalk-diagonals*                           ; => #t
+
+;; Test diagonal direction - should now work as single direction
+(tintin-expand-speedwalk "ne")                         ; => "ne"
+
+;; Test multiple diagonal directions
+(tintin-expand-speedwalk "2ne3nw")                     ; => "ne;ne;nw;nw;nw"
+
+;; Disable diagonal directions again
+(set! *tintin-speedwalk-diagonals* #f)                ; ignore
+*tintin-speedwalk-diagonals*                           ; => #f
+
+;; Test diagonal - should go back to parsing as separate directions
+(tintin-expand-speedwalk "ne")                         ; => "n;e"
+
+;; Test save/load persists the diagonal flag
+(set! *tintin-speedwalk-diagonals* #t)                ; ignore
+(tintin-save-state "/tmp/tintin-diag-test.lisp")      ; ignore
+(set! *tintin-speedwalk-diagonals* #f)                ; ignore
+*tintin-speedwalk-diagonals*                           ; => #f
+(load "/tmp/tintin-diag-test.lisp")                    ; ignore
+*tintin-speedwalk-diagonals*                           ; => #t

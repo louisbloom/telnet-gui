@@ -212,9 +212,69 @@ Define a macro that transforms code before evaluation.
 
 - `>` - Greater than
 - `<` - Less than
-- `=` - Equal to
+- `=` - Equal to (numbers only)
 - `>=` - Greater than or equal
 - `<=` - Less than or equal
+
+### Equality Predicates
+
+#### `(eq? obj1 obj2)`
+
+Identity equality - returns true if `obj1` and `obj2` are the same object in memory.
+
+- Fast pointer comparison
+- Reliable for symbols (symbols with the same name are always the same object)
+- NOT reliable for numbers or strings (may be different objects with same value)
+
+```lisp
+(eq? 'foo 'foo)           ; => 1 (symbols are interned)
+(eq? '(1 2) '(1 2))       ; => nil (different list objects)
+(define x '(1 2))
+(define y x)
+(eq? x y)                 ; => 1 (same object)
+```
+
+#### `(equal? obj1 obj2)`
+
+Deep structural equality - returns true if `obj1` and `obj2` have the same structure and values.
+
+- Recursive comparison of lists, vectors, hash tables
+- Use for "are these values the same?" checks
+- Default choice for most equality tests
+
+```lisp
+(equal? '(1 2 3) '(1 2 3))           ; => 1 (same values)
+(equal? "abc" "abc")                 ; => 1 (same string)
+(equal? '(1 (2 3)) '(1 (2 3)))       ; => 1 (nested lists)
+(equal? 1 1.0)                       ; => nil (different types)
+
+; Vectors
+(define v1 (make-vector 2))
+(vector-set! v1 0 1)
+(vector-set! v1 1 2)
+(define v2 (make-vector 2))
+(vector-set! v2 0 1)
+(vector-set! v2 1 2)
+(equal? v1 v2)                       ; => 1
+```
+
+#### `(string=? str1 str2)`
+
+String equality - returns true if `str1` and `str2` have identical character sequences.
+
+```lisp
+(string=? "foo" "foo")               ; => 1
+(string=? "foo" "bar")               ; => nil
+```
+
+**Note:** `string=` (without `?`) also exists for compatibility.
+
+**Practical Usage Guide:**
+
+- **`eq?`** - For symbols, checking if two variables point to same object
+- **`=`** - For numeric comparisons (supports integers and floats)
+- **`string=?`** or **`string=`** - For string equality
+- **`equal?`** - Default choice for "are these values the same?" checks (lists, vectors, hash tables, any data structures)
 
 ### String Functions
 

@@ -55,6 +55,24 @@
 ;; Then run: ./telnet-gui.exe -l my-config.lisp <host> <port>
 ;;
 ;; ============================================================================
+;; UTILITY: Symbol comparison (equal? is not a built-in)
+;; ============================================================================
+(define equal? (lambda (a b)
+		 ;; Simple equality for symbols and other types
+		 ;; Uses case to handle different types
+		 (cond
+		   ((and (symbol? a) (symbol? b))
+		    ;; Compare symbols by converting to strings
+		    (string= (symbol->string a) (symbol->string b)))
+		   ((and (number? a) (number? b))
+		    (= a b))
+		   ((and (string? a) (string? b))
+		    (string= a b))
+		   ((and (null? a) (null? b))
+		    #t)
+		   (#t #f))))
+
+;; ============================================================================
 ;; DATA STRUCTURES
 ;; ============================================================================
 
@@ -622,12 +640,24 @@
 		    ;; Echo expanded command to terminal (if different from original)
 		    (if (not (string= cmd text))
 			(tintin-echo (concat cmd "\r\n")))
-		    ;; Send to telnet server with CRLF
-		    (if (symbol? 'telnet-send)
-			(telnet-send (concat cmd "\r\n"))))))))
+		    ;; Send to telnet server with error handling
+		    (condition-case err
+			(progn
+			  ;; Check connection status
+			  (if (and (symbol? 'telnet-send)
+				   (equal? *connection-mode* 'conn))
+			      ;; Connected - send the command
+			      (telnet-send (concat cmd "\r\n"))
+			      ;; Not connected - show friendly message (once per input)
+			      (if (and (not (equal? *connection-mode* 'conn))
+				       (= i 0))
+				  (tintin-echo "\r\n*** Not connected ***\r\n"))))
+		      ;; Catch any send errors
+		      (error
+		       (tintin-echo (concat "\r\n*** Send failed: "
+					    (error-message err) " ***\r\n")))))))))
 	;; Return nil to indicate hook handled everything (proper contract)
 	())))
-
 ;; Toggle TinTin++ processing on/off
 (defun tintin-toggle! ()
   (set! *tintin-enabled* (not *tintin-enabled*))

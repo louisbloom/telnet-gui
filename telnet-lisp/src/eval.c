@@ -103,7 +103,7 @@ static LispObject *eval_list(LispObject *list, Environment *env, int in_tail_pos
 
     /* Check for special forms - these propagate tail position */
     if (first->type == LISP_SYMBOL) {
-        if (strcmp(first->value.symbol, "quote") == 0) {
+        if (first == sym_quote) {
             LispObject *rest = lisp_cdr(list);
             if (rest == NIL) {
                 return lisp_make_error("quote requires an argument");
@@ -111,7 +111,7 @@ static LispObject *eval_list(LispObject *list, Environment *env, int in_tail_pos
             return lisp_car(rest);
         }
 
-        if (strcmp(first->value.symbol, "quasiquote") == 0) {
+        if (first == sym_quasiquote) {
             LispObject *rest = lisp_cdr(list);
             if (rest == NIL) {
                 return lisp_make_error("quasiquote requires an argument");
@@ -119,63 +119,63 @@ static LispObject *eval_list(LispObject *list, Environment *env, int in_tail_pos
             return eval_quasiquote(lisp_car(rest), env);
         }
 
-        if (strcmp(first->value.symbol, "if") == 0) {
+        if (first == sym_if) {
             return eval_if(lisp_cdr(list), env, in_tail_position);
         }
 
-        if (strcmp(first->value.symbol, "define") == 0) {
+        if (first == sym_define) {
             return eval_define(lisp_cdr(list), env);
         }
 
-        if (strcmp(first->value.symbol, "set!") == 0) {
+        if (first == sym_set) {
             return eval_set_bang(lisp_cdr(list), env);
         }
 
-        if (strcmp(first->value.symbol, "lambda") == 0) {
+        if (first == sym_lambda) {
             return eval_lambda(lisp_cdr(list), env);
         }
 
-        if (strcmp(first->value.symbol, "defmacro") == 0) {
+        if (first == sym_defmacro) {
             return eval_defmacro(lisp_cdr(list), env);
         }
 
-        if (strcmp(first->value.symbol, "let") == 0) {
+        if (first == sym_let) {
             return eval_let(lisp_cdr(list), env, in_tail_position);
         }
 
-        if (strcmp(first->value.symbol, "let*") == 0) {
+        if (first == sym_let_star) {
             return eval_let_star(lisp_cdr(list), env, in_tail_position);
         }
 
-        if (strcmp(first->value.symbol, "progn") == 0) {
+        if (first == sym_progn) {
             return eval_progn(lisp_cdr(list), env, in_tail_position);
         }
 
-        if (strcmp(first->value.symbol, "do") == 0) {
+        if (first == sym_do) {
             return eval_do(lisp_cdr(list), env);
         }
 
-        if (strcmp(first->value.symbol, "cond") == 0) {
+        if (first == sym_cond) {
             return eval_cond(lisp_cdr(list), env, in_tail_position);
         }
 
-        if (strcmp(first->value.symbol, "case") == 0) {
+        if (first == sym_case) {
             return eval_case(lisp_cdr(list), env, in_tail_position);
         }
 
-        if (strcmp(first->value.symbol, "and") == 0) {
+        if (first == sym_and) {
             return eval_and(lisp_cdr(list), env, in_tail_position);
         }
 
-        if (strcmp(first->value.symbol, "or") == 0) {
+        if (first == sym_or) {
             return eval_or(lisp_cdr(list), env, in_tail_position);
         }
 
-        if (strcmp(first->value.symbol, "condition-case") == 0) {
+        if (first == sym_condition_case) {
             return eval_condition_case(lisp_cdr(list), env, in_tail_position);
         }
 
-        if (strcmp(first->value.symbol, "unwind-protect") == 0) {
+        if (first == sym_unwind_protect) {
             return eval_unwind_protect(lisp_cdr(list), env, in_tail_position);
         }
     }
@@ -376,7 +376,7 @@ static LispObject *eval_quasiquote(LispObject *expr, Environment *env) {
 
     /* Check if this is an unquote: (unquote expr) => ,expr */
     LispObject *first = lisp_car(expr);
-    if (first != NULL && first->type == LISP_SYMBOL && strcmp(first->value.symbol, "unquote") == 0) {
+    if (first != NULL && first->type == LISP_SYMBOL && first == sym_unquote) {
         LispObject *rest = lisp_cdr(expr);
         if (rest == NIL) {
             return lisp_make_error("unquote requires an argument");
@@ -388,8 +388,7 @@ static LispObject *eval_quasiquote(LispObject *expr, Environment *env) {
     /* Check if this is unquote-splicing at the beginning: (unquote-splicing expr) => ,@expr */
     if (first != NULL && first->type == LISP_CONS) {
         LispObject *first_first = lisp_car(first);
-        if (first_first != NULL && first_first->type == LISP_SYMBOL &&
-            strcmp(first_first->value.symbol, "unquote-splicing") == 0) {
+        if (first_first != NULL && first_first->type == LISP_SYMBOL && first_first == sym_unquote_splicing) {
             LispObject *splice_rest = lisp_cdr(first);
             if (splice_rest == NIL) {
                 return lisp_make_error("unquote-splicing requires an argument");
@@ -754,7 +753,7 @@ static LispObject *eval_cond(LispObject *args, Environment *env, int in_tail_pos
         LispObject *result = lisp_cdr(clause);
 
         /* Check for 'else' */
-        if (test->type == LISP_SYMBOL && strcmp(test->value.symbol, "else") == 0) {
+        if (test->type == LISP_SYMBOL && test == sym_else) {
             if (result != NIL && result != NULL) {
                 /* Else clause result is in tail position */
                 return lisp_eval_internal(lisp_car(result), env, in_tail_position);
@@ -827,7 +826,7 @@ static LispObject *eval_case(LispObject *args, Environment *env, int in_tail_pos
         LispObject *result = lisp_cdr(clause);
 
         /* Check for 'else' */
-        if (values->type == LISP_SYMBOL && strcmp(values->value.symbol, "else") == 0) {
+        if (values->type == LISP_SYMBOL && values == sym_else) {
             if (result != NIL && result != NULL) {
                 /* Else clause result is in tail position */
                 return lisp_eval_internal(lisp_car(result), env, in_tail_position);
