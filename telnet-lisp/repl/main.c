@@ -101,25 +101,11 @@ int main(int argc, char **argv) {
         const char *input = code;
 
         while (*input) {
-            /* Skip whitespace and comments */
-            while (*input == ' ' || *input == '\t' || *input == '\n' || *input == '\r' || *input == ';') {
-                if (*input == ';') {
-                    while (*input && *input != '\n')
-                        input++;
-                } else {
-                    input++;
-                }
-            }
-
-            /* End of input */
-            if (*input == '\0')
-                break;
-
-            /* Parse expression */
+            /* Parse expression - let lisp_read handle whitespace and comments */
             const char *parse_start = input;
             LispObject *expr = lisp_read(&input);
 
-            /* If input didn't advance, we're done */
+            /* If input didn't advance or NULL, we're done */
             if (expr == NULL || input == parse_start) {
                 break;
             }
@@ -173,25 +159,11 @@ int main(int argc, char **argv) {
             const char *input = buffer;
 
             while (*input) {
-                /* Skip whitespace and comments */
-                while (*input == ' ' || *input == '\t' || *input == '\n' || *input == '\r' || *input == ';') {
-                    if (*input == ';') {
-                        while (*input && *input != '\n')
-                            input++;
-                    } else {
-                        input++;
-                    }
-                }
-
-                /* End of input */
-                if (*input == '\0')
-                    break;
-
-                /* Parse expression */
+                /* Parse expression - let lisp_read handle whitespace and comments */
                 const char *parse_start = input;
                 LispObject *expr = lisp_read(&input);
 
-                /* If input didn't advance, we're done */
+                /* If input didn't advance or NULL, we're done */
                 if (expr == NULL || input == parse_start) {
                     break;
                 }

@@ -61,6 +61,7 @@
 (define *tintin-aliases* (make-hash-table))
 (define *tintin-variables* (make-hash-table))
 (define *tintin-speedwalk-enabled* #t)
+(define *tintin-speedwalk-diagonals* #f)
 (define *tintin-enabled* #t)
 
 ;; TinTin++ command registry with metadata
@@ -174,7 +175,9 @@
 (defun tintin-is-direction? (str)
   (or (string=? str "n") (string=? str "e") (string=? str "s") (string=? str "w")
       (string=? str "u") (string=? str "d")
-      (string=? str "ne") (string=? str "nw") (string=? str "se") (string=? str "sw")))
+      (and *tintin-speedwalk-diagonals*
+           (or (string=? str "ne") (string=? str "nw")
+               (string=? str "se") (string=? str "sw")))))
 
 ;; Expand speedwalk string like "3n2e" to "n;n;n;e;e"
 (defun tintin-expand-speedwalk (input)
@@ -198,8 +201,9 @@
 	    ;; Get direction (1 or 2 characters)
 	    (if (< pos len)
 		(let ((ch1 (substring input pos (+ pos 1))))
-		  ;; Try 2-char direction first
-		  (if (and (< (+ pos 1) len)
+		  ;; Try 2-char direction first (only if diagonals enabled)
+		  (if (and *tintin-speedwalk-diagonals*
+			   (< (+ pos 1) len)
 			   (tintin-is-direction? (concat ch1 (substring input (+ pos 1) (+ pos 2)))))
 		      (progn
 			(set! direction (concat ch1 (substring input (+ pos 1) (+ pos 2))))
@@ -438,6 +442,8 @@
     (write-line file ";; Settings")
     (write-line file (concat "(set! *tintin-speedwalk-enabled* "
                              (if *tintin-speedwalk-enabled* "#t" "#f") ")"))
+    (write-line file (concat "(set! *tintin-speedwalk-diagonals* "
+                             (if *tintin-speedwalk-diagonals* "#t" "#f") ")"))
     (write-line file (concat "(set! *tintin-enabled* "
                              (if *tintin-enabled* "#t" "#f") ")"))
 
