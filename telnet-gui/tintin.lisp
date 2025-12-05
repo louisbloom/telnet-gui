@@ -55,24 +55,6 @@
 ;; Then run: ./telnet-gui.exe -l my-config.lisp <host> <port>
 ;;
 ;; ============================================================================
-;; UTILITY: Symbol comparison (equal? is not a built-in)
-;; ============================================================================
-(define equal? (lambda (a b)
-		 ;; Simple equality for symbols and other types
-		 ;; Uses case to handle different types
-		 (cond
-		   ((and (symbol? a) (symbol? b))
-		    ;; Compare symbols by converting to strings
-		    (string= (symbol->string a) (symbol->string b)))
-		   ((and (number? a) (number? b))
-		    (= a b))
-		   ((and (string? a) (string? b))
-		    (string= a b))
-		   ((and (null? a) (null? b))
-		    #t)
-		   (#t #f))))
-
-;; ============================================================================
 ;; DATA STRUCTURES
 ;; ============================================================================
 
@@ -645,11 +627,11 @@
 			(progn
 			  ;; Check connection status
 			  (if (and (symbol? 'telnet-send)
-				   (equal? *connection-mode* 'conn))
+				   (eq? *connection-mode* 'conn))
 			      ;; Connected - send the command
 			      (telnet-send (concat cmd "\r\n"))
 			      ;; Not connected - show friendly message (once per input)
-			      (if (and (not (equal? *connection-mode* 'conn))
+			      (if (and (not (eq? *connection-mode* 'conn))
 				       (= i 0))
 				  (tintin-echo "\r\n*** Not connected ***\r\n"))))
 		      ;; Catch any send errors
