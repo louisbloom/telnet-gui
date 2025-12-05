@@ -518,19 +518,36 @@
                     ;; Simple match - expand alias
                     (let ((template (car alias-entry))
                           (args (cdr words)))
-                      (let ((result template))
+                      (let ((result template)
+                            (used-args (make-vector (list-length args) #f)))  ; Track which args were used
                         ;; First, replace %0 with all arguments
                         (if (> (list-length args) 0)
-                            (let ((all-args ""))
+                            (let ((all-args "")
+                                  (old-result result))
                               (do ((i 0 (+ i 1)))
                                   ((>= i (list-length args)))
                                 (set! all-args (concat all-args
                                                        (if (> i 0) " " "")
                                                        (list-ref args i))))
-                              (set! result (string-replace "%0" all-args result))))
+                              (set! result (string-replace "%0" all-args result))
+                              ;; If %0 was replaced, mark ALL args as used
+                              (if (not (string=? result old-result))
+                                  (do ((i 0 (+ i 1)))
+                                      ((>= i (list-length args)))
+                                    (vector-set! used-args i #t)))))
                         ;; Then replace %1, %2, etc. with individual args
                         (do ((i 0 (+ i 1)))
                             ((>= i (list-length args))
+                             ;; Append any unused arguments
+                             (let ((unused-args ""))
+                               (do ((j 0 (+ j 1)))
+                                   ((>= j (list-length args)))
+                                 (if (not (vector-ref used-args j))
+                                     (set! unused-args (concat unused-args
+                                                               (if (string=? unused-args "") "" " ")
+                                                               (list-ref args j)))))
+                               (if (not (string=? unused-args ""))
+                                   (set! result (concat result " " unused-args))))
                              ;; Expand variables, then speedwalk
                              (let ((expanded (tintin-expand-speedwalk
                                               (tintin-expand-variables result))))
@@ -550,10 +567,12 @@
                                      (if (> (list-length split-commands) 0)
                                          (tintin-process-command (list-ref split-commands 0))
                                          "")))))
-                          (set! result (string-replace
-                                        (concat "%" (number->string (+ i 1)))
-                                        (list-ref args i)
-                                        result)))))
+                          (let ((placeholder (concat "%" (number->string (+ i 1))))
+                                (old-result result))
+                            (set! result (string-replace placeholder (list-ref args i) result))
+                            ;; If placeholder was replaced, mark this arg as used
+                            (if (not (string=? result old-result))
+                                (vector-set! used-args i #t))))))
                     ;; No simple match - try pattern matching
                     (let ((alias-names (hash-keys *tintin-aliases*))
                           (matched-result nil))
