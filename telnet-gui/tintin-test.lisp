@@ -603,3 +603,53 @@
 *tintin-speedwalk-diagonals*                           ; => #f
 (load "/tmp/tintin-diag-test.lisp")                    ; ignore
 *tintin-speedwalk-diagonals*                           ; => #t
+
+;; ============================================================================
+;; Test 27: Unused Arguments Appended to Alias Results
+;; ============================================================================
+
+;; Bug: When an alias doesn't use all the arguments passed to it, the unused
+;; arguments were silently dropped instead of being appended to the result.
+;; Fixed by tracking which arguments are consumed by placeholders (%0, %1, etc.)
+;; and appending any unused ones.
+
+;; Test Case 1: No placeholders, single argument - should append
+(tintin-process-command "#alias mm {c 'magic missile'}")  ; ignore
+(tintin-process-command "mm foobar")                       ; => "c 'magic missile' foobar"
+
+;; Test Case 2: No placeholders, multiple arguments - should append all
+(tintin-process-command "#alias cast {c 'magic missile'}")  ; ignore
+(tintin-process-command "cast foo bar baz")                 ; => "c 'magic missile' foo bar baz"
+
+;; Test Case 3: Has %1, extra arguments - should append the extras
+(tintin-process-command "#alias k {kill %1}")              ; ignore
+(tintin-process-command "k orc goblin")                    ; => "kill orc goblin"
+
+;; Test Case 4: Has %0 - should NOT append (all args consumed)
+(tintin-process-command "#alias g {get %0}")               ; ignore
+(tintin-process-command "g gold sword shield")             ; => "get gold sword shield"
+
+;; Test Case 5: Has %1 and %2, called with 3 args - should append the 3rd
+(tintin-process-command "#alias attack {kill %1;wield %2}")  ; ignore
+(tintin-process-command "attack orc sword shield")           ; => "kill orc;wield sword shield"
+
+;; Test Case 6: User's original bug - recursive expansion with unused args
+(tintin-process-command "#variable target orc")            ; ignore
+(tintin-process-command "#alias 2 {mm $target}")           ; ignore
+(tintin-process-command "2")                               ; => "c 'magic missile' orc"
+
+;; Test Case 7: No placeholders, no arguments - should not append anything
+(tintin-process-command "#alias north {n}")                ; ignore
+(tintin-process-command "north")                           ; => "n"
+
+;; Test Case 8: Multiple %1 references, extra args - append extras
+(tintin-process-command "#alias double {say %1;say %1}")   ; ignore
+(tintin-process-command "double hello extra")              ; => "say hello;say hello extra"
+
+;; Test Case 9: %0 and %1 in same alias - only %0 should consume all
+(tintin-process-command "#alias test {echo %0 and %1}")    ; ignore
+(tintin-process-command "test foo bar baz")                ; => "echo foo bar baz and foo"
+
+;; Test Case 10: Verify with pattern matching alias (no placeholders)
+(tintin-process-command "#alias cast magic missile {c 'magic missile'}")  ; ignore
+(tintin-process-command "cast magic missile foobar")       ; => "c 'magic missile' foobar"
