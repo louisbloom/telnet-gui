@@ -534,20 +534,134 @@ int lisp_x_init(void) {
     return 0;
 }
 
+/* Helper: Check if a file exists */
+static int file_exists(const char *path) {
+    FILE *f = fopen(path, "r");
+    if (f) {
+        fclose(f);
+        return 1;
+    }
+    return 0;
+}
+
 int lisp_x_load_file(const char *filepath) {
     if (!lisp_env || !filepath) {
         return -1;
     }
 
-    LispObject *result = lisp_load_file(filepath, lisp_env);
-    if (result && result->type == LISP_ERROR) {
-        char *err_str = lisp_print(result);
-        fprintf(stderr, "Error loading Lisp file '%s': %s\n", filepath, err_str);
-        return -1;
+    /* Check if filepath is absolute or contains directory separators */
+    /* If so, use it as-is without searching */
+    int has_path_separator = 0;
+#ifdef _WIN32
+    if (strchr(filepath, '\\') || strchr(filepath, '/') || strchr(filepath, ':')) {
+        has_path_separator = 1;
+    }
+#else
+    if (strchr(filepath, '/')) {
+        has_path_separator = 1;
+    }
+#endif
+
+    if (has_path_separator) {
+        /* Path contains directory separator - use as-is */
+        LispObject *result = lisp_load_file(filepath, lisp_env);
+        if (result && result->type == LISP_ERROR) {
+            char *err_str = lisp_print(result);
+            fprintf(stderr, "Error loading Lisp file '%s': %s\n", filepath, err_str);
+            return -1;
+        }
+        fprintf(stderr, "Loaded Lisp file: %s\n", filepath);
+        return 0;
     }
 
-    fprintf(stderr, "Loaded Lisp file: %s\n", filepath);
-    return 0;
+    /* Filename only - search multiple locations */
+    fprintf(stderr, "Lisp file resolution: Starting search for %s...\n", filepath);
+
+    /* Get executable base path */
+    char *base_path = SDL_GetBasePath();
+
+    /* Build search paths array */
+    char path_buffer[1024];
+    const char *search_paths[10];
+    const char *search_labels[10];
+    int search_count = 0;
+
+    /* Path 1: Current directory - HIGHEST PRIORITY */
+    search_paths[search_count] = filepath;
+    search_labels[search_count] = "current directory";
+    search_count++;
+
+    /* Path 2: Parent directory */
+    static char parent_path[256];
+    snprintf(parent_path, sizeof(parent_path), "../%s", filepath);
+    search_paths[search_count] = parent_path;
+    search_labels[search_count] = "parent directory";
+    search_count++;
+
+    /* Path 3: Source tree from build root */
+    static char src_path1[256];
+    snprintf(src_path1, sizeof(src_path1), "telnet-gui/%s", filepath);
+    search_paths[search_count] = src_path1;
+    search_labels[search_count] = "source tree (from build root)";
+    search_count++;
+
+    /* Path 4: Source tree from nested build dir */
+    static char src_path2[256];
+    snprintf(src_path2, sizeof(src_path2), "../../telnet-gui/%s", filepath);
+    search_paths[search_count] = src_path2;
+    search_labels[search_count] = "source tree (nested build dir)";
+    search_count++;
+
+    /* Path 5: Executable-relative (installation fallback) */
+    if (base_path) {
+        size_t base_len = strlen(base_path);
+        const char *sep =
+            (base_len > 0 && (base_path[base_len - 1] == '/' || base_path[base_len - 1] == '\\')) ? "" : "/";
+
+        snprintf(path_buffer, sizeof(path_buffer), "%s%s%s", base_path, sep, filepath);
+#ifdef _WIN32
+        for (char *p = path_buffer; *p; p++) {
+            if (*p == '/')
+                *p = '\\';
+        }
+#endif
+        static char exe_rel_path[1024];
+        strncpy(exe_rel_path, path_buffer, sizeof(exe_rel_path) - 1);
+        search_paths[search_count] = exe_rel_path;
+        search_labels[search_count] = "executable-relative (installation fallback)";
+        search_count++;
+
+        fprintf(stderr, "Lisp file resolution: Executable base path: %s\n", base_path);
+        fprintf(stderr, "Lisp file resolution: Constructed path: %s\n", exe_rel_path);
+        SDL_free(base_path);
+    }
+
+    /* Try each path in order */
+    for (int i = 0; i < search_count; i++) {
+        fprintf(stderr, "Lisp file resolution: Trying [%d] %s: %s\n", i + 1, search_labels[i], search_paths[i]);
+
+        if (file_exists(search_paths[i])) {
+            fprintf(stderr, "Lisp file resolution: File exists, attempting to load...\n");
+
+            LispObject *result = lisp_load_file(search_paths[i], lisp_env);
+            if (result && result->type == LISP_ERROR) {
+                char *err_str = lisp_print(result);
+                fprintf(stderr, "Lisp file resolution: Failed to load: %s\n", err_str);
+                continue; /* Try next path */
+            }
+
+            fprintf(stderr, "Lisp file resolution: SUCCESS! Loaded from [%d] %s\n", i + 1, search_labels[i]);
+            fprintf(stderr, "Lisp file resolution: File path: %s\n", search_paths[i]);
+            return 0;
+        } else {
+            fprintf(stderr, "Lisp file resolution: File does not exist, skipping...\n");
+        }
+    }
+
+    /* All paths exhausted */
+    fprintf(stderr, "Lisp file resolution: ERROR - Failed to find file in any search path\n");
+    fprintf(stderr, "Error loading Lisp file '%s': File not found in search paths\n", filepath);
+    return -1;
 }
 
 void lisp_x_cleanup(void) {
