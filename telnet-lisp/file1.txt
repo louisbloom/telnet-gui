@@ -1,0 +1,2 @@
+This creates or overwrites
+This appends to the file

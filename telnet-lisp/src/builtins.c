@@ -161,10 +161,10 @@ void register_builtins(Environment *env) {
     env_define(env, "number->string", lisp_make_builtin(builtin_number_to_string, "number->string"));
     env_define(env, "string->number", lisp_make_builtin(builtin_string_to_number, "string->number"));
     env_define(env, "split", lisp_make_builtin(builtin_split, "split"));
-    env_define(env, "string<", lisp_make_builtin(builtin_string_lt, "string<"));
-    env_define(env, "string>", lisp_make_builtin(builtin_string_gt, "string>"));
-    env_define(env, "string<=", lisp_make_builtin(builtin_string_lte, "string<="));
-    env_define(env, "string>=", lisp_make_builtin(builtin_string_gte, "string>="));
+    env_define(env, "string<?", lisp_make_builtin(builtin_string_lt, "string<?"));
+    env_define(env, "string>?", lisp_make_builtin(builtin_string_gt, "string>?"));
+    env_define(env, "string<=?", lisp_make_builtin(builtin_string_lte, "string<=?"));
+    env_define(env, "string>=?", lisp_make_builtin(builtin_string_gte, "string>=?"));
     env_define(env, "string-contains?", lisp_make_builtin(builtin_string_contains, "string-contains?"));
     env_define(env, "string-match?", lisp_make_builtin(builtin_string_match, "string-match?"));
     env_define(env, "string-length", lisp_make_builtin(builtin_string_length, "string-length"));
@@ -685,23 +685,83 @@ static LispObject *builtin_concat(LispObject *args, Environment *env) {
 static LispObject *builtin_number_to_string(LispObject *args, Environment *env) {
     (void)env;
     if (args == NULL || args == NIL) {
-        return lisp_make_error("number->string: expected 1 argument");
+        return lisp_make_error("number->string: expected at least 1 argument");
     }
 
+    /* Parse arguments: number (required), radix (optional) */
     LispObject *num = lisp_car(args);
+    LispObject *radix_obj = (lisp_cdr(args) != NIL) ? lisp_car(lisp_cdr(args)) : NIL;
+
     if (num == NULL || num == NIL) {
-        return lisp_make_error("number->string: argument cannot be nil");
+        return lisp_make_error("number->string: first argument cannot be nil");
     }
 
-    char buffer[64];
-    if (num->type == LISP_INTEGER) {
-        snprintf(buffer, sizeof(buffer), "%lld", (long long)num->value.integer);
-    } else if (num->type == LISP_NUMBER) {
+    /* Validate number argument */
+    if (num->type != LISP_INTEGER && num->type != LISP_NUMBER) {
+        return lisp_make_error("number->string: first argument must be a number");
+    }
+
+    int radix = 10; /* default base */
+
+    /* Parse optional radix */
+    if (radix_obj != NIL) {
+        if (radix_obj->type != LISP_INTEGER) {
+            return lisp_make_error("number->string: radix must be an integer");
+        }
+        radix = (int)radix_obj->value.integer;
+        if (radix < 2 || radix > 36) {
+            return lisp_make_error("number->string: radix must be between 2 and 36");
+        }
+    }
+
+    /* Float formatting (only base 10) */
+    if (num->type == LISP_NUMBER) {
+        if (radix != 10) {
+            return lisp_make_error("number->string: floats only supported in base 10");
+        }
+        char buffer[64];
         snprintf(buffer, sizeof(buffer), "%.15g", num->value.number);
-    } else {
-        return lisp_make_error("number->string: argument must be a number");
+        return lisp_make_string(buffer);
     }
 
+    /* Integer formatting with arbitrary radix */
+    long long value = num->value.integer;
+
+    /* Special case: zero */
+    if (value == 0) {
+        return lisp_make_string("0");
+    }
+
+    char buffer[128];
+    int pos = 0;
+    int negative = (value < 0);
+
+    /* Handle negative numbers */
+    if (negative) {
+        value = -value;
+    }
+
+    /* Convert to given radix */
+    const char *digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+    char temp[128];
+    int temp_pos = 0;
+
+    while (value > 0) {
+        temp[temp_pos++] = digits[value % radix];
+        value /= radix;
+    }
+
+    /* Add sign */
+    if (negative) {
+        buffer[pos++] = '-';
+    }
+
+    /* Reverse digits */
+    while (temp_pos > 0) {
+        buffer[pos++] = temp[--temp_pos];
+    }
+
+    buffer[pos] = '\0';
     return lisp_make_string(buffer);
 }
 
@@ -709,20 +769,33 @@ static LispObject *builtin_string_to_number(LispObject *args, Environment *env) 
     (void)env;
 
     if (args == NULL || args == NIL) {
-        return lisp_make_error("string->number: expected 1 argument");
+        return lisp_make_error("string->number: expected at least 1 argument");
     }
 
+    /* Parse arguments: string (required), radix (optional) */
     LispObject *str_obj = lisp_car(args);
+    LispObject *radix_obj = (lisp_cdr(args) != NIL) ? lisp_car(lisp_cdr(args)) : NIL;
+
+    /* Validate string argument */
     if (str_obj == NULL || str_obj == NIL) {
-        return lisp_make_error("string->number: argument cannot be nil");
+        return lisp_make_error("string->number: first argument cannot be nil");
     }
     if (str_obj->type != LISP_STRING) {
-        return lisp_make_error("string->number: argument must be a string");
+        return lisp_make_error("string->number: first argument must be a string");
     }
 
     const char *str = str_obj->value.string;
-    if (str == NULL || *str == '\0') {
-        return lisp_make_error("string->number: empty string");
+    int radix = 10; /* default base */
+
+    /* Parse optional radix */
+    if (radix_obj != NIL) {
+        if (radix_obj->type != LISP_INTEGER) {
+            return lisp_make_error("string->number: radix must be an integer");
+        }
+        radix = (int)radix_obj->value.integer;
+        if (radix < 2 || radix > 36) {
+            return lisp_make_error("string->number: radix must be between 2 and 36");
+        }
     }
 
     /* Skip leading whitespace */
@@ -730,26 +803,60 @@ static LispObject *builtin_string_to_number(LispObject *args, Environment *env) 
         str++;
     }
 
+    /* Empty string returns #f */
     if (*str == '\0') {
-        return lisp_make_error("string->number: empty string");
+        return NIL;
     }
 
-    /* Parse with strtoll */
+    /* Handle radix prefix (only if radix not explicitly specified) */
+    if (radix == 10 && str[0] == '#' && str[1]) {
+        char prefix = str[1];
+        if (prefix == 'b' || prefix == 'B') {
+            radix = 2;
+            str += 2;
+        } else if (prefix == 'o' || prefix == 'O') {
+            radix = 8;
+            str += 2;
+        } else if (prefix == 'd' || prefix == 'D') {
+            radix = 10;
+            str += 2;
+        } else if (prefix == 'x' || prefix == 'X') {
+            radix = 16;
+            str += 2;
+        }
+    }
+
+    /* Try parsing as float (only for base 10) */
+    if (radix == 10 && (strchr(str, '.') != NULL || strchr(str, 'e') != NULL || strchr(str, 'E') != NULL)) {
+        char *endptr;
+        errno = 0;
+        double value = strtod(str, &endptr);
+
+        /* Skip trailing whitespace */
+        while (*endptr && isspace((unsigned char)*endptr)) {
+            endptr++;
+        }
+
+        /* Return float if parse succeeded, else #f */
+        if (*endptr == '\0' && errno != ERANGE) {
+            return lisp_make_number(value);
+        }
+        return NIL;
+    }
+
+    /* Try parsing as integer */
     char *endptr;
     errno = 0;
-    long long value = strtoll(str, &endptr, 10);
-
-    if (errno == ERANGE) {
-        return lisp_make_error("string->number: number out of range");
-    }
+    long long value = strtoll(str, &endptr, radix);
 
     /* Skip trailing whitespace */
     while (*endptr && isspace((unsigned char)*endptr)) {
         endptr++;
     }
 
-    if (*endptr != '\0') {
-        return lisp_make_error("string->number: invalid number format");
+    /* Return integer if parse succeeded, else #f */
+    if (*endptr != '\0' || errno == ERANGE) {
+        return NIL;
     }
 
     return lisp_make_integer(value);
@@ -906,14 +1013,14 @@ static LispObject *builtin_split(LispObject *args, Environment *env) {
 static LispObject *builtin_string_lt(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("string< requires 2 arguments");
+        return lisp_make_error("string<? requires 2 arguments");
     }
 
     LispObject *a = lisp_car(args);
     LispObject *b = lisp_car(lisp_cdr(args));
 
     if (a->type != LISP_STRING || b->type != LISP_STRING) {
-        return lisp_make_error("string< requires strings");
+        return lisp_make_error("string<? requires strings");
     }
 
     return (strcmp(a->value.string, b->value.string) < 0) ? lisp_make_number(1) : NIL;
@@ -922,14 +1029,14 @@ static LispObject *builtin_string_lt(LispObject *args, Environment *env) {
 static LispObject *builtin_string_gt(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("string> requires 2 arguments");
+        return lisp_make_error("string>? requires 2 arguments");
     }
 
     LispObject *a = lisp_car(args);
     LispObject *b = lisp_car(lisp_cdr(args));
 
     if (a->type != LISP_STRING || b->type != LISP_STRING) {
-        return lisp_make_error("string> requires strings");
+        return lisp_make_error("string>? requires strings");
     }
 
     return (strcmp(a->value.string, b->value.string) > 0) ? lisp_make_number(1) : NIL;
@@ -938,14 +1045,14 @@ static LispObject *builtin_string_gt(LispObject *args, Environment *env) {
 static LispObject *builtin_string_lte(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("string<= requires 2 arguments");
+        return lisp_make_error("string<=? requires 2 arguments");
     }
 
     LispObject *a = lisp_car(args);
     LispObject *b = lisp_car(lisp_cdr(args));
 
     if (a->type != LISP_STRING || b->type != LISP_STRING) {
-        return lisp_make_error("string<= requires strings");
+        return lisp_make_error("string<=? requires strings");
     }
 
     return (strcmp(a->value.string, b->value.string) <= 0) ? lisp_make_number(1) : NIL;
@@ -954,14 +1061,14 @@ static LispObject *builtin_string_lte(LispObject *args, Environment *env) {
 static LispObject *builtin_string_gte(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("string>= requires 2 arguments");
+        return lisp_make_error("string>=? requires 2 arguments");
     }
 
     LispObject *a = lisp_car(args);
     LispObject *b = lisp_car(lisp_cdr(args));
 
     if (a->type != LISP_STRING || b->type != LISP_STRING) {
-        return lisp_make_error("string>= requires strings");
+        return lisp_make_error("string>=? requires strings");
     }
 
     return (strcmp(a->value.string, b->value.string) >= 0) ? lisp_make_number(1) : NIL;

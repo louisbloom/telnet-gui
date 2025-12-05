@@ -284,20 +284,137 @@ String equality - returns true if `str1` and `str2` have identical character seq
 - `string-replace` - Replace all occurrences of substring in string
 - `string-upcase` - Convert string to uppercase (UTF-8 aware, ASCII only)
 - `string-downcase` - Convert string to lowercase (UTF-8 aware, ASCII only)
-- `string->number` - Convert string to signed integer (supports leading/trailing whitespace, `+`/`-` signs)
+- `string->number` - Convert string to number (integer or float) with optional radix (R7RS compliant)
+- `number->string` - Convert number to string with optional radix (R7RS compliant)
 
 ### String Comparisons
 
-- `string<` - String less than (lexicographic)
-- `string>` - String greater than (lexicographic)
-- `string<=` - String less than or equal (lexicographic)
-- `string>=` - String greater than or equal (lexicographic)
+String comparisons follow Scheme R7RS naming with `?` suffix:
+
+- `string<?` - String less than (lexicographic)
+- `string>?` - String greater than (lexicographic)
+- `string<=?` - String less than or equal (lexicographic)
+- `string>=?` - String greater than or equal (lexicographic)
+
+**Examples:**
+
+```lisp
+(string<? "abc" "def")     ; => 1 (true)
+(string<? "def" "abc")     ; => nil (false)
+(string<=? "abc" "abc")    ; => 1 (true)
+(string>=? "xyz" "abc")    ; => 1 (true)
+```
+
+**R7RS Compliance:** All string comparison predicates use the `?` suffix following Scheme R7RS standard.
 
 ### String Predicates
 
 - `string-contains?` - Check if string contains substring
 - `string-match?` - Match string against wildcard pattern
 - `string-prefix?` - Check if one string is a prefix of another
+
+### Numeric Conversion Functions
+
+#### `(string->number string)` / `(string->number string radix)`
+
+Convert string to number (integer or float) with optional radix parameter.
+
+**Without radix** (base 10, or inferred from prefix):
+
+- Supports integers: `"42"`, `"-123"`, `"+99"`
+- Supports floats: `"3.14"`, `"1e10"`, `"-2.5e-3"`, `"1.23e+5"`
+- Supports radix prefixes:
+  - `"#b1010"` (binary, base 2) → `10`
+  - `"#o77"` (octal, base 8) → `63`
+  - `"#d123"` (decimal, base 10) → `123`
+  - `"#xff"` (hexadecimal, base 16) → `255`
+- Leading and trailing whitespace is stripped
+- Returns `nil` (`#f`) if string is not a valid number
+
+**With radix** (2-36):
+
+- Parses string as integer in given base
+- No prefix needed: `(string->number "ff" 16)` → `255`
+- Only integers supported (floats require base 10)
+- Returns `nil` (`#f`) if invalid for that radix
+
+**Examples:**
+
+```lisp
+;; Basic integers
+(string->number "42")           ; => 42
+(string->number "-123")         ; => -123
+(string->number "  +99  ")      ; => 99
+
+;; Floats
+(string->number "3.14")         ; => 3.14
+(string->number "1e10")         ; => 1e10
+(string->number "-2.5e-3")      ; => -0.0025
+
+;; Radix prefixes
+(string->number "#b1010")       ; => 10
+(string->number "#o77")         ; => 63
+(string->number "#xff")         ; => 255
+
+;; Radix parameter
+(string->number "1010" 2)       ; => 10
+(string->number "ff" 16)        ; => 255
+(string->number "77" 8)         ; => 63
+
+;; Invalid input returns #f
+(string->number "xyz")          ; => nil
+(string->number "")             ; => nil
+(string->number "12.34.56")     ; => nil
+```
+
+**R7RS Compliance:** Follows R7RS standard with optional radix parameter and `#f` return on failure.
+
+#### `(number->string z)` / `(number->string z radix)`
+
+Convert number to string representation with optional radix parameter.
+
+**Without radix** (base 10):
+
+- Formats integers: `255` → `"255"`
+- Formats floats: `3.14` → `"3.14"`, `1e10` → `"1e+10"`
+
+**With radix** (2-36):
+
+- Formats integers in given base: `(number->string 255 16)` → `"ff"`
+- Uses lowercase letters for digits > 9: `"0123456789abcdefghijklmnopqrstuvwxyz"`
+- Floats only supported in base 10 (error otherwise)
+
+**Examples:**
+
+```lisp
+;; Base 10 (default)
+(number->string 42)             ; => "42"
+(number->string -42)            ; => "-42"
+(number->string 3.14)           ; => "3.14"
+(number->string 1e10)           ; => "1e+10"
+
+;; Binary (base 2)
+(number->string 10 2)           ; => "1010"
+(number->string 255 2)          ; => "11111111"
+
+;; Octal (base 8)
+(number->string 63 8)           ; => "77"
+(number->string 255 8)          ; => "377"
+
+;; Hexadecimal (base 16)
+(number->string 255 16)         ; => "ff"
+(number->string 16 16)          ; => "10"
+
+;; Base 36 (maximum)
+(number->string 35 36)          ; => "z"
+(number->string 36 36)          ; => "10"
+
+;; Round-trip conversion
+(number->string (string->number "ff" 16) 16)   ; => "ff"
+(string->number (number->string 255 16) 16)    ; => 255
+```
+
+**R7RS Compliance:** Follows R7RS standard with optional radix parameter (integers only for non-decimal bases).
 
 ### Boolean Functions
 
@@ -981,7 +1098,7 @@ Convert to tail recursion by:
 
 ; String comparisons
 (string=? "hello" "hello")           ; => 1
-(string< "abc" "def")                ; => 1
+(string<? "abc" "def")               ; => 1
 (string-contains? "hello world" "world") ; => 1
 (string-match? "hello" "h*o")        ; => 1
 (string-prefix? "hel" "hello")       ; => 1

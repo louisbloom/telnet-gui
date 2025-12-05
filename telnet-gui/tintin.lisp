@@ -379,9 +379,9 @@
 
 ;; Check if character is valid in variable name: [a-zA-Z0-9_-]
 (defun tintin-is-varname-char? (ch)
-  (or (and (string>= ch "a") (string<= ch "z"))
-    (and (string>= ch "A") (string<= ch "Z"))
-    (and (string>= ch "0") (string<= ch "9"))
+  (or (and (string>=? ch "a") (string<=? ch "z"))
+    (and (string>=? ch "A") (string<=? ch "Z"))
+    (and (string>=? ch "0") (string<=? ch "9"))
     (string=? ch "_")
     (string=? ch "-")))
 
