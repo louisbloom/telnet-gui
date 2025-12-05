@@ -63,6 +63,7 @@
 (define *tintin-speedwalk-enabled* #t)
 (define *tintin-speedwalk-diagonals* #f)
 (define *tintin-enabled* #t)
+(define *tintin-max-alias-depth* 10)
 
 ;; TinTin++ command registry with metadata
 ;; Each entry: (handler-fn arg-count syntax-help)
@@ -376,6 +377,14 @@
               (if (and (string? p-part) (string? i-part) (not (string=? p-part i-part)))
                 (set! success #f)))))))))
 
+;; Check if character is valid in variable name: [a-zA-Z0-9_-]
+(defun tintin-is-varname-char? (ch)
+  (or (and (string>= ch "a") (string<= ch "z"))
+    (and (string>= ch "A") (string<= ch "Z"))
+    (and (string>= ch "0") (string<= ch "9"))
+    (string=? ch "_")
+    (string=? ch "-")))
+
 ;; Expand $variable references in a string
 (defun tintin-expand-variables (str)
   (if (not (string? str))
@@ -388,6 +397,43 @@
         (let* ((var-name (list-ref var-names i))
                 (var-value (hash-ref *tintin-variables* var-name)))
           (set! result (string-replace (concat "$" var-name) var-value result)))))))
+
+;; Expand $variable references in a string (optimized O(m) single-pass)
+(defun tintin-expand-variables-fast (str)
+  (if (not (string? str))
+    str
+    (let ((len (string-length str))
+           (pos 0)
+           (result ""))
+      (do ()
+        ((>= pos len) result)
+        (let ((ch (string-ref str pos)))
+          (if (string=? ch "$")
+            ;; Extract variable name
+            (let ((var-start (+ pos 1))
+                   (var-end (+ pos 1)))
+              ;; Find end of variable name
+              (do ()
+                ((or (>= var-end len)
+                   (not (tintin-is-varname-char? (string-ref str var-end)))))
+                (set! var-end (+ var-end 1)))
+
+              (if (= var-start var-end)
+                ;; No variable name after $, keep literal $
+                (progn
+                  (set! result (concat result "$"))
+                  (set! pos (+ pos 1)))
+                ;; Variable name found, try to expand
+                (let* ((var-name (substring str var-start var-end))
+                        (var-value (hash-ref *tintin-variables* var-name)))
+                  (if var-value
+                    (set! result (concat result var-value))
+                    (set! result (concat result "$" var-name)))
+                  (set! pos var-end))))
+            ;; Regular character
+            (progn
+              (set! result (concat result ch))
+              (set! pos (+ pos 1)))))))))
 
 ;; ============================================================================
 ;; SAVE/LOAD UTILITY FUNCTIONS
@@ -505,170 +551,181 @@
           (if (string-prefix? prefix-lower cmd)
             (set! result cmd)))))))
 
-;; Process a single command
-(defun tintin-process-command (cmd)
-  (if (or (not (string? cmd)) (and (string? cmd) (string=? cmd "")))
+;; Match first word against alias hash table
+;; Returns: (alias-entry . args) or nil
+(defun tintin-match-simple-alias (cmd)
+  (let ((words (split cmd " ")))
+    (if (or (null? words) (= (list-length words) 0))
+      nil
+      (let ((first-word (car words))
+             (args (cdr words)))
+        (let ((alias-entry (hash-ref *tintin-aliases* first-word)))
+          (if alias-entry
+            (cons alias-entry args)
+            nil))))))
+
+;; Linear search for pattern aliases
+;; Returns: (pattern . match-values) or nil
+(defun tintin-match-pattern-alias (cmd)
+  (let ((alias-names (hash-keys *tintin-aliases*))
+         (matched nil))
+    (if (or (null? alias-names) (= (list-length alias-names) 0))
+      nil
+      (do ((i 0 (+ i 1)))
+        ((or (>= i (list-length alias-names)) matched) matched)
+        (let* ((pattern (list-ref alias-names i))
+                (match-values (tintin-match-pattern pattern cmd)))
+          (if match-values
+            (set! matched (cons pattern match-values))))))))
+
+;; Replace %0, %1, %2... in template with args or match-values
+;; Returns: template with placeholders replaced + unused args appended
+(defun tintin-substitute-template (template args match-values)
+  (let* ((arg-vals (or match-values args '()))
+          (result template)
+          (used-args (make-vector (list-length arg-vals) #f)))
+
+    ;; Replace %0 with all arguments
+    (if (> (list-length arg-vals) 0)
+      (let ((all-args "")
+             (old-result result))
+        (do ((i 0 (+ i 1)))
+          ((>= i (list-length arg-vals)))
+          (set! all-args (concat all-args
+                           (if (> i 0) " " "")
+                           (list-ref arg-vals i))))
+        (set! result (string-replace "%0" all-args result))
+        ;; Mark all args as used if %0 was replaced
+        (if (not (string=? result old-result))
+          (do ((i 0 (+ i 1)))
+            ((>= i (list-length arg-vals)))
+            (vector-set! used-args i #t)))))
+
+    ;; Replace %1, %2, etc.
+    (do ((i 0 (+ i 1)))
+      ((>= i (list-length arg-vals)))
+      (let ((placeholder (concat "%" (number->string (+ i 1))))
+             (old-result result))
+        (set! result (string-replace placeholder (list-ref arg-vals i) result))
+        (if (not (string=? result old-result))
+          (vector-set! used-args i #t))))
+
+    ;; Append unused arguments (only for simple aliases with args)
+    (if args
+      (let ((unused-list '()))
+        (do ((j 0 (+ j 1)))
+          ((>= j (list-length arg-vals)))
+          (if (not (vector-ref used-args j))
+            (set! unused-list (cons (list-ref arg-vals j) unused-list))))
+        (if (not (eq? unused-list '()))
+          (let ((unused-args "")
+                 (reversed (reverse unused-list)))
+            (do ((k 0 (+ k 1)))
+              ((>= k (list-length reversed)))
+              (set! unused-args (concat unused-args
+                                  (if (> k 0) " " "")
+                                  (list-ref reversed k))))
+            (set! result (concat result " " unused-args))))))
+
+    result))
+
+;; Expand speedwalk, split by semicolons, recursively process
+;; Returns: fully expanded and joined commands
+;; KEY: This eliminates ~70 lines of duplication
+(defun tintin-expand-and-recurse (result depth)
+  ;; Check depth limit (circular alias detection)
+  (if (>= depth *tintin-max-alias-depth*)
+    (progn
+      (tintin-echo (concat "Error: Circular alias detected or depth limit ("
+                     (number->string *tintin-max-alias-depth*)
+                     ") exceeded\r\n"))
+      result)  ; Return unexpanded to stop recursion
+
+    ;; Expand variables, then speedwalk
+    (let ((expanded (tintin-expand-speedwalk
+                      (tintin-expand-variables-fast result))))
+      ;; Split by semicolon
+      (let ((split-commands (tintin-split-commands expanded)))
+        (if (> (list-length split-commands) 1)
+          ;; Multiple commands - recursively process each
+          (let ((sub-results '()))
+            (do ((j 0 (+ j 1)))
+              ((>= j (list-length split-commands)))
+              (let ((subcmd (list-ref split-commands j)))
+                (if (and (string? subcmd) (not (string=? subcmd "")))
+                  (let ((result (tintin-process-command-internal subcmd (+ depth 1))))
+                    (if (and (string? result) (not (string=? result "")))
+                      (set! sub-results (cons result sub-results)))))))
+            ;; Join with semicolons
+            (if (eq? sub-results '())
+              ""
+              (let ((reversed (reverse sub-results))
+                     (output ""))
+                (do ((k 0 (+ k 1)))
+                  ((>= k (list-length reversed)) output)
+                  (set! output (concat output
+                                 (if (> k 0) ";" "")
+                                 (list-ref reversed k)))))))
+          ;; Single command - recursively process
+          (if (> (list-length split-commands) 0)
+            (tintin-process-command-internal (list-ref split-commands 0) (+ depth 1))
+            ""))))))
+
+;; Orchestrate alias matching and expansion
+;; Returns: expanded command (may contain semicolons)
+(defun tintin-expand-alias (cmd depth)
+  (let ((expanded-cmd (tintin-expand-variables-fast cmd)))
+    ;; Try simple alias match
+    (let ((simple-match (tintin-match-simple-alias expanded-cmd)))
+      (if simple-match
+        ;; Simple alias found
+        (let* ((alias-entry (car simple-match))
+                (args (cdr simple-match))
+                (template (car alias-entry))
+                (result (tintin-substitute-template template args nil)))
+          (tintin-expand-and-recurse result depth))
+
+        ;; Try pattern alias match
+        (let ((pattern-match (tintin-match-pattern-alias expanded-cmd)))
+          (if pattern-match
+            ;; Pattern alias found
+            (let* ((pattern (car pattern-match))
+                    (match-values (cdr pattern-match))
+                    (alias-data (hash-ref *tintin-aliases* pattern))
+                    (template (car alias-data))
+                    (result (tintin-substitute-template template nil match-values)))
+              (tintin-expand-and-recurse result depth))
+
+            ;; No alias match - just expand speedwalk
+            (tintin-expand-speedwalk expanded-cmd)))))))
+
+;; Main command router with depth tracking (internal)
+(defun tintin-process-command-internal (cmd depth)
+  (if (or (not (string? cmd)) (string=? cmd ""))
     ""
-    ;; NEW: Intercept # commands FIRST
+    ;; Check if it's a # command
     (if (tintin-is-command? cmd)
       (progn
-        ;; Echo the # command to terminal (both direct and preprocessed/expanded commands)
-        ;; This ensures all TinTin++ commands are visible before evaluation
+        ;; Echo # command
         (tintin-echo (concat cmd "\r\n"))
-        ;; Process the command
+        ;; Extract and dispatch
         (let ((cmd-name (tintin-extract-command-name cmd)))
           (if (not cmd-name)
-            ;; Invalid # command format (e.g., "# " or "#")
             (progn
               (tintin-echo (concat "Invalid TinTin++ command format: " cmd "\r\n"))
               "")
-            ;; Find matching command via partial prefix
             (let ((matched (tintin-find-command cmd-name)))
               (if (not matched)
-                ;; Unknown command - show error, don't send to telnet
                 (progn
                   (tintin-echo (concat "Unknown TinTin++ command: #" cmd-name "\r\n"))
                   "")
-                ;; Dispatch to generic handler (metadata-driven)
                 (tintin-dispatch-command matched cmd))))))
-      ;; NOT a # command - proceed with existing logic (variable expansion and alias lookup)
-      (let ((expanded-cmd (tintin-expand-variables cmd)))
-        (let ((words (split expanded-cmd " "))
-               (first-word (car (split expanded-cmd " "))))
-          (let ((alias-entry (hash-ref *tintin-aliases* first-word)))
-            (if alias-entry
-              ;; Simple match - expand alias
-              (let ((template (car alias-entry))
-                     (args (cdr words)))
-                (let ((result template)
-                       (used-args (make-vector (list-length args) #f)))  ; Track which args were used
-                  ;; First, replace %0 with all arguments
-                  (if (> (list-length args) 0)
-                    (let ((all-args "")
-                           (old-result result))
-                      (do ((i 0 (+ i 1)))
-                        ((>= i (list-length args)))
-                        (set! all-args (concat all-args
-                                         (if (> i 0) " " "")
-                                         (list-ref args i))))
-                      (set! result (string-replace "%0" all-args result))
-                      ;; If %0 was replaced, mark ALL args as used
-                      (if (and (string? result) (string? old-result)
-                            (not (string=? result old-result)))
-                        (do ((i 0 (+ i 1)))
-                          ((>= i (list-length args)))
-                          (vector-set! used-args i #t)))))
-                  ;; Then replace %1, %2, etc. with individual args
-                  (do ((i 0 (+ i 1)))
-                    ((>= i (list-length args))
-                      (progn
-                        ;; Append any unused arguments
-                        (let ((unused-list '()))
-                          (do ((j 0 (+ j 1)))
-                            ((>= j (list-length args)))
-                            (if (not (vector-ref used-args j))
-                              (set! unused-list (cons (list-ref args j) unused-list))))
-                          ;; Build unused-args string from list
-                          (if (not (eq? unused-list '()))
-                            (let ((unused-args "")
-                                   (reversed (reverse unused-list)))
-                              (do ((k 0 (+ k 1)))
-                                ((>= k (list-length reversed)))
-                                (set! unused-args (concat unused-args
-                                                    (if (> k 0) " " "")
-                                                    (list-ref reversed k))))
-                              (set! result (concat result " " unused-args))))
-                          ;; Expand variables, then speedwalk
-                          (let ((expanded (tintin-expand-speedwalk
-                                            (tintin-expand-variables result))))
-                            ;; Split by semicolon to handle multiple commands
-                            (let ((split-commands (tintin-split-commands expanded)))
-                              ;; ALWAYS recursively process each command for alias expansion
-                              (if (> (list-length split-commands) 1)
-                                ;; Multiple commands - collect results and join with semicolons
-                                (let ((sub-results '()))
-                                  (do ((j 0 (+ j 1)))
-                                    ((>= j (list-length split-commands)))
-                                    (let ((subcmd (list-ref split-commands j)))
-                                      (if (and (string? subcmd) (not (string=? subcmd "")))
-                                        (let ((result (tintin-process-command subcmd)))
-                                          (if (and (string? result) (not (string=? result "")))
-                                            (set! sub-results (cons result sub-results)))))))
-                                  ;; Join with semicolons
-                                  (if (eq? sub-results '())
-                                    ""
-                                    (let ((reversed (reverse sub-results))
-                                           (output ""))
-                                      (do ((k 0 (+ k 1)))
-                                        ((>= k (list-length reversed)) output)
-                                        (set! output (concat output
-                                                       (if (> k 0) ";" "")
-                                                       (list-ref reversed k)))))))
-                                ;; Single command - recursively process for alias expansion
-                                (if (> (list-length split-commands) 0)
-                                  (tintin-process-command (list-ref split-commands 0))
-                                  "")))))))  ; Added extra ) for progn
-                    (let ((placeholder (concat "%" (number->string (+ i 1))))
-                           (old-result result))
-                      (set! result (string-replace placeholder (list-ref args i) result))
-                      ;; If placeholder was replaced, mark this arg as used
-                      (if (and (string? result) (string? old-result)
-                            (not (string=? result old-result)))
-                        (vector-set! used-args i #t))))))
-              ;; No simple match - try pattern matching
-              (let ((alias-names (hash-keys *tintin-aliases*))
-                     (matched-result nil))
-                (do ((i 0 (+ i 1)))
-                  ((or (>= i (list-length alias-names)) matched-result)
-                    ;; Process matched result or return expanded command
-                    (if matched-result
-                      ;; Pattern match found - expand and recurse
-                      (let ((expanded (tintin-expand-speedwalk
-                                        (tintin-expand-variables matched-result))))
-                        ;; Split by semicolon to handle multiple commands
-                        (let ((split-commands (tintin-split-commands expanded)))
-                          ;; Recursively process each command for alias expansion
-                          (if (> (list-length split-commands) 1)
-                            ;; Multiple commands - collect results and join with semicolons
-                            (let ((sub-results '()))
-                              (do ((j 0 (+ j 1)))
-                                ((>= j (list-length split-commands)))
-                                (let ((subcmd (list-ref split-commands j)))
-                                  (if (and (string? subcmd) (not (string=? subcmd "")))
-                                    (let ((result (tintin-process-command subcmd)))
-                                      (if (and (string? result) (not (string=? result "")))
-                                        (set! sub-results (cons result sub-results)))))))
-                              ;; Join with semicolons
-                              (if (eq? sub-results '())
-                                ""
-                                (let ((reversed (reverse sub-results))
-                                       (output ""))
-                                  (do ((k 0 (+ k 1)))
-                                    ((>= k (list-length reversed)) output)
-                                    (set! output (concat output
-                                                   (if (> k 0) ";" "")
-                                                   (list-ref reversed k)))))))
-                            ;; Single command - recursively process for alias expansion
-                            (if (> (list-length split-commands) 0)
-                              (tintin-process-command (list-ref split-commands 0))
-                              ""))))
-                      ;; No match found - return expanded command WITHOUT recursion
-                      (tintin-expand-speedwalk expanded-cmd)))
-                  (let* ((pattern (list-ref alias-names i))
-                          (match-values (tintin-match-pattern pattern expanded-cmd)))
-                    (if match-values
-                      (let ((alias-data (hash-ref *tintin-aliases* pattern)))
-                        (let* ((template (car alias-data))
-                                (result template))
-                          ;; Replace %1, %2, etc. with matched values
-                          (do ((j 0 (+ j 1)))
-                            ((>= j (list-length match-values)))
-                            (set! result (string-replace
-                                           (concat "%" (number->string (+ j 1)))
-                                           (list-ref match-values j)
-                                           result)))
-                          (set! matched-result result))))))))))))
-    ))
+      ;; Regular command - expand aliases
+      (tintin-expand-alias cmd depth))))
+
+;; Process a single command (public wrapper, always starts at depth 0)
+(defun tintin-process-command (cmd)
+  (tintin-process-command-internal cmd 0))
 
 ;; ============================================================================
 ;; TEST 7: FULL INPUT PROCESSING
@@ -731,13 +788,19 @@
                 ;; Send to telnet server with error handling
                 (condition-case err
                   (progn
-                    ;; Check connection status
-                    (if (and (symbol? 'telnet-send)
-                          (eq? *connection-mode* 'conn))
-                      ;; Connected - send the command
-                      (telnet-send (concat cmd "\r\n"))
-                      ;; Not connected - show friendly message
-                      (if (not (eq? *connection-mode* 'conn))
+                    ;; Check if we can send (connected or test mode)
+                    (let ((can-send
+                            (condition-case err2
+                              ;; Try to check connection mode
+                              (or (eq? *connection-mode* 'conn)
+                                ;; If *connection-mode* undefined (test mode), check if telnet-send exists
+                                (and (symbol? 'telnet-send) #t))
+                              ;; If *connection-mode* not defined, we're in test mode
+                              (error #t))))
+                      (if can-send
+                        ;; Send the command
+                        (telnet-send (concat cmd "\r\n"))
+                        ;; Not connected
                         (tintin-echo "\r\n*** Not connected ***\r\n"))))
                   ;; Catch any send errors
                   (error
