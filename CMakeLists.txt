@@ -328,9 +328,12 @@ if(CLANG_FORMAT)
             # Build format commands for each Lisp file using stdin/stdout formatter (same as VSCode)
             set(LISP_FORMAT_COMMANDS "")
             foreach(LISP_FILE ${LISP_SOURCES})
+                # Convert absolute path to relative path for bash compatibility on Windows
+                file(RELATIVE_PATH LISP_FILE_REL "${CMAKE_SOURCE_DIR}" "${LISP_FILE}")
                 # Use bash script on all platforms (same Emacs settings as VSCode)
+                # Use relative paths since WORKING_DIRECTORY is set to CMAKE_SOURCE_DIR
                 list(APPEND LISP_FORMAT_COMMANDS
-                    COMMAND bash "${CMAKE_SOURCE_DIR}/tools/format-lisp-file-stdin.sh" "${LISP_FILE}"
+                    COMMAND bash "tools/format-lisp-file-stdin.sh" "${LISP_FILE_REL}"
                 )
             endforeach()
 
@@ -344,6 +347,7 @@ if(CLANG_FORMAT)
                     COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
                     COMMENT "Formatting all C, shell, Lisp, and Markdown files"
                     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                    USES_TERMINAL
                 )
                 message(STATUS "clang-format found: ${CLANG_FORMAT}")
                 message(STATUS "shfmt found: ${SHFMT}")
@@ -358,6 +362,7 @@ if(CLANG_FORMAT)
                     COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
                     COMMENT "Formatting all C, shell, and Lisp files"
                     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                    USES_TERMINAL
                 )
                 message(STATUS "clang-format found: ${CLANG_FORMAT}")
                 message(STATUS "shfmt found: ${SHFMT}")
@@ -374,6 +379,7 @@ if(CLANG_FORMAT)
                     COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
                     COMMENT "Formatting all C, shell, and Markdown files"
                     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                    USES_TERMINAL
                 )
                 message(STATUS "clang-format found: ${CLANG_FORMAT}")
                 message(STATUS "shfmt found: ${SHFMT}")
@@ -386,6 +392,7 @@ if(CLANG_FORMAT)
                     COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
                     COMMENT "Formatting all C source files and shell scripts"
                     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                    USES_TERMINAL
                 )
                 message(STATUS "clang-format found: ${CLANG_FORMAT}")
                 message(STATUS "shfmt found: ${SHFMT}")
@@ -399,9 +406,12 @@ if(CLANG_FORMAT)
             # Build format commands for each Lisp file using stdin/stdout formatter (same as VSCode)
             set(LISP_FORMAT_COMMANDS "")
             foreach(LISP_FILE ${LISP_SOURCES})
+                # Convert absolute path to relative path for bash compatibility on Windows
+                file(RELATIVE_PATH LISP_FILE_REL "${CMAKE_SOURCE_DIR}" "${LISP_FILE}")
                 # Use bash script on all platforms (same Emacs settings as VSCode)
+                # Use relative paths since WORKING_DIRECTORY is set to CMAKE_SOURCE_DIR
                 list(APPEND LISP_FORMAT_COMMANDS
-                    COMMAND bash "${CMAKE_SOURCE_DIR}/tools/format-lisp-file-stdin.sh" "${LISP_FILE}"
+                    COMMAND bash "tools/format-lisp-file-stdin.sh" "${LISP_FILE_REL}"
                 )
             endforeach()
 
@@ -414,6 +424,7 @@ if(CLANG_FORMAT)
                     COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
                     COMMENT "Formatting all C, Lisp, and Markdown files"
                     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                    USES_TERMINAL
                 )
                 message(STATUS "clang-format found: ${CLANG_FORMAT}")
                 message(STATUS "emacs found: ${EMACS}")
@@ -427,6 +438,7 @@ if(CLANG_FORMAT)
                     COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
                     COMMENT "Formatting all C and Lisp files"
                     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                    USES_TERMINAL
                 )
                 message(STATUS "clang-format found: ${CLANG_FORMAT}")
                 message(STATUS "emacs found: ${EMACS}")
@@ -442,6 +454,7 @@ if(CLANG_FORMAT)
                     COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
                     COMMENT "Formatting all C and Markdown files"
                     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                    USES_TERMINAL
                 )
                 message(STATUS "clang-format found: ${CLANG_FORMAT}")
                 message(STATUS "prettier found: ${PRETTIER}")
@@ -453,6 +466,7 @@ if(CLANG_FORMAT)
                     COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
                     COMMENT "Formatting all C source files with clang-format"
                     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                    USES_TERMINAL
                 )
                 message(STATUS "clang-format found: ${CLANG_FORMAT}")
                 message(WARNING "shfmt not found - shell scripts will not be formatted")

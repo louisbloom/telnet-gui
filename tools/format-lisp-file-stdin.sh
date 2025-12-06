@@ -69,24 +69,35 @@ fi
 REL_FILE="${REL_FILE#./}"
 
 # Use stdin/stdout formatter and write back to file
-# Suppress errors from emacs-format-lisp.sh to avoid noise
+# Keep errors separate - don't let them corrupt the output
 cat "$FILE" | bash "$(dirname "$0")/emacs-format-lisp.sh" > "$FILE.tmp" 2>/dev/null
 
-if [ $? -eq 0 ] && [ -f "$FILE.tmp" ]; then
-    # Check if file changed
-    if cmp -s "$FILE" "$FILE.tmp" 2>/dev/null; then
-        STATUS="(unchanged)"
+# Check if formatting succeeded by looking at exit code AND file size
+if [ $? -eq 0 ] && [ -f "$FILE.tmp" ] && [ -s "$FILE.tmp" ]; then
+    # Check if output looks like Lisp code (skip leading whitespace)
+    FIRST_NON_WS=$(head -1 "$FILE.tmp" 2>/dev/null | sed 's/^[[:space:]]*//' | head -c 1)
+    if [[ "$FIRST_NON_WS" == ";" || "$FIRST_NON_WS" == "(" || "$FIRST_NON_WS" == "" ]]; then
+        # Check if file changed
+        if cmp -s "$FILE" "$FILE.tmp" 2>/dev/null; then
+            STATUS="(unchanged)"
+        else
+            STATUS="(changed)"
+        fi
+        mv "$FILE.tmp" "$FILE"
+        # Show progress to stderr (CMake will display this)
+        # Use printf instead of echo and flush for real-time output
+        printf "  Formatting: %s %s\n" "$REL_FILE" "$STATUS" >&2
+        # Force flush stderr (works on most systems)
+        sync 2>/dev/null || true
     else
-        STATUS="(changed)"
+        # Output doesn't look like Lisp - probably an error message
+        rm -f "$FILE.tmp"
+        printf "  Formatting: %s (error - invalid output)\n" "$REL_FILE" >&2
+        sync 2>/dev/null || true
+        exit 1
     fi
-    mv "$FILE.tmp" "$FILE"
-    # Show progress to stderr (CMake will display this)
-    # Use printf instead of echo and flush for real-time output
-    printf "  Formatting: %s %s\n" "$REL_FILE" "$STATUS" >&2
-    # Force flush stderr (works on most systems)
-    sync 2>/dev/null || true
 else
-    # Error occurred
+    # Error occurred or empty file
     rm -f "$FILE.tmp"
     printf "  Formatting: %s (error)\n" "$REL_FILE" >&2
     sync 2>/dev/null || true
