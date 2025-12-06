@@ -341,6 +341,7 @@ if(CLANG_FORMAT)
                 add_custom_target(format
                     COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
                     COMMAND ${SHFMT} -w -i 2 ${SHELL_SCRIPTS}
+                    COMMAND ${CMAKE_COMMAND} -E echo ""
                     COMMAND ${CMAKE_COMMAND} -E echo "Formatting Lisp files..."
                     ${LISP_FORMAT_COMMANDS}
                     COMMAND ${PRETTIER} --write ${MARKDOWN_FILES}
@@ -357,6 +358,7 @@ if(CLANG_FORMAT)
                 add_custom_target(format
                     COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
                     COMMAND ${SHFMT} -w -i 2 ${SHELL_SCRIPTS}
+                    COMMAND ${CMAKE_COMMAND} -E echo ""
                     COMMAND ${CMAKE_COMMAND} -E echo "Formatting Lisp files..."
                     ${LISP_FORMAT_COMMANDS}
                     COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
@@ -418,6 +420,7 @@ if(CLANG_FORMAT)
             if(PRETTIER)
                 add_custom_target(format
                     COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
+                    COMMAND ${CMAKE_COMMAND} -E echo ""
                     COMMAND ${CMAKE_COMMAND} -E echo "Formatting Lisp files..."
                     ${LISP_FORMAT_COMMANDS}
                     COMMAND ${PRETTIER} --write ${MARKDOWN_FILES}
@@ -433,6 +436,7 @@ if(CLANG_FORMAT)
             else()
                 add_custom_target(format
                     COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
+                    COMMAND ${CMAKE_COMMAND} -E echo ""
                     COMMAND ${CMAKE_COMMAND} -E echo "Formatting Lisp files..."
                     ${LISP_FORMAT_COMMANDS}
                     COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"

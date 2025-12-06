@@ -71,9 +71,10 @@ REL_FILE="${REL_FILE#./}"
 # Use stdin/stdout formatter and write back to file
 # Keep errors separate - don't let them corrupt the output
 cat "$FILE" | bash "$(dirname "$0")/emacs-format-lisp.sh" > "$FILE.tmp" 2>/dev/null
+PIPE_EXIT=${PIPESTATUS[1]}  # Get exit code of the bash command, not cat
 
 # Check if formatting succeeded by looking at exit code AND file size
-if [ $? -eq 0 ] && [ -f "$FILE.tmp" ] && [ -s "$FILE.tmp" ]; then
+if [ $PIPE_EXIT -eq 0 ] && [ -f "$FILE.tmp" ] && [ -s "$FILE.tmp" ]; then
     # Check if output contains error messages (case insensitive)
     if grep -qi "^error:" "$FILE.tmp" 2>/dev/null || grep -qi "write-protected" "$FILE.tmp" 2>/dev/null; then
         # Output contains error messages - don't use it

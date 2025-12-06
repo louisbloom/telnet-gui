@@ -19,10 +19,24 @@ else
     # This handles common MSYS2 path formats
     case "$TEMP_FILE" in
         /tmp/*)
-            # For /tmp paths, use %TEMP% on Windows
-            TEMP_FILE_WIN="$TEMP/${TEMP_FILE#/tmp/}"
-            # Convert backslashes to forward slashes for Emacs
-            TEMP_FILE_WIN="${TEMP_FILE_WIN//\\//}"
+            # For /tmp paths, get Windows TEMP directory
+            # Try to get it from Windows environment
+            if [ -n "$TEMP" ]; then
+                # $TEMP is set (Windows environment variable)
+                WIN_TEMP="$TEMP"
+                # Convert backslashes to forward slashes
+                WIN_TEMP="${WIN_TEMP//\\//}"
+                TEMP_FILE_WIN="$WIN_TEMP/${TEMP_FILE#/tmp/}"
+            else
+                # $TEMP not set, try cmd.exe
+                WIN_TEMP=$(cmd.exe /c echo %TEMP% 2>/dev/null | tr -d '\r' | sed 's/\\/\//g')
+                if [ -n "$WIN_TEMP" ] && [ "$WIN_TEMP" != "%TEMP%" ]; then
+                    TEMP_FILE_WIN="$WIN_TEMP/${TEMP_FILE#/tmp/}"
+                else
+                    # Last resort: use common Windows temp path
+                    TEMP_FILE_WIN="C:/Users/$USERNAME/AppData/Local/Temp/${TEMP_FILE#/tmp/}"
+                fi
+            fi
             ;;
         /c/*|/d/*|/e/*|/f/*|/g/*|/h/*|/i/*|/j/*|/k/*|/l/*|/m/*|/n/*|/o/*|/p/*|/q/*|/r/*|/s/*|/t/*|/u/*|/v/*|/w/*|/x/*|/y/*|/z/*)
             # Drive letter path: /c/foo -> C:/foo
@@ -34,6 +48,19 @@ else
             TEMP_FILE_WIN="$TEMP_FILE"
             ;;
     esac
+fi
+
+# Check which emacs we're using and adjust path format accordingly
+EMACS_PATH=$(command -v emacs)
+
+# Detect if we're using WSL emacs (looks for /mnt/ or /usr/bin in path)
+if [[ "$EMACS_PATH" =~ ^/mnt/ ]] || [[ "$EMACS_PATH" =~ ^/usr/bin ]] || [[ "$EMACS_PATH" =~ ^/usr/local/bin ]]; then
+    # Convert Windows path C:/Users/... to WSL path /mnt/c/Users/...
+    if [[ "$TEMP_FILE_WIN" =~ ^([A-Za-z]):(.*)$ ]]; then
+        DRIVE_LETTER=${BASH_REMATCH[1]}
+        REST_OF_PATH=${BASH_REMATCH[2]}
+        TEMP_FILE_WIN="/mnt/${DRIVE_LETTER,,}${REST_OF_PATH}"
+    fi
 fi
 
 # Use Emacs in batch mode to indent the entire buffer
