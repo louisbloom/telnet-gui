@@ -74,6 +74,15 @@ cat "$FILE" | bash "$(dirname "$0")/emacs-format-lisp.sh" > "$FILE.tmp" 2>/dev/n
 
 # Check if formatting succeeded by looking at exit code AND file size
 if [ $? -eq 0 ] && [ -f "$FILE.tmp" ] && [ -s "$FILE.tmp" ]; then
+    # Check if output contains error messages (case insensitive)
+    if grep -qi "^error:" "$FILE.tmp" 2>/dev/null || grep -qi "write-protected" "$FILE.tmp" 2>/dev/null; then
+        # Output contains error messages - don't use it
+        rm -f "$FILE.tmp"
+        printf "  Formatting: %s (error - emacs failed)\n" "$REL_FILE" >&2
+        sync 2>/dev/null || true
+        exit 1
+    fi
+
     # Check if output looks like Lisp code (skip leading whitespace)
     FIRST_NON_WS=$(head -1 "$FILE.tmp" 2>/dev/null | sed 's/^[[:space:]]*//' | head -c 1)
     if [[ "$FIRST_NON_WS" == ";" || "$FIRST_NON_WS" == "(" || "$FIRST_NON_WS" == "" ]]; then

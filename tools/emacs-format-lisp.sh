@@ -2,8 +2,9 @@
 # Format Lisp file using Emacs in batch mode
 # Reads from stdin, writes to stdout
 
-# Create temporary file (let mktemp choose the temp directory)
-TEMP_FILE=$(mktemp --suffix=.lisp)
+# Create temporary file (force using /tmp directory with proper template)
+# Using explicit template ensures proper path format: /tmp/tmp.XXXXXX.lisp
+TEMP_FILE=$(mktemp /tmp/tmp.XXXXXX.lisp 2>/dev/null || mktemp --suffix=.lisp)
 
 # Read from stdin and write to temp file
 cat > "$TEMP_FILE"
