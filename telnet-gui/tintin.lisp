@@ -514,17 +514,17 @@
 ;; ANSI STATE TRACKING (for nested/overlapping highlights)
 ;; ============================================================================
 
-;; Extract the last complete ANSI escape sequence before a position
+;; Extract the most recent (closest) ANSI escape sequence before a position
 ;; This represents the "active formatting state" at that position
-;; Returns the ANSI sequence string or "" if none found
+;; Returns the ANSI sequence string or "" if none found or if reset encountered
 (defun tintin-find-active-ansi-before (text pos)
   (if (or (not (string? text)) (<= pos 0))
     ""
     (let ((scan-pos (- pos 1))
-           (last-ansi ""))
-      ;; Scan backwards looking for ANSI sequences
+           (found-ansi ""))
+      ;; Scan backwards looking for the FIRST (most recent) ANSI sequence
       (do ()
-        ((< scan-pos 0) last-ansi)
+        ((or (< scan-pos 0) (not (string=? found-ansi ""))) found-ansi)
         (if (and (>= scan-pos 1)
               (string=? (substring text scan-pos (+ scan-pos 1)) "\033")
               (< (+ scan-pos 1) (string-length text))
@@ -539,15 +539,21 @@
             ;; Check if we found a complete sequence
             (if (and (< seq-end (string-length text))
                   (string=? (substring text seq-end (+ seq-end 1)) "m"))
-              (progn
-                ;; Extract and save this sequence
-                (set! last-ansi (substring text scan-pos (+ seq-end 1)))
-                ;; Continue scanning backwards
-                (set! scan-pos (- scan-pos 1)))
+              (let ((sequence (substring text scan-pos (+ seq-end 1))))
+                ;; Check if this is a reset code (ESC[0m or ESC[m)
+                (if (or (string=? sequence "\033[0m")
+                      (string=? sequence "\033[m"))
+                  ;; Reset code - return empty (no active formatting)
+                  (set! found-ansi "reset")  ; Special marker to exit and return ""
+                  ;; Non-reset code - this is the active state
+                  (set! found-ansi sequence))
+                ;; Don't continue scanning - we found what we need
+                (set! scan-pos -1))
               (set! scan-pos (- scan-pos 1))))
           ;; Not an ANSI sequence, continue backwards
           (set! scan-pos (- scan-pos 1))))
-      last-ansi)))
+      ;; Return empty string if we found a reset, otherwise return the sequence
+      (if (string=? found-ansi "reset") "" found-ansi))))
 
 ;; Find the position where matched text starts in the line
 ;; Returns position or -1 if not found
