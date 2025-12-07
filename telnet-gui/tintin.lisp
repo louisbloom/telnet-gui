@@ -1186,9 +1186,8 @@
                      ") exceeded\r\n"))
       result)  ; Return unexpanded to stop recursion
 
-    ;; Expand variables, then speedwalk
-    (let ((expanded (tintin-expand-speedwalk
-                      (tintin-expand-variables-fast result))))
+    ;; Expand speedwalk only (variables expand per-command for just-in-time evaluation)
+    (let ((expanded (tintin-expand-speedwalk result)))
       ;; Split by semicolon
       (let ((split-commands (tintin-split-commands expanded)))
         (if (> (list-length split-commands) 1)
@@ -1198,7 +1197,9 @@
               ((>= j (list-length split-commands)))
               (let ((subcmd (list-ref split-commands j)))
                 (if (and (string? subcmd) (not (string=? subcmd "")))
-                  (let ((result (tintin-process-command-internal subcmd (+ depth 1))))
+                  ;; Expand variables for THIS command only (just-in-time)
+                  (let* ((cmd-with-vars (tintin-expand-variables-fast subcmd))
+                          (result (tintin-process-command-internal cmd-with-vars (+ depth 1))))
                     (if (and (string? result) (not (string=? result "")))
                       (set! sub-results (cons result sub-results)))))))
             ;; Join with semicolons
@@ -1213,7 +1214,8 @@
                                  (list-ref reversed k)))))))
           ;; Single command - recursively process
           (if (> (list-length split-commands) 0)
-            (tintin-process-command-internal (list-ref split-commands 0) (+ depth 1))
+            (let ((cmd-with-vars (tintin-expand-variables-fast (list-ref split-commands 0))))
+              (tintin-process-command-internal cmd-with-vars (+ depth 1)))
             ""))))))
 
 ;; Orchestrate alias matching and expansion
