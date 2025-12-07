@@ -548,20 +548,20 @@
     ;; Get all highlights sorted by priority (highest first)
     (let ((highlight-entries (hash-entries *tintin-highlights*)))
       (let ((sorted (tintin-sort-highlights-by-priority highlight-entries)))
-        ;; Try each pattern until one matches
+        ;; Try all patterns and apply all that match
         (let ((result line))
           (do ((i 0 (+ i 1)))
-            ((or (>= i (list-length sorted)) (not (string=? result line)))
+            ((>= i (list-length sorted))
               result)
             (let* ((entry (list-ref sorted i))
                     (pattern (car entry))
                     (data (cdr entry))
                     (fg-color (car data))
                     (bg-color (car (cdr data))))
-              ;; Check if pattern matches
-              (if (tintin-match-highlight-pattern pattern line)
-                ;; Apply highlight and stop (highest priority wins)
-                (set! result (tintin-wrap-match line pattern fg-color bg-color))))))))))
+              ;; Check if pattern matches the current result
+              (if (tintin-match-highlight-pattern pattern result)
+                ;; Apply highlight to current result (allows multiple highlights)
+                (set! result (tintin-wrap-match result pattern fg-color bg-color))))))))))
 
 ;; Main entry point: Apply highlights to incoming text
 ;; Splits text into lines, highlights each line, returns transformed text
