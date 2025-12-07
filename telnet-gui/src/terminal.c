@@ -28,13 +28,19 @@ struct Terminal {
     size_t output_buffer_len;       /* Current length of data in buffer */
     size_t output_buffer_echoed;    /* Number of bytes already echoed locally */
     int echoing_locally;            /* Flag to prevent output callback during local echo */
-    /* Scrollback support */
+    /* Scrollback support (circular buffer for performance) */
     ScrollbackLine *scrollback; /* Array of scrollback lines */
     int scrollback_size;        /* Current number of lines in scrollback */
+    int scrollback_start;       /* Index of oldest line (circular buffer) */
     int scrollback_capacity;    /* Allocated capacity of scrollback buffer */
     int max_scrollback_lines;   /* Maximum scrollback lines (0 = unbounded, limited by SCROLLBACK_MAX_LINES) */
     int viewport_offset;        /* Number of lines scrolled up (0 = showing current screen) */
 };
+
+/* Helper: Convert logical scrollback index to physical circular buffer index */
+static inline int scrollback_physical_index(Terminal *term, int logical_index) {
+    return (term->scrollback_start + logical_index) % term->scrollback_capacity;
+}
 
 static int damage(VTermRect rect, void *user) {
     (void)rect;
@@ -71,16 +77,18 @@ static int bell(void *user) {
 
 /* Scrollback callbacks */
 
-/* Helper: Evict oldest line from scrollback to make room for new line */
+/* Helper: Evict oldest line from scrollback to make room for new line (circular buffer) */
 static void evict_oldest_scrollback_line(Terminal *term) {
     if (!term || term->scrollback_size == 0)
         return;
 
-    /* Free oldest line (first in array) */
-    free(term->scrollback[0].cells);
+    /* Free oldest line (at scrollback_start) */
+    int oldest_index = term->scrollback_start;
+    free(term->scrollback[oldest_index].cells);
+    term->scrollback[oldest_index].cells = NULL;
 
-    /* Shift all lines down by one */
-    memmove(&term->scrollback[0], &term->scrollback[1], (term->scrollback_size - 1) * sizeof(ScrollbackLine));
+    /* Move start pointer forward (circular) */
+    term->scrollback_start = (term->scrollback_start + 1) % term->scrollback_capacity;
 
     /* Decrease size */
     term->scrollback_size--;
@@ -110,15 +118,33 @@ static int sb_pushline(int cols, const VTermScreenCell *cells, void *user) {
         if (new_capacity > effective_max)
             new_capacity = effective_max;
 
-        ScrollbackLine *new_scrollback = realloc(term->scrollback, new_capacity * sizeof(ScrollbackLine));
+        /* When growing circular buffer, need to linearize it first */
+        ScrollbackLine *new_scrollback = malloc(new_capacity * sizeof(ScrollbackLine));
         if (!new_scrollback)
             return 0; /* Out of memory */
+
+        /* Copy existing lines in logical order */
+        for (int i = 0; i < term->scrollback_size; i++) {
+            new_scrollback[i] = term->scrollback[scrollback_physical_index(term, i)];
+        }
+
+        /* Initialize new slots */
+        for (int i = term->scrollback_size; i < new_capacity; i++) {
+            new_scrollback[i].cells = NULL;
+            new_scrollback[i].cols = 0;
+        }
+
+        free(term->scrollback);
         term->scrollback = new_scrollback;
         term->scrollback_capacity = new_capacity;
+        term->scrollback_start = 0; /* Reset to beginning after linearization */
     }
 
+    /* Calculate physical index for new line (circular buffer) */
+    int physical_index = scrollback_physical_index(term, term->scrollback_size);
+
     /* Allocate cells for this line */
-    ScrollbackLine *line = &term->scrollback[term->scrollback_size];
+    ScrollbackLine *line = &term->scrollback[physical_index];
     line->cells = malloc(cols * sizeof(VTermScreenCell));
     if (!line->cells)
         return 0; /* Out of memory */
@@ -152,15 +178,33 @@ static int sb_pushline4(int cols, const VTermScreenCell *cells, bool continuatio
         if (new_capacity > effective_max)
             new_capacity = effective_max;
 
-        ScrollbackLine *new_scrollback = realloc(term->scrollback, new_capacity * sizeof(ScrollbackLine));
+        /* When growing circular buffer, need to linearize it first */
+        ScrollbackLine *new_scrollback = malloc(new_capacity * sizeof(ScrollbackLine));
         if (!new_scrollback)
             return 0; /* Out of memory */
+
+        /* Copy existing lines in logical order */
+        for (int i = 0; i < term->scrollback_size; i++) {
+            new_scrollback[i] = term->scrollback[scrollback_physical_index(term, i)];
+        }
+
+        /* Initialize new slots */
+        for (int i = term->scrollback_size; i < new_capacity; i++) {
+            new_scrollback[i].cells = NULL;
+            new_scrollback[i].cols = 0;
+        }
+
+        free(term->scrollback);
         term->scrollback = new_scrollback;
         term->scrollback_capacity = new_capacity;
+        term->scrollback_start = 0; /* Reset to beginning after linearization */
     }
 
+    /* Calculate physical index for new line (circular buffer) */
+    int physical_index = scrollback_physical_index(term, term->scrollback_size);
+
     /* Allocate cells for this line */
-    ScrollbackLine *line = &term->scrollback[term->scrollback_size];
+    ScrollbackLine *line = &term->scrollback[physical_index];
     line->cells = malloc(cols * sizeof(VTermScreenCell));
     if (!line->cells)
         return 0; /* Out of memory */
@@ -180,8 +224,9 @@ static int sb_popline(int cols, VTermScreenCell *cells, void *user) {
     if (!term || !cells || term->scrollback_size == 0)
         return 0;
 
-    /* Get the last line from scrollback */
-    ScrollbackLine *line = &term->scrollback[term->scrollback_size - 1];
+    /* Get the last line from scrollback (circular buffer) */
+    int physical_index = scrollback_physical_index(term, term->scrollback_size - 1);
+    ScrollbackLine *line = &term->scrollback[physical_index];
     int copy_cols = line->cols < cols ? line->cols : cols;
 
     /* Copy cells */
@@ -195,6 +240,7 @@ static int sb_popline(int cols, VTermScreenCell *cells, void *user) {
 
     /* Free and remove line */
     free(line->cells);
+    line->cells = NULL;
     term->scrollback_size--;
 
     return 1;
@@ -205,13 +251,16 @@ static int sb_clear(void *user) {
     if (!term)
         return 0;
 
-    /* Free all scrollback lines */
+    /* Free all scrollback lines (using circular buffer indexing) */
     for (int i = 0; i < term->scrollback_size; i++) {
-        free(term->scrollback[i].cells);
+        int physical_index = scrollback_physical_index(term, i);
+        free(term->scrollback[physical_index].cells);
+        term->scrollback[physical_index].cells = NULL;
     }
     free(term->scrollback);
     term->scrollback = NULL;
     term->scrollback_size = 0;
+    term->scrollback_start = 0;
     term->scrollback_capacity = 0;
     term->viewport_offset = 0; /* Reset viewport when clearing scrollback */
 
@@ -297,9 +346,10 @@ Terminal *terminal_create(int rows, int cols) {
     term->telnet = NULL;
     term->output_buffer_echoed = 0;
     term->echoing_locally = 0;
-    /* Initialize scrollback */
+    /* Initialize scrollback (circular buffer) */
     term->scrollback = NULL;
     term->scrollback_size = 0;
+    term->scrollback_start = 0;
     term->scrollback_capacity = 0;
     term->max_scrollback_lines = 0; /* 0 = unbounded (limited by SCROLLBACK_MAX_LINES for safety) */
     term->viewport_offset = 0;
@@ -348,10 +398,11 @@ void terminal_destroy(Terminal *term) {
         return;
     if (term->output_buffer)
         free(term->output_buffer);
-    /* Free scrollback */
+    /* Free scrollback (circular buffer) */
     if (term->scrollback) {
         for (int i = 0; i < term->scrollback_size; i++) {
-            free(term->scrollback[i].cells);
+            int physical_index = scrollback_physical_index(term, i);
+            free(term->scrollback[physical_index].cells);
         }
         free(term->scrollback);
     }
@@ -540,10 +591,11 @@ int terminal_get_cell_at(Terminal *term, int row, int col, VTermScreenCell *cell
         /* If viewport_offset <= row, we're showing scrollback */
         /* If viewport_offset > row, we're showing screen */
         if (row < viewport_offset) {
-            /* Get from scrollback */
+            /* Get from scrollback (circular buffer) */
             int scrollback_index = term->scrollback_size - viewport_offset + row;
             if (scrollback_index >= 0 && scrollback_index < term->scrollback_size) {
-                ScrollbackLine *line = &term->scrollback[scrollback_index];
+                int physical_index = scrollback_physical_index(term, scrollback_index);
+                ScrollbackLine *line = &term->scrollback[physical_index];
                 if (col < line->cols) {
                     *cell = line->cells[col];
                     return 1;
@@ -585,8 +637,9 @@ int terminal_get_cell_at_scrollback_index(Terminal *term, int scrollback_index, 
         memset(cell, 0, sizeof(VTermScreenCell));
         return 0;
     } else if (scrollback_index < term->scrollback_size) {
-        /* In scrollback buffer */
-        ScrollbackLine *line = &term->scrollback[scrollback_index];
+        /* In scrollback buffer (circular buffer) */
+        int physical_index = scrollback_physical_index(term, scrollback_index);
+        ScrollbackLine *line = &term->scrollback[physical_index];
         if (col < line->cols) {
             *cell = line->cells[col];
             return 1;
