@@ -1222,6 +1222,22 @@
                              (number->string priority) "))")))))
     (write-line file "")
 
+    ;; Write actions
+    (write-line file ";; Actions")
+    (let ((action-entries (hash-entries *tintin-actions*)))
+      (do ((i 0 (+ i 1)))
+        ((>= i (list-length action-entries)))
+        (let* ((entry (list-ref action-entries i))
+                (pattern (car entry))
+                (data (cdr entry))
+                (commands (car data))
+                (priority (car (cdr data))))
+          (write-line file (concat "(hash-set! *tintin-actions* "
+                             "\"" (tintin-escape-string pattern) "\" "
+                             "(list \"" (tintin-escape-string commands) "\" "
+                             (number->string priority) "))")))))
+    (write-line file "")
+
     ;; Write settings
     (write-line file ";; Settings")
     (write-line file (concat "(set! *tintin-speedwalk-enabled* "
