@@ -7,9 +7,9 @@ A graphical telnet client with terminal emulation, built using SDL2 and libvterm
 The `telnet-gui` application provides a graphical interface for connecting to telnet servers. It features:
 
 - **Terminal Emulation**: Full VT100-compatible terminal emulation using libvterm
-- **Graphical Interface**: SDL2-based windowing system with font rendering
-- **Real-time Rendering**: Efficient screen updates and glyph caching
-- **Input Handling**: Keyboard and mouse input support
+- **Native Window Controls**: Standard OS titlebar with native close/minimize/maximize buttons and resize handles
+- **Graphical Interface**: SDL2-based rendering with font caching and efficient screen updates
+- **Input Handling**: Keyboard and mouse input support with selection and clipboard
 
 ## Dependencies
 
@@ -477,11 +477,11 @@ if (!vterm_check_version(0, 3)) {
 
 - **main.c**: Application entry point, SDL initialization, event loop
 - **terminal.c**: Terminal emulation using libvterm
-- **renderer.c**: SDL-based rendering of terminal cells
+- **renderer.c**: SDL-based rendering of terminal cells and input area
 - **glyph_cache.c**: Font glyph caching for performance
-- **window.c**: SDL window management
+- **window.c**: SDL window management (simplified - delegates to OS for chrome)
 - **input.c**: Keyboard and mouse input handling
-- **input_area.c**: Command input area with history and mode management
+- **input_area.c**: Command input area with history and editing
 - **telnet.c**: Telnet protocol client implementation
 - **commands.c**: Slash command processor (/help, /connect, /disconnect, /test)
 - **lisp.c**: Lisp scripting integration (hooks, colors, configuration)
