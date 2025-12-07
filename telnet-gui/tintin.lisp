@@ -61,6 +61,8 @@
 (define *tintin-aliases* (make-hash-table))
 (define *tintin-variables* (make-hash-table))
 (define *tintin-highlights* (make-hash-table))
+(define *tintin-actions* (make-hash-table))
+(define *tintin-action-executing* #f)
 (define *tintin-speedwalk-enabled* #t)
 (define *tintin-speedwalk-diagonals* #f)
 (define *tintin-enabled* #t)
@@ -489,6 +491,46 @@
           ;; Lower priority - insert later
           (cons first-entry
             (tintin-insert-by-priority entry priority (cdr sorted-list))))))))
+
+;; ============================================================================
+;; ACTION PRIORITY SORTING
+;; ============================================================================
+
+;; Sort action entries by priority (ascending - lower priority first)
+;; Input: list of (pattern . (commands-string priority)) pairs
+;; Output: sorted list by priority (lowest first)
+(defun tintin-sort-actions-by-priority (action-list)
+  (if (or (null? action-list) (= (list-length action-list) 0))
+    '()
+    ;; Simple insertion sort by priority
+    (let ((sorted '()))
+      (do ((remaining action-list (cdr remaining)))
+        ((null? remaining) sorted)
+        (let* ((entry (car remaining))
+                (priority (car (cdr (cdr entry)))))
+          ;; Insert entry in sorted position
+          (set! sorted (tintin-insert-action-by-priority entry priority sorted)))))))
+
+;; Helper: Insert action entry into sorted list by priority, then by pattern length
+(defun tintin-insert-action-by-priority (entry priority sorted-list)
+  (if (null? sorted-list)
+    (list entry)
+    (let ((first-entry (car sorted-list))
+           (first-priority (car (cdr (cdr (car sorted-list))))))
+      (if (< priority first-priority)
+        ;; Lower priority - insert at head (actions use ascending order)
+        (cons entry sorted-list)
+        (if (= priority first-priority)
+          ;; Same priority - use pattern length as tiebreaker (longer first)
+          (let ((entry-pattern (car entry))
+                 (first-pattern (car first-entry)))
+            (if (>= (string-length entry-pattern) (string-length first-pattern))
+              (cons entry sorted-list)
+              (cons first-entry
+                (tintin-insert-action-by-priority entry priority (cdr sorted-list)))))
+          ;; Higher priority - insert later
+          (cons first-entry
+            (tintin-insert-action-by-priority entry priority (cdr sorted-list))))))))
 
 ;; ============================================================================
 ;; HIGHLIGHT APPLICATION
@@ -1071,6 +1113,42 @@
               (set! pos (+ pos 1)))))))))
 
 ;; ============================================================================
+;; ACTION CAPTURE EXTRACTION
+;; ============================================================================
+
+;; Extract %1-%99 capture groups from pattern match
+;; Uses regex-extract builtin to get capture values from matched text
+;; Returns: List of captured strings or empty list if no match
+;; Example: pattern="You hit %1 for %2 damage", text="You hit orc for 15 damage"
+;;          → ("orc" "15")
+(defun tintin-extract-captures (pattern text)
+  (if (or (not (string? pattern)) (not (string? text)))
+    '()
+    (let ((regex-pattern (tintin-pattern-to-regex pattern)))
+      (if (string=? regex-pattern "")
+        '()
+        ;; Use regex-extract to get all capture groups
+        (let ((captures (regex-extract regex-pattern text)))
+          (if captures captures '()))))))
+
+;; Replace %1-%99 in template with capture values
+;; Iterates through captures list, replacing each placeholder
+;; Returns: Template with placeholders replaced
+;; Example: template="say %1 took %2!", captures=("orc" "15")
+;;          → "say orc took 15!"
+(defun tintin-substitute-captures (template captures)
+  (if (or (not (string? template)) (not (list? captures)))
+    template
+    (let ((result template))
+      ;; Replace each capture group placeholder (%1, %2, ..., %99)
+      (do ((i 0 (+ i 1)))
+        ((>= i (list-length captures)) result)
+        (let ((placeholder (concat "%" (number->string (+ i 1))))
+               (value (list-ref captures i)))
+          (if (string? value)
+            (set! result (string-replace placeholder value result))))))))
+
+;; ============================================================================
 ;; SAVE/LOAD UTILITY FUNCTIONS
 ;; ============================================================================
 
@@ -1333,6 +1411,76 @@
               (tintin-process-command-internal cmd-with-vars (+ depth 1)))
             ""))))))
 
+;; ============================================================================
+;; ACTION EXECUTION
+;; ============================================================================
+
+;; Execute action commands with circular execution detection
+;; Sets *tintin-action-executing* flag to prevent infinite loops
+;; Processes commands via tintin-process-input and sends each via telnet-send
+;; Returns: nil (side effect only)
+(defun tintin-execute-action (commands)
+  (if (not (string? commands))
+    nil
+    ;; Check circular execution flag
+    (if *tintin-action-executing*
+      (progn
+        (tintin-echo "Warning: Action triggered during action execution (skipped)\r\n")
+        nil)
+      (progn
+        ;; Set flag to prevent recursion
+        (set! *tintin-action-executing* #t)
+        ;; Process and send commands
+        (condition-case err
+          (progn
+            (let ((processed (tintin-process-input commands)))
+              (if (and (string? processed) (not (string=? processed "")))
+                (let ((cmd-list (tintin-split-commands processed)))
+                  (do ((i 0 (+ i 1)))
+                    ((>= i (list-length cmd-list)))
+                    (let ((cmd (list-ref cmd-list i)))
+                      (if (and (string? cmd) (not (string=? cmd "")))
+                        (condition-case send-err
+                          (telnet-send (concat cmd "\r\n"))
+                          (error
+                            (tintin-echo (concat "Action send failed: "
+                                           (error-message send-err) "\r\n"))))))))))
+            ;; Clear flag after execution
+            (set! *tintin-action-executing* #f))
+          (error
+            ;; Clear flag on error
+            (set! *tintin-action-executing* #f)
+            (tintin-echo (concat "Action execution error: "
+                           (error-message err) "\r\n"))))))))
+
+;; Test all action patterns against line and execute matches
+;; Processes ALL matching actions in priority order (low to high)
+;; For each match: extract captures → substitute → expand vars → execute
+(defun tintin-trigger-actions-for-line (line)
+  (if (or (not (string? line)) (= (hash-count *tintin-actions*) 0))
+    nil
+    ;; Get all actions sorted by priority (low to high)
+    (let ((action-entries (hash-entries *tintin-actions*)))
+      (let ((sorted (tintin-sort-actions-by-priority action-entries)))
+        ;; Try all patterns and execute all that match
+        (do ((i 0 (+ i 1)))
+          ((>= i (list-length sorted)))
+          (let* ((entry (list-ref sorted i))
+                  (pattern (car entry))
+                  (data (cdr entry))
+                  (commands (car data))
+                  (priority (car (cdr data))))
+            ;; Check if pattern matches the line
+            (if (tintin-match-highlight-pattern pattern line)
+              ;; Pattern matches - extract captures and execute
+              (let ((captures (tintin-extract-captures pattern line)))
+                ;; Substitute captures in commands
+                (let ((substituted (tintin-substitute-captures commands captures)))
+                  ;; Expand variables
+                  (let ((expanded (tintin-expand-variables-fast substituted)))
+                    ;; Execute the action
+                    (tintin-execute-action expanded)))))))))))
+
 ;; Orchestrate alias matching and expansion
 ;; Returns: expanded command (may contain semicolons)
 (defun tintin-expand-alias (cmd depth)
@@ -1585,6 +1733,29 @@
                              " (priority: " (number->string priority) ")\r\n")))))
         ""))))
 
+;; List all defined actions (sorted by priority)
+(defun tintin-list-actions ()
+  (let ((action-entries (hash-entries *tintin-actions*))
+         (count (hash-count *tintin-actions*)))
+    (if (= count 0)
+      (progn
+        (tintin-echo "No actions defined.\r\n")
+        "")
+      (progn
+        (tintin-echo (concat "Actions (" (number->string count) "):\r\n"))
+        ;; Sort by priority before displaying
+        (let ((sorted (tintin-sort-actions-by-priority action-entries)))
+          (do ((i 0 (+ i 1)))
+            ((>= i (list-length sorted)))
+            (let* ((entry (list-ref sorted i))
+                    (pattern (car entry))
+                    (data (cdr entry))
+                    (commands (car data))
+                    (priority (car (cdr data))))
+              (tintin-echo (concat "  " pattern " → " commands
+                             " (priority: " (number->string priority) ")\r\n")))))
+        ""))))
+
 ;; ============================================================================
 ;; COMMAND HANDLERS (REFACTORED)
 ;; ============================================================================
@@ -1718,6 +1889,54 @@
         (tintin-echo (concat "Highlight '" pattern "' not found\r\n"))
         ""))))
 
+;; Handle #action command
+;; args: (), (pattern), (pattern commands), or (pattern commands priority)
+;; Entry format: pattern → (commands-string priority)
+(defun tintin-handle-action (args)
+  (cond
+    ;; No arguments - list all actions
+    ((or (null? args) (= 0 (list-length args)))
+      (tintin-list-actions))
+    ;; One argument - show specific action
+    ((= 1 (list-length args))
+      (let ((pattern (tintin-strip-braces (list-ref args 0))))
+        (let ((action-data (hash-ref *tintin-actions* pattern)))
+          (if action-data
+            (let ((commands (car action-data))
+                   (priority (car (cdr action-data))))
+              (tintin-echo (concat "Action '" pattern "': " pattern " → " commands
+                             " (priority: " (number->string priority) ")\r\n"))
+              "")
+            (progn
+              (tintin-echo (concat "Action '" pattern "' not found\r\n"))
+              "")))))
+    ;; Two or three arguments - create action
+    (#t
+      (let* ((pattern (tintin-strip-braces (list-ref args 0)))
+              (commands (tintin-strip-braces (list-ref args 1)))
+              (priority (if (>= (list-length args) 3)
+                          (string->number (tintin-strip-braces (list-ref args 2)))
+                          5)))  ; Default priority
+        ;; Store as (commands-string priority)
+        (hash-set! *tintin-actions* pattern (list commands priority))
+        (tintin-echo (concat "Action '" pattern "' created: "
+                       pattern " → " commands
+                       " (priority: " (number->string priority) ")\r\n"))
+        ""))))
+
+;; Handle #unaction command
+;; args: (pattern)
+(defun tintin-handle-unaction (args)
+  (let ((pattern (tintin-strip-braces (list-ref args 0))))
+    (if (hash-ref *tintin-actions* pattern)
+      (progn
+        (hash-remove! *tintin-actions* pattern)
+        (tintin-echo (concat "Action '" pattern "' removed\r\n"))
+        "")
+      (progn
+        (tintin-echo (concat "Action '" pattern "' not found\r\n"))
+        ""))))
+
 ;; Handle #save command
 ;; args: (filename)
 (defun tintin-handle-save (args)
@@ -1762,6 +1981,10 @@
   (list tintin-handle-save 1 "#save {filename}"))
 (hash-set! *tintin-commands* "load"
   (list tintin-handle-load 1 "#load {filename}"))
+(hash-set! *tintin-commands* "action"
+  (list tintin-handle-action 3 "#action or #action {pattern} or #action {pattern} {commands} [priority]"))
+(hash-set! *tintin-commands* "unaction"
+  (list tintin-handle-unaction 1 "#unaction {pattern}"))
 
 ;; ============================================================================
 ;; GENERIC COMMAND DISPATCHER (REFACTORED)
@@ -1843,6 +2066,22 @@
 
 ;; Install telnet-input-filter-hook
 (define telnet-input-filter-hook tintin-telnet-input-filter)
+
+;; Override telnet-input-hook to add action triggering + word collection
+;; This hook is called when data arrives from the telnet server
+;; It sees stripped text (no ANSI codes), better for pattern matching
+(defun telnet-input-hook (text)
+  ;; Step 1: Collect words for completions (preserve default behavior from bootstrap.lisp)
+  (collect-words-from-text text)
+
+  ;; Step 2: Trigger actions (if TinTin++ enabled)
+  (if (and *tintin-enabled*
+        (not *tintin-action-executing*)
+        (> (hash-count *tintin-actions*) 0))
+    (let ((lines (tintin-split-lines text)))
+      (do ((i 0 (+ i 1)))
+        ((>= i (list-length lines)))
+        (tintin-trigger-actions-for-line (list-ref lines i))))))
 
 ;; Announce activation (terminal is ready when this file loads via -l)
 (tintin-echo "TinTin++ loaded and activated\r\n")
