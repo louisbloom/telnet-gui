@@ -1333,6 +1333,12 @@ int main(int argc, char **argv) {
         int needs_render = 0;
 
         if (terminal_needs_redraw(term) || terminal_selection.active) {
+            /* Clear back buffer before rendering */
+            int bg_r, bg_g, bg_b;
+            lisp_x_get_terminal_bg_color(&bg_r, &bg_g, &bg_b);
+            SDL_SetRenderDrawColor(renderer, bg_r, bg_g, bg_b, 255);
+            SDL_RenderClear(renderer);
+
             char title[256];
             snprintf(title, sizeof(title), "Telnet: %s:%d", hostname, port);
             renderer_render(rend, term, title, terminal_selection.active, terminal_selection.start_row,
@@ -1349,6 +1355,12 @@ int main(int argc, char **argv) {
             static Uint32 last_resize_render = 0;
             Uint32 current_time = SDL_GetTicks();
             if (current_time - last_resize_render > 33) { /* ~30 FPS during resize */
+                /* Clear back buffer before rendering */
+                int bg_r, bg_g, bg_b;
+                lisp_x_get_terminal_bg_color(&bg_r, &bg_g, &bg_b);
+                SDL_SetRenderDrawColor(renderer, bg_r, bg_g, bg_b, 255);
+                SDL_RenderClear(renderer);
+
                 char title[256];
                 snprintf(title, sizeof(title), "Telnet: %s:%d", hostname, port);
                 renderer_render(rend, term, title, terminal_selection.active, terminal_selection.start_row,
