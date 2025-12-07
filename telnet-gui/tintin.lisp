@@ -464,8 +464,8 @@
     (let ((sorted '()))
       (do ((remaining highlight-list (cdr remaining)))
         ((null? remaining) sorted)
-        (let ((entry (car remaining))
-               (priority (car (cdr (cdr (cdr entry))))))
+        (let* ((entry (car remaining))
+                (priority (car (cdr (cdr (cdr entry))))))
           ;; Insert entry in sorted position
           (set! sorted (tintin-insert-by-priority entry priority sorted)))))))
 

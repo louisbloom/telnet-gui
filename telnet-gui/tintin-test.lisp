@@ -917,6 +917,61 @@
   "Single-command alias should still work")
 
 ;; ============================================================================
+;; TEST 30: Sort Highlights by Priority (Bug Fix for let/let* scoping)
+;; ============================================================================
+
+(print "Test: Sort highlights by priority...")
+
+;; Clear and create test data with different priorities
+(hash-clear! *tintin-highlights*)
+(hash-set! *tintin-highlights* "low-priority" (list "red" nil 3))
+(hash-set! *tintin-highlights* "high-priority" (list "blue" nil 10))
+(hash-set! *tintin-highlights* "mid-priority" (list "green" nil 5))
+
+;; Get entries and sort them
+(define highlight-entries (hash-entries *tintin-highlights*))
+(define sorted (tintin-sort-highlights-by-priority highlight-entries))
+
+;; Verify we got all 3 entries
+(assert-equal (list-length sorted) 3
+  "Should have 3 highlight entries after sorting")
+
+;; Extract priorities from sorted entries (format: (pattern . (fg bg priority)))
+(define first-entry (car sorted))
+(define second-entry (car (cdr sorted)))
+(define third-entry (car (cdr (cdr sorted))))
+
+(define pri1 (car (cdr (cdr (cdr first-entry)))))
+(define pri2 (car (cdr (cdr (cdr second-entry)))))
+(define pri3 (car (cdr (cdr (cdr third-entry)))))
+
+;; Verify sorting: highest priority first
+(assert-equal pri1 10 "First entry should have priority 10")
+(assert-equal pri2 5 "Second entry should have priority 5")
+(assert-equal pri3 3 "Third entry should have priority 3")
+
+;; Test edge case: empty list
+(assert-equal (tintin-sort-highlights-by-priority '()) '()
+  "Empty list should return empty list")
+
+;; Test edge case: single entry
+(define single-entry (list (cons "test" (list "red" nil 5))))
+(define sorted-single (tintin-sort-highlights-by-priority single-entry))
+(assert-equal (list-length sorted-single) 1
+  "Single entry should return list with 1 element")
+(assert-equal (car (cdr (cdr (cdr (car sorted-single))))) 5
+  "Single entry priority should be preserved")
+
+;; Test edge case: equal priorities (should maintain order)
+(hash-clear! *tintin-highlights*)
+(hash-set! *tintin-highlights* "pattern1" (list "red" nil 5))
+(hash-set! *tintin-highlights* "pattern2" (list "blue" nil 5))
+(define equal-pri-entries (hash-entries *tintin-highlights*))
+(define sorted-equal (tintin-sort-highlights-by-priority equal-pri-entries))
+(assert-equal (list-length sorted-equal) 2
+  "Should have 2 entries with equal priority")
+
+;; ============================================================================
 ;; TEST: List aliases when no arguments
 ;; ============================================================================
 
