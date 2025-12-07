@@ -777,6 +777,11 @@ int main(int argc, char **argv) {
                 break;
 
             case SDL_MOUSEBUTTONDOWN:
+                /* Clear any existing terminal selection on any mouse click */
+                if (terminal_selection.active) {
+                    clear_terminal_selection();
+                }
+
                 mouse_x = event.button.x;
                 mouse_y = event.button.y;
                 /* Get window size to check if mouse is in input area */
@@ -1047,6 +1052,7 @@ int main(int argc, char **argv) {
                         /* Copy terminal selection if active */
                         if (terminal_selection.active) {
                             copy_terminal_selection(term);
+                            clear_terminal_selection(); /* Clear selection after copy */
                         }
                         /* Copy input area selection or all text to clipboard */
                         else if (input_area_has_selection(&input_area)) {
