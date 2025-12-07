@@ -46,24 +46,48 @@ static LispObject *read_string(const char **input) {
             switch (**input) {
             case 'n':
                 buffer[length++] = '\n';
+                (*input)++;
                 break;
             case 't':
                 buffer[length++] = '\t';
+                (*input)++;
                 break;
             case 'r':
                 buffer[length++] = '\r';
+                (*input)++;
                 break;
             case '\\':
                 buffer[length++] = '\\';
+                (*input)++;
                 break;
             case '"':
                 buffer[length++] = '"';
+                (*input)++;
                 break;
-            default:
-                buffer[length++] = **input;
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7': {
+                /* Octal escape sequence: \0, \00, \000 (1-3 digits) */
+                int octal_value = 0;
+                int digit_count = 0;
+                while (**input >= '0' && **input <= '7' && digit_count < 3) {
+                    octal_value = octal_value * 8 + (**input - '0');
+                    (*input)++;
+                    digit_count++;
+                }
+                buffer[length++] = (char)octal_value;
                 break;
             }
-            (*input)++;
+            default:
+                buffer[length++] = **input;
+                (*input)++;
+                break;
+            }
         } else {
             buffer[length++] = **input;
             (*input)++;
