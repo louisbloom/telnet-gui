@@ -210,7 +210,7 @@ static void print_help(const char *program_name) {
     printf("\n");
     printf("  Font Options:\n");
     printf("    -f, --font-size SIZE   Set font size in points (default: 17)\n");
-    printf("    -p, --plex             Use IBM Plex Mono font instead of DejaVu Sans Mono (default)\n");
+    printf("    -p, --plex             Use IBM Plex Mono font instead of Inconsolata (default)\n");
     printf("    -H, --hinting MODE     Set font hinting mode (default: none)\n");
     printf("                            MODE can be: none, light, normal, mono\n");
     printf("    -a, --antialiasing MODE Set anti-aliasing mode (default: linear)\n");
@@ -410,7 +410,7 @@ int main(int argc, char **argv) {
     }
 
     /* Estimate initial window size based on terminal geometry and font size */
-    /* DejaVu Sans Mono metrics: width ≈ 0.63 * font_size, height ≈ 1.18 * font_size */
+    /* Inconsolata metrics: width ≈ 0.63 * font_size, height ≈ 1.18 * font_size */
     /* At 17pt: approximately 11x20 pixels per cell */
     int estimated_cell_w = (int)(font_size * 0.63);
     int estimated_cell_h = (int)(font_size * 1.18);
@@ -466,8 +466,8 @@ int main(int argc, char **argv) {
     SDL_Renderer *renderer = window_get_sdl_renderer(win);
 
     /* Determine font filename based on user preference */
-    const char *font_filename = use_plex ? "IBMPlexMono-Regular.ttf" : "DejaVuSansMono.ttf";
-    const char *font_name = use_plex ? "IBM Plex Mono" : "DejaVu Sans Mono";
+    const char *font_filename = use_plex ? "IBMPlexMono-Regular.ttf" : "Inconsolata-Regular.ttf";
+    const char *font_name = use_plex ? "IBM Plex Mono" : "Inconsolata";
 
     fprintf(stderr, "Font resolution: Using %s font (filename: %s)\n", font_name, font_filename);
 

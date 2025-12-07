@@ -18,6 +18,8 @@ set(GUI_SOURCES
 add_executable(telnet-gui ${GUI_SOURCES})
 
 # Copy font files to build directory
+set(FONT_INCONSOLATA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Inconsolata-Regular.ttf")
+set(FONT_INCONSOLATA_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/Inconsolata-Regular.ttf")
 set(FONT_PLEX_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/IBMPlexMono-Regular.ttf")
 set(FONT_PLEX_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/IBMPlexMono-Regular.ttf")
 set(FONT_DEJAVU_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/DejaVuSansMono.ttf")
@@ -51,6 +53,7 @@ set(DEJAVU_FONTS_DST_DIR "${CMAKE_CURRENT_BINARY_DIR}/fonts")
 add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${DEJAVU_FONTS_DST_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_INCONSOLATA_SRC}" "${FONT_INCONSOLATA_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_PLEX_SRC}" "${FONT_PLEX_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_DEJAVU_SRC}" "${FONT_DEJAVU_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_DEJAVU_BOLD_SRC}" "${FONT_DEJAVU_BOLD_DST}"
@@ -65,6 +68,10 @@ add_custom_command(TARGET telnet-gui POST_BUILD
 )
 
 # Install font files with executable (in bin directory so it's relative to the executable)
+install(FILES "${FONT_INCONSOLATA_SRC}"
+    DESTINATION "bin/assets/fonts"
+    COMPONENT Runtime
+)
 install(FILES "${FONT_PLEX_SRC}"
     DESTINATION "bin/assets/fonts"
     COMPONENT Runtime
