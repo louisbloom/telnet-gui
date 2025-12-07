@@ -159,13 +159,13 @@
   ;; This runs regardless of errors in the tests above
   ;; ============================================
   (progn
-    (file-delete "load_test1.lisp")
-    (file-delete "load_test2.lisp")
-    (file-delete "load_test3.lisp")
-    (file-delete "load_test4.lisp")
-    (file-delete "load_test5.lisp")
-    (file-delete "load_test6.lisp")
-    (file-delete "load_test7.lisp")
-    (file-delete "load_test10.lisp")
-    (file-delete "helper.lisp")
-    (file-delete "main.lisp")))
+    (delete-file "load_test1.lisp")
+    (delete-file "load_test2.lisp")
+    (delete-file "load_test3.lisp")
+    (delete-file "load_test4.lisp")
+    (delete-file "load_test5.lisp")
+    (delete-file "load_test6.lisp")
+    (delete-file "load_test7.lisp")
+    (delete-file "load_test10.lisp")
+    (delete-file "helper.lisp")
+    (delete-file "main.lisp")))

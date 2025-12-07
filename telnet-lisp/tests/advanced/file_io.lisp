@@ -115,10 +115,10 @@
 
   ;; Cleanup code always runs
   (progn
-    (file-delete "output.log")
-    (file-delete "file1.txt")
-    (file-delete "test.lisp")
-    (file-delete "test.json")
-    (file-delete "string.json")
-    (file-delete "number.json")
-    (file-delete "bool.json")))
+    (delete-file "output.log")
+    (delete-file "file1.txt")
+    (delete-file "test.lisp")
+    (delete-file "test.json")
+    (delete-file "string.json")
+    (delete-file "number.json")
+    (delete-file "bool.json")))
