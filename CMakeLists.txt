@@ -228,19 +228,17 @@ foreach(TEST_FILE ${TEST_FILES})
     )
 endforeach()
 
-# Find all telnet-gui test files matching *-test.lisp pattern
-file(GLOB GUI_TEST_FILES "telnet-gui/*-test.lisp")
+# Register telnet-gui test files for direct execution (no test_runner.sh)
+# Tests use assert-* macros that abort on failure via (error ...)
+add_test(NAME gui_tintin-test
+    COMMAND ${CMAKE_BINARY_DIR}/lisp-repl.exe tintin-test.lisp
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/telnet-gui
+)
 
-foreach(TEST_FILE ${GUI_TEST_FILES})
-    get_filename_component(TEST_NAME ${TEST_FILE} NAME_WE)
-    # Pass just the test filename - file is copied to build dir by POST_BUILD
-    get_filename_component(TEST_FILE_NAME ${TEST_FILE} NAME)
-    # Use telnet-lisp test_runner.sh with lisp-repl (found as ../lisp-repl.exe from telnet-gui build dir)
-    add_test(NAME gui_${TEST_NAME}
-        COMMAND bash ${CMAKE_SOURCE_DIR}/telnet-lisp/test_runner.sh ${TEST_FILE_NAME}
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/telnet-gui
-    )
-endforeach()
+add_test(NAME gui_completion-test
+    COMMAND ${CMAKE_BINARY_DIR}/lisp-repl.exe completion-test.lisp
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/telnet-gui
+)
 
 # Package configuration
 set(CPACK_PACKAGE_NAME "TelnetLisp")
