@@ -2,27 +2,29 @@
 ;; Demonstrates that the reader correctly handles expressions split across multiple lines
 ;; This is important for parsing input from files or pipes
 
+(load "tests/test-helpers.lisp")
+
 ;; ===========================================
 ;; Test 1: Simple multi-line arithmetic
 ;; ===========================================
 
-(+
-  1
-  2
-  3
-  )                                        ; => 6
+(assert-equal (+
+		1
+		2
+		3
+		) 6 "Simple multi-line arithmetic")
 
 ;; ===========================================
 ;; Test 2: Nested multi-line expressions
 ;; ===========================================
 
-(+
-  1
-  (+
-    2
-    3
-    )
-  )                                        ; => 6
+(assert-equal (+
+		1
+		(+
+		  2
+		  3
+		  )
+		) 6 "Nested multi-line expressions")
 
 ;; ===========================================
 ;; Test 3: Multi-line hash table operations
@@ -38,10 +40,10 @@
   "Alice"
   )
 
-(hash-ref
-  ht
-  "name"
-  )                                        ; => "Alice"
+(assert-equal (hash-ref
+		ht
+		"name"
+		) "Alice" "Multi-line hash table operations")
 
 ;; ===========================================
 ;; Test 4: Multi-line vector operations
@@ -61,10 +63,10 @@
   100
   )
 
-(vector-ref
-  v
-  0
-  )                                        ; => 42
+(assert-equal (vector-ref
+		v
+		0
+		) 42 "Multi-line vector operations")
 
 ;; ===========================================
 ;; Test 5: Complex nested multi-line conditional
@@ -78,7 +80,7 @@
     )
   )
 
-result                                    ; => 6
+(assert-equal result 6 "Complex nested multi-line conditional")
 
 ;; ===========================================
 ;; Test 6: Multi-line string definition
@@ -88,7 +90,7 @@ result                                    ; => 6
   "This is a (test) string"
   )
 
-s                                         ; => "This is a (test) string"
+(assert-equal s "This is a (test) string" "Multi-line string definition")
 
 ;; All multi-line tests completed
-"Multi-line expression parsing works!"     ; => "Multi-line expression parsing works!"
+(assert-equal "Multi-line expression parsing works!" "Multi-line expression parsing works!" "Final completion test")

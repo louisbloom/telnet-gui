@@ -1,87 +1,89 @@
 ;;; Equality Predicates Tests
 
+(load "tests/test-helpers.lisp")
+
 ;; eq? - Identity equality with interned symbols
-(eq? 'foo 'foo)                    ; => 1
-(eq? 'foo 'bar)                    ; => nil
-(define s1 'foo)                   ; ignore
-(define s2 'foo)                   ; ignore
-(eq? s1 s2)                        ; => 1
-(define s3 s1)                     ; ignore
-(eq? s1 s3)                        ; => 1
-(define x '(1 2 3))                ; ignore
-(define y x)                       ; ignore
-(eq? x y)                          ; => 1
-(eq? '(1 2) '(1 2))                ; => nil
-(eq? "abc" "abc")                  ; => nil
+(assert-true (eq? 'foo 'foo) "eq? with same symbol")
+(assert-nil (eq? 'foo 'bar) "eq? with different symbols")
+(define s1 'foo)
+(define s2 'foo)
+(assert-true (eq? s1 s2) "eq? with interned symbols")
+(define s3 s1)
+(assert-true (eq? s1 s3) "eq? with same reference")
+(define x '(1 2 3))
+(define y x)
+(assert-true (eq? x y) "eq? with same list reference")
+(assert-nil (eq? '(1 2) '(1 2)) "eq? with different list instances")
+(assert-nil (eq? "abc" "abc") "eq? with different string instances")
 
 ;; equal? - Structural equality with primitives
-(equal? 1 1)                       ; => 1
-(equal? 1 2)                       ; => nil
-(equal? 1 1.0)                     ; => nil
-(equal? "abc" "abc")               ; => 1
-(equal? "abc" "def")               ; => nil
+(assert-true (equal? 1 1) "equal? with same integers")
+(assert-nil (equal? 1 2) "equal? with different integers")
+(assert-nil (equal? 1 1.0) "equal? integer vs float")
+(assert-true (equal? "abc" "abc") "equal? with same strings")
+(assert-nil (equal? "abc" "def") "equal? with different strings")
 ;; Symbols are compared by name, not identity
-(equal? 'foo 'foo)                 ; => 1
-(equal? 'foo 'bar)                 ; => nil
+(assert-true (equal? 'foo 'foo) "equal? with same symbols")
+(assert-nil (equal? 'foo 'bar) "equal? with different symbols")
 
 ;; equal? - Lists
-(equal? '(1 2 3) '(1 2 3))         ; => 1
-(equal? '(1 2 3) '(1 2 4))         ; => nil
-(equal? '(1 (2 3)) '(1 (2 3)))     ; => 1
-(equal? '(1 (2 3)) '(1 (2 4)))     ; => nil
+(assert-true (equal? '(1 2 3) '(1 2 3)) "equal? with same lists")
+(assert-nil (equal? '(1 2 3) '(1 2 4)) "equal? with different lists")
+(assert-true (equal? '(1 (2 3)) '(1 (2 3))) "equal? with nested lists same")
+(assert-nil (equal? '(1 (2 3)) '(1 (2 4))) "equal? with nested lists different")
 
 ;; equal? - Vectors
-(define v1 (make-vector 3))        ; ignore
-(vector-set! v1 0 1)               ; ignore
-(vector-set! v1 1 2)               ; ignore
-(vector-set! v1 2 3)               ; ignore
-(define v2 (make-vector 3))        ; ignore
-(vector-set! v2 0 1)               ; ignore
-(vector-set! v2 1 2)               ; ignore
-(vector-set! v2 2 3)               ; ignore
-(equal? v1 v2)                     ; => 1
-(vector-set! v2 2 4)               ; ignore
-(equal? v1 v2)                     ; => nil
-(define v3 (make-vector 0))        ; ignore
-(define v4 (make-vector 0))        ; ignore
-(equal? v3 v4)                     ; => 1
+(define v1 (make-vector 3))
+(vector-set! v1 0 1)
+(vector-set! v1 1 2)
+(vector-set! v1 2 3)
+(define v2 (make-vector 3))
+(vector-set! v2 0 1)
+(vector-set! v2 1 2)
+(vector-set! v2 2 3)
+(assert-true (equal? v1 v2) "equal? with same vectors")
+(vector-set! v2 2 4)
+(assert-nil (equal? v1 v2) "equal? with different vectors")
+(define v3 (make-vector 0))
+(define v4 (make-vector 0))
+(assert-true (equal? v3 v4) "equal? with empty vectors")
 
 ;; equal? - Hash tables
-(define h1 (make-hash-table))      ; ignore
-(define h2 (make-hash-table))      ; ignore
-(hash-set! h1 "a" 1)               ; ignore
-(hash-set! h1 "b" 2)               ; ignore
-(hash-set! h2 "a" 1)               ; ignore
-(hash-set! h2 "b" 2)               ; ignore
-(equal? h1 h2)                     ; => 1
+(define h1 (make-hash-table))
+(define h2 (make-hash-table))
+(hash-set! h1 "a" 1)
+(hash-set! h1 "b" 2)
+(hash-set! h2 "a" 1)
+(hash-set! h2 "b" 2)
+(assert-true (equal? h1 h2) "equal? with same hash tables")
 
-(define h3 (make-hash-table))      ; ignore
-(hash-set! h3 "a" 1)               ; ignore
-(hash-set! h3 "b" 3)               ; ignore
-(equal? h1 h3)                     ; => nil
+(define h3 (make-hash-table))
+(hash-set! h3 "a" 1)
+(hash-set! h3 "b" 3)
+(assert-nil (equal? h1 h3) "equal? with different hash values")
 
-(define h4 (make-hash-table))      ; ignore
-(hash-set! h4 "a" 1)               ; ignore
-(equal? h1 h4)                     ; => nil
+(define h4 (make-hash-table))
+(hash-set! h4 "a" 1)
+(assert-nil (equal? h1 h4) "equal? with different hash size")
 
 ;; string=? - String equality predicate
-(string=? "foo" "foo")             ; => 1
-(string=? "foo" "bar")             ; => nil
-(string=? "" "")                   ; => 1
+(assert-true (string=? "foo" "foo") "string=? with same strings")
+(assert-nil (string=? "foo" "bar") "string=? with different strings")
+(assert-true (string=? "" "") "string=? with empty strings")
 
 ;; Empty collections
-(equal? '() '())                   ; => 1
-(define empty1 (make-vector 0))    ; ignore
-(define empty2 (make-vector 0))    ; ignore
-(equal? empty1 empty2)             ; => 1
-(equal? "" "")                     ; => 1
+(assert-true (equal? '() '()) "equal? with empty lists")
+(define empty1 (make-vector 0))
+(define empty2 (make-vector 0))
+(assert-true (equal? empty1 empty2) "equal? with empty vectors")
+(assert-true (equal? "" "") "equal? with empty strings")
 
 ;; Mixed types
-(equal? 1 "1")                     ; => nil
-(equal? 'symbol "symbol")          ; => nil
+(assert-nil (equal? 1 "1") "equal? integer vs string")
+(assert-nil (equal? 'symbol "symbol") "equal? symbol vs string")
 
 ;; eq? vs equal? comparison
-(define list1 '(1 2 3))            ; ignore
-(define list2 '(1 2 3))            ; ignore
-(eq? list1 list2)                  ; => nil
-(equal? list1 list2)               ; => 1
+(define list1 '(1 2 3))
+(define list2 '(1 2 3))
+(assert-nil (eq? list1 list2) "eq? fails on different list instances")
+(assert-true (equal? list1 list2) "equal? succeeds on structurally same lists")

@@ -1,29 +1,32 @@
 ;; Test string-index builtin function
 
+;; Load test helper macros
+(load "tests/test-helpers.lisp")
+
 ;; Basic tests
-(string-index "hello world" "world")  ; => 6
-(string-index "hello world" "hello")  ; => 0
-(string-index "hello world" "o")      ; => 4
-(string-index "hello world" " ")      ; => 5
+(assert-equal (string-index "hello world" "world") 6 "find 'world' in 'hello world'")
+(assert-equal (string-index "hello world" "hello") 0 "find 'hello' at start")
+(assert-equal (string-index "hello world" "o") 4 "find first 'o'")
+(assert-equal (string-index "hello world" " ") 5 "find space character")
 
 ;; Not found
-(string-index "hello world" "xyz")    ; => nil
-(string-index "hello world" "WORLD")  ; => nil
+(assert-nil (string-index "hello world" "xyz") "substring not found returns nil")
+(assert-nil (string-index "hello world" "WORLD") "case-sensitive search fails")
 
 ;; Empty strings
-(string-index "" "x")                 ; => nil
-(string-index "hello" "")             ; => 0
+(assert-nil (string-index "" "x") "search in empty string returns nil")
+(assert-equal (string-index "hello" "") 0 "empty needle returns 0")
 
 ;; UTF-8 support
-(string-index "Hello, 世界!" "世")     ; => 7
-(string-index "Hello, 世界!" "!")      ; => 10
-(string-index "🌍🌎🌏" "🌎")           ; => 1
+(assert-equal (string-index "Hello, 世界!" "世") 7 "find UTF-8 character")
+(assert-equal (string-index "Hello, 世界!" "!") 9 "find character after UTF-8")
+(assert-equal (string-index "🌍🌎🌏" "🌎") 1 "find emoji in emoji string")
 
 ;; Multi-character needles
-(string-index "abcdef" "cd")          ; => 2
-(string-index "abcdef" "cde")         ; => 2
-(string-index "abcdef" "def")         ; => 3
+(assert-equal (string-index "abcdef" "cd") 2 "find two-character substring")
+(assert-equal (string-index "abcdef" "cde") 2 "find three-character substring")
+(assert-equal (string-index "abcdef" "def") 3 "find substring at end")
 
 ;; Case sensitivity
-(string-index "Hello" "hello")        ; => nil
-(string-index "hello" "Hello")        ; => nil
+(assert-nil (string-index "Hello" "hello") "case mismatch uppercase to lowercase")
+(assert-nil (string-index "hello" "Hello") "case mismatch lowercase to uppercase")

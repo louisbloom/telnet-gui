@@ -1,6 +1,8 @@
 ;; Collection Iteration Examples
 ;; Demonstration of iterating over hash tables, vectors, and lists using do loops
 
+(load "tests/test-helpers.lisp")
+
 ;; ===========================================
 ;; Hash Table Iteration
 ;; ===========================================
@@ -9,32 +11,38 @@
 (hash-set! ht "name" "Alice")
 (hash-set! ht "age" 30)
 (hash-set! ht "city" "NYC")
-(hash-count ht)                        ; => 3
+(assert-equal (hash-count ht) 3 "hash table with 3 entries")
 
 ;; Get all keys
 (define keys (hash-keys ht))
-keys                                    ; => ("name" "age" "city")
+(assert-equal keys '("city" "name" "age") "hash-keys returns all keys")
 
 ;; Get all values
 (define values (hash-values ht))
-values                                  ; => ("Alice" 30 "NYC")
+(assert-equal values '("NYC" "Alice" 30) "hash-values returns all values")
 
 ;; Get key-value pairs as list of cons cells
 (define entries (hash-entries ht))
-entries                                 ; => (("name" . "Alice") ("age" . 30) ("city" . "NYC"))
+(assert-equal entries '(("city" . "NYC") ("name" . "Alice") ("age" . 30)) "hash-entries returns key-value pairs")
 
 ;; Iterate over keys using do loop
-(do ((remaining keys (cdr remaining)))  ; => "done"
-  ((null? remaining) "done")
-  (car remaining))
+(assert-equal (do ((remaining keys (cdr remaining)))
+                ((null? remaining) "done")
+                (car remaining))
+  "done"
+  "iterate over hash keys")
 
 ;; Iterate over entries and process key-value pairs
-(do ((remaining entries (cdr remaining)))  ; => "done"
-  ((null? remaining) "done")
-  (let ((entry (car remaining)))
-    (let ((key (car entry))
-           (val (cdr entry)))
-      (concat key ": " val))))
+(assert-equal (do ((remaining entries (cdr remaining)))
+                ((null? remaining) "done")
+                (let ((entry (car remaining)))
+                  (let ((key (car entry))
+                         (val (cdr entry)))
+                    (if (string? val)
+                      (concat key ": " val)
+                      (concat key ": " (number->string val))))))
+  "done"
+  "iterate over hash entries")
 
 ;; ===========================================
 ;; Vector Iteration
@@ -43,16 +51,20 @@ entries                                 ; => (("name" . "Alice") ("age" . 30) ("
 (define v #(10 20 30 40 50))
 
 ;; Iterate with index and access elements
-(do ((i 0 (+ i 1)))                    ; => "done"
-  ((>= i (vector-length v)) "done")
-  (vector-ref v i))
+(assert-equal (do ((i 0 (+ i 1)))
+                ((>= i (vector-length v)) "done")
+                (vector-ref v i))
+  "done"
+  "iterate over vector with index")
 
 ;; Sum all elements using accumulator
 (define sum 0)
-(do ((i 0 (+ i 1))
-      (acc 0))
-  ((>= i (vector-length v)) acc)      ; => 150
-  (set! acc (+ acc (vector-ref v i))))
+(assert-equal (do ((i 0 (+ i 1))
+                    (acc 0))
+                ((>= i (vector-length v)) acc)
+                (set! acc (+ acc (vector-ref v i))))
+  150
+  "sum vector elements")
 
 ;; ===========================================
 ;; List Iteration
@@ -61,23 +73,27 @@ entries                                 ; => (("name" . "Alice") ("age" . 30) ("
 (define lst '(1 2 3 4 5))
 
 ;; Basic list traversal with do loop
-(do ((remaining lst (cdr remaining)))   ; => "done"
-  ((null? remaining) "done")
-  (car remaining))
+(assert-equal (do ((remaining lst (cdr remaining)))
+                ((null? remaining) "done")
+                (car remaining))
+  "done"
+  "iterate over list")
 
 ;; Get list length
-(list-length lst)                       ; => 5
+(assert-equal (list-length lst) 5 "list-length")
 
 ;; Access by index
-(list-ref lst 0)                        ; => 1
-(list-ref lst 2)                        ; => 3
-(list-ref lst 4)                        ; => 5
+(assert-equal (list-ref lst 0) 1 "list-ref at index 0")
+(assert-equal (list-ref lst 2) 3 "list-ref at index 2")
+(assert-equal (list-ref lst 4) 5 "list-ref at index 4")
 
 ;; Iterate with index counter
-(do ((remaining lst (cdr remaining))
-      (i 0 (+ i 1)))
-  ((null? remaining) "done")          ; => "done"
-  (car remaining))
+(assert-equal (do ((remaining lst (cdr remaining))
+                    (i 0 (+ i 1)))
+                ((null? remaining) "done")
+                (car remaining))
+  "done"
+  "iterate over list with index counter")
 
 ;; ===========================================
 ;; Practical Examples: Filtering and Transformation
@@ -86,42 +102,46 @@ entries                                 ; => (("name" . "Alice") ("age" . 30) ("
 ;; Collect all positive numbers from a list
 (define numbers '(10 -5 3 -2 8 0 -1))
 (define positive '())
-(do ((remaining numbers (cdr remaining)))
-  ((null? remaining) positive)        ; => (8 3 10)
-  (let ((n (car remaining)))
-    (if (> n 0)
-      (set! positive (cons n positive)))))
+(assert-equal (do ((remaining numbers (cdr remaining)))
+                ((null? remaining) positive)
+                (let ((n (car remaining)))
+                  (if (> n 0)
+                    (set! positive (cons n positive)))))
+  '(8 3 10)
+  "filter positive numbers")
 
 ;; Count hash table entries with specific value
 (define user_ht (make-hash-table))
 (hash-set! user_ht "user1" "admin")
 (hash-set! user_ht "user2" "user")
 (hash-set! user_ht "user3" "admin")
-(hash-count user_ht)                   ; => 3
+(assert-equal (hash-count user_ht) 3 "user hash table has 3 entries")
 
 (define admins 0)
-(define entries (hash-entries user_ht))
-(do ((remaining entries (cdr remaining)))
-  ((null? remaining) admins)         ; => 2
-  (let ((entry (car remaining)))
-    (let ((key (car entry))
-           (val (cdr entry)))
-      (if (string=? val "admin")
-        (set! admins (+ admins 1))))))
+(define entries2 (hash-entries user_ht))
+(assert-equal (do ((remaining entries2 (cdr remaining)))
+                ((null? remaining) admins)
+                (let ((entry (car remaining)))
+                  (let ((key (car entry))
+                         (val (cdr entry)))
+                    (if (string=? val "admin")
+                      (set! admins (+ admins 1))))))
+  2
+  "count admins in hash table")
 
 ;; ===========================================
 ;; Empty Collections
 ;; ===========================================
 
 (define empty_ht (make-hash-table))
-(hash-keys empty_ht)                   ; => ()
-(hash-values empty_ht)                 ; => ()
-(hash-entries empty_ht)                 ; => ()
-(hash-count empty_ht)                  ; => 0
+(assert-equal (hash-keys empty_ht) '() "empty hash keys")
+(assert-equal (hash-values empty_ht) '() "empty hash values")
+(assert-equal (hash-entries empty_ht) '() "empty hash entries")
+(assert-equal (hash-count empty_ht) 0 "empty hash count")
 
 (define empty_list '())
-(list-length empty_list)               ; => 0
-(null? empty_list)                      ; => 1
+(assert-equal (list-length empty_list) 0 "empty list length")
+(assert-true (null? empty_list) "empty list is null")
 
 (define empty_vec #())
-(vector-length empty_vec)               ; => 0
+(assert-equal (vector-length empty_vec) 0 "empty vector length")

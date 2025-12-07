@@ -1,6 +1,9 @@
 ;; Recursion Examples
 ;; Demonstrates recursive function definitions and common recursion patterns
 
+;; Load test helper macros
+(load "tests/test-helpers.lisp")
+
 ;; Factorial function - classic recursive example
 (define factorial
   (lambda (n)
@@ -8,7 +11,7 @@
       1
       (* n (factorial (- n 1))))))
 
-(factorial 5)                          ; => 120
+(assert-equal (factorial 5) 120 "Factorial of 5")
 
 ;; Fibonacci sequence - demonstrates mutual recursion
 (define fib
@@ -17,4 +20,4 @@
       n
       (+ (fib (- n 1)) (fib (- n 2))))))
 
-(fib 10)                               ; => 55
+(assert-equal (fib 10) 55 "Fibonacci of 10")

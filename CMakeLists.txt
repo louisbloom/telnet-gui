@@ -213,7 +213,7 @@ install(FILES telnet-lisp/include/lisp.h
 # Testing
 enable_testing()
 
-# Find all test files and add them with validation
+# Find all test files and register them for assertion-based testing
 file(GLOB_RECURSE TEST_FILES "telnet-lisp/tests/**/*.lisp")
 
 foreach(TEST_FILE ${TEST_FILES})
@@ -222,8 +222,9 @@ foreach(TEST_FILE ${TEST_FILES})
     get_filename_component(TEST_DIR ${TEST_FILE} DIRECTORY)
     get_filename_component(CATEGORY ${TEST_DIR} NAME)
 
+    # All tests now use assertion-based format with test-helpers.lisp
     add_test(NAME ${CATEGORY}_${TEST_NAME}
-        COMMAND bash ${CMAKE_SOURCE_DIR}/telnet-lisp/test_runner.sh ${TEST_FILE}
+        COMMAND ${CMAKE_BINARY_DIR}/lisp-repl.exe ${TEST_FILE}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/telnet-lisp
     )
 endforeach()
