@@ -755,8 +755,8 @@ static LispObject *eval_cond(LispObject *args, Environment *env, int in_tail_pos
         /* Check for 'else' */
         if (test->type == LISP_SYMBOL && test == sym_else) {
             if (result != NIL && result != NULL) {
-                /* Else clause result is in tail position */
-                return lisp_eval_internal(lisp_car(result), env, in_tail_position);
+                /* Else clause result is in tail position (implicit progn) */
+                return eval_progn(result, env, in_tail_position);
             }
             return NIL;
         }
@@ -770,7 +770,8 @@ static LispObject *eval_cond(LispObject *args, Environment *env, int in_tail_pos
         /* If true, evaluate and return result (in tail position) */
         if (lisp_is_truthy(test_result)) {
             if (result != NIL && result != NULL) {
-                return lisp_eval_internal(lisp_car(result), env, in_tail_position);
+                /* Evaluate all expressions in result (implicit progn) */
+                return eval_progn(result, env, in_tail_position);
             }
             return test_result;
         }
@@ -828,8 +829,8 @@ static LispObject *eval_case(LispObject *args, Environment *env, int in_tail_pos
         /* Check for 'else' */
         if (values->type == LISP_SYMBOL && values == sym_else) {
             if (result != NIL && result != NULL) {
-                /* Else clause result is in tail position */
-                return lisp_eval_internal(lisp_car(result), env, in_tail_position);
+                /* Else clause result is in tail position (implicit progn) */
+                return eval_progn(result, env, in_tail_position);
             }
             return NIL;
         }
@@ -847,8 +848,8 @@ static LispObject *eval_case(LispObject *args, Environment *env, int in_tail_pos
 
                 if (objects_equal(key, val_result)) {
                     if (result != NIL && result != NULL) {
-                        /* Matching clause result is in tail position */
-                        return lisp_eval_internal(lisp_car(result), env, in_tail_position);
+                        /* Matching clause result is in tail position (implicit progn) */
+                        return eval_progn(result, env, in_tail_position);
                     }
                     return NIL;
                 }
