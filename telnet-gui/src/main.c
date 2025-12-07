@@ -1369,10 +1369,14 @@ int main(int argc, char **argv) {
             if (input_area_has_selection(&input_area)) {
                 input_area_get_selection_range(&input_area, &sel_start, &sel_end);
             }
+            /* Recalculate input area dimensions based on current cell size */
+            int current_input_area_height = cell_h;
+            int current_resize_bar_height = window_get_resize_bar_height();
             renderer_render_input_area(rend, input_area_get_text(&input_area), input_area_get_length(&input_area),
                                        input_area_get_cursor_pos(&input_area), window_width, window_height,
-                                       input_area_height, resize_bar_height, input_area_mode_get_text(&input_area),
-                                       input_area_mode_get_length(&input_area), sel_start, sel_end);
+                                       current_input_area_height, current_resize_bar_height,
+                                       input_area_mode_get_text(&input_area), input_area_mode_get_length(&input_area),
+                                       sel_start, sel_end);
             input_area_mark_drawn(&input_area);
             input_area_mode_mark_drawn(&input_area);
         }
