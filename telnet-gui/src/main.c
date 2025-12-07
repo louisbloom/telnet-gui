@@ -217,7 +217,7 @@ static void print_help(const char *program_name) {
     printf("  -h, --help              Show this help message and exit\n");
     printf("\n");
     printf("  Font Options:\n");
-    printf("    -f, --font-size SIZE   Set font size in points (default: 16)\n");
+    printf("    -f, --font-size SIZE   Set font size in points (default: 17)\n");
     printf("    -p, --plex             Use IBM Plex Mono font instead of DejaVu Sans Mono (default)\n");
     printf("    -H, --hinting MODE     Set font hinting mode (default: none)\n");
     printf("                            MODE can be: none, light, normal, mono\n");
@@ -272,7 +272,7 @@ int main(int argc, char **argv) {
     int lisp_file_count = 0;
     const char *test_file = NULL; /* Test file for headless mode */
     int use_plex = 0;             /* Default to DejaVu Sans Mono font */
-    int font_size = 16;           /* Default font size */
+    int font_size = 17;           /* Default font size */
     int terminal_cols = 80;       /* Default terminal columns */
     int terminal_rows = 40;       /* Default terminal rows */
     int debug_exit = 0;           /* Exit after initialization for debug output */
