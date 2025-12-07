@@ -211,6 +211,7 @@ static void print_help(const char *program_name) {
     printf("  Font Options:\n");
     printf("    -f, --font-size SIZE   Set font size in points (default: 17)\n");
     printf("    -p, --plex             Use IBM Plex Mono font instead of Inconsolata (default)\n");
+    printf("    -d, --dejavu           Use DejaVu Sans Mono font instead of Inconsolata (default)\n");
     printf("    -H, --hinting MODE     Set font hinting mode (default: none)\n");
     printf("                            MODE can be: none, light, normal, mono\n");
     printf("    -a, --antialiasing MODE Set anti-aliasing mode (default: linear)\n");
@@ -244,6 +245,8 @@ static void print_help(const char *program_name) {
     printf("      Connect with 20pt font size\n");
     printf("  %s -p telnet-server 4449\n", program_name);
     printf("      Connect using IBM Plex Mono font\n");
+    printf("  %s -d telnet-server 4449\n", program_name);
+    printf("      Connect using DejaVu Sans Mono font\n");
     printf("  %s -g 100x40 telnet-server 4449\n", program_name);
     printf("      Connect with 100x40 terminal size\n");
     printf("  %s -l completion.lisp telnet-server 4449\n", program_name);
@@ -263,7 +266,8 @@ int main(int argc, char **argv) {
     const char *lisp_files[16]; /* Support up to 16 -l flags */
     int lisp_file_count = 0;
     const char *test_file = NULL; /* Test file for headless mode */
-    int use_plex = 0;             /* Default to DejaVu Sans Mono font */
+    int use_plex = 0;             /* Use IBM Plex Mono font */
+    int use_dejavu = 0;           /* Use DejaVu Sans Mono font */
     int font_size = 17;           /* Default font size */
     int terminal_cols = 80;       /* Default terminal columns */
     int terminal_rows = 40;       /* Default terminal rows */
@@ -320,6 +324,8 @@ int main(int argc, char **argv) {
             }
         } else if (strcmp(argv[arg_idx], "-p") == 0 || strcmp(argv[arg_idx], "--plex") == 0) {
             use_plex = 1;
+        } else if (strcmp(argv[arg_idx], "-d") == 0 || strcmp(argv[arg_idx], "--dejavu") == 0) {
+            use_dejavu = 1;
         } else if (strcmp(argv[arg_idx], "-g") == 0 || strcmp(argv[arg_idx], "--geometry") == 0) {
             if (arg_idx + 1 >= argc) {
                 fprintf(stderr, "Error: --geometry requires a geometry string (COLSxROWS, e.g., 80x40)\n");
@@ -466,8 +472,18 @@ int main(int argc, char **argv) {
     SDL_Renderer *renderer = window_get_sdl_renderer(win);
 
     /* Determine font filename based on user preference */
-    const char *font_filename = use_plex ? "IBMPlexMono-Regular.ttf" : "Inconsolata-Regular.ttf";
-    const char *font_name = use_plex ? "IBM Plex Mono" : "Inconsolata";
+    const char *font_filename;
+    const char *font_name;
+    if (use_plex) {
+        font_filename = "IBMPlexMono-Regular.ttf";
+        font_name = "IBM Plex Mono";
+    } else if (use_dejavu) {
+        font_filename = "DejaVuSansMono.ttf";
+        font_name = "DejaVu Sans Mono";
+    } else {
+        font_filename = "Inconsolata-Regular.ttf";
+        font_name = "Inconsolata";
+    }
 
     fprintf(stderr, "Font resolution: Using %s font (filename: %s)\n", font_name, font_filename);
 
