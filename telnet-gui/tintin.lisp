@@ -563,9 +563,44 @@
     (let ((pos (string-index line matched-text)))
       (if pos pos -1))))
 
+;; Check if there's an ANSI reset code immediately after a position
+;; Returns #t if reset found, #f otherwise
+(defun tintin-has-reset-after? (text pos)
+  (if (or (not (string? text)) (>= pos (string-length text)))
+    #f
+    (let ((len (string-length text)))
+      ;; Skip any ANSI sequences and check if we find a reset
+      (let ((scan-pos pos)
+             (found-reset #f))
+        (do ()
+          ((or (>= scan-pos len) found-reset) found-reset)
+          (if (and (< (+ scan-pos 1) len)
+                (string=? (substring text scan-pos (+ scan-pos 1)) "\033")
+                (< (+ scan-pos 1) len)
+                (string=? (substring text (+ scan-pos 1) (+ scan-pos 2)) "["))
+            ;; Found ESC[ - check if it's a reset
+            (let ((seq-end (+ scan-pos 2)))
+              ;; Find the 'm' terminator
+              (do ()
+                ((or (>= seq-end len)
+                   (string=? (substring text seq-end (+ seq-end 1)) "m")))
+                (set! seq-end (+ seq-end 1)))
+              ;; Check if complete and is reset
+              (if (and (< seq-end len)
+                    (string=? (substring text seq-end (+ seq-end 1)) "m"))
+                (let ((sequence (substring text scan-pos (+ seq-end 1))))
+                  (if (or (string=? sequence "\033[0m")
+                        (string=? sequence "\033[m"))
+                    (set! found-reset #t)
+                    ;; Non-reset sequence, stop scanning
+                    (set! scan-pos len)))
+                (set! scan-pos len)))
+            ;; Not an ANSI sequence, stop scanning
+            (set! scan-pos len)))))))
+
 ;; Wrap matched pattern in line with ANSI color codes
 ;; Returns line with highlight applied or original line if no match
-;; Now with ANSI state tracking: restores previous state instead of resetting
+;; Now with ANSI state tracking: restores previous state unless reset follows
 (defun tintin-wrap-match (line pattern fg-color bg-color)
   (if (not (string? line))
     line
@@ -590,16 +625,20 @@
                   (let ((match-pos (tintin-find-match-position line matched-text)))
                     (if (< match-pos 0)
                       line
-                      ;; Extract active ANSI state before the match
-                      (let ((prev-state (tintin-find-active-ansi-before line match-pos)))
-                        ;; Replace with: ANSI_OPEN + text + PREV_STATE (restore, don't reset)
-                        ;; If no previous state, use reset
-                        (let ((ansi-close (if (string=? prev-state "")
-                                            "\033[0m"
-                                            prev-state)))
-                          (string-replace matched-text
-                            (concat ansi-open matched-text ansi-close)
-                            line)))))
+                      (let ((match-end-pos (+ match-pos (string-length matched-text))))
+                        ;; Check if there's a reset right after the match
+                        (let ((has-reset-after (tintin-has-reset-after? line match-end-pos)))
+                          ;; If reset follows, use reset; otherwise restore previous state
+                          (let ((ansi-close
+                                  (if has-reset-after
+                                    "\033[0m"
+                                    (let ((prev-state (tintin-find-active-ansi-before line match-pos)))
+                                      (if (string=? prev-state "")
+                                        "\033[0m"
+                                        prev-state)))))
+                            (string-replace matched-text
+                              (concat ansi-open matched-text ansi-close)
+                              line))))))
                   line)))))))))
 
 ;; Apply highlights to a single line
