@@ -37,6 +37,10 @@ set(COMPLETION_TEST_DST "${CMAKE_CURRENT_BINARY_DIR}/completion-test.lisp")
 set(TEST_HELPERS_SRC "${CMAKE_CURRENT_SOURCE_DIR}/test-helpers.lisp")
 set(TEST_HELPERS_DST "${CMAKE_CURRENT_BINARY_DIR}/test-helpers.lisp")
 
+# Copy log2html.py script to build directory
+set(LOG2HTML_SRC "${CMAKE_CURRENT_SOURCE_DIR}/log2html.py")
+set(LOG2HTML_DST "${CMAKE_CURRENT_BINARY_DIR}/log2html.py")
+
 # Create assets/fonts directory in build directory
 add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts"
@@ -47,7 +51,8 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_TEST_SRC}" "${TINTIN_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${COMPLETION_TEST_SRC}" "${COMPLETION_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TEST_HELPERS_SRC}" "${TEST_HELPERS_DST}"
-    COMMENT "Copying fonts, bootstrap.lisp, and test files to build directory"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LOG2HTML_SRC}" "${LOG2HTML_DST}"
+    COMMENT "Copying fonts, bootstrap.lisp, test files, and log2html.py to build directory"
 )
 
 # Install font files with executable (in bin directory so it's relative to the executable)

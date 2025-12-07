@@ -1468,3 +1468,8 @@ void lisp_x_register_terminal(Terminal *term) {
 void lisp_x_register_telnet(Telnet *t) {
     registered_telnet = t;
 }
+
+/* Get lisp environment (for accessing Lisp variables from C) */
+void *lisp_x_get_environment(void) {
+    return lisp_env;
+}

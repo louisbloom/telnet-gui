@@ -1,12 +1,18 @@
 /* Telnet protocol implementation (RFC 854) */
 
 #include "telnet.h"
+#include "lisp.h"
+#include "../../telnet-lisp/include/lisp.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <time.h>
+#include <sys/stat.h>
 
 #ifdef _WIN32
+#include <direct.h>
+#define mkdir _mkdir
 #include <windows.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -55,6 +61,8 @@ struct Telnet {
     int socket;
     TelnetState state;
     int rows, cols;
+    FILE *log_file;          /* Log file handle for I/O logging */
+    char log_filename[1024]; /* Path to current log file */
 };
 
 /* Send Telnet command */
@@ -65,6 +73,139 @@ static int telnet_send_command(int socket, int cmd, int opt) {
     buf[2] = opt;
     return send(socket, (char *)buf, 3, 0);
 }
+
+/* ===================================================================
+ * TELNET I/O LOGGING HELPER FUNCTIONS
+ * =================================================================== */
+
+/* Get current timestamp in ISO 8601 filesystem-safe format: YYYY-MM-DDTHH-MM-SS */
+static void get_timestamp_iso(char *buffer, size_t size) {
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    strftime(buffer, size, "%Y-%m-%dT%H-%M-%S", tm_info);
+}
+
+/* Open log file for telnet session */
+static int telnet_open_log(Telnet *t, const char *log_dir) {
+    Environment *lisp_env = (Environment *)lisp_x_get_environment();
+    if (!lisp_env) {
+        t->log_file = NULL;
+        return 0;
+    }
+
+    /* Check if logging is enabled via Lisp variable */
+    LispObject *enable_logging = env_lookup(lisp_env, "*enable-telnet-logging*");
+    if (!enable_logging || enable_logging == NIL || !lisp_is_truthy(enable_logging)) {
+        t->log_file = NULL;
+        return 0; /* Logging disabled */
+    }
+
+    /* Expand log directory path (handles ~/...) using Lisp expand-path function */
+    char expanded_dir[512];
+    if (log_dir[0] == '~') {
+        /* Call Lisp (expand-path "~/...") to ensure consistent expansion logic */
+        char eval_buf[600];
+        snprintf(eval_buf, sizeof(eval_buf), "(expand-path \"%s\")", log_dir);
+        LispObject *expanded_obj = lisp_eval_string(eval_buf, lisp_env);
+
+        if (expanded_obj && expanded_obj->type == LISP_STRING) {
+            snprintf(expanded_dir, sizeof(expanded_dir), "%s", expanded_obj->value.string);
+        } else {
+            /* Fallback if expand-path fails */
+            snprintf(expanded_dir, sizeof(expanded_dir), "%s", log_dir);
+        }
+    } else {
+        snprintf(expanded_dir, sizeof(expanded_dir), "%s", log_dir);
+    }
+
+    /* Create log directory if it doesn't exist */
+#ifdef _WIN32
+    _mkdir(expanded_dir);
+#else
+    mkdir(expanded_dir, 0755);
+#endif
+
+    /* Generate log filename: telnet-<host>-<port>-<timestamp>.log */
+    char timestamp[32];
+    get_timestamp_iso(timestamp, sizeof(timestamp));
+
+    /* For telnet connections, we need to get host/port from somewhere.
+     * Since we don't have host/port stored yet, we'll just use socket number */
+    snprintf(t->log_filename, sizeof(t->log_filename), "%s/telnet-session-%d-%s.log", expanded_dir, t->socket,
+             timestamp);
+
+    /* Open log file in append mode */
+    t->log_file = fopen(t->log_filename, "a");
+    if (!t->log_file) {
+        fprintf(stderr, "Warning: Failed to open telnet log file: %s\n", t->log_filename);
+        return -1;
+    }
+
+    /* Write session header */
+    char header_time[32];
+    get_timestamp_iso(header_time, sizeof(header_time));
+    fprintf(t->log_file, "=== Telnet session started: %s (socket %d) ===\n", header_time, t->socket);
+    fflush(t->log_file);
+
+    return 0;
+}
+
+/* Close log file and write footer */
+static void telnet_close_log(Telnet *t) {
+    if (!t->log_file) {
+        return;
+    }
+
+    /* Write session footer */
+    char timestamp[32];
+    get_timestamp_iso(timestamp, sizeof(timestamp));
+    fprintf(t->log_file, "=== Telnet session ended: %s ===\n", timestamp);
+    fflush(t->log_file);
+
+    fclose(t->log_file);
+    t->log_file = NULL;
+}
+
+/* Log raw telnet data (send or receive) */
+static void telnet_log_data(Telnet *t, const char *direction, const unsigned char *data, size_t len) {
+    if (!t->log_file || len == 0) {
+        return;
+    }
+
+    /* Get timestamp for this log line */
+    char timestamp[32];
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%S", tm_info);
+
+    /* Write log line: [timestamp] DIRECTION: <data> */
+    fprintf(t->log_file, "[%s] %s: ", timestamp, direction);
+
+    /* Write data, escaping non-printable characters */
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = data[i];
+        if (c >= 32 && c < 127) {
+            fputc(c, t->log_file);
+        } else if (c == '\n') {
+            fprintf(t->log_file, "\\n");
+        } else if (c == '\r') {
+            fprintf(t->log_file, "\\r");
+        } else if (c == '\t') {
+            fprintf(t->log_file, "\\t");
+        } else if (c == 255) {
+            fprintf(t->log_file, "<IAC>");
+        } else {
+            fprintf(t->log_file, "\\x%02x", c);
+        }
+    }
+
+    fprintf(t->log_file, "\n");
+    fflush(t->log_file);
+}
+
+/* ===================================================================
+ * END TELNET I/O LOGGING HELPER FUNCTIONS
+ * =================================================================== */
 
 Telnet *telnet_create(void) {
     Telnet *t = (Telnet *)malloc(sizeof(Telnet));
@@ -146,6 +287,17 @@ int telnet_connect(Telnet *t, const char *hostname, int port) {
     telnet_send_command(t->socket, DO, OPT_TERMINAL_TYPE);
     telnet_send_command(t->socket, DO, OPT_NAWS);
 
+    /* Open log file if logging is enabled */
+    Environment *lisp_env = (Environment *)lisp_x_get_environment();
+    const char *log_dir = "~/telnet-logs";
+    if (lisp_env) {
+        LispObject *log_dir_obj = env_lookup(lisp_env, "*telnet-log-directory*");
+        if (log_dir_obj && log_dir_obj->type == LISP_STRING) {
+            log_dir = log_dir_obj->value.string;
+        }
+    }
+    telnet_open_log(t, log_dir);
+
     t->state = TELNET_STATE_CONNECTED;
     return 0;
 }
@@ -153,6 +305,10 @@ int telnet_connect(Telnet *t, const char *hostname, int port) {
 void telnet_disconnect(Telnet *t) {
     if (!t || t->socket < 0)
         return;
+
+    /* Close log file if open */
+    telnet_close_log(t);
+
     close(t->socket);
     t->socket = -1;
     t->state = TELNET_STATE_DISCONNECTED;
@@ -178,6 +334,12 @@ int telnet_send(Telnet *t, const char *data, size_t len) {
     }
 
     int result = send(t->socket, buf, send_len, 0);
+
+    /* Log raw sent data */
+    if (result > 0) {
+        telnet_log_data(t, "SEND", (unsigned char *)buf, result);
+    }
+
     free(buf);
     return result;
 }
@@ -187,6 +349,12 @@ int telnet_receive(Telnet *t, char *buffer, size_t bufsize) {
         return -1;
 
     int received = recv(t->socket, buffer, bufsize, 0);
+
+    /* Log raw received data */
+    if (received > 0) {
+        telnet_log_data(t, "RECV", (unsigned char *)buffer, received);
+    }
+
     if (received <= 0) {
 #ifdef _WIN32
         int error = WSAGetLastError();

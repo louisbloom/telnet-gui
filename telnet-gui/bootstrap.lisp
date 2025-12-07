@@ -58,6 +58,17 @@
 (define *completion-word-order-index* 0)
 
 ;; ============================================================================
+;; TELNET I/O LOGGING CONFIGURATION
+;; ============================================================================
+
+;; Enable/disable telnet I/O logging (both send and receive)
+(define *enable-telnet-logging* #t)
+
+;; Directory for telnet log files (supports ~/ expansion)
+;; Log filename format: telnet-<host>-<port>-<timestamp>.log
+(define *telnet-log-directory* "~/telnet-logs")
+
+;; ============================================================================
 ;; WORD STORE HELPER FUNCTIONS
 ;; ============================================================================
 

@@ -93,6 +93,9 @@ void lisp_x_register_terminal(Terminal *term);
 /* Register telnet pointer for telnet-send builtin */
 void lisp_x_register_telnet(struct Telnet *t);
 
+/* Get lisp environment (for accessing Lisp variables from C) */
+void *lisp_x_get_environment(void);
+
 /* Future: More functions to expose telnet-gui primitives */
 /* - Input/output hooks */
 /* - Input area manipulation */
