@@ -618,6 +618,9 @@ int main(int argc, char **argv) {
     SDL_SetWindowSize(sdl_window, precise_width, precise_height);
     window_update_button_positions(win);
 
+    /* Pump events to allow window resize to complete */
+    SDL_PumpEvents();
+
     /* Create renderer */
     Renderer *rend = renderer_create(renderer, glyph_cache, cell_w, cell_h, titlebar_h);
     if (!rend) {
@@ -693,20 +696,16 @@ int main(int argc, char **argv) {
     /* Set initial connection status */
     input_area_update_mode(&input_area, connected_mode);
 
-    /* Resize terminal to match initial window size */
+    /* Get actual window size after resize and resize terminal to match */
     int input_area_height = cell_h; /* Input area is one cell height */
     int resize_bar_height = window_get_resize_bar_height();
-    int initial_width, initial_height;
-    window_get_size(win, &initial_width, &initial_height);
+    int actual_width, actual_height;
+    SDL_GetWindowSize(sdl_window, &actual_width, &actual_height);
     int initial_rows, initial_cols;
-    calculate_terminal_size(initial_width, initial_height, cell_w, cell_h, titlebar_h, input_area_height,
+    calculate_terminal_size(actual_width, actual_height, cell_w, cell_h, titlebar_h, input_area_height,
                             resize_bar_height, &initial_rows, &initial_cols);
     terminal_resize(term, initial_rows, initial_cols);
     telnet_set_terminal_size(telnet, initial_cols, initial_rows);
-
-    /* Flush any pending events (especially resize events from SDL_SetWindowSize) before main loop */
-    SDL_PumpEvents();
-    SDL_FlushEvent(SDL_WINDOWEVENT);
 
     /* Main loop */
     SDL_Event event;
