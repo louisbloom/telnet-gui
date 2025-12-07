@@ -41,9 +41,14 @@ set(TEST_HELPERS_DST "${CMAKE_CURRENT_BINARY_DIR}/test-helpers.lisp")
 set(LOG2HTML_SRC "${CMAKE_CURRENT_SOURCE_DIR}/log2html.py")
 set(LOG2HTML_DST "${CMAKE_CURRENT_BINARY_DIR}/log2html.py")
 
+# Copy DejaVu Sans Mono fonts for log2html.py
+set(DEJAVU_FONTS_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/fonts")
+set(DEJAVU_FONTS_DST_DIR "${CMAKE_CURRENT_BINARY_DIR}/fonts")
+
 # Create assets/fonts directory in build directory
 add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${DEJAVU_FONTS_DST_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_PLEX_SRC}" "${FONT_PLEX_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_MONACO_SRC}" "${FONT_MONACO_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${BOOTSTRAP_SRC}" "${BOOTSTRAP_DST}"
@@ -52,7 +57,8 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${COMPLETION_TEST_SRC}" "${COMPLETION_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TEST_HELPERS_SRC}" "${TEST_HELPERS_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LOG2HTML_SRC}" "${LOG2HTML_DST}"
-    COMMENT "Copying fonts, bootstrap.lisp, test files, and log2html.py to build directory"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${DEJAVU_FONTS_SRC_DIR}" "${DEJAVU_FONTS_DST_DIR}"
+    COMMENT "Copying fonts, bootstrap.lisp, test files, log2html.py, and DejaVu fonts to build directory"
 )
 
 # Install font files with executable (in bin directory so it's relative to the executable)

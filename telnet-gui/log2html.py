@@ -18,7 +18,27 @@ Features:
 import sys
 import os
 import re
+import base64
 from html import escape
+
+
+# Load and encode fonts for embedding
+def get_font_base64(font_name):
+    """Load a font file and return base64-encoded data."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    font_path = os.path.join(script_dir, "fonts", font_name)
+
+    if not os.path.exists(font_path):
+        # Font file not found, return empty string (will fall back to system fonts)
+        return ""
+
+    try:
+        with open(font_path, "rb") as f:
+            font_data = f.read()
+            return base64.b64encode(font_data).decode("ascii")
+    except Exception:
+        return ""
+
 
 # Telnet protocol bytes (RFC 854 and extensions)
 TELNET_COMMANDS = {
@@ -202,9 +222,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{title}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
 {css}
     </style>
@@ -538,6 +555,40 @@ def format_log_entry(entry, parser):
     return f'<div class="log-line">{escape(entry["text"])}</div>'
 
 
+def generate_css_with_fonts():
+    """Generate CSS with embedded DejaVu Sans Mono fonts."""
+    # Load font files
+    regular_font = get_font_base64("DejaVuSansMono.ttf")
+    bold_font = get_font_base64("DejaVuSansMono-Bold.ttf")
+
+    # Build @font-face declarations
+    font_faces = ""
+    if regular_font:
+        font_faces += f"""
+@font-face {{
+    font-family: 'DejaVu Sans Mono';
+    font-style: normal;
+    font-weight: 400;
+    src: url(data:font/truetype;charset=utf-8;base64,{regular_font}) format('truetype');
+}}
+"""
+    if bold_font:
+        font_faces += f"""
+@font-face {{
+    font-family: 'DejaVu Sans Mono';
+    font-style: normal;
+    font-weight: 700;
+    src: url(data:font/truetype;charset=utf-8;base64,{bold_font}) format('truetype');
+}}
+"""
+
+    # Return font faces + original CSS (with updated font-family)
+    return font_faces + CSS_TEMPLATE.replace(
+        "'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace",
+        "'DejaVu Sans Mono', 'Consolas', 'Monaco', 'Courier New', monospace",
+    )
+
+
 def convert_log_to_html(input_file, output_file):
     """Convert a telnet log file to HTML."""
     try:
@@ -593,7 +644,7 @@ def convert_log_to_html(input_file, output_file):
     html = HTML_TEMPLATE.format(
         title=os.path.basename(input_file),
         filename=os.path.basename(input_file),
-        css=CSS_TEMPLATE,
+        css=generate_css_with_fonts(),
         content=content,
     )
 
