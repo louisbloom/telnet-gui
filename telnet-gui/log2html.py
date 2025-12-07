@@ -112,7 +112,7 @@ body {
     background-color: #0d1117;
     color: #c9d1d9;
     font-family: 'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
-    font-size: 17px;
+    font-size: 16px;
     line-height: 1.3;
     padding: 20px;
     margin: 0;
