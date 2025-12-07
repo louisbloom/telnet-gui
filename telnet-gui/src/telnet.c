@@ -125,14 +125,14 @@ static int telnet_open_log(Telnet *t, const char *log_dir) {
     mkdir(expanded_dir, 0755);
 #endif
 
-    /* Generate log filename: telnet-<host>-<port>-<timestamp>.log */
+    /* Generate log filename: <timestamp>-telnet-session-<socket>.log */
     char timestamp[32];
     get_timestamp_iso(timestamp, sizeof(timestamp));
 
     /* For telnet connections, we need to get host/port from somewhere.
      * Since we don't have host/port stored yet, we'll just use socket number */
-    snprintf(t->log_filename, sizeof(t->log_filename), "%s/telnet-session-%d-%s.log", expanded_dir, t->socket,
-             timestamp);
+    snprintf(t->log_filename, sizeof(t->log_filename), "%s/%s-telnet-session-%d.log", expanded_dir, timestamp,
+             t->socket);
 
     /* Open log file in append mode */
     t->log_file = fopen(t->log_filename, "a");
