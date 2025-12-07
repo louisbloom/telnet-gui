@@ -111,7 +111,7 @@ CSS_TEMPLATE = """
 body {
     background-color: #0d1117;
     color: #c9d1d9;
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
     font-size: 17px;
     line-height: 1.3;
     padding: 20px;
