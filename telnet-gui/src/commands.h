@@ -1,4 +1,4 @@
-/* Special slash commands for input area */
+/* Special colon commands for input area */
 
 #ifndef COMMANDS_H
 #define COMMANDS_H
@@ -7,16 +7,17 @@
 #include "terminal.h"
 #include "input_area.h"
 
-/* Process special commands starting with '/'
+/* Process special commands starting with ':'
  * Returns 1 if command was processed, 0 if not a command
  *
  * Parameters:
- *   text          - Input text to process
- *   telnet        - Telnet connection instance
- *   term          - Terminal instance
+ *   text           - Input text to process
+ *   telnet         - Telnet connection instance
+ *   term           - Terminal instance
  *   connected_mode - Pointer to connection state (updated by commands)
- *   area          - Input area instance
+ *   area           - Input area instance
+ *   quit_requested - Pointer to quit flag (set by :quit command)
  */
-int process_command(const char *text, Telnet *telnet, Terminal *term, int *connected_mode, InputArea *area);
+int process_command(const char *text, Telnet *telnet, Terminal *term, int *connected_mode, InputArea *area, int *quit_requested);
 
 #endif /* COMMANDS_H */

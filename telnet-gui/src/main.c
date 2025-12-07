@@ -45,6 +45,9 @@ static struct {
     int end_scrollback_size;   /* Scrollback size when selection ended */
 } terminal_selection = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 
+/* Global quit flag for :quit command */
+static int quit_requested = 0;
+
 /* Clear terminal selection */
 static void clear_terminal_selection(Terminal *term) {
     terminal_selection.active = 0;
@@ -709,7 +712,7 @@ int main(int argc, char **argv) {
     SDL_Event event;
     int mouse_x = 0, mouse_y = 0;
 
-    while (running) {
+    while (running && !quit_requested) {
         /* Poll events */
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
@@ -785,10 +788,10 @@ int main(int argc, char **argv) {
                         const char *text = input_area_get_text(&input_area);
                         int cursor_pos = input_area_get_cursor_pos(&input_area);
 
-                        /* Check if this is a special command starting with '/' */
-                        if (text[0] == '/') {
+                        /* Check if this is a special command starting with ':' */
+                        if (text[0] == ':') {
                             /* Process command */
-                            process_command(text, telnet, term, &connected_mode, &input_area);
+                            process_command(text, telnet, term, &connected_mode, &input_area, &quit_requested);
 
                             /* Scroll to bottom on command */
                             if (lisp_x_get_scroll_to_bottom_on_user_input()) {

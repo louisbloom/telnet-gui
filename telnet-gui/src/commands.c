@@ -1,4 +1,4 @@
-/* Special slash commands implementation */
+/* Special colon commands implementation */
 
 #include "commands.h"
 #include "lisp.h"
@@ -12,29 +12,34 @@ static void handle_disconnection(int *connected_mode, Terminal *term, const char
     terminal_feed_data(term, message, strlen(message));
 }
 
-/* Process special commands (starting with /) */
-int process_command(const char *text, Telnet *telnet, Terminal *term, int *connected_mode, InputArea *area) {
-    if (!text || text[0] != '/')
+/* Process special commands (starting with :) */
+int process_command(const char *text, Telnet *telnet, Terminal *term, int *connected_mode, InputArea *area,
+                    int *quit_requested) {
+    (void)area; /* Unused parameter - reserved for future use */
+
+    if (!text || text[0] != ':')
         return 0; /* Not a command */
 
-    /* Skip the leading '/' */
+    /* Skip the leading ':' */
     const char *cmd = text + 1;
 
-    /* /help command */
+    /* :help command */
     if (strcmp(cmd, "help") == 0) {
         const char *help_msg = "\r\n"
                                "Available commands:\r\n"
-                               "  /help                         - Show this help message\r\n"
-                               "  /connect <server> <port>      - Connect to a telnet server\r\n"
-                               "  /connect <server>:<port>      - Connect to a telnet server\r\n"
-                               "  /disconnect                   - Disconnect from current server\r\n"
-                               "  /test <filepath>              - Run a Lisp test file\r\n"
+                               "  :help                         - Show this help message\r\n"
+                               "  :connect <server> <port>      - Connect to a telnet server\r\n"
+                               "  :connect <server>:<port>      - Connect to a telnet server\r\n"
+                               "  :disconnect                   - Disconnect from current server\r\n"
+                               "  :load <filepath>              - Load and execute a Lisp file\r\n"
+                               "  :test <filepath>              - Run a Lisp test file\r\n"
+                               "  :quit                         - Exit application\r\n"
                                "\r\n";
         terminal_feed_data(term, help_msg, strlen(help_msg));
         return 1; /* Command processed */
     }
 
-    /* /disconnect command */
+    /* :disconnect command */
     if (strcmp(cmd, "disconnect") == 0) {
         if (*connected_mode) {
             telnet_disconnect(telnet);
@@ -46,7 +51,71 @@ int process_command(const char *text, Telnet *telnet, Terminal *term, int *conne
         return 1; /* Command processed */
     }
 
-    /* /connect command */
+    /* :quit command */
+    if (strcmp(cmd, "quit") == 0) {
+        const char *msg = "\r\n*** Exiting... ***\r\n";
+        terminal_feed_data(term, msg, strlen(msg));
+        *quit_requested = 1;
+        return 1; /* Command processed */
+    }
+
+    /* :load command */
+    if (strncmp(cmd, "load ", 5) == 0) {
+        const char *filepath = cmd + 5; /* Skip "load " */
+
+        /* Skip leading spaces */
+        while (*filepath == ' ')
+            filepath++;
+
+        if (*filepath == '\0') {
+            const char *msg = "\r\n*** Usage: :load <filepath> ***\r\n";
+            terminal_feed_data(term, msg, strlen(msg));
+            return 1;
+        }
+
+        /* Remove trailing whitespace */
+        size_t len = strlen(filepath);
+        while (len > 0 && (filepath[len - 1] == ' ' || filepath[len - 1] == '\t' || filepath[len - 1] == '\r' ||
+                           filepath[len - 1] == '\n')) {
+            len--;
+        }
+
+        if (len == 0) {
+            const char *msg = "\r\n*** Error: Invalid filepath ***\r\n";
+            terminal_feed_data(term, msg, strlen(msg));
+            return 1;
+        }
+
+        /* Copy filepath (truncate if needed) */
+        char load_filepath[512] = {0};
+        if (len >= sizeof(load_filepath)) {
+            const char *msg = "\r\n*** Error: Filepath too long ***\r\n";
+            terminal_feed_data(term, msg, strlen(msg));
+            return 1;
+        }
+        memcpy(load_filepath, filepath, len);
+        load_filepath[len] = '\0';
+
+        /* Show loading message */
+        char loading_msg[1024];
+        snprintf(loading_msg, sizeof(loading_msg), "\r\n*** Loading: %s ***\r\n", load_filepath);
+        terminal_feed_data(term, loading_msg, strlen(loading_msg));
+
+        /* Load and execute the file */
+        int result = lisp_x_load_file(load_filepath);
+        if (result < 0) {
+            char error_msg[1024];
+            snprintf(error_msg, sizeof(error_msg), "\r\n*** Failed to load: %s ***\r\n", load_filepath);
+            terminal_feed_data(term, error_msg, strlen(error_msg));
+        } else {
+            const char *msg = "\r\n*** File loaded successfully ***\r\n";
+            terminal_feed_data(term, msg, strlen(msg));
+        }
+
+        return 1; /* Command processed */
+    }
+
+    /* :connect command */
     if (strncmp(cmd, "connect ", 8) == 0) {
         const char *args = cmd + 8; /* Skip "connect " */
 
@@ -55,7 +124,7 @@ int process_command(const char *text, Telnet *telnet, Terminal *term, int *conne
             args++;
 
         if (*args == '\0') {
-            const char *msg = "\r\n*** Usage: /connect <server> <port> or /connect <server>:<port> ***\r\n";
+            const char *msg = "\r\n*** Usage: :connect <server> <port> or :connect <server>:<port> ***\r\n";
             terminal_feed_data(term, msg, strlen(msg));
             return 1;
         }
@@ -81,7 +150,7 @@ int process_command(const char *text, Telnet *telnet, Terminal *term, int *conne
             /* Format: server port */
             const char *space = strchr(args, ' ');
             if (!space) {
-                const char *msg = "\r\n*** Usage: /connect <server> <port> or /connect <server>:<port> ***\r\n";
+                const char *msg = "\r\n*** Usage: :connect <server> <port> or :connect <server>:<port> ***\r\n";
                 terminal_feed_data(term, msg, strlen(msg));
                 return 1;
             }
@@ -136,7 +205,7 @@ int process_command(const char *text, Telnet *telnet, Terminal *term, int *conne
         return 1; /* Command processed */
     }
 
-    /* /test command */
+    /* :test command */
     if (strncmp(cmd, "test ", 5) == 0) {
         const char *filepath = cmd + 5; /* Skip "test " */
 
@@ -145,7 +214,7 @@ int process_command(const char *text, Telnet *telnet, Terminal *term, int *conne
             filepath++;
 
         if (*filepath == '\0') {
-            const char *msg = "\r\n*** Usage: /test <filepath> ***\r\n";
+            const char *msg = "\r\n*** Usage: :test <filepath> ***\r\n";
             terminal_feed_data(term, msg, strlen(msg));
             return 1;
         }
@@ -194,7 +263,7 @@ int process_command(const char *text, Telnet *telnet, Terminal *term, int *conne
 
     /* Unknown command */
     char error_msg[512];
-    snprintf(error_msg, sizeof(error_msg), "\r\n*** Unknown command: %s (type /help for available commands) ***\r\n",
+    snprintf(error_msg, sizeof(error_msg), "\r\n*** Unknown command: %s (type :help for available commands) ***\r\n",
              cmd);
     terminal_feed_data(term, error_msg, strlen(error_msg));
     return 1; /* Command processed (but invalid) */
