@@ -9,22 +9,22 @@
 ;; ===========================================
 
 (assert-equal (+
-		1
-		2
-		3
-		) 6 "Simple multi-line arithmetic")
+                1
+                2
+                3
+                ) 6 "Simple multi-line arithmetic")
 
 ;; ===========================================
 ;; Test 2: Nested multi-line expressions
 ;; ===========================================
 
 (assert-equal (+
-		1
-		(+
-		  2
-		  3
-		  )
-		) 6 "Nested multi-line expressions")
+                1
+                (+
+                  2
+                  3
+                  )
+                ) 6 "Nested multi-line expressions")
 
 ;; ===========================================
 ;; Test 3: Multi-line hash table operations
@@ -41,9 +41,9 @@
   )
 
 (assert-equal (hash-ref
-		ht
-		"name"
-		) "Alice" "Multi-line hash table operations")
+                ht
+                "name"
+                ) "Alice" "Multi-line hash table operations")
 
 ;; ===========================================
 ;; Test 4: Multi-line vector operations
@@ -64,9 +64,9 @@
   )
 
 (assert-equal (vector-ref
-		v
-		0
-		) 42 "Multi-line vector operations")
+                v
+                0
+                ) 42 "Multi-line vector operations")
 
 ;; ===========================================
 ;; Test 5: Complex nested multi-line conditional

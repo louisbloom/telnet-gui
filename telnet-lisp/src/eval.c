@@ -1032,12 +1032,98 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
         /* Last expression in body is always in tail position (for non-tail calls) */
         LispObject *result = eval_progn(func->value.lambda.body, new_env, 1);
 
-        /* Trampoline loop: unwrap any tail calls before returning */
+        /* Trampoline loop: unwrap tail calls WITHOUT recursive apply() calls */
+        /* This is the TCO fix: inline lambda execution to avoid C stack growth */
         while (result != NULL && result->type == LISP_TAIL_CALL) {
             LispObject *tail_func = result->value.tail_call.func;
             LispObject *tail_args = result->value.tail_call.args;
-            result = apply(tail_func, tail_args, new_env, 0);
+
+            /* Handle builtins: safe to call apply() (no nested trampoline recursion) */
+            if (tail_func->type == LISP_BUILTIN) {
+                result = apply(tail_func, tail_args, new_env, 0);
+                continue;
+            }
+
+            /* Handle non-lambdas: error */
+            if (tail_func->type != LISP_LAMBDA) {
+                result = lisp_make_error_with_stack("Cannot apply non-function", new_env);
+                break;
+            }
+
+            /* INLINE LAMBDA EXECUTION (key fix: no apply() call for lambdas) */
+            /* Pop previous lambda's frame before executing next tail call */
+            pop_call_frame(new_env);
+
+            /* Create NEW environment for tail-called lambda */
+            Environment *tail_env = env_create(tail_func->value.lambda.closure);
+            tail_env->call_stack = new_env->call_stack; /* Inherit call stack */
+
+            /* Generate lambda name for stack trace */
+            char tail_lambda_name[128];
+            const char *tail_frame_name;
+            LispObject *tail_lambda_params = tail_func->value.lambda.params;
+
+            if (tail_func->value.lambda.name != NULL) {
+                tail_frame_name = tail_func->value.lambda.name;
+            } else if (tail_lambda_params != NIL && tail_lambda_params->type == LISP_CONS &&
+                       lisp_car(tail_lambda_params) != NULL && lisp_car(tail_lambda_params)->type == LISP_SYMBOL) {
+                snprintf(tail_lambda_name, sizeof(tail_lambda_name), "lambda/%s",
+                         lisp_car(tail_lambda_params)->value.symbol);
+                tail_frame_name = tail_lambda_name;
+            } else {
+                tail_frame_name = "lambda";
+            }
+
+            /* Push call frame for tail-called lambda */
+            push_call_frame(tail_env, tail_frame_name);
+
+            /* Bind parameters */
+            LispObject *tail_params = tail_lambda_params;
+            LispObject *tail_arg_list = tail_args;
+
+            while (tail_params != NIL && tail_params != NULL) {
+                if (tail_params->type != LISP_CONS) {
+                    result = lisp_make_error_with_stack("Invalid lambda parameter list", tail_env);
+                    pop_call_frame(tail_env);
+                    goto trampoline_done;
+                }
+
+                LispObject *tail_param = lisp_car(tail_params);
+                if (tail_param->type != LISP_SYMBOL) {
+                    result = lisp_make_error_with_stack("Lambda parameter must be a symbol", tail_env);
+                    pop_call_frame(tail_env);
+                    goto trampoline_done;
+                }
+
+                if (tail_arg_list == NIL) {
+                    result = lisp_make_error_with_stack("Too few arguments to lambda", tail_env);
+                    pop_call_frame(tail_env);
+                    goto trampoline_done;
+                }
+
+                LispObject *tail_arg = lisp_car(tail_arg_list);
+                env_define(tail_env, tail_param->value.symbol, tail_arg);
+
+                tail_params = lisp_cdr(tail_params);
+                tail_arg_list = lisp_cdr(tail_arg_list);
+            }
+
+            if (tail_arg_list != NIL) {
+                result = lisp_make_error_with_stack("Too many arguments to lambda", tail_env);
+                pop_call_frame(tail_env);
+                goto trampoline_done;
+            }
+
+            /* Execute lambda body (in tail position) */
+            result = eval_progn(tail_func->value.lambda.body, tail_env, 1);
+
+            /* Update new_env to tail_env for next iteration */
+            new_env = tail_env;
+
+            /* Loop continues: if result is TAIL_CALL, unwrap it WITHOUT C stack growth */
         }
+
+    trampoline_done:
 
         if (should_propagate_error(result)) {
             result = lisp_attach_stack_trace(result, new_env);
