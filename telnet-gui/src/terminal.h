@@ -37,6 +37,9 @@ int terminal_needs_redraw(Terminal *term);
 /* Mark terminal as redrawn */
 void terminal_mark_drawn(Terminal *term);
 
+/* Request terminal redraw */
+void terminal_request_redraw(Terminal *term);
+
 /* Set telnet connection for sending output */
 void terminal_set_telnet(Terminal *term, void *telnet);
 

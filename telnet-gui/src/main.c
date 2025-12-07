@@ -54,7 +54,7 @@ static struct {
 } terminal_selection = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 /* Clear terminal selection */
-static void clear_terminal_selection(void) {
+static void clear_terminal_selection(Terminal *term) {
     terminal_selection.active = 0;
     terminal_selection.start_row = 0;
     terminal_selection.start_col = 0;
@@ -64,6 +64,8 @@ static void clear_terminal_selection(void) {
     terminal_selection.end_col = 0;
     terminal_selection.end_viewport_offset = 0;
     terminal_selection.end_scrollback_size = 0;
+    /* Request redraw to remove selection highlight from screen */
+    terminal_request_redraw(term);
 }
 
 /* Start terminal selection at given viewport position */
@@ -779,7 +781,7 @@ int main(int argc, char **argv) {
             case SDL_MOUSEBUTTONDOWN:
                 /* Clear any existing terminal selection on any mouse click */
                 if (terminal_selection.active) {
-                    clear_terminal_selection();
+                    clear_terminal_selection(term);
                 }
 
                 mouse_x = event.button.x;
@@ -1052,7 +1054,7 @@ int main(int argc, char **argv) {
                         /* Copy terminal selection if active */
                         if (terminal_selection.active) {
                             copy_terminal_selection(term);
-                            clear_terminal_selection(); /* Clear selection after copy */
+                            clear_terminal_selection(term); /* Clear selection after copy */
                         }
                         /* Copy input area selection or all text to clipboard */
                         else if (input_area_has_selection(&input_area)) {
@@ -1133,7 +1135,7 @@ int main(int argc, char **argv) {
                 case SDL_SCANCODE_ESCAPE: {
                     /* ESC: Clear terminal selection if active */
                     if (terminal_selection.active) {
-                        clear_terminal_selection();
+                        clear_terminal_selection(term);
                     }
                     /* ESC: Cancel tab completion and revert */
                     else if (lisp_x_is_tab_mode_active()) {
@@ -1336,7 +1338,7 @@ int main(int argc, char **argv) {
                     if (received > 0) {
                         /* Clear terminal selection on new input */
                         if (terminal_selection.active) {
-                            clear_terminal_selection();
+                            clear_terminal_selection(term);
                         }
                         /* Call telnet-input-hook with received data (stripped of ANSI codes) */
                         lisp_x_call_telnet_input_hook(recv_buf, received);

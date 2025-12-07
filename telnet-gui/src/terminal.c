@@ -479,6 +479,11 @@ void terminal_mark_drawn(Terminal *term) {
         term->needs_redraw = 0;
 }
 
+void terminal_request_redraw(Terminal *term) {
+    if (term)
+        term->needs_redraw = 1;
+}
+
 void terminal_set_telnet(Terminal *term, void *telnet) {
     if (term)
         term->telnet = (Telnet *)telnet;
