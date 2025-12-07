@@ -68,21 +68,12 @@ void lisp_x_get_selection_bg_color(int *r, int *g, int *b);
 void lisp_x_get_cursor_color(int *r, int *g, int *b);
 void lisp_x_get_input_separator_color(int *r, int *g, int *b);
 
-/* Mode display area colors */
-void lisp_x_get_mode_fg_color(int *r, int *g, int *b);
-void lisp_x_get_mode_bg_color(int *r, int *g, int *b);
-
 /* Terminal default colors */
 void lisp_x_get_terminal_fg_color(int *r, int *g, int *b);
 void lisp_x_get_terminal_bg_color(int *r, int *g, int *b);
 
 /* Window chrome colors */
 void lisp_x_get_resize_bar_color(int *r, int *g, int *b);
-
-/* Mode data structure - set and get as Lisp variables */
-void lisp_x_set_connection_mode(int connected);
-void lisp_x_set_input_mode(int input_mode);
-const char *lisp_x_get_mode_string(void);
 
 /* Forward declaration for Telnet type (defined in telnet.h) */
 struct Telnet;

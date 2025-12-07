@@ -6,10 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Helper: Handle disconnection - update state, mode display, and show message */
-static void handle_disconnection(int *connected_mode, InputArea *area, Terminal *term, const char *message) {
+/* Helper: Handle disconnection - update state and show message */
+static void handle_disconnection(int *connected_mode, Terminal *term, const char *message) {
     *connected_mode = 0;
-    input_area_update_mode(area, *connected_mode);
     terminal_feed_data(term, message, strlen(message));
 }
 
@@ -39,7 +38,7 @@ int process_command(const char *text, Telnet *telnet, Terminal *term, int *conne
     if (strcmp(cmd, "disconnect") == 0) {
         if (*connected_mode) {
             telnet_disconnect(telnet);
-            handle_disconnection(connected_mode, area, term, "\r\n*** Disconnected ***\r\n");
+            handle_disconnection(connected_mode, term, "\r\n*** Disconnected ***\r\n");
         } else {
             const char *msg = "\r\n*** Not connected ***\r\n";
             terminal_feed_data(term, msg, strlen(msg));
@@ -113,7 +112,6 @@ int process_command(const char *text, Telnet *telnet, Terminal *term, int *conne
         if (*connected_mode) {
             telnet_disconnect(telnet);
             *connected_mode = 0;
-            input_area_update_mode(area, *connected_mode);
         }
 
         /* Attempt connection */
@@ -127,7 +125,6 @@ int process_command(const char *text, Telnet *telnet, Terminal *term, int *conne
             terminal_feed_data(term, error_msg, strlen(error_msg));
         } else {
             *connected_mode = 1;
-            input_area_update_mode(area, *connected_mode);
             const char *msg = "\r\n*** Connected ***\r\n";
             terminal_feed_data(term, msg, strlen(msg));
 

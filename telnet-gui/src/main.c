@@ -693,9 +693,6 @@ int main(int argc, char **argv) {
     /* Initialize input area */
     input_area_init(&input_area);
 
-    /* Set initial connection status */
-    input_area_update_mode(&input_area, connected_mode);
-
     /* Get actual window size after resize and resize terminal to match */
     int input_area_height = cell_h; /* Input area is one cell height */
     int resize_bar_height = window_get_resize_bar_height();
@@ -852,7 +849,6 @@ int main(int argc, char **argv) {
                                             fprintf(stderr, "Failed to send data via telnet\n");
                                             /* Connection lost - switch to unconnected mode */
                                             connected_mode = 0;
-                                            input_area_update_mode(&input_area, connected_mode);
                                             terminal_feed_data(term, "\r\n*** Connection lost ***\r\n",
                                                                strlen("\r\n*** Connection lost ***\r\n"));
                                         }
@@ -882,7 +878,6 @@ int main(int argc, char **argv) {
                                 fprintf(stderr, "Failed to send CRLF via telnet\n");
                                 /* Connection lost - switch to unconnected mode */
                                 connected_mode = 0;
-                                input_area_update_mode(&input_area, connected_mode);
                                 terminal_feed_data(term, "\r\n*** Connection lost ***\r\n",
                                                    strlen("\r\n*** Connection lost ***\r\n"));
                             }
@@ -1295,10 +1290,18 @@ int main(int argc, char **argv) {
                 fd_set readfds;
                 struct timeval tv = {0, 0}; /* Non-blocking check */
                 FD_ZERO(&readfds);
+#ifdef _WIN32
+                FD_SET((SOCKET)sock, &readfds);
+                int ready = select(0, &readfds, NULL, NULL, &tv); /* First param ignored on Windows */
+#else
                 FD_SET(sock, &readfds);
-
                 int ready = select(sock + 1, &readfds, NULL, NULL, &tv);
+#endif
+#ifdef _WIN32
+                if (ready > 0 && FD_ISSET((SOCKET)sock, &readfds)) {
+#else
                 if (ready > 0 && FD_ISSET(sock, &readfds)) {
+#endif
                     /* Data is available, read it */
                     char recv_buf[4096];
                     int received = telnet_receive(telnet, recv_buf, sizeof(recv_buf) - 1);
@@ -1322,7 +1325,6 @@ int main(int argc, char **argv) {
                     } else if (received < 0) {
                         /* Connection closed or error (telnet_receive returns -1 for both) */
                         connected_mode = 0;
-                        input_area_update_mode(&input_area, connected_mode);
                         terminal_feed_data(term, "\r\n*** Connection closed ***\r\n",
                                            strlen("\r\n*** Connection closed ***\r\n"));
                     }
@@ -1378,22 +1380,18 @@ int main(int argc, char **argv) {
             }
         }
 
-        /* Always render input area if it needs redraw, mode area needs redraw, or if terminal was rendered */
-        if (input_area_needs_redraw(&input_area) || input_area_mode_needs_redraw(&input_area) || needs_render) {
+        /* Always render input area if it needs redraw or if terminal was rendered */
+        if (input_area_needs_redraw(&input_area) || needs_render) {
             int sel_start = 0, sel_end = 0;
             if (input_area_has_selection(&input_area)) {
                 input_area_get_selection_range(&input_area, &sel_start, &sel_end);
             }
             /* Recalculate input area dimensions based on current cell size */
             int current_input_area_height = cell_h;
-            int current_resize_bar_height = window_get_resize_bar_height();
-            renderer_render_input_area(rend, input_area_get_text(&input_area), input_area_get_length(&input_area),
-                                       input_area_get_cursor_pos(&input_area), window_width, window_height,
-                                       current_input_area_height, current_resize_bar_height,
-                                       input_area_mode_get_text(&input_area), input_area_mode_get_length(&input_area),
+            renderer_render_input_area(rend, term, input_area_get_text(&input_area), input_area_get_length(&input_area),
+                                       input_area_get_cursor_pos(&input_area), window_width, current_input_area_height,
                                        sel_start, sel_end);
             input_area_mark_drawn(&input_area);
-            input_area_mode_mark_drawn(&input_area);
             needs_render = 1; /* Input area rendered, need to present frame */
         }
 

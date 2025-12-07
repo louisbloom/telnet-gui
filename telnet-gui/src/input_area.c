@@ -45,9 +45,6 @@ void input_area_init(InputArea *area) {
 
     area->history_index = -1; /* Start with new entry */
     area->mode = INPUT_AREA_MODE_NORMAL;
-    /* Initialize status area with mode indicator */
-    strcpy(area->mode_text, "N");
-    area->mode_length = 1;
 }
 
 void input_area_insert_text(InputArea *area, const char *text, int text_len) {
@@ -671,94 +668,11 @@ void input_area_set_mode(InputArea *area, InputAreaMode mode) {
     if (!area)
         return;
 
-    if (area->mode != mode) {
-        area->mode = mode;
-        /* Update status area text based on mode */
-        if (mode == INPUT_AREA_MODE_NORMAL) {
-            strcpy(area->mode_text, "N");
-            area->mode_length = 1;
-        } else if (mode == INPUT_AREA_MODE_EVAL) {
-            strcpy(area->mode_text, "E");
-            area->mode_length = 1;
-        }
-        area->mode_needs_redraw = 1;
-        area->needs_redraw = 1;
-    }
+    area->mode = mode;
 }
 
 InputAreaMode input_area_get_mode(InputArea *area) {
     if (!area)
         return INPUT_AREA_MODE_NORMAL;
     return area->mode;
-}
-
-/* Mode display area management */
-void input_area_mode_set_text(InputArea *area, const char *text) {
-    if (!area)
-        return;
-
-    /* Use empty string if text is NULL */
-    if (!text)
-        text = "";
-
-    int len = strlen(text);
-    if (len >= 256)
-        len = 255;
-
-    strncpy(area->mode_text, text, len);
-    area->mode_text[len] = '\0';
-    area->mode_length = len;
-    area->mode_needs_redraw = 1;
-    area->needs_redraw = 1;
-}
-
-void input_area_mode_clear(InputArea *area) {
-    if (!area)
-        return;
-
-    area->mode_text[0] = '\0';
-    area->mode_length = 0;
-    area->mode_needs_redraw = 1;
-    area->needs_redraw = 1;
-}
-
-const char *input_area_mode_get_text(InputArea *area) {
-    if (!area)
-        return NULL;
-    return area->mode_text;
-}
-
-int input_area_mode_get_length(InputArea *area) {
-    if (!area)
-        return 0;
-    return area->mode_length;
-}
-
-int input_area_mode_needs_redraw(InputArea *area) {
-    if (!area)
-        return 0;
-    return area->mode_needs_redraw;
-}
-
-void input_area_mode_mark_drawn(InputArea *area) {
-    if (!area)
-        return;
-    area->mode_needs_redraw = 0;
-}
-
-/* Update mode display to show Lisp mode data structure */
-void input_area_update_mode(InputArea *area, int connected) {
-    if (!area)
-        return;
-
-    /* Update connection mode in Lisp environment */
-    lisp_x_set_connection_mode(connected);
-
-    /* Update input mode in Lisp environment */
-    InputAreaMode input_mode = input_area_get_mode(area);
-    lisp_x_set_input_mode(input_mode);
-
-    /* Get mode string from Lisp environment and update display */
-    const char *mode_text = lisp_x_get_mode_string();
-    input_area_mode_set_text(area, mode_text);
 }

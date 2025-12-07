@@ -209,13 +209,20 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
 }
 
 /* Render input area at bottom of screen */
-void renderer_render_input_area(Renderer *r, const char *text, int text_len, int cursor_pos, int window_width,
-                                int window_height, int input_area_height, int resize_bar_height, const char *mode_text,
-                                int mode_length, int selection_start, int selection_end) {
+void renderer_render_input_area(Renderer *r, Terminal *term, const char *text, int text_len, int cursor_pos,
+                                int window_width, int input_area_height, int selection_start, int selection_end) {
     if (!r)
         return;
 
-    int input_area_y = window_height - input_area_height - resize_bar_height;
+    /* Calculate input area position based on terminal size, not window bottom */
+    /* This ensures input area is always positioned immediately below the terminal */
+    int terminal_area_height = 0;
+    if (term) {
+        int rows, cols;
+        terminal_get_size(term, &rows, &cols);
+        terminal_area_height = rows * r->cell_h;
+    }
+    int input_area_y = r->titlebar_h + terminal_area_height;
 
     /* Get colors from Lisp config */
     int fg_r, fg_g, fg_b, bg_r, bg_g, bg_b;
@@ -309,75 +316,6 @@ void renderer_render_input_area(Renderer *r, const char *text, int text_len, int
     /* Draw a 2-pixel wide vertical line for the cursor */
     SDL_Rect cursor_line = {cursor_x, y, 2, r->cell_h};
     SDL_RenderFillRect(r->sdl_renderer, &cursor_line);
-
-    /* Render mode display area on the right side */
-    if (mode_text && mode_length > 0) {
-        /* Get mode display area colors from Lisp config */
-        int mode_fg_r, mode_fg_g, mode_fg_b, mode_bg_r, mode_bg_g, mode_bg_b;
-        lisp_x_get_mode_fg_color(&mode_fg_r, &mode_fg_g, &mode_fg_b);
-        lisp_x_get_mode_bg_color(&mode_bg_r, &mode_bg_g, &mode_bg_b);
-
-        /* Calculate mode display area width with left and right padding */
-        /* Measure actual width of each character using glyph cache */
-        int mode_text_width = 0;
-        int char_idx = 0;
-        SDL_Color mode_fg_color = {mode_fg_r, mode_fg_g, mode_fg_b, 255};
-        SDL_Color mode_bg_color = {mode_bg_r, mode_bg_g, mode_bg_b, 255};
-
-        while (char_idx < mode_length) {
-            int codepoint = utf8_get_codepoint(&mode_text[char_idx]);
-            if (codepoint > 0) {
-                /* Get actual rendered width for this glyph */
-                int glyph_width = glyph_cache_get_glyph_width(r->glyph_cache, codepoint, mode_fg_color, mode_bg_color);
-                mode_text_width += glyph_width;
-
-                /* Advance to next character */
-                int bytes = utf8_char_bytes(&mode_text[char_idx]);
-                char_idx += (bytes > 0) ? bytes : 1;
-            } else {
-                /* Invalid UTF-8, skip byte */
-                char_idx++;
-            }
-        }
-
-        int mode_padding = 4; /* pixels of padding on each side */
-        int mode_area_width = mode_text_width + (mode_padding * 2);
-        int mode_x = window_width - mode_area_width;
-
-        /* Draw mode display area background */
-        SDL_SetRenderDrawColor(r->sdl_renderer, mode_bg_r, mode_bg_g, mode_bg_b, 255);
-        SDL_Rect mode_bg = {mode_x, input_area_y, mode_area_width, input_area_height};
-        SDL_RenderFillRect(r->sdl_renderer, &mode_bg);
-
-        /* Start text rendering after left padding */
-        int text_x = mode_x + mode_padding;
-
-        /* Render mode text character by character (UTF-8 aware) */
-        int i = 0;
-        while (i < mode_length) {
-            /* Decode UTF-8 using utf8 library */
-            int codepoint = utf8_get_codepoint(&mode_text[i]);
-            if (codepoint < 0) {
-                /* Invalid UTF-8, skip byte */
-                i++;
-                continue;
-            }
-            int bytes_consumed = utf8_char_bytes(&mode_text[i]);
-
-            /* Render the character */
-            SDL_Texture *glyph = glyph_cache_get(r->glyph_cache, codepoint, mode_fg_color, mode_bg_color, 0, 0);
-            if (glyph) {
-                int tex_w, tex_h;
-                SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);
-                /* Center glyph in its actual width space */
-                SDL_Rect dst = {text_x, y, tex_w, tex_h};
-                SDL_RenderCopy(r->sdl_renderer, glyph, NULL, &dst);
-                /* Advance by actual glyph width to match width calculation */
-                text_x += tex_w;
-            }
-            i += bytes_consumed;
-        }
-    }
 }
 
 void renderer_destroy(Renderer *r) {
