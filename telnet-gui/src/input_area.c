@@ -694,8 +694,12 @@ InputAreaMode input_area_get_mode(InputArea *area) {
 
 /* Mode display area management */
 void input_area_mode_set_text(InputArea *area, const char *text) {
-    if (!area || !text)
+    if (!area)
         return;
+
+    /* Use empty string if text is NULL */
+    if (!text)
+        text = "";
 
     int len = strlen(text);
     if (len >= 256)

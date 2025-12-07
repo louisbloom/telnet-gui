@@ -1375,6 +1375,10 @@ int main(int argc, char **argv) {
                                        input_area_mode_get_length(&input_area), sel_start, sel_end);
             input_area_mark_drawn(&input_area);
             input_area_mode_mark_drawn(&input_area);
+        }
+
+        /* Present frame if anything was rendered */
+        if (needs_render) {
             SDL_RenderPresent(window_get_sdl_renderer(win));
 
             /* Exit after first render if debug mode enabled */
