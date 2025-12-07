@@ -209,7 +209,7 @@ static void print_help(const char *program_name) {
     printf("  -h, --help              Show this help message and exit\n");
     printf("\n");
     printf("  Font Options:\n");
-    printf("    -f, --font-size SIZE   Set font size in points (default: 17)\n");
+    printf("    -f, --font-size SIZE   Set font size in points (default: 16)\n");
     printf("    -p, --plex             Use IBM Plex Mono font instead of Inconsolata (default)\n");
     printf("    -d, --dejavu           Use DejaVu Sans Mono font instead of Inconsolata (default)\n");
     printf("    -c, --courier          Use Courier Prime font instead of Inconsolata (default)\n");
@@ -272,7 +272,7 @@ int main(int argc, char **argv) {
     int use_plex = 0;             /* Use IBM Plex Mono font */
     int use_dejavu = 0;           /* Use DejaVu Sans Mono font */
     int use_courier = 0;          /* Use Courier Prime font */
-    int font_size = 17;           /* Default font size */
+    int font_size = 16;           /* Default font size */
     int terminal_cols = 80;       /* Default terminal columns */
     int terminal_rows = 40;       /* Default terminal rows */
     int debug_exit = 0;           /* Exit after initialization for debug output */
