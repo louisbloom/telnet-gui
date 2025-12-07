@@ -778,9 +778,10 @@ int main(int argc, char **argv) {
                 }
                 break;
 
-            case SDL_MOUSEBUTTONDOWN:
-                /* Clear any existing terminal selection on any mouse click */
-                if (terminal_selection.active) {
+            case SDL_MOUSEBUTTONDOWN: {
+                /* Check if there was an active selection that needs clearing */
+                int had_selection = terminal_selection.active;
+                if (had_selection) {
                     clear_terminal_selection(term);
                 }
 
@@ -803,8 +804,8 @@ int main(int argc, char **argv) {
                         SDL_MinimizeWindow(window_get_sdl_window(win));
                     } else if (mouse_y >= titlebar_h &&
                                mouse_y < window_height - input_area_height - resize_bar_height) {
-                        /* Handle clicks in terminal area - start selection */
-                        if (event.button.button == SDL_BUTTON_LEFT) {
+                        /* Handle clicks in terminal area - start selection only if no selection was cleared */
+                        if (event.button.button == SDL_BUTTON_LEFT && !had_selection) {
                             /* Convert mouse coordinates to terminal cell coordinates */
                             int term_row = (mouse_y - titlebar_h) / cell_h;
                             int term_col = mouse_x / cell_w;
@@ -815,6 +816,7 @@ int main(int argc, char **argv) {
                 }
                 /* Mouse clicks in input area (when not in resize area) are ignored (input area is always active) */
                 break;
+            }
 
             case SDL_KEYDOWN: {
                 /* All keyboard input goes to input area, not terminal */
