@@ -643,11 +643,13 @@
                                       ((eq? after-type 'ansi)
                                         (if (string=? prev-state "")
                                           "\033[0m"
-                                          prev-state))
+                                          ;; Reset first to clear all attributes, then restore prev state
+                                          (concat "\033[0m" prev-state)))
                                       ;; Regular text follows: restore previous state or reset
                                       (#t (if (string=? prev-state "")
                                             "\033[0m"
-                                            prev-state)))))
+                                            ;; Reset first to clear all attributes, then restore prev state
+                                            (concat "\033[0m" prev-state))))))
                               (string-replace matched-text
                                 (concat ansi-open matched-text ansi-close)
                                 line)))))))
