@@ -469,17 +469,26 @@
           ;; Insert entry in sorted position
           (set! sorted (tintin-insert-by-priority entry priority sorted)))))))
 
-;; Helper: Insert entry into sorted list by priority
+;; Helper: Insert entry into sorted list by priority, then by pattern length
 (defun tintin-insert-by-priority (entry priority sorted-list)
   (if (null? sorted-list)
     (list entry)
-    (let ((first-priority (car (cdr (cdr (cdr (car sorted-list)))))))
-      (if (>= priority first-priority)
-        ;; Insert at head
+    (let ((first-entry (car sorted-list))
+           (first-priority (car (cdr (cdr (cdr (car sorted-list)))))))
+      (if (> priority first-priority)
+        ;; Higher priority - insert at head
         (cons entry sorted-list)
-        ;; Insert later
-        (cons (car sorted-list)
-          (tintin-insert-by-priority entry priority (cdr sorted-list)))))))
+        (if (= priority first-priority)
+          ;; Same priority - use pattern length as tiebreaker (longer first)
+          (let ((entry-pattern (car entry))
+                 (first-pattern (car first-entry)))
+            (if (>= (string-length entry-pattern) (string-length first-pattern))
+              (cons entry sorted-list)
+              (cons first-entry
+                (tintin-insert-by-priority entry priority (cdr sorted-list)))))
+          ;; Lower priority - insert later
+          (cons first-entry
+            (tintin-insert-by-priority entry priority (cdr sorted-list))))))))
 
 ;; ============================================================================
 ;; HIGHLIGHT APPLICATION
@@ -525,7 +534,7 @@
       ;; Scan backwards looking for the FIRST (most recent) ANSI sequence
       (do ()
         ((or (< scan-pos 0) (not (string=? found-ansi ""))) found-ansi)
-        (if (and (>= scan-pos 1)
+        (if (and (>= scan-pos 0)
               (string=? (substring text scan-pos (+ scan-pos 1)) "\033")
               (< (+ scan-pos 1) (string-length text))
               (string=? (substring text (+ scan-pos 1) (+ scan-pos 2)) "["))
@@ -563,40 +572,36 @@
     (let ((pos (string-index line matched-text)))
       (if pos pos -1))))
 
-;; Check if there's an ANSI reset code immediately after a position
-;; Returns #t if reset found, #f otherwise
-(defun tintin-has-reset-after? (text pos)
+;; Check what comes immediately after a position:
+;; Returns: 'reset if reset code found, 'ansi if non-reset ANSI found, 'text if regular text
+(defun tintin-check-after-match (text pos)
   (if (or (not (string? text)) (>= pos (string-length text)))
-    #f
-    (let ((len (string-length text)))
-      ;; Skip any ANSI sequences and check if we find a reset
-      (let ((scan-pos pos)
-             (found-reset #f))
-        (do ()
-          ((or (>= scan-pos len) found-reset) found-reset)
-          (if (and (< (+ scan-pos 1) len)
-                (string=? (substring text scan-pos (+ scan-pos 1)) "\033")
-                (< (+ scan-pos 1) len)
-                (string=? (substring text (+ scan-pos 1) (+ scan-pos 2)) "["))
-            ;; Found ESC[ - check if it's a reset
-            (let ((seq-end (+ scan-pos 2)))
-              ;; Find the 'm' terminator
-              (do ()
-                ((or (>= seq-end len)
-                   (string=? (substring text seq-end (+ seq-end 1)) "m")))
-                (set! seq-end (+ seq-end 1)))
-              ;; Check if complete and is reset
-              (if (and (< seq-end len)
-                    (string=? (substring text seq-end (+ seq-end 1)) "m"))
-                (let ((sequence (substring text scan-pos (+ seq-end 1))))
-                  (if (or (string=? sequence "\033[0m")
-                        (string=? sequence "\033[m"))
-                    (set! found-reset #t)
-                    ;; Non-reset sequence, stop scanning
-                    (set! scan-pos len)))
-                (set! scan-pos len)))
-            ;; Not an ANSI sequence, stop scanning
-            (set! scan-pos len)))))))
+    'text
+    (let ((len (string-length text))
+           (scan-pos pos))
+      ;; Check if there's an ANSI code immediately after
+      (if (and (< (+ scan-pos 1) len)
+            (string=? (substring text scan-pos (+ scan-pos 1)) "\033")
+            (< (+ scan-pos 1) len)
+            (string=? (substring text (+ scan-pos 1) (+ scan-pos 2)) "["))
+        ;; Found ESC[ - check what kind
+        (let ((seq-end (+ scan-pos 2)))
+          ;; Find the 'm' terminator
+          (do ()
+            ((or (>= seq-end len)
+               (string=? (substring text seq-end (+ seq-end 1)) "m")))
+            (set! seq-end (+ seq-end 1)))
+          ;; Check if complete sequence
+          (if (and (< seq-end len)
+                (string=? (substring text seq-end (+ seq-end 1)) "m"))
+            (let ((sequence (substring text scan-pos (+ seq-end 1))))
+              (if (or (string=? sequence "\033[0m")
+                    (string=? sequence "\033[m"))
+                'reset  ; Reset code follows
+                'ansi)) ; Non-reset ANSI code follows
+            'text)) ; Incomplete sequence, treat as text
+        ;; No ANSI code immediately after
+        'text))))
 
 ;; Wrap matched pattern in line with ANSI color codes
 ;; Returns line with highlight applied or original line if no match
@@ -626,19 +631,26 @@
                     (if (< match-pos 0)
                       line
                       (let ((match-end-pos (+ match-pos (string-length matched-text))))
-                        ;; Check if there's a reset right after the match
-                        (let ((has-reset-after (tintin-has-reset-after? line match-end-pos)))
-                          ;; If reset follows, use reset; otherwise restore previous state
-                          (let ((ansi-close
-                                  (if has-reset-after
-                                    "\033[0m"
-                                    (let ((prev-state (tintin-find-active-ansi-before line match-pos)))
-                                      (if (string=? prev-state "")
-                                        "\033[0m"
-                                        prev-state)))))
-                            (string-replace matched-text
-                              (concat ansi-open matched-text ansi-close)
-                              line))))))
+                        ;; Check what comes immediately after the match
+                        (let ((after-type (tintin-check-after-match line match-end-pos)))
+                          (let ((prev-state (tintin-find-active-ansi-before line match-pos)))
+                            (let ((ansi-close
+                                    (cond
+                                      ;; Reset follows: use reset to close cleanly
+                                      ((eq? after-type 'reset) "\033[0m")
+                                      ;; Another ANSI code follows: restore previous state if any, else reset
+                                      ;; This preserves outer highlights when nested
+                                      ((eq? after-type 'ansi)
+                                        (if (string=? prev-state "")
+                                          "\033[0m"
+                                          prev-state))
+                                      ;; Regular text follows: restore previous state or reset
+                                      (#t (if (string=? prev-state "")
+                                            "\033[0m"
+                                            prev-state)))))
+                              (string-replace matched-text
+                                (concat ansi-open matched-text ansi-close)
+                                line)))))))
                   line)))))))))
 
 ;; Apply highlights to a single line
