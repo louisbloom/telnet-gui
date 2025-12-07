@@ -418,10 +418,10 @@ int main(int argc, char **argv) {
     }
 
     /* Estimate initial window size based on terminal geometry and font size */
-    /* Cell dimensions roughly scale with font size: Monaco/Plex at 16pt ≈ 10x18 pixels */
-    /* Use ratio: cell_width ≈ font_size * 0.625, cell_height ≈ font_size * 1.125 */
-    int estimated_cell_w = (int)(font_size * 0.625);
-    int estimated_cell_h = (int)(font_size * 1.125);
+    /* DejaVu Sans Mono metrics: width ≈ 0.63 * font_size, height ≈ 1.18 * font_size */
+    /* At 17pt: approximately 11x20 pixels per cell */
+    int estimated_cell_w = (int)(font_size * 0.63);
+    int estimated_cell_h = (int)(font_size * 1.18);
     int estimated_titlebar_h = 30;                 /* Titlebar height */
     int estimated_resize_bar_h = 8;                /* Resize bar height */
     int estimated_input_area_h = estimated_cell_h; /* Input area is one cell height */
@@ -605,56 +605,18 @@ int main(int argc, char **argv) {
     int cell_w, cell_h;
     glyph_cache_get_cell_size(glyph_cache, &cell_w, &cell_h);
 
-    /* Calculate minimum window size for terminal geometry */
-    int min_width = terminal_cols * cell_w;
-    /* Minimum height for terminal rows: available_height = terminal_rows * cell_h, so window_height = terminal_rows *
-     * cell_h + titlebar_h + input_area_height + resize_bar_height */
-    /* Input area is one cell height */
+    /* Calculate exact window size for terminal geometry using actual glyph metrics */
     int input_area_height_local = cell_h;
     int resize_bar_height_local = window_get_resize_bar_height();
-    int min_height = terminal_rows * cell_h + titlebar_h + input_area_height_local +
-                     resize_bar_height_local; /* terminal rows + titlebar + input area + resize bar */
 
-    /* Get current window size */
-    int current_width, current_height;
-    window_get_size(win, &current_width, &current_height);
+    /* Precise window dimensions: cols * cell_w, rows * cell_h + UI elements */
+    int precise_width = terminal_cols * cell_w;
+    int precise_height = terminal_rows * cell_h + titlebar_h + input_area_height_local + resize_bar_height_local;
 
-    /* Resize window if current size is too small */
-    /* For width: ensure at least 80 columns */
-    int new_width = current_width;
-    if (current_width < min_width) {
-        new_width = min_width;
-    }
-    /* For height: snap to nearest full row */
-    int new_height = current_height;
-    if (current_height < min_height) {
-        /* If too small, use minimum (40 rows) */
-        new_height = min_height;
-    } else {
-        /* Calculate available height for terminal area */
-        int available_height = current_height - titlebar_h - input_area_height_local - resize_bar_height_local;
-        /* Calculate number of rows that fit */
-        int rows = available_height / cell_h;
-        /* Calculate remainder to determine if we should round up or down */
-        int remainder = available_height % cell_h;
-        /* Round to nearest row (round up if remainder >= cell_h/2) */
-        if (remainder >= cell_h / 2) {
-            rows++;
-        }
-        /* Ensure at least terminal_rows */
-        if (rows < terminal_rows) {
-            rows = terminal_rows;
-        }
-        /* Calculate new height based on snapped row count */
-        new_height = rows * cell_h + titlebar_h + input_area_height_local + resize_bar_height_local;
-    }
-
-    /* Resize window if needed */
-    if (new_width != current_width || new_height != current_height) {
-        SDL_Window *sdl_window = window_get_sdl_window(win);
-        SDL_SetWindowSize(sdl_window, new_width, new_height);
-        window_update_button_positions(win);
-    }
+    /* Set window to exact size immediately (before first render) */
+    SDL_Window *sdl_window = window_get_sdl_window(win);
+    SDL_SetWindowSize(sdl_window, precise_width, precise_height);
+    window_update_button_positions(win);
 
     /* Create renderer */
     Renderer *rend = renderer_create(renderer, glyph_cache, cell_w, cell_h, titlebar_h);

@@ -76,7 +76,7 @@ Window *window_create(const char *title, int width, int height) {
     /* Set SDL hints BEFORE creating renderer for proper effect */
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1"); /* Linear scaling for smooth text */
 
-    w->window = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height,
+    w->window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height,
                                  SDL_WINDOW_BORDERLESS | SDL_WINDOW_RESIZABLE);
     if (!w->window) {
         free(w);
