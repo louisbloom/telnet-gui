@@ -1062,6 +1062,233 @@
 ;; TEST: Pattern Matching
 ;; ============================================================================
 
+;; ============================================================================
+;; TEST: #action and #unaction commands
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING #ACTION AND #UNACTION COMMANDS")
+(print "====================================================================")
+
+;; Clear actions before testing
+(hash-clear! *tintin-actions*)
+
+;; ============================================================================
+;; TEST: Action creation with #action
+;; ============================================================================
+
+(print "Test: Create basic action...")
+(define result-action1 (tintin-process-command "#action {You hit %1 for %2 damage} {say %1 took %2!}"))
+(assert-equal result-action1 "" "Should return empty string")
+(define action1-data (hash-ref *tintin-actions* "You hit %1 for %2 damage"))
+(assert-true (list? action1-data) "Action should be stored")
+(assert-equal (car action1-data) "say %1 took %2!" "Should store commands")
+(assert-equal (car (cdr action1-data)) 5 "Should have default priority 5")
+
+(print "Test: Create action with explicit priority...")
+(tintin-process-command "#action {%1 appears} {kill %1} {3}")
+(define action2-data (hash-ref *tintin-actions* "%1 appears"))
+(assert-equal (car action2-data) "kill %1" "Should store commands")
+(assert-equal (car (cdr action2-data)) 3 "Should have priority 3")
+
+(print "Test: Create action without captures...")
+(tintin-process-command "#action {Ready to attack!} {say charge!}")
+(define action3-data (hash-ref *tintin-actions* "Ready to attack!"))
+(assert-equal (car action3-data) "say charge!" "Should store simple commands")
+
+;; ============================================================================
+;; TEST: Action listing with #action (no arguments)
+;; ============================================================================
+
+(print "Test: List all actions...")
+(define result-list (tintin-process-command "#action"))
+(assert-equal result-list "" "Should return empty string")
+;; Should echo list of 3 actions to terminal
+
+(print "Test: Show specific action...")
+(define result-show (tintin-process-command "#action {%1 appears}"))
+(assert-equal result-show "" "Should return empty string")
+;; Should echo action details to terminal
+
+;; ============================================================================
+;; TEST: Capture extraction
+;; ============================================================================
+
+(print "Test: Extract captures from pattern match...")
+(define captures1 (tintin-extract-captures "You hit %1 for %2 damage" "You hit orc for 15 damage"))
+(assert-equal (list-length captures1) 2 "Should extract 2 captures")
+(assert-equal (list-ref captures1 0) "orc" "First capture should be 'orc'")
+(assert-equal (list-ref captures1 1) "15" "Second capture should be '15'")
+
+(print "Test: Extract single capture...")
+(define captures2 (tintin-extract-captures "%1 appears" "An orc appears"))
+(assert-equal (list-length captures2) 1 "Should extract 1 capture")
+(assert-equal (list-ref captures2 0) "An orc" "Capture should be 'An orc'")
+
+(print "Test: Extract no captures (literal pattern)...")
+(define captures3 (tintin-extract-captures "Ready to attack!" "Ready to attack!"))
+(assert-equal (list-length captures3) 0 "Should extract no captures")
+
+;; ============================================================================
+;; TEST: Capture substitution
+;; ============================================================================
+
+(print "Test: Substitute captures in template...")
+(define subst1 (tintin-substitute-captures "say %1 took %2!" (list "orc" "15")))
+(assert-equal subst1 "say orc took 15!" "Should substitute both captures")
+
+(print "Test: Substitute single capture...")
+(define subst2 (tintin-substitute-captures "kill %1" (list "goblin")))
+(assert-equal subst2 "kill goblin" "Should substitute single capture")
+
+(print "Test: Substitute with no captures...")
+(define subst3 (tintin-substitute-captures "say charge!" (list)))
+(assert-equal subst3 "say charge!" "Should return template unchanged")
+
+(print "Test: Unused placeholders remain literal...")
+(define subst4 (tintin-substitute-captures "say %1 and %2 and %3" (list "one" "two")))
+(assert-equal subst4 "say one and two and %3" "Unused %3 should remain")
+
+;; ============================================================================
+;; TEST: Priority sorting
+;; ============================================================================
+
+(print "Test: Sort actions by priority (ascending)...")
+(hash-clear! *tintin-actions*)
+(hash-set! *tintin-actions* "pattern1" (list "cmd1" 5))
+(hash-set! *tintin-actions* "pattern2" (list "cmd2" 1))
+(hash-set! *tintin-actions* "pattern3" (list "cmd3" 9))
+(hash-set! *tintin-actions* "pattern4" (list "cmd4" 3))
+(define sorted-actions (tintin-sort-actions-by-priority (hash-entries *tintin-actions*)))
+(assert-equal (list-length sorted-actions) 4 "Should have 4 actions")
+;; Check sorted order: priorities should be 1, 3, 5, 9
+(assert-equal (car (cdr (cdr (list-ref sorted-actions 0)))) 1 "First should be priority 1")
+(assert-equal (car (cdr (cdr (list-ref sorted-actions 1)))) 3 "Second should be priority 3")
+(assert-equal (car (cdr (cdr (list-ref sorted-actions 2)))) 5 "Third should be priority 5")
+(assert-equal (car (cdr (cdr (list-ref sorted-actions 3)))) 9 "Fourth should be priority 9")
+
+(print "Test: Pattern length tiebreaker for same priority...")
+(hash-clear! *tintin-actions*)
+(hash-set! *tintin-actions* "short" (list "cmd1" 5))
+(hash-set! *tintin-actions* "much longer pattern" (list "cmd2" 5))
+(define sorted-same-pri (tintin-sort-actions-by-priority (hash-entries *tintin-actions*)))
+;; Longer pattern should come first for same priority
+(assert-equal (car (list-ref sorted-same-pri 0)) "much longer pattern" "Longer pattern first")
+(assert-equal (car (list-ref sorted-same-pri 1)) "short" "Shorter pattern second")
+
+;; ============================================================================
+;; TEST: Pattern matching for actions
+;; ============================================================================
+
+(print "Test: Match pattern with captures...")
+(define match1 (tintin-match-highlight-pattern "You hit %1 for %2 damage" "You hit orc for 15 damage"))
+(assert-true match1 "Should match pattern with captures")
+
+(print "Test: Match literal pattern...")
+(define match2 (tintin-match-highlight-pattern "Ready to attack!" "Ready to attack!"))
+(assert-true match2 "Should match literal pattern")
+
+(print "Test: No match...")
+(define match3 (tintin-match-highlight-pattern "You hit %1" "You miss!"))
+(assert-false match3 "Should not match different text")
+
+;; ============================================================================
+;; TEST: Action execution (manual trigger)
+;; ============================================================================
+
+(print "Test: Circular execution flag prevents recursion...")
+(assert-false *tintin-action-executing* "Flag should start as false")
+(set! *tintin-action-executing* #t)
+;; Try to execute action while flag is set
+(tintin-execute-action "say test")
+;; Should print warning and skip execution
+(set! *tintin-action-executing* #f)
+(assert-false *tintin-action-executing* "Flag should be reset")
+
+;; ============================================================================
+;; TEST: Variable expansion in actions
+;; ============================================================================
+
+(print "Test: Variable expansion in action commands...")
+(hash-clear! *tintin-variables*)
+(hash-set! *tintin-variables* "target" "orc")
+(hash-set! *tintin-variables* "weapon" "sword")
+(define expanded1 (tintin-expand-variables-fast "kill $target with $weapon"))
+(assert-equal expanded1 "kill orc with sword" "Should expand variables")
+
+(print "Test: Variable expansion with captures...")
+(define template-with-var "kill $target")
+(define expanded-with-cap (tintin-substitute-captures template-with-var (list)))
+(define final-expanded (tintin-expand-variables-fast expanded-with-cap))
+(assert-equal final-expanded "kill orc" "Should expand variable after substitution")
+
+;; ============================================================================
+;; TEST: Action removal with #unaction
+;; ============================================================================
+
+(print "Test: Remove action with #unaction...")
+(hash-clear! *tintin-actions*)
+(tintin-process-command "#action {test pattern} {say test}")
+(assert-true (hash-ref *tintin-actions* "test pattern") "Action should exist")
+(define result-unaction (tintin-process-command "#unaction {test pattern}"))
+(assert-equal result-unaction "" "Should return empty string")
+(assert-false (hash-ref *tintin-actions* "test pattern") "Action should be removed")
+
+(print "Test: Unaction on non-existent pattern...")
+(define result-unaction-missing (tintin-process-command "#unaction {nonexistent}"))
+(assert-equal result-unaction-missing "" "Should return empty string")
+;; Should echo "not found" message
+
+;; ============================================================================
+;; TEST: #action with no arguments (empty hash)
+;; ============================================================================
+
+(print "Test: #action with no arguments when no actions defined...")
+(hash-clear! *tintin-actions*)
+(define result-noaction (tintin-process-command "#action"))
+(assert-equal result-noaction "" "Should return empty string")
+;; Should echo "No actions defined.\r\n"
+
+;; ============================================================================
+;; TEST: Multiple actions on same line
+;; ============================================================================
+
+(print "Test: Multiple actions can match same line...")
+(hash-clear! *tintin-actions*)
+(hash-set! *tintin-actions* "damage" (list "say ouch" 1))
+(hash-set! *tintin-actions* "%1 damage" (list "log damage" 5))
+(define test-line "15 damage")
+(define matches-damage (tintin-match-highlight-pattern "damage" test-line))
+(define matches-capture (tintin-match-highlight-pattern "%1 damage" test-line))
+(assert-true matches-damage "First pattern should match")
+(assert-true matches-capture "Second pattern should match")
+;; Both actions would trigger in priority order (1 then 5)
+
+;; ============================================================================
+;; TEST: Edge cases
+;; ============================================================================
+
+(print "Test: Action with empty commands...")
+(tintin-process-command "#action {empty} {}")
+(define empty-action (hash-ref *tintin-actions* "empty"))
+(assert-equal (car empty-action) "" "Should store empty commands")
+
+(print "Test: Action with complex pattern...")
+(tintin-process-command "#action {^Health: %1/%2} {echo HP: %1 of %2}")
+(define complex-action (hash-ref *tintin-actions* "^Health: %1/%2"))
+(assert-true (list? complex-action) "Should store complex pattern")
+
+(print "Test: Extract captures with anchored pattern...")
+(define cap-anchored (tintin-extract-captures "^Health: %1/%2" "Health: 50/100"))
+(assert-equal (list-length cap-anchored) 2 "Should extract 2 captures")
+(assert-equal (list-ref cap-anchored 0) "50" "First capture")
+(assert-equal (list-ref cap-anchored 1) "100" "Second capture")
+
+(print "")
+(print "====================================================================")
+(print "ALL ACTION TESTS PASSED!")
+(print "====================================================================")
 
 ;; Clean up temporary test file
 (delete-file "tintin-load-test.lisp")
