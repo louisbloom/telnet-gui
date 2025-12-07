@@ -310,6 +310,7 @@ String comparisons follow Scheme R7RS naming with `?` suffix:
 ### String Predicates
 
 - `string-contains?` - Check if string contains substring
+- `string-index` - Find first occurrence of substring, returns character index or nil
 - `string-match?` - Match string against wildcard pattern
 - `string-prefix?` - Check if one string is a prefix of another
 
@@ -612,6 +613,7 @@ The condition system provides Emacs Lisp-style error handling with typed errors,
 - `write-line` - Write a line to file stream
 - `read-sexp` - Read S-expressions from file (filename or file stream) - returns single expression or list of expressions
 - `read-json` - Read JSON from file (filename or file stream) - returns Lisp data structures (objects → hash tables, arrays → vectors, etc.)
+- `delete-file` - Delete a file from the filesystem (filename) - returns nil on success, error if file doesn't exist or cannot be deleted
 - `load` - Load and evaluate a Lisp file (filename) - returns the result of the last expression evaluated, or an error if loading fails
 
 ### Path Expansion Functions
@@ -1187,6 +1189,8 @@ Convert to tail recursion by:
 (string=? "hello" "hello")           ; => 1
 (string<? "abc" "def")               ; => 1
 (string-contains? "hello world" "world") ; => 1
+(string-index "hello world" "world") ; => 6
+(string-index "hello world" "xyz")   ; => nil
 (string-match? "hello" "h*o")        ; => 1
 (string-prefix? "hel" "hello")       ; => 1
 (string-prefix? "lis" "lisp")        ; => 1
@@ -1521,6 +1525,9 @@ message_count                        ; => 2
 ; Load and evaluate a Lisp file
 (load "config.lisp")                 ; => result of last expression in file
 (load "my-script.lisp")              ; => loads and executes all expressions
+
+; Delete a file
+(delete-file "temp.txt")             ; => nil (success) or error if file doesn't exist
 ```
 
 ### Vector Operations

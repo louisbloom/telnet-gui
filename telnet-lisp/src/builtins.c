@@ -29,6 +29,7 @@ static LispObject *builtin_string_gt(LispObject *args, Environment *env);
 static LispObject *builtin_string_lte(LispObject *args, Environment *env);
 static LispObject *builtin_string_gte(LispObject *args, Environment *env);
 static LispObject *builtin_string_contains(LispObject *args, Environment *env);
+static LispObject *builtin_string_index(LispObject *args, Environment *env);
 static LispObject *builtin_string_match(LispObject *args, Environment *env);
 static LispObject *builtin_string_length(LispObject *args, Environment *env);
 static LispObject *builtin_substring(LispObject *args, Environment *env);
@@ -89,6 +90,7 @@ static LispObject *builtin_read_line(LispObject *args, Environment *env);
 static LispObject *builtin_write_line(LispObject *args, Environment *env);
 static LispObject *builtin_read_sexp(LispObject *args, Environment *env);
 static LispObject *builtin_read_json(LispObject *args, Environment *env);
+static LispObject *builtin_delete_file(LispObject *args, Environment *env);
 static LispObject *builtin_load(LispObject *args, Environment *env);
 
 /* Common Lisp printing operations */
@@ -170,6 +172,7 @@ void register_builtins(Environment *env) {
     env_define(env, "string<=?", lisp_make_builtin(builtin_string_lte, "string<=?"));
     env_define(env, "string>=?", lisp_make_builtin(builtin_string_gte, "string>=?"));
     env_define(env, "string-contains?", lisp_make_builtin(builtin_string_contains, "string-contains?"));
+    env_define(env, "string-index", lisp_make_builtin(builtin_string_index, "string-index"));
     env_define(env, "string-match?", lisp_make_builtin(builtin_string_match, "string-match?"));
     env_define(env, "string-length", lisp_make_builtin(builtin_string_length, "string-length"));
     env_define(env, "substring", lisp_make_builtin(builtin_substring, "substring"));
@@ -224,6 +227,7 @@ void register_builtins(Environment *env) {
     env_define(env, "write-line", lisp_make_builtin(builtin_write_line, "write-line"));
     env_define(env, "read-sexp", lisp_make_builtin(builtin_read_sexp, "read-sexp"));
     env_define(env, "read-json", lisp_make_builtin(builtin_read_json, "read-json"));
+    env_define(env, "delete-file", lisp_make_builtin(builtin_delete_file, "delete-file"));
     env_define(env, "load", lisp_make_builtin(builtin_load, "load"));
 
     /* Path expansion functions */
@@ -1096,6 +1100,39 @@ static LispObject *builtin_string_contains(LispObject *args, Environment *env) {
     }
 
     return (strstr(haystack->value.string, needle->value.string) != NULL) ? lisp_make_number(1) : NIL;
+}
+
+static LispObject *builtin_string_index(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("string-index requires 2 arguments");
+    }
+
+    LispObject *haystack = lisp_car(args);
+    LispObject *needle = lisp_car(lisp_cdr(args));
+
+    if (haystack->type != LISP_STRING || needle->type != LISP_STRING) {
+        return lisp_make_error("string-index requires strings");
+    }
+
+    /* Find byte offset where needle occurs in haystack */
+    char *found = strstr(haystack->value.string, needle->value.string);
+    if (found == NULL) {
+        return NIL;
+    }
+
+    /* Count UTF-8 characters from start to found position */
+    int char_index = 0;
+    const char *ptr = haystack->value.string;
+    while (ptr < found) {
+        ptr = utf8_next_char(ptr);
+        if (ptr == NULL) {
+            break;
+        }
+        char_index++;
+    }
+
+    return lisp_make_integer(char_index);
 }
 
 static LispObject *builtin_string_match(LispObject *args, Environment *env) {
@@ -2430,6 +2467,31 @@ static LispObject *builtin_load(LispObject *args, Environment *env) {
 
     /* Return the last evaluated expression, or nil if file was empty */
     return result ? result : NIL;
+}
+
+/* Delete a file */
+static LispObject *builtin_delete_file(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("delete-file requires 1 argument");
+    }
+
+    LispObject *filename_obj = lisp_car(args);
+    if (filename_obj->type != LISP_STRING) {
+        return lisp_make_error("delete-file requires a string filename");
+    }
+
+    /* Attempt to delete the file */
+    if (remove(filename_obj->value.string) == 0) {
+        /* Success */
+        return NIL;
+    } else {
+        /* Failure - return error with errno message */
+        char error[512];
+        snprintf(error, sizeof(error), "delete-file: failed to delete '%s': %s", filename_obj->value.string,
+                 strerror(errno));
+        return lisp_make_error(error);
+    }
 }
 
 static LispObject *builtin_princ(LispObject *args, Environment *env) {
