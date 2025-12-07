@@ -1,8 +1,8 @@
-					; Regression test for cond/case with multiple expressions in clause body
-					; Bug: eval_cond and eval_case only evaluated first expression, ignoring rest
-					; Fixed: Changed to use eval_progn to evaluate all expressions (implicit progn)
+                                        ; Regression test for cond/case with multiple expressions in clause body
+                                        ; Bug: eval_cond and eval_case only evaluated first expression, ignoring rest
+                                        ; Fixed: Changed to use eval_progn to evaluate all expressions (implicit progn)
 
-					; Test 1: cond with multiple expressions (implicit progn)
+                                        ; Test 1: cond with multiple expressions (implicit progn)
 (define x 0)
 (define y 0)
 (cond
@@ -12,7 +12,7 @@
 x  ; => 10
 y  ; => 20
 
-					; Test 2: cond else clause with multiple expressions
+                                        ; Test 2: cond else clause with multiple expressions
 (define a 0)
 (define b 0)
 (cond
@@ -23,7 +23,7 @@ y  ; => 20
 a  ; => 30
 b  ; => 40
 
-					; Test 3: case with multiple expressions
+                                        ; Test 3: case with multiple expressions
 (define m 0)
 (define n 0)
 (case 5
@@ -35,7 +35,7 @@ b  ; => 40
 m  ; => 50
 n  ; => 60
 
-					; Test 4: case else clause with multiple expressions
+                                        ; Test 4: case else clause with multiple expressions
 (define p 0)
 (define q 0)
 (case 99
@@ -46,7 +46,7 @@ n  ; => 60
 p  ; => 70
 q  ; => 80
 
-					; Test 5: cond in do loop (original bug scenario)
+                                        ; Test 5: cond in do loop (original bug scenario)
 (define result "")
 (define counter 0)
 (do ()
@@ -58,7 +58,7 @@ q  ; => 80
 result   ; => "XXX"
 counter  ; => 3
 
-					; Test 6: cond with nested let and multiple set! (exact bug scenario)
+                                        ; Test 6: cond with nested let and multiple set! (exact bug scenario)
 (let ((a 0)
        (b "")
        (limit 3))
@@ -69,20 +69,20 @@ counter  ; => 3
         (#t
           (set! b (concat b ch))
           (set! a (+ a 1)))))))
-					; => "YYY"
+                                        ; => "YYY"
 
-					; Test 7: case returns value of last expression
+                                        ; Test 7: case returns value of last expression
 (case 1
   ((1)
     (define temp1 100)
     (define temp2 200)
     (+ temp1 temp2)))
-					; => 300
+                                        ; => 300
 
-					; Test 8: cond returns value of last expression
+                                        ; Test 8: cond returns value of last expression
 (cond
   (#t
     (define temp3 111)
     (define temp4 222)
     (+ temp3 temp4)))
-					; => 333
+                                        ; => 333

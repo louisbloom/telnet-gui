@@ -532,13 +532,12 @@
               line
               ;; Use regex-replace to wrap first match
               ;; Replace pattern with: ANSI_OPEN + matched_text + ANSI_RESET
-              (let ((match-result (regex-match regex-pattern line)))
-                (if match-result
-                  ;; Get the matched text and replace it
-                  (let ((matched-text (list-ref match-result 0)))
-                    (string-replace matched-text
-                      (concat ansi-open matched-text ansi-reset)
-                      line))
+              (let ((matched-text (regex-find regex-pattern line)))
+                (if matched-text
+                  ;; Replace the matched text with highlighted version
+                  (string-replace matched-text
+                    (concat ansi-open matched-text ansi-reset)
+                    line)
                   line)))))))))
 
 ;; Apply highlights to a single line
