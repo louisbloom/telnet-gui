@@ -499,7 +499,7 @@ def format_log_entry(entry, parser):
     """Format a parsed log entry as HTML."""
     if entry["type"] == "session":
         css_class = "session-start" if "started" in entry["text"] else "session-end"
-        return f'<div class="{css_class}">{escape(entry["text"])}</div>\n'
+        return f'<div class="{css_class}">{escape(entry["text"])}</div>'
 
     if entry["type"] == "log":
         # Reset parser state for each line
@@ -527,12 +527,12 @@ def format_log_entry(entry, parser):
             direction_label = (
                 f'<span class="direction {direction_class}">[{direction}]</span> '
             )
-            return f'<div class="log-line">{direction_label}{data_html}</div>\n'
+            return f'<div class="log-line">{direction_label}{data_html}</div>'
         else:
-            return f'<div class="log-line">{data_html}</div>\n'
+            return f'<div class="log-line">{data_html}</div>'
 
     # Unknown format - just escape and display
-    return f'<div class="log-line">{escape(entry["text"])}</div>\n'
+    return f'<div class="log-line">{escape(entry["text"])}</div>'
 
 
 def convert_log_to_html(input_file, output_file):
