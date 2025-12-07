@@ -1522,12 +1522,22 @@ static LispObject *builtin_list_ref(LispObject *args, Environment *env) {
         return lisp_make_error("list-ref index must be non-negative");
     }
 
+    /* Traverse the list, checking type at each step */
     for (long long i = 0; i < index && lst != NIL && lst != NULL; i++) {
+        /* Type check before accessing cons fields */
+        if (lst->type != LISP_CONS) {
+            return lisp_make_error("list-ref: not a proper list");
+        }
         lst = lst->value.cons.cdr;
     }
 
     if (lst == NIL || lst == NULL) {
         return lisp_make_error("list-ref index out of bounds");
+    }
+
+    /* Final type check before accessing car */
+    if (lst->type != LISP_CONS) {
+        return lisp_make_error("list-ref: not a proper list");
     }
 
     return lst->value.cons.car;
