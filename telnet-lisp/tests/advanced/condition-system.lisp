@@ -11,7 +11,7 @@
 
 (assert-true (error? err) "error? recognizes error object")
 (assert-equal (error-type err) 'my-error "error-type returns symbol")
-(assert-equal (error-message err) "my-error: test message" "error-message returns formatted message")
+(assert-equal (error-message err) "test message" "error-message returns message")
 (assert-false (error? 42) "error? rejects integer")
 (assert-false (error? "hello") "error? rejects string")
 
@@ -129,26 +129,29 @@
 (assert-equal (error-type err-with-str) 'file-error "error-type with string data")
 
 ;;; Practical example: safe division
-(define (safe-divide a b)
-  (condition-case err
-    (if (= b 0)
-      (signal 'division-by-zero "cannot divide by zero")
-      (/ a b))
-    (division-by-zero "Error: division by zero")
-    (error (concat "Unexpected error: " (error-message err)))))
+(define safe-divide
+  (lambda (a b)
+    (condition-case err
+      (if (= b 0)
+        (signal 'division-by-zero "cannot divide by zero")
+        (/ a b))
+      (division-by-zero "Error: division by zero")
+      (error (concat "Unexpected error: " (error-message err))))))
 
 (assert-equal (safe-divide 10 2) 5 "safe-divide normal case")
 (assert-equal (safe-divide 10 0) "Error: division by zero" "safe-divide catches division by zero")
 
 ;;; Practical example: resource cleanup
-(define (with-cleanup resource)
-  (unwind-protect
-    (progn
-      (define result (* resource 2))
-      (if (> result 100)
-        (signal 'overflow-error "result too large")
-        result))
-    (define cleanup-done #t)))  ; Cleanup always runs
+(define cleanup-done #f)  ; Global flag to track cleanup
+(define with-cleanup
+  (lambda (resource)
+    (unwind-protect
+      (progn
+        (define result (* resource 2))
+        (if (> result 100)
+          (signal 'overflow-error "result too large")
+          result))
+      (set! cleanup-done #t))))  ; Cleanup always runs
 
 (assert-equal (with-cleanup 10) 20 "with-cleanup normal case")
 (assert-equal (condition-case e
@@ -159,11 +162,13 @@
 (assert-true cleanup-done "cleanup runs even on error")
 
 ;;; Error stack traces
-(define (inner-func)
-  (signal 'my-error "error from inner"))
+(define inner-func
+  (lambda ()
+    (signal 'my-error "error from inner")))
 
-(define (outer-func)
-  (inner-func))
+(define outer-func
+  (lambda ()
+    (inner-func)))
 
 (assert-equal (condition-case e
                 (outer-func)

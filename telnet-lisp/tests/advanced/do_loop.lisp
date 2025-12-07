@@ -73,12 +73,13 @@
 (assert-equal (sum-squares 5) 55 "sum of squares with do loop")
 
 ;; Early exit when square equals 25
+;; Note: i is incremented to 6 after found is set to #t (do loop semantics)
 (assert-equal (do ((i 1 (+ i 1))
                     (found #f))
                 ((or (> i 10) found) (if found i #f))
                 (if (= (* i i) 25)
                   (set! found #t)))
-  5
+  6
   "early exit with do loop")
 
 ;; Immediate return (no increment, just test)
