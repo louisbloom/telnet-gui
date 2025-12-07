@@ -359,15 +359,15 @@
 ;; Clear echo log
 (set! *terminal-echo-log* '())
 
-;; Malformed known command shows syntax error
+;; Query non-existent alias (unbraced argument is valid)
 (assert-equal (tintin-process-command "#alias missing") ""
-  "Malformed command should return empty string")
+  "Query command should return empty string")
 (assert-equal (list-length *terminal-echo-log*) 2
-  "Malformed command should echo 2 messages")
+  "Query command should echo 2 messages")
 (assert-true (string-prefix? "#alias missing" (list-ref *terminal-echo-log* 1))
   "First echo should be the command")
-(assert-true (string-prefix? "Syntax error" (list-ref *terminal-echo-log* 0))
-  "Second echo should be syntax error")
+(assert-true (string-prefix? "Alias 'missing' not found" (list-ref *terminal-echo-log* 0))
+  "Second echo should be not found message")
 
 ;; ============================================================================
 ;; Test 16: Case Insensitive Matching
@@ -1275,12 +1275,12 @@
 (assert-equal (car empty-action) "" "Should store empty commands")
 
 (print "Test: Action with complex pattern...")
-(tintin-process-command "#action {^Health: %1/%2} {echo HP: %1 of %2}")
-(define complex-action (hash-ref *tintin-actions* "^Health: %1/%2"))
+(tintin-process-command "#action {^Health: %1/%2 HP} {echo HP: %1 of %2}")
+(define complex-action (hash-ref *tintin-actions* "^Health: %1/%2 HP"))
 (assert-true (list? complex-action) "Should store complex pattern")
 
 (print "Test: Extract captures with anchored pattern...")
-(define cap-anchored (tintin-extract-captures "^Health: %1/%2" "Health: 50/100"))
+(define cap-anchored (tintin-extract-captures "^Health: %1/%2 HP" "Health: 50/100 HP"))
 (assert-equal (list-length cap-anchored) 2 "Should extract 2 captures")
 (assert-equal (list-ref cap-anchored 0) "50" "First capture")
 (assert-equal (list-ref cap-anchored 1) "100" "Second capture")
