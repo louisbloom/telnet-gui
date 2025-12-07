@@ -96,7 +96,9 @@ Example:
 **Font Options:**
 
 - `-f, --font-size SIZE` - Set font size in points (default: 16)
-- `-p, --plex` - Use IBM Plex Mono font instead of Monaco
+- `-F<letter>` - Select font (default: m for Cascadia Mono):
+  - `m` = Cascadia Mono, `i` = Inconsolata, `p` = IBM Plex Mono, `d` = DejaVu Sans Mono, `c` = Courier Prime
+- `--font <name>` - Select font by name (cascadia, inconsolata, plex, dejavu, courier)
 - `-H, --hinting MODE` - Font hinting mode: none (default), light, normal, mono
 - `-a, --antialiasing MODE` - Anti-aliasing mode: linear (default), nearest
 
@@ -116,11 +118,17 @@ Example:
 # Start in unconnected mode
 ./build/telnet-gui/telnet-gui.exe
 
-# Connect with larger font
+# Connect with larger font (uses default Cascadia Mono)
 ./build/telnet-gui/telnet-gui.exe -f 20 telnet-server 4449
 
+# Use Inconsolata font
+./build/telnet-gui/telnet-gui.exe -Fi telnet-server 4449
+
 # Use IBM Plex Mono font with custom geometry
-./build/telnet-gui/telnet-gui.exe -p -g 100x40 telnet-server 4449
+./build/telnet-gui/telnet-gui.exe -Fp -g 100x40 telnet-server 4449
+
+# Use DejaVu Sans Mono font with long form
+./build/telnet-gui/telnet-gui.exe --font dejavu telnet-server 4449
 
 # Load custom Lisp configuration (word completion is built-in via bootstrap.lisp)
 ./build/telnet-gui/telnet-gui.exe -l custom-config.lisp telnet-server 4449
@@ -128,6 +136,18 @@ Example:
 # Debug mode (exits after first render, capture initialization output)
 ./build/telnet-gui/telnet-gui.exe --debug-exit 2>&1
 ```
+
+### Bundled Fonts
+
+The application includes five monospace fonts optimized for terminal use:
+
+- **Cascadia Mono** (default) - Microsoft's programming font designed specifically for terminal applications. Clean rendering without ligatures. [SIL OFL 1.1]
+- **Inconsolata** - Previous default. Compact monospace font with excellent readability. [SIL OFL 1.1]
+- **IBM Plex Mono** - IBM's corporate font family, part of the Plex typeface system. [SIL OFL 1.1]
+- **DejaVu Sans Mono** - Bitstream Vera derivative with excellent Unicode coverage. [Bitstream Vera License]
+- **Courier Prime** - Modern interpretation of Courier, designed for screenwriting. [SIL OFL 1.1]
+
+All bundled fonts are licensed under permissive open-source licenses that allow redistribution.
 
 ## Built-in Features
 

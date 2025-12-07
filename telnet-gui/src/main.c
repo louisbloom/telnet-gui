@@ -213,9 +213,11 @@ static void print_help(const char *program_name) {
     printf("\n");
     printf("  Font Options:\n");
     printf("    -f, --font-size SIZE   Set font size in points (default: 16)\n");
-    printf("    -p, --plex             Use IBM Plex Mono font instead of Inconsolata (default)\n");
-    printf("    -d, --dejavu           Use DejaVu Sans Mono font instead of Inconsolata (default)\n");
-    printf("    -c, --courier          Use Courier Prime font instead of Inconsolata (default)\n");
+    printf("    -F<letter>             Select font (default: m):\n");
+    printf("                             m = Cascadia Mono, i = Inconsolata, p = IBM Plex Mono,\n");
+    printf("                             d = DejaVu Sans Mono, c = Courier Prime\n");
+    printf("    --font <name>          Select font by name:\n");
+    printf("                             cascadia, inconsolata, plex, dejavu, courier\n");
     printf("    -H, --hinting MODE     Set font hinting mode (default: none)\n");
     printf("                            MODE can be: none, light, normal, mono\n");
     printf("    -a, --antialiasing MODE Set anti-aliasing mode (default: linear)\n");
@@ -247,12 +249,12 @@ static void print_help(const char *program_name) {
     printf("      Connect to telnet-server on port 4449\n");
     printf("  %s -f 20 telnet-server 4449\n", program_name);
     printf("      Connect with 20pt font size\n");
-    printf("  %s -p telnet-server 4449\n", program_name);
+    printf("  %s -Fi telnet-server 4449\n", program_name);
+    printf("      Connect using Inconsolata font\n");
+    printf("  %s -Fp telnet-server 4449\n", program_name);
     printf("      Connect using IBM Plex Mono font\n");
-    printf("  %s -d telnet-server 4449\n", program_name);
-    printf("      Connect using DejaVu Sans Mono font\n");
-    printf("  %s -c telnet-server 4449\n", program_name);
-    printf("      Connect using Courier Prime font\n");
+    printf("  %s --font dejavu telnet-server 4449\n", program_name);
+    printf("      Connect using DejaVu Sans Mono font (long form)\n");
     printf("  %s -g 100x40 telnet-server 4449\n", program_name);
     printf("      Connect with 100x40 terminal size\n");
     printf("  %s -l completion.lisp telnet-server 4449\n", program_name);
@@ -272,13 +274,11 @@ int main(int argc, char **argv) {
     const char *lisp_files[16]; /* Support up to 16 -l flags */
     int lisp_file_count = 0;
     const char *test_file = NULL; /* Test file for headless mode */
-    int use_plex = 0;             /* Use IBM Plex Mono font */
-    int use_dejavu = 0;           /* Use DejaVu Sans Mono font */
-    int use_courier = 0;          /* Use Courier Prime font */
-    int font_size = 16;           /* Default font size */
-    int terminal_cols = 80;       /* Default terminal columns */
-    int terminal_rows = 40;       /* Default terminal rows */
-    int debug_exit = 0;           /* Exit after initialization for debug output */
+    char font_choice = 'm'; /* Font selection: m=Cascadia Mono (default), i=Inconsolata, p=Plex, d=DejaVu, c=Courier */
+    int font_size = 16;     /* Default font size */
+    int terminal_cols = 80; /* Default terminal columns */
+    int terminal_rows = 40; /* Default terminal rows */
+    int debug_exit = 0;     /* Exit after initialization for debug output */
 
     /* Parse command-line arguments */
     int arg_idx = 1;
@@ -329,12 +329,33 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Error: Invalid font size '%s'. Must be between 1 and 100\n", argv[arg_idx]);
                 return 1;
             }
-        } else if (strcmp(argv[arg_idx], "-p") == 0 || strcmp(argv[arg_idx], "--plex") == 0) {
-            use_plex = 1;
-        } else if (strcmp(argv[arg_idx], "-d") == 0 || strcmp(argv[arg_idx], "--dejavu") == 0) {
-            use_dejavu = 1;
-        } else if (strcmp(argv[arg_idx], "-c") == 0 || strcmp(argv[arg_idx], "--courier") == 0) {
-            use_courier = 1;
+        } else if (strncmp(argv[arg_idx], "-F", 2) == 0 && strlen(argv[arg_idx]) == 3) {
+            font_choice = argv[arg_idx][2];
+            if (font_choice != 'm' && font_choice != 'i' && font_choice != 'p' && font_choice != 'd' &&
+                font_choice != 'c') {
+                fprintf(stderr, "Error: Invalid font flag -F%c. Use: m, i, p, d, or c\n", font_choice);
+                return 1;
+            }
+        } else if (strcmp(argv[arg_idx], "--font") == 0) {
+            if (arg_idx + 1 >= argc) {
+                fprintf(stderr, "Error: --font requires a font name\n");
+                return 1;
+            }
+            arg_idx++;
+            if (strcmp(argv[arg_idx], "cascadia") == 0)
+                font_choice = 'm';
+            else if (strcmp(argv[arg_idx], "inconsolata") == 0)
+                font_choice = 'i';
+            else if (strcmp(argv[arg_idx], "plex") == 0)
+                font_choice = 'p';
+            else if (strcmp(argv[arg_idx], "dejavu") == 0)
+                font_choice = 'd';
+            else if (strcmp(argv[arg_idx], "courier") == 0)
+                font_choice = 'c';
+            else {
+                fprintf(stderr, "Error: Unknown font '%s'\n", argv[arg_idx]);
+                return 1;
+            }
         } else if (strcmp(argv[arg_idx], "-g") == 0 || strcmp(argv[arg_idx], "--geometry") == 0) {
             if (arg_idx + 1 >= argc) {
                 fprintf(stderr, "Error: --geometry requires a geometry string (COLSxROWS, e.g., 80x40)\n");
@@ -483,18 +504,30 @@ int main(int argc, char **argv) {
     /* Determine font filename based on user preference */
     const char *font_filename;
     const char *font_name;
-    if (use_plex) {
-        font_filename = "IBMPlexMono-Regular.ttf";
-        font_name = "IBM Plex Mono";
-    } else if (use_dejavu) {
-        font_filename = "DejaVuSansMono.ttf";
-        font_name = "DejaVu Sans Mono";
-    } else if (use_courier) {
-        font_filename = "CourierPrime-Regular.ttf";
-        font_name = "Courier Prime";
-    } else {
+    switch (font_choice) {
+    case 'm':
+        font_filename = "CascadiaMono-Regular.ttf";
+        font_name = "Cascadia Mono";
+        break;
+    case 'i':
         font_filename = "Inconsolata-Regular.ttf";
         font_name = "Inconsolata";
+        break;
+    case 'p':
+        font_filename = "IBMPlexMono-Regular.ttf";
+        font_name = "IBM Plex Mono";
+        break;
+    case 'd':
+        font_filename = "DejaVuSansMono.ttf";
+        font_name = "DejaVu Sans Mono";
+        break;
+    case 'c':
+        font_filename = "CourierPrime-Regular.ttf";
+        font_name = "Courier Prime";
+        break;
+    default:
+        fprintf(stderr, "Internal error: Invalid font_choice '%c'\n", font_choice);
+        return 1;
     }
 
     fprintf(stderr, "Font resolution: Using %s font (filename: %s)\n", font_name, font_filename);
