@@ -377,9 +377,9 @@
   (collect-words-from-text text))
 
 ;; ============================================================================
-;; TELNET INPUT FILTER CONFIGURATION
+;; TELNET INPUT FILTER HOOK CONFIGURATION
 ;; ============================================================================
-;; telnet-input-filter: Function called to transform telnet data before displaying in terminal
+;; telnet-input-filter-hook: Function called to transform telnet data before displaying in terminal
 ;;
 ;; Signature: (lambda (text) -> string)
 ;;   - text: Raw telnet data from server (with ANSI codes preserved)
@@ -395,47 +395,47 @@
 ;;   - Hook is called for every chunk of data received from telnet server
 ;;   - Can modify, filter, or replace text before it enters the terminal
 ;;   - Unlike telnet-input-hook, this hook TRANSFORMS the data flow
-;;   - telnet-input-filter and telnet-input-hook can both be used together
+;;   - telnet-input-filter-hook and telnet-input-hook can both be used together
 ;;
 ;; Examples:
 ;;
 ;; Pass-through (default - no transformation):
-;;   (define telnet-input-filter (lambda (text) text))
+;;   (define telnet-input-filter-hook (lambda (text) text))
 ;;
 ;; Remove all ANSI color codes (simple version):
-;;   (define telnet-input-filter
+;;   (define telnet-input-filter-hook
 ;;     (lambda (text)
 ;;       (string-replace-all text "\033[" "")))
 ;;
 ;; Filter out specific patterns:
-;;   (define telnet-input-filter
+;;   (define telnet-input-filter-hook
 ;;     (lambda (text)
 ;;       (if (string-contains? "PASSWORD" text)
 ;;           ""
 ;;           text)))
 ;;
 ;; Replace text patterns:
-;;   (define telnet-input-filter
+;;   (define telnet-input-filter-hook
 ;;     (lambda (text)
 ;;       (string-replace-all text "ERROR" "***ERROR***")))
 ;;
 ;; Add prefix to all output:
-;;   (define telnet-input-filter
+;;   (define telnet-input-filter-hook
 ;;     (lambda (text)
 ;;       (string-append "[SERVER] " text)))
 ;;
 ;; Convert to uppercase:
-;;   (define telnet-input-filter
+;;   (define telnet-input-filter-hook
 ;;     (lambda (text)
 ;;       (string-upcase text)))
 ;;
 ;; Conditional transformation:
-;;   (define telnet-input-filter
+;;   (define telnet-input-filter-hook
 ;;     (lambda (text)
 ;;       (if (string-prefix? ">" text)
 ;;           (string-append "PROMPT: " text)
 ;;           text)))
-(define telnet-input-filter (lambda (text) text))
+(define telnet-input-filter-hook (lambda (text) text))
 
 ;; ============================================================================
 ;; USER INPUT HOOK CONFIGURATION

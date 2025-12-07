@@ -531,6 +531,7 @@ The test suite covers:
 - Speedwalk expansion (including diagonal directions toggle)
 - Alias creation and expansion
 - Variable creation and expansion
+- Highlight pattern matching and colorization
 - Pattern matching
 - User input hook integration
 - Partial command matching
@@ -585,13 +586,23 @@ The implementation includes several optimizations for efficient command processi
 
 ### Integration with telnet-gui
 
-TinTin++ hooks into the `user-input-hook` function:
+TinTin++ hooks into multiple telnet-gui extension points:
+
+**User input processing** via `user-input-hook`:
 
 ```lisp
 (define user-input-hook tintin-user-input-hook)
 ```
 
 This intercepts all user input before it's sent to the telnet server. The hook returns `nil` to indicate it has handled echo and send operations.
+
+**Highlight colorization** via `telnet-input-filter-hook`:
+
+```lisp
+(define telnet-input-filter-hook tintin-telnet-input-filter)
+```
+
+This transforms incoming telnet data before display, applying ANSI color codes to matching patterns. The hook receives raw telnet data (with ANSI codes preserved) and returns transformed text.
 
 Word completion uses a separate hook (`telnet-input-hook`) and is not affected by TinTin++ processing.
 
@@ -622,16 +633,17 @@ TinTin++ uses the Emacs Lisp-style condition system for robust error handling:
 
 This is a minimal TinTin++ implementation focused on core scripting features. Not all TinTin++ commands are implemented. Currently supported:
 
-- `#alias` - Command aliases with pattern matching
+- `#alias` / `#unalias` - Command aliases with pattern matching
 - `#variable` - Variable storage and substitution
-- `#save` - Save state to file
+- `#highlight` / `#unhighlight` - Pattern-based text colorization with full TinTin++ color specs
+- `#save` - Save state to file (aliases, variables, highlights)
 - `#load` - Load state from file
-- Speedwalk notation
+- Speedwalk notation with optional diagonal directions
 - Command separation with semicolons
 
 ## Source Files
 
-- **tintin.lisp** - Full implementation (791 lines)
+- **tintin.lisp** - Full implementation (1849 lines)
 - **tintin-test.lisp** - Test suite (26 tests, 605 lines)
 - **TINTIN.md** - User documentation (this file)
 - **TINTIN_GRAMMAR.md** - Formal grammar specification

@@ -1204,9 +1204,10 @@ int main(int argc, char **argv) {
                         }
                         /* Call telnet-input-hook with received data (stripped of ANSI codes) */
                         lisp_x_call_telnet_input_hook(recv_buf, received);
-                        /* Call telnet-input-filter to transform data before displaying in terminal */
+                        /* Call telnet-input-filter-hook to transform data before displaying in terminal */
                         size_t filtered_len = 0;
-                        const char *filtered_data = lisp_x_call_telnet_input_filter(recv_buf, received, &filtered_len);
+                        const char *filtered_data =
+                            lisp_x_call_telnet_input_filter_hook(recv_buf, received, &filtered_len);
                         /* Feed filtered data to terminal */
                         terminal_feed_data(term, filtered_data, filtered_len);
 

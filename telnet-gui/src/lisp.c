@@ -497,13 +497,13 @@ int lisp_x_init(void) {
             fprintf(stderr, "Warning: Failed to initialize default user-input-hook\n");
         }
 
-        /* Initialize default telnet-input-filter */
+        /* Initialize default telnet-input-filter-hook */
         char default_telnet_filter_code[] = "(lambda (text) text)";
         LispObject *telnet_filter_expr = lisp_eval_string(default_telnet_filter_code, lisp_env);
         if (telnet_filter_expr && telnet_filter_expr->type != LISP_ERROR) {
-            env_define(lisp_env, "telnet-input-filter", telnet_filter_expr);
+            env_define(lisp_env, "telnet-input-filter-hook", telnet_filter_expr);
         } else {
-            fprintf(stderr, "Warning: Failed to initialize default telnet-input-filter\n");
+            fprintf(stderr, "Warning: Failed to initialize default telnet-input-filter-hook\n");
         }
 
         /* Initialize default scroll config variables if bootstrap failed */
@@ -1184,15 +1184,15 @@ const char *lisp_x_call_user_input_hook(const char *text, int cursor_pos) {
     return user_input_hook_buffer;
 }
 
-const char *lisp_x_call_telnet_input_filter(const char *text, size_t len, size_t *out_len) {
+const char *lisp_x_call_telnet_input_filter_hook(const char *text, size_t len, size_t *out_len) {
     if (!lisp_env || !text || len == 0 || !out_len) {
         if (out_len)
             *out_len = len;
         return text; /* Return original if no environment or text */
     }
 
-    /* Look up telnet-input-filter */
-    LispObject *hook = env_lookup(lisp_env, "telnet-input-filter");
+    /* Look up telnet-input-filter-hook */
+    LispObject *hook = env_lookup(lisp_env, "telnet-input-filter-hook");
     if (!hook || (hook->type != LISP_LAMBDA && hook->type != LISP_BUILTIN)) {
         *out_len = len;
         return text; /* Hook not found - return original */
@@ -1219,7 +1219,7 @@ const char *lisp_x_call_telnet_input_filter(const char *text, size_t len, size_t
     /* Create argument list */
     LispObject *args = lisp_make_cons(arg, NIL);
 
-    /* Create function call: (telnet-input-filter "text") */
+    /* Create function call: (telnet-input-filter-hook "text") */
     LispObject *call_expr = lisp_make_cons(hook, args);
 
     /* Evaluate the function call */
@@ -1229,7 +1229,7 @@ const char *lisp_x_call_telnet_input_filter(const char *text, size_t len, size_t
     if (!result || result->type == LISP_ERROR) {
         char *err_str = lisp_print(result);
         if (err_str) {
-            fprintf(stderr, "Error in telnet-input-filter: %s\n", err_str);
+            fprintf(stderr, "Error in telnet-input-filter-hook: %s\n", err_str);
         }
         *out_len = len;
         return text; /* Error - return original */
@@ -1237,7 +1237,7 @@ const char *lisp_x_call_telnet_input_filter(const char *text, size_t len, size_t
 
     /* Check if result is a string */
     if (result->type != LISP_STRING) {
-        fprintf(stderr, "Warning: telnet-input-filter returned non-string, using original text\n");
+        fprintf(stderr, "Warning: telnet-input-filter-hook returned non-string, using original text\n");
         *out_len = len;
         return text; /* Not a string - return original */
     }

@@ -1829,7 +1829,7 @@
 
 (define user-input-hook tintin-user-input-hook)
 
-;; Hook function for telnet-input-filter integration
+;; Hook function for telnet-input-filter-hook integration
 ;; Signature: (lambda (text) -> string)
 ;; - text: Incoming telnet data (may contain ANSI codes)
 ;; Returns: Transformed text with highlights applied
@@ -1841,8 +1841,8 @@
     (tintin-apply-highlights text)
     text))
 
-;; Install telnet-input-filter hook
-(define telnet-input-filter tintin-telnet-input-filter)
+;; Install telnet-input-filter-hook
+(define telnet-input-filter-hook tintin-telnet-input-filter)
 
 ;; Announce activation (terminal is ready when this file loads via -l)
 (tintin-echo "TinTin++ loaded and activated\r\n")

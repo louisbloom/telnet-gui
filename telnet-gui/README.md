@@ -491,7 +491,7 @@ if (!vterm_check_version(0, 3)) {
 **Telnet Input (Server → Terminal):**
 
 1. Data arrives via telnet connection
-2. Lisp `telnet-input-filter` transforms data (optional)
+2. Lisp `telnet-input-filter-hook` transforms data (optional)
 3. `terminal_feed_data()` writes to `vterm_input_write()`
 4. libvterm parses ANSI escape sequences
 5. Screen callbacks are triggered (damage, movecursor, etc.)
@@ -518,7 +518,7 @@ if (!vterm_check_version(0, 3)) {
 
 - `completion-hook` - Called for TAB completion (default: word store lookup)
 - `telnet-input-hook` - Called on server output (default: collect words)
-- `telnet-input-filter` - Transform server output before display (default: pass-through)
+- `telnet-input-filter-hook` - Transform server output before display (default: pass-through)
 - `user-input-hook` - Transform user input before sending (default: pass-through)
 - `mode-render-hook` - Render custom mode display (default: emoji symbols)
 

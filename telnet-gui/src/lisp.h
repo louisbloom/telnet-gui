@@ -53,8 +53,8 @@ int lisp_x_get_input_history_size(void);
 /* Call telnet-input-hook with telnet data (stripped of ANSI codes) */
 void lisp_x_call_telnet_input_hook(const char *text, size_t len);
 
-/* Call telnet-input-filter with telnet data (with ANSI codes) before displaying in terminal (returns transformed text or original) */
-const char *lisp_x_call_telnet_input_filter(const char *text, size_t len, size_t *out_len);
+/* Call telnet-input-filter-hook with telnet data (with ANSI codes) before displaying in terminal (returns transformed text or original) */
+const char *lisp_x_call_telnet_input_filter_hook(const char *text, size_t len, size_t *out_len);
 
 /* Call user-input-hook with user input before sending to telnet (returns transformed text or original) */
 const char *lisp_x_call_user_input_hook(const char *text, int cursor_pos);
