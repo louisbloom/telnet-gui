@@ -788,7 +788,7 @@ int main(int argc, char **argv) {
                 int window_width, window_height;
                 window_get_size(win, &window_width, &window_height);
                 /* Check for resize area first (resize areas take priority over everything) */
-                int resize_mode = window_check_resize_area(win, mouse_x, mouse_y);
+                int resize_mode = window_check_resize_area(win, mouse_x, mouse_y, input_area_height);
                 if (resize_mode != RESIZE_NONE) {
                     window_start_resize(win, resize_mode, 0, 0); /* Coordinates fetched from SDL_GetGlobalMouseState */
                 } else {
@@ -1218,7 +1218,8 @@ int main(int argc, char **argv) {
                     /* Set cursor for resize areas (resize areas take priority over input area) */
                     int win_width, win_height;
                     window_get_size(win, &win_width, &win_height);
-                    ResizeMode resize_mode = window_check_resize_area(win, event.motion.x, event.motion.y);
+                    ResizeMode resize_mode =
+                        window_check_resize_area(win, event.motion.x, event.motion.y, input_area_height);
                     SDL_Cursor *new_cursor = cursor_arrow;
                     switch (resize_mode) {
                     case RESIZE_LEFT:

@@ -38,7 +38,8 @@ void window_get_size(Window *w, int *width, int *height);
 void window_update_button_positions(Window *w);
 
 /* Check if point is in resize area and return resize mode */
-ResizeMode window_check_resize_area(Window *w, int x, int y);
+/* input_area_height: height of input area to exclude terminal from edge resize */
+ResizeMode window_check_resize_area(Window *w, int x, int y, int input_area_height);
 
 /* Start resize operation */
 void window_start_resize(Window *w, ResizeMode resize_mode, int mouse_x, int mouse_y);

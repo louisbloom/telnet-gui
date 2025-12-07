@@ -146,7 +146,7 @@ void window_update_button_positions(Window *w) {
     w->minimize_button.x = width - (BUTTON_SIZE * 2) - button_right_padding - BUTTON_PADDING;
 }
 
-ResizeMode window_check_resize_area(Window *w, int x, int y) {
+ResizeMode window_check_resize_area(Window *w, int x, int y, int input_area_height) {
     if (!w)
         return RESIZE_NONE;
     int width, height;
@@ -165,8 +165,12 @@ ResizeMode window_check_resize_area(Window *w, int x, int y) {
         return RESIZE_BOTTOM;
     }
 
-    /* Left/Right edges - but not in the resize bar area at bottom */
-    if (y < height - RESIZE_BAR_HEIGHT) {
+    /* Left/Right edges - only in input area, not in terminal area */
+    /* Terminal area: from TITLEBAR_HEIGHT to (height - input_area_height - RESIZE_BAR_HEIGHT) */
+    /* Input area: from (height - input_area_height - RESIZE_BAR_HEIGHT) to (height - RESIZE_BAR_HEIGHT) */
+    int terminal_area_bottom = height - input_area_height - RESIZE_BAR_HEIGHT;
+    if (y >= terminal_area_bottom && y < height - RESIZE_BAR_HEIGHT) {
+        /* In input area - allow left/right edge resize */
         if (x < RESIZE_AREA_SIZE)
             return RESIZE_LEFT;
         if (x >= width - RESIZE_AREA_SIZE)
