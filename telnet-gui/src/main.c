@@ -1379,6 +1379,7 @@ int main(int argc, char **argv) {
                                        sel_start, sel_end);
             input_area_mark_drawn(&input_area);
             input_area_mode_mark_drawn(&input_area);
+            needs_render = 1; /* Input area rendered, need to present frame */
         }
 
         /* Present frame if anything was rendered */
