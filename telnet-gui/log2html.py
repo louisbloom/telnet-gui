@@ -547,14 +547,43 @@ def convert_log_to_html(input_file, output_file):
     # Create ANSI parser
     parser = ANSIParser()
 
-    # Parse and format each line
+    # Parse and format each line, tracking previous entry for prompt detection
     content_lines = []
+    prev_entry = None
+
     for line in lines:
         line = line.rstrip("\n\r")
         if not line:
             continue
         entry = parse_log_line(line)
-        content_lines.append(format_log_entry(entry, parser))
+
+        # Check if this is user input following a prompt
+        if (
+            prev_entry
+            and prev_entry.get("type") == "log"
+            and prev_entry.get("direction") == "RECV"
+            and entry.get("type") == "log"
+            and entry.get("direction") == "SEND"
+            and content_lines
+        ):
+            # Remove closing </div> from previous line and append this inline
+            if content_lines[-1].endswith("</div>"):
+                content_lines[-1] = content_lines[-1][:-6]  # Remove </div>
+
+                # Parse and add the SEND data inline
+                parser.reset_state()
+                unescaped_data = unescape_log_data(entry["data"])
+                unescaped_data = unescaped_data.rstrip("\r\n")
+
+                if unescaped_data:
+                    data_html = parser.parse_text(unescaped_data)
+                    content_lines[-1] += data_html + "</div>"
+            else:
+                content_lines.append(format_log_entry(entry, parser))
+        else:
+            content_lines.append(format_log_entry(entry, parser))
+
+        prev_entry = entry
 
     # Generate HTML
     content = "".join(content_lines)
