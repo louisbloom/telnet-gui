@@ -1345,11 +1345,6 @@ void lisp_x_get_terminal_bg_color(int *r, int *g, int *b) {
     get_color_from_lisp("*terminal-bg-color*", r, g, b, 0, 0, 0); /* Black */
 }
 
-/* Window chrome colors */
-void lisp_x_get_resize_bar_color(int *r, int *g, int *b) {
-    get_color_from_lisp("*resize-bar-color*", r, g, b, 30, 70, 50); /* Even darker greenish */
-}
-
 /* Register terminal pointer for terminal-echo builtin */
 void lisp_x_register_terminal(Terminal *term) {
     registered_terminal = term;

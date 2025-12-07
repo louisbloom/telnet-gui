@@ -11,8 +11,7 @@
 typedef struct Renderer Renderer;
 
 /* Create a new renderer */
-Renderer *renderer_create(SDL_Renderer *sdl_renderer, GlyphCache *glyph_cache, int cell_width, int cell_height,
-                          int titlebar_height);
+Renderer *renderer_create(SDL_Renderer *sdl_renderer, GlyphCache *glyph_cache, int cell_width, int cell_height);
 
 /* Render a frame - selection coordinates are viewport-relative with saved offsets and scrollback sizes */
 void renderer_render(Renderer *r, Terminal *term, const char *title, int selection_active, int sel_start_row,

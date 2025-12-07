@@ -9,11 +9,9 @@ struct Renderer {
     SDL_Renderer *sdl_renderer;
     GlyphCache *glyph_cache;
     int cell_w, cell_h;
-    int titlebar_h;
 };
 
-Renderer *renderer_create(SDL_Renderer *sdl_renderer, GlyphCache *glyph_cache, int cell_width, int cell_height,
-                          int titlebar_height) {
+Renderer *renderer_create(SDL_Renderer *sdl_renderer, GlyphCache *glyph_cache, int cell_width, int cell_height) {
     Renderer *r = (Renderer *)malloc(sizeof(Renderer));
     if (!r)
         return NULL;
@@ -22,7 +20,6 @@ Renderer *renderer_create(SDL_Renderer *sdl_renderer, GlyphCache *glyph_cache, i
     r->glyph_cache = glyph_cache;
     r->cell_w = cell_width;
     r->cell_h = cell_height;
-    r->titlebar_h = titlebar_height;
 
     return r;
 }
@@ -34,12 +31,11 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
         return;
     (void)title; /* unused for now */
 
-    /* Clear screen (but not titlebar area - it will be rendered separately) */
+    /* Clear screen */
     SDL_SetRenderDrawColor(r->sdl_renderer, 0, 0, 0, 255);
-    /* Clear only the terminal area, not the titlebar */
     int window_width, window_height;
     SDL_GetRendererOutputSize(r->sdl_renderer, &window_width, &window_height);
-    SDL_Rect terminal_area = {0, r->titlebar_h, window_width, window_height - r->titlebar_h};
+    SDL_Rect terminal_area = {0, 0, window_width, window_height};
     SDL_RenderFillRect(r->sdl_renderer, &terminal_area);
 
     VTerm *vterm = terminal_get_vterm(term);
@@ -125,12 +121,12 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
                 int sel_bg_r, sel_bg_g, sel_bg_b;
                 lisp_x_get_selection_bg_color(&sel_bg_r, &sel_bg_g, &sel_bg_b);
                 SDL_SetRenderDrawColor(r->sdl_renderer, sel_bg_r, sel_bg_g, sel_bg_b, 255);
-                SDL_Rect bg_rect = {col * r->cell_w, row * r->cell_h + r->titlebar_h, r->cell_w, r->cell_h};
+                SDL_Rect bg_rect = {col * r->cell_w, row * r->cell_h, r->cell_w, r->cell_h};
                 SDL_RenderFillRect(r->sdl_renderer, &bg_rect);
             } else if (!VTERM_COLOR_IS_DEFAULT_BG(&cell.bg) && VTERM_COLOR_IS_RGB(&bg_color_processed)) {
                 SDL_SetRenderDrawColor(r->sdl_renderer, bg_color_processed.rgb.red, bg_color_processed.rgb.green,
                                        bg_color_processed.rgb.blue, 255);
-                SDL_Rect bg_rect = {col * r->cell_w, row * r->cell_h + r->titlebar_h, r->cell_w, r->cell_h};
+                SDL_Rect bg_rect = {col * r->cell_w, row * r->cell_h, r->cell_w, r->cell_h};
                 SDL_RenderFillRect(r->sdl_renderer, &bg_rect);
             }
 
@@ -196,7 +192,7 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
 
                     /* Center glyph horizontally, align to baseline vertically */
                     int dst_x = col * r->cell_w + (r->cell_w - tex_w) / 2;
-                    int dst_y = row * r->cell_h + r->titlebar_h;
+                    int dst_y = row * r->cell_h;
                     SDL_Rect dst = {dst_x, dst_y, tex_w, tex_h};
 
                     SDL_RenderCopy(r->sdl_renderer, glyph, NULL, &dst);
@@ -222,7 +218,7 @@ void renderer_render_input_area(Renderer *r, Terminal *term, const char *text, i
         terminal_get_size(term, &rows, &cols);
         terminal_area_height = rows * r->cell_h;
     }
-    int input_area_y = r->titlebar_h + terminal_area_height;
+    int input_area_y = terminal_area_height;
 
     /* Get colors from Lisp config */
     int fg_r, fg_g, fg_b, bg_r, bg_g, bg_b;

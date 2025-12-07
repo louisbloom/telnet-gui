@@ -653,6 +653,3 @@
 
 ;; Separator line between terminal and input area
 (define *input-separator-color* '(100 100 100))  ; Gray separator line
-
-;; Window chrome colors (titlebar, resize bars)
-(define *resize-bar-color* '(30 70 50))   ; Even darker greenish color for titlebar and resize bars

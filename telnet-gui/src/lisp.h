@@ -72,9 +72,6 @@ void lisp_x_get_input_separator_color(int *r, int *g, int *b);
 void lisp_x_get_terminal_fg_color(int *r, int *g, int *b);
 void lisp_x_get_terminal_bg_color(int *r, int *g, int *b);
 
-/* Window chrome colors */
-void lisp_x_get_resize_bar_color(int *r, int *g, int *b);
-
 /* Forward declaration for Telnet type (defined in telnet.h) */
 struct Telnet;
 
