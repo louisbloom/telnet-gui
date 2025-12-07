@@ -26,6 +26,8 @@ set(FONT_DEJAVU_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/DejaVuSansMono.ttf
 set(FONT_DEJAVU_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/DejaVuSansMono.ttf")
 set(FONT_DEJAVU_BOLD_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/DejaVuSansMono-Bold.ttf")
 set(FONT_DEJAVU_BOLD_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/DejaVuSansMono-Bold.ttf")
+set(FONT_COURIER_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/CourierPrime-Regular.ttf")
+set(FONT_COURIER_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/CourierPrime-Regular.ttf")
 
 # Copy bootstrap Lisp file to build directory
 set(BOOTSTRAP_SRC "${CMAKE_CURRENT_SOURCE_DIR}/bootstrap.lisp")
@@ -57,6 +59,7 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_PLEX_SRC}" "${FONT_PLEX_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_DEJAVU_SRC}" "${FONT_DEJAVU_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_DEJAVU_BOLD_SRC}" "${FONT_DEJAVU_BOLD_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_COURIER_SRC}" "${FONT_COURIER_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${BOOTSTRAP_SRC}" "${BOOTSTRAP_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_SRC}" "${TINTIN_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_TEST_SRC}" "${TINTIN_TEST_DST}"
@@ -81,6 +84,10 @@ install(FILES "${FONT_DEJAVU_SRC}"
     COMPONENT Runtime
 )
 install(FILES "${FONT_DEJAVU_BOLD_SRC}"
+    DESTINATION "bin/assets/fonts"
+    COMPONENT Runtime
+)
+install(FILES "${FONT_COURIER_SRC}"
     DESTINATION "bin/assets/fonts"
     COMPONENT Runtime
 )
