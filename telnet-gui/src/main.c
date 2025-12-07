@@ -218,7 +218,7 @@ static void print_help(const char *program_name) {
     printf("\n");
     printf("  Font Options:\n");
     printf("    -f, --font-size SIZE   Set font size in points (default: 16)\n");
-    printf("    -p, --plex             Use IBM Plex Mono font instead of Monaco (default)\n");
+    printf("    -p, --plex             Use IBM Plex Mono font instead of DejaVu Sans Mono (default)\n");
     printf("    -H, --hinting MODE     Set font hinting mode (default: none)\n");
     printf("                            MODE can be: none, light, normal, mono\n");
     printf("    -a, --antialiasing MODE Set anti-aliasing mode (default: linear)\n");
@@ -271,7 +271,7 @@ int main(int argc, char **argv) {
     const char *lisp_files[16]; /* Support up to 16 -l flags */
     int lisp_file_count = 0;
     const char *test_file = NULL; /* Test file for headless mode */
-    int use_plex = 0;             /* Default to Monaco font */
+    int use_plex = 0;             /* Default to DejaVu Sans Mono font */
     int font_size = 16;           /* Default font size */
     int terminal_cols = 80;       /* Default terminal columns */
     int terminal_rows = 40;       /* Default terminal rows */
@@ -487,8 +487,8 @@ int main(int argc, char **argv) {
     int titlebar_h = window_get_titlebar_height();
 
     /* Determine font filename based on user preference */
-    const char *font_filename = use_plex ? "IBMPlexMono-Regular.ttf" : "Monaco-Regular.ttf";
-    const char *font_name = use_plex ? "IBM Plex Mono" : "Monaco";
+    const char *font_filename = use_plex ? "IBMPlexMono-Regular.ttf" : "DejaVuSansMono.ttf";
+    const char *font_name = use_plex ? "IBM Plex Mono" : "DejaVu Sans Mono";
 
     fprintf(stderr, "Font resolution: Using %s font (filename: %s)\n", font_name, font_filename);
 
