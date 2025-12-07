@@ -510,8 +510,56 @@
             ;; Regular character - continue
             (set! pos (+ pos 1))))))))
 
+;; ============================================================================
+;; ANSI STATE TRACKING (for nested/overlapping highlights)
+;; ============================================================================
+
+;; Extract the last complete ANSI escape sequence before a position
+;; This represents the "active formatting state" at that position
+;; Returns the ANSI sequence string or "" if none found
+(defun tintin-find-active-ansi-before (text pos)
+  (if (or (not (string? text)) (<= pos 0))
+    ""
+    (let ((scan-pos (- pos 1))
+           (last-ansi ""))
+      ;; Scan backwards looking for ANSI sequences
+      (do ()
+        ((< scan-pos 0) last-ansi)
+        (if (and (>= scan-pos 1)
+              (string=? (substring text scan-pos (+ scan-pos 1)) "\033")
+              (< (+ scan-pos 1) (string-length text))
+              (string=? (substring text (+ scan-pos 1) (+ scan-pos 2)) "["))
+          ;; Found ESC[ - extract the complete sequence
+          (let ((seq-end (+ scan-pos 2)))
+            ;; Find the 'm' terminator
+            (do ()
+              ((or (>= seq-end (string-length text))
+                 (string=? (substring text seq-end (+ seq-end 1)) "m")))
+              (set! seq-end (+ seq-end 1)))
+            ;; Check if we found a complete sequence
+            (if (and (< seq-end (string-length text))
+                  (string=? (substring text seq-end (+ seq-end 1)) "m"))
+              (progn
+                ;; Extract and save this sequence
+                (set! last-ansi (substring text scan-pos (+ seq-end 1)))
+                ;; Continue scanning backwards
+                (set! scan-pos (- scan-pos 1)))
+              (set! scan-pos (- scan-pos 1))))
+          ;; Not an ANSI sequence, continue backwards
+          (set! scan-pos (- scan-pos 1))))
+      last-ansi)))
+
+;; Find the position where matched text starts in the line
+;; Returns position or -1 if not found
+(defun tintin-find-match-position (line matched-text)
+  (if (or (not (string? line)) (not (string? matched-text)))
+    -1
+    (let ((pos (string-index line matched-text)))
+      (if pos pos -1))))
+
 ;; Wrap matched pattern in line with ANSI color codes
 ;; Returns line with highlight applied or original line if no match
+;; Now with ANSI state tracking: restores previous state instead of resetting
 (defun tintin-wrap-match (line pattern fg-color bg-color)
   (if (not (string? line))
     line
@@ -525,19 +573,27 @@
                (bg-ansi (if bg-color
                           (tintin-parse-color-component bg-color #t)
                           nil)))
-          ;; Build opening and closing ANSI sequences
-          (let ((ansi-open (tintin-build-ansi-code fg-ansi bg-ansi))
-                 (ansi-reset "\033[0m"))
+          ;; Build opening ANSI sequence
+          (let ((ansi-open (tintin-build-ansi-code fg-ansi bg-ansi)))
             (if (string=? ansi-open "")
               line
-              ;; Use regex-replace to wrap first match
-              ;; Replace pattern with: ANSI_OPEN + matched_text + ANSI_RESET
+              ;; Find the matched text
               (let ((matched-text (regex-find regex-pattern line)))
                 (if matched-text
-                  ;; Replace the matched text with highlighted version
-                  (string-replace matched-text
-                    (concat ansi-open matched-text ansi-reset)
-                    line)
+                  ;; Find where the match occurs in the line
+                  (let ((match-pos (tintin-find-match-position line matched-text)))
+                    (if (< match-pos 0)
+                      line
+                      ;; Extract active ANSI state before the match
+                      (let ((prev-state (tintin-find-active-ansi-before line match-pos)))
+                        ;; Replace with: ANSI_OPEN + text + PREV_STATE (restore, don't reset)
+                        ;; If no previous state, use reset
+                        (let ((ansi-close (if (string=? prev-state "")
+                                            "\033[0m"
+                                            prev-state)))
+                          (string-replace matched-text
+                            (concat ansi-open matched-text ansi-close)
+                            line)))))
                   line)))))))))
 
 ;; Apply highlights to a single line
