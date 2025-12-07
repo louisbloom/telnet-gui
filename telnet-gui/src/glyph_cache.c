@@ -177,10 +177,19 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
     /* Cache miss - render glyph with smooth anti-aliasing using Blended mode */
     /* TTF_RenderGlyph_Blended provides best quality with full alpha channel support */
 
+    /* Compute font style flags based on bold/italic parameters */
+    int style = TTF_STYLE_NORMAL;
+    if (bold)
+        style |= TTF_STYLE_BOLD;
+    if (italic)
+        style |= TTF_STYLE_ITALIC;
+
     /* Try emoji font first if this looks like an emoji codepoint */
     SDL_Surface *surface = NULL;
 
     if (is_emoji_codepoint(codepoint) && cache->emoji_font) {
+        /* Apply style to emoji font */
+        TTF_SetFontStyle(cache->emoji_font, style);
 
         /* Convert codepoint to UTF-8 for proper emoji rendering */
         char utf8[5];
@@ -188,10 +197,16 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
 
         /* Use UTF8 rendering for emoji (supports 32-bit codepoints) */
         surface = TTF_RenderUTF8_Blended(cache->emoji_font, utf8, fg_color);
+
+        /* Reset emoji font style */
+        TTF_SetFontStyle(cache->emoji_font, TTF_STYLE_NORMAL);
     }
 
     /* If emoji font failed or not an emoji, try main font with glyph rendering */
     if (!surface) {
+        /* Apply style to main font */
+        TTF_SetFontStyle(cache->font, style);
+
         /* For BMP characters (< 0x10000), use glyph rendering */
         if (codepoint < 0x10000) {
             surface = TTF_RenderGlyph_Blended(cache->font, (uint16_t)codepoint, fg_color);
@@ -201,6 +216,9 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
             utf8_put_codepoint(codepoint, utf8);
             surface = TTF_RenderUTF8_Blended(cache->font, utf8, fg_color);
         }
+
+        /* Reset main font style */
+        TTF_SetFontStyle(cache->font, TTF_STYLE_NORMAL);
     }
 
     if (!surface)
