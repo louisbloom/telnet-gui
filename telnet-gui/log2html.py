@@ -111,7 +111,7 @@ CSS_TEMPLATE = """
 body {
     background-color: #0d1117;
     color: #c9d1d9;
-    font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
+    font-family: 'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 17px;
     line-height: 1.3;
     padding: 20px;
@@ -202,6 +202,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{title}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
 {css}
     </style>
