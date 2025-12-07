@@ -149,3 +149,18 @@ helper_var  ; => 999
 
 ;; Verify variable was defined
 commented  ; => 42
+
+;; ============================================
+;; Cleanup: Delete all temporary test files
+;; ============================================
+
+(delete-file "load_test1.lisp")   ; ignore
+(delete-file "load_test2.lisp")   ; ignore
+(delete-file "load_test3.lisp")   ; ignore
+(delete-file "load_test4.lisp")   ; ignore
+(delete-file "load_test5.lisp")   ; ignore
+(delete-file "load_test6.lisp")   ; ignore
+(delete-file "load_test7.lisp")   ; ignore
+(delete-file "load_test10.lisp")  ; ignore
+(delete-file "helper.lisp")       ; ignore
+(delete-file "main.lisp")         ; ignore
