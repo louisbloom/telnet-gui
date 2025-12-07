@@ -60,6 +60,7 @@
 
 (define *tintin-aliases* (make-hash-table))
 (define *tintin-variables* (make-hash-table))
+(define *tintin-highlights* (make-hash-table))
 (define *tintin-speedwalk-enabled* #t)
 (define *tintin-speedwalk-diagonals* #f)
 (define *tintin-enabled* #t)
@@ -91,6 +92,505 @@
 ;; NOTE: string->number and reverse are now native built-in functions
 ;; ============================================================================
 
+
+;; ============================================================================
+;; HIGHLIGHT COLOR PARSING SYSTEM
+;; ============================================================================
+
+;; TinTin++ Color Name Mappings
+;; Standard ANSI colors (30-37 for FG, 40-47 for BG)
+(define *tintin-colors-fg*
+  '(("black" . "30") ("red" . "31") ("green" . "32") ("yellow" . "33")
+     ("blue" . "34") ("magenta" . "35") ("cyan" . "36") ("white" . "37")))
+
+(define *tintin-colors-bg*
+  '(("black" . "40") ("red" . "41") ("green" . "42") ("yellow" . "43")
+     ("blue" . "44") ("magenta" . "45") ("cyan" . "46") ("white" . "47")))
+
+;; Bright/light colors (90-97 for FG, 100-107 for BG)
+(define *tintin-colors-bright-fg*
+  '(("light black" . "90") ("light red" . "91") ("light green" . "92")
+     ("light yellow" . "93") ("light blue" . "94") ("light magenta" . "95")
+     ("light cyan" . "96") ("light white" . "97")))
+
+(define *tintin-colors-bright-bg*
+  '(("light black" . "100") ("light red" . "101") ("light green" . "102")
+     ("light yellow" . "103") ("light blue" . "104") ("light magenta" . "105")
+     ("light cyan" . "106") ("light white" . "107")))
+
+;; Tertiary colors (from TinTin++ docs) - map to RGB equivalents
+(define *tintin-tertiary-colors*
+  '(("azure" . "acf") ("ebony" . "000") ("jade" . "afc") ("lime" . "cfa")
+     ("orange" . "fc8") ("pink" . "fca") ("silver" . "ccc") ("tan" . "ca8")
+     ("violet" . "fac") ("white" . "fff")))
+
+;; Text attributes
+(define *tintin-attributes*
+  '(("reset" . "0") ("bold" . "1") ("dim" . "2") ("italic" . "3")
+     ("underscore" . "4") ("underline" . "4") ("blink" . "5")
+     ("reverse" . "7") ("strikethrough" . "9")))
+
+;; Helper: Convert hex character to decimal (0-15)
+(defun tintin-hex-to-dec (hex-char)
+  (let ((ch (string-downcase hex-char)))
+    (cond
+      ((string=? ch "0") 0) ((string=? ch "1") 1) ((string=? ch "2") 2)
+      ((string=? ch "3") 3) ((string=? ch "4") 4) ((string=? ch "5") 5)
+      ((string=? ch "6") 6) ((string=? ch "7") 7) ((string=? ch "8") 8)
+      ((string=? ch "9") 9) ((string=? ch "a") 10) ((string=? ch "b") 11)
+      ((string=? ch "c") 12) ((string=? ch "d") 13) ((string=? ch "e") 14)
+      ((string=? ch "f") 15)
+      (#t 0))))
+
+;; Helper: Expand 3-char RGB to full RGB values
+;; Example: "abc" → (170 187 204)
+(defun tintin-expand-rgb (rgb-str)
+  (let ((len (string-length rgb-str)))
+    (if (= len 3)
+      ;; 3-char: each char represents 0-255 in 16 steps (multiply by 17)
+      (list (* (tintin-hex-to-dec (substring rgb-str 0 1)) 17)
+        (* (tintin-hex-to-dec (substring rgb-str 1 2)) 17)
+        (* (tintin-hex-to-dec (substring rgb-str 2 3)) 17))
+      ;; 6-char: parse as two-digit hex pairs
+      (if (= len 6)
+        (list (+ (* (tintin-hex-to-dec (substring rgb-str 0 1)) 16)
+                (tintin-hex-to-dec (substring rgb-str 1 2)))
+          (+ (* (tintin-hex-to-dec (substring rgb-str 2 3)) 16)
+            (tintin-hex-to-dec (substring rgb-str 3 4)))
+          (+ (* (tintin-hex-to-dec (substring rgb-str 4 5)) 16)
+            (tintin-hex-to-dec (substring rgb-str 5 6))))
+        ;; Invalid length - return black
+        (list 0 0 0)))))
+
+;; Helper: Convert RGB values to ANSI 24-bit color code
+;; is-bg: #t for background (48;2), #f for foreground (38;2)
+(defun tintin-rgb-to-ansi (r g b is-bg)
+  (concat (if is-bg "48;2;" "38;2;")
+    (number->string r) ";"
+    (number->string g) ";"
+    (number->string b)))
+
+;; Parse RGB color code <rgb>, <Frgb>, or <Frrggbb>
+;; Returns ANSI code string or nil
+(defun tintin-parse-rgb-color (rgb-string is-bg)
+  (if (and (> (string-length rgb-string) 2)
+        (string=? (substring rgb-string 0 1) "<")
+        (string=? (substring rgb-string (- (string-length rgb-string) 1)
+                    (string-length rgb-string)) ">"))
+    ;; Extract content between < and >
+    (let ((content (substring rgb-string 1 (- (string-length rgb-string) 1)))
+           (len (- (string-length rgb-string) 2)))
+      (cond
+        ;; <rgb> format (3 chars)
+        ((= len 3)
+          (let ((rgb (tintin-expand-rgb content)))
+            (tintin-rgb-to-ansi (list-ref rgb 0) (list-ref rgb 1) (list-ref rgb 2) is-bg)))
+        ;; <Frgb> format (4 chars) - ignore F, use last 3
+        ((= len 4)
+          (let ((rgb (tintin-expand-rgb (substring content 1 4))))
+            (tintin-rgb-to-ansi (list-ref rgb 0) (list-ref rgb 1) (list-ref rgb 2) is-bg)))
+        ;; <Frrggbb> format (7 chars) - ignore F, use last 6
+        ((= len 7)
+          (let ((rgb (tintin-expand-rgb (substring content 1 7))))
+            (tintin-rgb-to-ansi (list-ref rgb 0) (list-ref rgb 1) (list-ref rgb 2) is-bg)))
+        (#t nil)))
+    nil))
+
+;; Look up named color in association list
+(defun tintin-lookup-color (name alist)
+  (if (or (null? alist) (not (list? alist)))
+    nil
+    (let ((pair (assoc name alist)))
+      (if pair (cdr pair) nil))))
+
+;; Strip attribute keywords from text (bold, dim, italic, etc.)
+;; Returns text with attribute keywords removed
+(defun tintin-strip-attributes (text)
+  (let* ((text-lower (string-downcase text))
+          (result text-lower))
+    ;; Remove each attribute keyword
+    (do ((i 0 (+ i 1)))
+      ((>= i (list-length *tintin-attributes*)) result)
+      (let ((keyword (car (list-ref *tintin-attributes* i))))
+        (set! result (string-replace keyword "" result))))
+    ;; Trim whitespace
+    (tintin-trim result)))
+
+;; Parse named color (e.g., "red", "light blue")
+;; Returns ANSI code string or nil
+(defun tintin-parse-named-color (name is-bg)
+  (let ((name-lower (string-downcase (tintin-trim name))))
+    ;; Try tertiary colors first (convert to RGB)
+    (let ((tertiary (tintin-lookup-color name-lower *tintin-tertiary-colors*)))
+      (if tertiary
+        (tintin-parse-rgb-color (concat "<" tertiary ">") is-bg)
+        ;; Try light/bright colors
+        (let ((bright (tintin-lookup-color name-lower
+                        (if is-bg *tintin-colors-bright-bg* *tintin-colors-bright-fg*))))
+          (if bright
+            bright
+            ;; Try standard colors
+            (tintin-lookup-color name-lower
+              (if is-bg *tintin-colors-bg* *tintin-colors-fg*))))))))
+
+;; Parse attributes from text (bold, underscore, etc.)
+;; Returns list of ANSI attribute codes
+(defun tintin-parse-attributes (text)
+  (let ((text-lower (string-downcase text))
+         (attrs '()))
+    ;; Check each attribute keyword
+    (do ((i 0 (+ i 1)))
+      ((>= i (list-length *tintin-attributes*)) attrs)
+      (let* ((pair (list-ref *tintin-attributes* i))
+              (keyword (car pair))
+              (code (cdr pair)))
+        (if (string-contains? text-lower keyword)
+          (set! attrs (cons code attrs)))))))
+
+;; Helper: Find first occurrence of character in string
+;; Returns position or nil if not found
+(defun tintin-string-find-char (str ch)
+  (let ((len (string-length str))
+         (pos 0)
+         (found nil))
+    (do ()
+      ((or (>= pos len) found) found)
+      (if (string=? (string-ref str pos) ch)
+        (set! found pos)
+        (set! pos (+ pos 1))))))
+
+;; Split color spec on colon (FG:BG separator)
+;; Returns (fg-part bg-part) or (fg-part nil)
+(defun tintin-split-fg-bg (spec)
+  (let ((colon-pos (tintin-string-find-char spec ":")))
+    (if colon-pos
+      (list (substring spec 0 colon-pos)
+        (substring spec (+ colon-pos 1) (string-length spec)))
+      (list spec nil))))
+
+;; Parse single color component (foreground or background)
+;; Returns ANSI code string (may include attributes)
+(defun tintin-parse-color-component (text is-bg)
+  (if (or (not text) (string=? text ""))
+    nil
+    (let ((text-trimmed (tintin-trim text))
+           (codes '()))
+      ;; Extract attributes first
+      (let ((attr-codes (tintin-parse-attributes text-trimmed)))
+        (set! codes attr-codes))
+
+      ;; Try RGB color format
+      (let ((start-bracket (string-index text-trimmed "<")))
+        (if start-bracket
+          (let ((end-bracket (string-index text-trimmed ">")))
+            (if end-bracket
+              (let ((rgb-str (substring text-trimmed start-bracket (+ end-bracket 1))))
+                (let ((rgb-code (tintin-parse-rgb-color rgb-str is-bg)))
+                  (if rgb-code
+                    (set! codes (cons rgb-code codes)))))))))
+
+      ;; If no RGB found, try named colors
+      (if (and (not (string-contains? text-trimmed "<"))
+            (or (string-contains? text-trimmed "black")
+              (string-contains? text-trimmed "red")
+              (string-contains? text-trimmed "green")
+              (string-contains? text-trimmed "yellow")
+              (string-contains? text-trimmed "blue")
+              (string-contains? text-trimmed "magenta")
+              (string-contains? text-trimmed "cyan")
+              (string-contains? text-trimmed "white")
+              (string-contains? text-trimmed "azure")
+              (string-contains? text-trimmed "jade")
+              (string-contains? text-trimmed "violet")
+              (string-contains? text-trimmed "lime")
+              (string-contains? text-trimmed "pink")
+              (string-contains? text-trimmed "orange")))
+        (let ((color-only (tintin-strip-attributes text-trimmed)))
+          (let ((named-code (tintin-parse-named-color color-only is-bg)))
+            (if named-code
+              (set! codes (cons named-code codes))))))
+
+      ;; Combine codes with semicolons
+      (if (eq? codes '())
+        nil
+        (let ((result "")
+               (first #t))
+          (do ((remaining (reverse codes) (cdr remaining)))
+            ((null? remaining) result)
+            (if first
+              (set! first #f)
+              (set! result (concat result ";")))
+            (set! result (concat result (car remaining)))))))))
+
+;; Build ANSI escape sequence from fg and bg codes
+;; Returns complete \033[...m sequence
+(defun tintin-build-ansi-code (fg-codes bg-codes)
+  (let ((codes '()))
+    (if fg-codes
+      (set! codes (cons fg-codes codes)))
+    (if bg-codes
+      (set! codes (cons bg-codes codes)))
+    (if (eq? codes '())
+      ""
+      (let ((combined "")
+             (first #t))
+        (do ((remaining (reverse codes) (cdr remaining)))
+          ((null? remaining))
+          (if first
+            (set! first #f)
+            (set! combined (concat combined ";")))
+          (set! combined (concat combined (car remaining))))
+        (concat "\033[" combined "m")))))
+
+;; Main color spec parser
+;; Parses TinTin++ color specification and returns ANSI escape code
+;; Examples:
+;;   "red" → "\033[31m"
+;;   "<fff>" → "\033[38;2;255;255;255m"
+;;   "bold red:blue" → "\033[1;31;44m"
+;;   "light red" → "\033[91m"
+(defun tintin-parse-color-spec (spec)
+  (if (or (not spec) (string=? spec ""))
+    (list nil nil)
+    (let ((parts (tintin-split-fg-bg spec)))
+      (let ((fg-part (list-ref parts 0))
+             (bg-part (list-ref parts 1)))
+        (list (tintin-parse-color-component fg-part #f)
+          (if bg-part (tintin-parse-color-component bg-part #t) nil))))))
+
+;; ============================================================================
+;; HIGHLIGHT PATTERN MATCHING SYSTEM
+;; ============================================================================
+
+;; Check if character needs regex escaping
+(defun tintin-regex-special-char? (ch)
+  (or (string=? ch ".")
+    (string=? ch "*")
+    (string=? ch "+")
+    (string=? ch "?")
+    (string=? ch "[")
+    (string=? ch "]")
+    (string=? ch "{")
+    (string=? ch "}")
+    (string=? ch "(")
+    (string=? ch ")")
+    (string=? ch "|")
+    (string=? ch "\\")
+    (string=? ch "^")
+    (string=? ch "$")))
+
+;; Convert TinTin++ pattern to PCRE2 regex
+;; Pattern translation:
+;;   %* or %1-%99 → (.*?) (non-greedy capture)
+;;   ^ at start → ^ (line anchor)
+;;   Other chars → escaped for regex
+;; Examples:
+;;   "You hit %*" → "You hit (.*?)"
+;;   "^Health: %1" → "^Health: (.*?)"
+;;   "Valgar" → "Valgar"
+(defun tintin-pattern-to-regex (pattern)
+  (if (not (string? pattern))
+    ""
+    (let ((len (string-length pattern))
+           (pos 0)
+           (result ""))
+      (do ()
+        ((>= pos len) result)
+        (let ((ch (string-ref pattern pos)))
+          (cond
+            ;; Handle % placeholders
+            ((string=? ch "%")
+              (if (< (+ pos 1) len)
+                (let ((next-ch (string-ref pattern (+ pos 1))))
+                  (if (string=? next-ch "*")
+                    ;; %* → (.*?)
+                    (progn
+                      (set! result (concat result "(.*?)"))
+                      (set! pos (+ pos 2)))
+                    ;; Check if it's %1-%99
+                    (if (and (string>=? next-ch "0") (string<=? next-ch "9"))
+                      (let ((digit-end (+ pos 2)))
+                        ;; Consume second digit if present
+                        (if (and (< digit-end len)
+                              (string>=? (string-ref pattern digit-end) "0")
+                              (string<=? (string-ref pattern digit-end) "9"))
+                          (set! digit-end (+ digit-end 1)))
+                        ;; %N or %NN → (.*?)
+                        (set! result (concat result "(.*?)"))
+                        (set! pos digit-end))
+                      ;; Not %* or %N - literal %
+                      (progn
+                        (set! result (concat result "\\%"))
+                        (set! pos (+ pos 1))))))
+                ;; % at end of string - literal
+                (progn
+                  (set! result (concat result "\\%"))
+                  (set! pos (+ pos 1)))))
+
+            ;; Handle ^ at start (line anchor)
+            ((and (string=? ch "^") (= pos 0))
+              (set! result (concat result "^"))
+              (set! pos (+ pos 1)))
+
+            ;; Escape regex special characters
+            ((tintin-regex-special-char? ch)
+              (set! result (concat result "\\" ch))
+              (set! pos (+ pos 1)))
+
+            ;; Regular character - no escaping needed
+            (#t
+              (set! result (concat result ch))
+              (set! pos (+ pos 1)))))))))
+
+;; Test if TinTin++ pattern matches text using regex
+;; Returns #t if match found, #f otherwise
+(defun tintin-match-highlight-pattern (pattern text)
+  (if (or (not (string? pattern)) (not (string? text)))
+    #f
+    (let ((regex-pattern (tintin-pattern-to-regex pattern)))
+      (if (string=? regex-pattern "")
+        #f
+        ;; Use regex-match to test if pattern matches
+        (let ((match-result (regex-match regex-pattern text)))
+          (if match-result #t #f))))))
+
+;; Sort highlight entries by priority (descending - higher priority first)
+;; Input: list of (pattern . (fg bg priority)) pairs
+;; Output: sorted list by priority (highest first)
+(defun tintin-sort-highlights-by-priority (highlight-list)
+  (if (or (null? highlight-list) (= (list-length highlight-list) 0))
+    '()
+    ;; Simple insertion sort by priority
+    (let ((sorted '()))
+      (do ((remaining highlight-list (cdr remaining)))
+        ((null? remaining) sorted)
+        (let ((entry (car remaining))
+               (priority (car (cdr (cdr (cdr entry))))))
+          ;; Insert entry in sorted position
+          (set! sorted (tintin-insert-by-priority entry priority sorted)))))))
+
+;; Helper: Insert entry into sorted list by priority
+(defun tintin-insert-by-priority (entry priority sorted-list)
+  (if (null? sorted-list)
+    (list entry)
+    (let ((first-priority (car (cdr (cdr (cdr (car sorted-list)))))))
+      (if (>= priority first-priority)
+        ;; Insert at head
+        (cons entry sorted-list)
+        ;; Insert later
+        (cons (car sorted-list)
+          (tintin-insert-by-priority entry priority (cdr sorted-list)))))))
+
+;; ============================================================================
+;; HIGHLIGHT APPLICATION
+;; ============================================================================
+
+;; Split text into lines, preserving line endings
+;; Returns list of lines with their line endings intact
+(defun tintin-split-lines (text)
+  (if (not (string? text))
+    '()
+    (let ((len (string-length text))
+           (pos 0)
+           (line-start 0)
+           (lines '()))
+      (do ()
+        ((>= pos len)
+          ;; Add final line if any
+          (if (< line-start len)
+            (reverse (cons (substring text line-start len) lines))
+            (reverse lines)))
+        (let ((ch (string-ref text pos)))
+          (if (string=? ch "\n")
+            ;; Found line ending - add line including \n
+            (progn
+              (set! lines (cons (substring text line-start (+ pos 1)) lines))
+              (set! pos (+ pos 1))
+              (set! line-start pos))
+            ;; Regular character - continue
+            (set! pos (+ pos 1))))))))
+
+;; Wrap matched pattern in line with ANSI color codes
+;; Returns line with highlight applied or original line if no match
+(defun tintin-wrap-match (line pattern fg-color bg-color)
+  (if (not (string? line))
+    line
+    (let ((regex-pattern (tintin-pattern-to-regex pattern)))
+      (if (string=? regex-pattern "")
+        line
+        ;; Parse color spec to get ANSI codes
+        (let ((fg-ansi (if fg-color
+                         (tintin-parse-color-component fg-color #f)
+                         nil))
+               (bg-ansi (if bg-color
+                          (tintin-parse-color-component bg-color #t)
+                          nil)))
+          ;; Build opening and closing ANSI sequences
+          (let ((ansi-open (tintin-build-ansi-code fg-ansi bg-ansi))
+                 (ansi-reset "\033[0m"))
+            (if (string=? ansi-open "")
+              line
+              ;; Use regex-replace to wrap first match
+              ;; Replace pattern with: ANSI_OPEN + matched_text + ANSI_RESET
+              (let ((match-result (regex-match regex-pattern line)))
+                (if match-result
+                  ;; Get the matched text and replace it
+                  (let ((matched-text (list-ref match-result 0)))
+                    (string-replace matched-text
+                      (concat ansi-open matched-text ansi-reset)
+                      line))
+                  line)))))))))
+
+;; Apply highlights to a single line
+;; Returns highlighted line or original line if no highlights match
+(defun tintin-highlight-line (line)
+  (if (or (not (string? line)) (= (hash-count *tintin-highlights*) 0))
+    line
+    ;; Get all highlights sorted by priority (highest first)
+    (let ((highlight-entries (hash-entries *tintin-highlights*)))
+      (let ((sorted (tintin-sort-highlights-by-priority highlight-entries)))
+        ;; Try each pattern until one matches
+        (let ((result line))
+          (do ((i 0 (+ i 1)))
+            ((or (>= i (list-length sorted)) (not (string=? result line)))
+              result)
+            (let* ((entry (list-ref sorted i))
+                    (pattern (car entry))
+                    (data (cdr entry))
+                    (fg-color (car data))
+                    (bg-color (car (cdr data))))
+              ;; Check if pattern matches
+              (if (tintin-match-highlight-pattern pattern line)
+                ;; Apply highlight and stop (highest priority wins)
+                (set! result (tintin-wrap-match line pattern fg-color bg-color))))))))))
+
+;; Main entry point: Apply highlights to incoming text
+;; Splits text into lines, highlights each line, returns transformed text
+(defun tintin-apply-highlights (text)
+  (if (or (not (string? text)) (= (hash-count *tintin-highlights*) 0))
+    text
+    ;; Split into lines
+    (let ((lines (tintin-split-lines text)))
+      (if (null? lines)
+        text
+        ;; Highlight each line
+        (let ((highlighted '()))
+          (do ((i 0 (+ i 1)))
+            ((>= i (list-length lines))
+              ;; Join highlighted lines back together
+              (let ((result ""))
+                (do ((j 0 (+ j 1)))
+                  ((>= j (list-length highlighted)) result)
+                  (set! result (concat result (list-ref highlighted j))))))
+            (let ((line (list-ref lines i)))
+              (set! highlighted (cons (tintin-highlight-line line) highlighted))))
+          ;; Need to reverse since we cons'd in reverse order
+          (set! highlighted (reverse highlighted))
+          ;; Join lines
+          (let ((result ""))
+            (do ((k 0 (+ k 1)))
+              ((>= k (list-length highlighted)) result)
+              (set! result (concat result (list-ref highlighted k))))))))))
 
 ;; ============================================================================
 ;; TEST 1: COMMAND SEPARATOR
@@ -299,6 +799,23 @@
             nil
             (cons (substring str start end) end)))))))
 
+;; Extract from start-pos to end of string (for last argument in unbraced format)
+;; Returns: (string . end-pos) or nil
+(defun tintin-extract-to-end (str start-pos)
+  (if (>= start-pos (string-length str))
+    nil
+    (let ((len (string-length str))
+           (pos start-pos))
+      ;; Skip leading whitespace
+      (do ()
+        ((or (>= pos len) (not (string=? (string-ref str pos) " "))))
+        (set! pos (+ pos 1)))
+      ;; Check if we have any characters left
+      (if (>= pos len)
+        nil
+        ;; Return from pos to end of string
+        (cons (substring str pos len) len)))))
+
 ;; Parse N arguments from command string (mixed format: braced or unbraced)
 ;; Returns: list of N strings or nil if parsing fails
 ;; Each argument can be independently braced or unbraced
@@ -347,12 +864,16 @@
                   (set! start-pos (cdr arg-data)))
                 (set! success #f)))
             ;; Extract unbraced token
-            (let ((token-data (tintin-extract-token input start-pos)))
-              (if token-data
-                (progn
-                  (set! args (cons (car token-data) args))
-                  (set! start-pos (cdr token-data)))
-                (set! success #f)))))))))
+            ;; For the last argument, read to end of string instead of stopping at space
+            (let ((is-last-arg (= i (- n 1))))
+              (let ((token-data (if is-last-arg
+                                  (tintin-extract-to-end input start-pos)
+                                  (tintin-extract-token input start-pos))))
+                (if token-data
+                  (progn
+                    (set! args (cons (car token-data) args))
+                    (set! start-pos (cdr token-data)))
+                  (set! success #f))))))))))
 
 
 ;; Match a pattern against input and extract placeholder values
@@ -482,6 +1003,31 @@
           (write-line file (concat "(hash-set! *tintin-variables* "
                              "\"" (tintin-escape-string name) "\" "
                              "\"" (tintin-escape-string value) "\")")))))
+    (write-line file "")
+
+    ;; Write highlights
+    (write-line file ";; Highlights")
+    (let ((highlight-entries (hash-entries *tintin-highlights*)))
+      (do ((i 0 (+ i 1)))
+        ((>= i (list-length highlight-entries)))
+        (let* ((entry (list-ref highlight-entries i))
+                (pattern (car entry))
+                (data (cdr entry))
+                (fg-color (car data))
+                (bg-color (car (cdr data)))
+                (priority (car (cdr (cdr data)))))
+          (write-line file (concat "(hash-set! *tintin-highlights* "
+                             "\"" (tintin-escape-string pattern) "\" "
+                             "(list "
+                             (if fg-color
+                               (concat "\"" (tintin-escape-string fg-color) "\"")
+                               "nil")
+                             " "
+                             (if bg-color
+                               (concat "\"" (tintin-escape-string bg-color) "\"")
+                               "nil")
+                             " "
+                             (number->string priority) "))")))))
     (write-line file "")
 
     ;; Write settings
@@ -896,6 +1442,33 @@
             (tintin-echo (concat "  " name " = " value "\r\n"))))
         ""))))
 
+;; List all defined highlights (sorted by priority)
+(defun tintin-list-highlights ()
+  (let ((highlight-entries (hash-entries *tintin-highlights*))
+         (count (hash-count *tintin-highlights*)))
+    (if (= count 0)
+      (progn
+        (tintin-echo "No highlights defined.\r\n")
+        "")
+      (progn
+        (tintin-echo (concat "Highlights (" (number->string count) "):\r\n"))
+        ;; Sort by priority before displaying
+        (let ((sorted (tintin-sort-highlights-by-priority highlight-entries)))
+          (do ((i 0 (+ i 1)))
+            ((>= i (list-length sorted)))
+            (let* ((entry (list-ref sorted i))
+                    (pattern (car entry))
+                    (data (cdr entry))
+                    (fg-color (car data))
+                    (bg-color (car (cdr data)))
+                    (priority (car (cdr (cdr data)))))
+              (tintin-echo (concat "  " pattern " → "
+                             (if fg-color fg-color "")
+                             (if (and fg-color bg-color) ":" "")
+                             (if bg-color bg-color "")
+                             " (priority: " (number->string priority) ")\r\n")))))
+        ""))))
+
 ;; ============================================================================
 ;; COMMAND HANDLERS (REFACTORED)
 ;; ============================================================================
@@ -928,6 +1501,60 @@
       (tintin-echo (concat "Variable '" name "' set to '" value "'\r\n"))
       "")))
 
+;; Handle #unalias command
+;; args: (name)
+(defun tintin-handle-unalias (args)
+  (let ((name (tintin-strip-braces (list-ref args 0))))
+    (if (hash-ref *tintin-aliases* name)
+      (progn
+        (hash-remove! *tintin-aliases* name)
+        (tintin-echo (concat "Alias '" name "' removed\r\n"))
+        "")
+      (progn
+        (tintin-echo (concat "Alias '" name "' not found\r\n"))
+        ""))))
+
+;; Handle #highlight command
+;; args: () or (pattern color) or (pattern color priority)
+;; Color spec format: "fg", "fg:bg", "<rgb>", "bold red", etc.
+;; Entry format: pattern → (fg-color bg-color priority)
+(defun tintin-handle-highlight (args)
+  (if (or (null? args) (= 0 (list-length args)))
+    ;; No arguments - list all highlights
+    (tintin-list-highlights)
+    ;; Two or three arguments - create highlight
+    (let* ((pattern (tintin-strip-braces (list-ref args 0)))
+            (color-spec (tintin-strip-braces (list-ref args 1)))
+            (priority (if (>= (list-length args) 3)
+                        (string->number (tintin-strip-braces (list-ref args 2)))
+                        5)))  ; Default priority
+      ;; Parse color spec into FG and BG components
+      (let ((parts (tintin-split-fg-bg color-spec)))
+        (let ((fg-part (list-ref parts 0))
+               (bg-part (list-ref parts 1)))
+          ;; Store as (fg-color bg-color priority)
+          (hash-set! *tintin-highlights* pattern
+            (list (if (string=? fg-part "") nil fg-part)
+              bg-part
+              priority))
+          (tintin-echo (concat "Highlight '" pattern "' created: "
+                         pattern " → " color-spec
+                         " (priority: " (number->string priority) ")\r\n"))
+          "")))))
+
+;; Handle #unhighlight command
+;; args: (pattern)
+(defun tintin-handle-unhighlight (args)
+  (let ((pattern (tintin-strip-braces (list-ref args 0))))
+    (if (hash-ref *tintin-highlights* pattern)
+      (progn
+        (hash-remove! *tintin-highlights* pattern)
+        (tintin-echo (concat "Highlight '" pattern "' removed\r\n"))
+        "")
+      (progn
+        (tintin-echo (concat "Highlight '" pattern "' not found\r\n"))
+        ""))))
+
 ;; Handle #save command
 ;; args: (filename)
 (defun tintin-handle-save (args)
@@ -944,15 +1571,30 @@
   (let ((filename (tintin-strip-braces (list-ref args 0))))
     ;; Expand ~/path if present
     (set! filename (expand-path filename))
-    (load filename)
-    (tintin-echo (concat "State loaded from '" filename "'\r\n"))
-    ""))
+    ;; Try to load the file, catching errors
+    (if (condition-case err
+          (progn (load filename) #t)
+          (error #f))
+      ;; Success case
+      (progn
+        (tintin-echo (concat "State loaded from '" filename "'\r\n"))
+        "")
+      ;; Error case
+      (progn
+        (tintin-echo (concat "Failed to load '" filename "': file not found or invalid\r\n"))
+        ""))))
 
 ;; Register commands with metadata (now that handlers are defined)
 (hash-set! *tintin-commands* "alias"
   (list tintin-handle-alias 2 "#alias {name} {commands}"))
+(hash-set! *tintin-commands* "unalias"
+  (list tintin-handle-unalias 1 "#unalias {name}"))
 (hash-set! *tintin-commands* "variable"
   (list tintin-handle-variable 2 "#variable {name} {value}"))
+(hash-set! *tintin-commands* "highlight"
+  (list tintin-handle-highlight 2 "#highlight {pattern} {color}"))
+(hash-set! *tintin-commands* "unhighlight"
+  (list tintin-handle-unhighlight 1 "#unhighlight {pattern}"))
 (hash-set! *tintin-commands* "save"
   (list tintin-handle-save 1 "#save {filename}"))
 (hash-set! *tintin-commands* "load"
@@ -1012,6 +1654,21 @@
 ;; Automatically activate TinTin++ when this file is loaded
 
 (define user-input-hook tintin-user-input-hook)
+
+;; Hook function for telnet-input-filter integration
+;; Signature: (lambda (text) -> string)
+;; - text: Incoming telnet data (may contain ANSI codes)
+;; Returns: Transformed text with highlights applied
+;;
+;; This hook receives data from the telnet server before it's displayed
+;; in the terminal. We apply highlight patterns to colorize matching text.
+(defun tintin-telnet-input-filter (text)
+  (if (and *tintin-enabled* (> (hash-count *tintin-highlights*) 0))
+    (tintin-apply-highlights text)
+    text))
+
+;; Install telnet-input-filter hook
+(define telnet-input-filter tintin-telnet-input-filter)
 
 ;; Announce activation (terminal is ready when this file loads via -l)
 (tintin-echo "TinTin++ loaded and activated\r\n")

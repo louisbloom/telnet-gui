@@ -182,6 +182,25 @@ say hello there    # Sends: tell bob hello there
 #alias {get %1 from %2} {take %1 from %2;examine %1}
 ```
 
+### #unalias
+
+Remove an alias:
+
+```bash
+#unalias {name}
+#unalias name              # Braces optional for single words
+```
+
+**Examples:**
+
+```bash
+#unalias {k}
+Alias 'k' removed
+
+#unalias nonexistent
+Alias 'nonexistent' not found
+```
+
 ### #variable
 
 Define a variable or list all variables:
@@ -219,9 +238,153 @@ $home              # Sends: recall
 #alias {gh} {get gold;$home}
 ```
 
+### Highlights
+
+Automatically colorize text patterns in incoming server output using ANSI escape codes. Highlights use pattern matching with wildcards and support full TinTin++ color specifications.
+
+#### Pattern Matching
+
+Highlights support TinTin++ wildcard patterns:
+
+- `%*` or `%1`-`%99` - Match any text (wildcard)
+- `^` at start - Match beginning of line (anchor)
+- Literal text - Match exact text
+
+**Examples:**
+
+```bash
+#highlight {Valgar} {<fff>}                    # Highlight exact name
+#highlight {You hit %*} {<0f0>}                # Wildcard match
+#highlight {^Health:} {bold red}               # Line anchor
+#highlight {%* damage} {yellow}                # Trailing wildcard
+```
+
+#### Color Specifications
+
+Highlights support multiple color formats:
+
+**RGB Colors:**
+
+```bash
+#highlight {critical} {<fff>}                  # 3-char RGB (white)
+#highlight {warning} {<F00>}                   # 3-char RGB (bright red)
+#highlight {info} {<F0080FF>}                  # 7-char RGB with flags
+```
+
+**Named Colors:**
+
+- Standard ANSI: `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`
+- Bright variants: `light red`, `light blue`, `light green`, etc.
+- Tertiary colors: `azure`, `jade`, `violet`, `lime`, `orange`, `pink`, `silver`, `tan`
+
+```bash
+#highlight {error} {red}
+#highlight {success} {light green}
+#highlight {warning} {orange}
+```
+
+**Foreground and Background:**
+
+Use `:` to separate foreground and background colors:
+
+```bash
+#highlight {Valgar} {<fff>:<000>}              # White on black
+#highlight {You died} {red:yellow}             # Red on yellow
+#highlight {Level up!} {<0f0>:blue}            # Green RGB on blue
+```
+
+**Text Attributes:**
+
+Combine attributes with colors using spaces:
+
+- `bold` - Bold/bright text
+- `dim` - Dimmed text
+- `italic` - Italic text
+- `underscore` / `underline` - Underlined text
+- `blink` - Blinking text
+- `reverse` - Reverse video
+- `strikethrough` - Strike through text
+
+```bash
+#highlight {CRITICAL} {bold red}
+#highlight {Note:} {underscore light blue}
+#highlight {Important} {bold <fff>:<f00>}      # Bold white on red
+```
+
+#### Priority System
+
+When multiple highlight patterns match the same line, the highest priority highlight is applied. Default priority is 5 (lower number = lower priority).
+
+**Current Implementation:**
+
+Priority is managed via direct hash table manipulation:
+
+```lisp
+;; Set custom priority via Lisp
+(hash-set! *tintin-highlights* "pattern" (list "color" nil 10))
+```
+
+**Note:** Command-line priority specification will be added in a future update. For now, use the default priority of 5 via `#highlight {pattern} {color}`.
+
+### #highlight
+
+Create a highlight rule or list all highlights:
+
+```bash
+#highlight                     # List all defined highlights
+#highlight {pattern} {color}
+#highlight pattern color       # Braces optional for single words
+```
+
+**Examples:**
+
+```bash
+# List all highlights
+#highlight
+Highlights (3):
+  Valgar → <fff> (priority: 5)
+  You hit %* → <0f0> (priority: 5)
+  ^Health → bold red (priority: 5)
+
+# Create highlight
+#highlight {Valgar} {<fff>}
+Highlight 'Valgar' created: Valgar → <fff> (priority: 5)
+
+# Wildcard pattern
+#highlight {You hit %*} {<0f0>}
+Highlight 'You hit %*' created: You hit %* → <0f0> (priority: 5)
+
+# Foreground and background
+#highlight {error} {red:yellow}
+Highlight 'error' created: error → red:yellow (priority: 5)
+
+# Attributes with colors
+#highlight {CRITICAL} {bold red}
+Highlight 'CRITICAL' created: CRITICAL → bold red (priority: 5)
+```
+
+### #unhighlight
+
+Remove a highlight rule:
+
+```bash
+#unhighlight {pattern}
+#unhighlight pattern          # Braces optional for single words
+```
+
+**Examples:**
+
+```bash
+#unhighlight {Valgar}
+Highlight 'Valgar' removed
+
+#unhighlight {You hit %*}
+Highlight 'You hit %*' removed
+```
+
 ### #save
 
-Save current aliases and variables to a file:
+Save current aliases, variables, and highlights to a file:
 
 ```bash
 #save {filename}
@@ -235,11 +398,11 @@ Save current aliases and variables to a file:
 #save my-config.lisp        # Same as above
 ```
 
-This creates a Lisp file with all your current aliases, variables, and settings.
+This creates a Lisp file with all your current aliases, variables, highlights, and settings.
 
 ### #load
 
-Load aliases and variables from a saved file:
+Load aliases, variables, and highlights from a saved file:
 
 ```bash
 #load {filename}
