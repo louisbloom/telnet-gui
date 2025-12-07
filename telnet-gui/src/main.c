@@ -704,6 +704,10 @@ int main(int argc, char **argv) {
     terminal_resize(term, initial_rows, initial_cols);
     telnet_set_terminal_size(telnet, initial_cols, initial_rows);
 
+    /* Flush any pending events (especially resize events from SDL_SetWindowSize) before main loop */
+    SDL_PumpEvents();
+    SDL_FlushEvent(SDL_WINDOWEVENT);
+
     /* Main loop */
     SDL_Event event;
     int mouse_x = 0, mouse_y = 0;
