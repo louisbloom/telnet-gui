@@ -1590,32 +1590,60 @@
 ;; ============================================================================
 
 ;; Handle #alias command
-;; args: () or (name commands)
+;; args: (), (name), or (name commands)
 (defun tintin-handle-alias (args)
-  (if (or (null? args) (= 0 (list-length args)))
+  (cond
     ;; No arguments - list all aliases
-    (tintin-list-aliases)
+    ((or (null? args) (= 0 (list-length args)))
+      (tintin-list-aliases))
+    ;; One argument - show specific alias
+    ((= 1 (list-length args))
+      (let ((name (tintin-strip-braces (list-ref args 0))))
+        (let ((alias-data (hash-ref *tintin-aliases* name)))
+          (if alias-data
+            (let ((commands (car alias-data))
+                   (priority (car (cdr alias-data))))
+              (tintin-echo (concat "Alias '" name "': " name " → " commands
+                             " (priority: " (number->string priority) ")\r\n"))
+              "")
+            (progn
+              (tintin-echo (concat "Alias '" name "' not found\r\n"))
+              "")))))
     ;; Two arguments - create alias
-    (let ((name (tintin-strip-braces (list-ref args 0)))
-           (commands (tintin-strip-braces (list-ref args 1)))
-           (priority 5))  ; Default priority
-      (hash-set! *tintin-aliases* name (list commands priority))
-      (tintin-echo (concat "Alias '" name "' created: " name " → " commands
-                     " (priority: " (number->string priority) ")\r\n"))
-      "")))
+    (#t
+      (let ((name (tintin-strip-braces (list-ref args 0)))
+             (commands (tintin-strip-braces (list-ref args 1)))
+             (priority 5))  ; Default priority
+        (hash-set! *tintin-aliases* name (list commands priority))
+        (tintin-echo (concat "Alias '" name "' created: " name " → " commands
+                       " (priority: " (number->string priority) ")\r\n"))
+        ""))))
 
 ;; Handle #variable command
-;; args: () or (name value)
+;; args: (), (name), or (name value)
 (defun tintin-handle-variable (args)
-  (if (or (null? args) (= 0 (list-length args)))
+  (cond
     ;; No arguments - list all variables
-    (tintin-list-variables)
+    ((or (null? args) (= 0 (list-length args)))
+      (tintin-list-variables))
+    ;; One argument - show specific variable
+    ((= 1 (list-length args))
+      (let ((name (tintin-strip-braces (list-ref args 0))))
+        (let ((value (hash-ref *tintin-variables* name)))
+          (if value
+            (progn
+              (tintin-echo (concat "Variable '" name "': " name " = " value "\r\n"))
+              "")
+            (progn
+              (tintin-echo (concat "Variable '" name "' not found\r\n"))
+              "")))))
     ;; Two arguments - create variable
-    (let ((name (tintin-strip-braces (list-ref args 0)))
-           (value (tintin-strip-braces (list-ref args 1))))
-      (hash-set! *tintin-variables* name value)
-      (tintin-echo (concat "Variable '" name "' set to '" value "'\r\n"))
-      "")))
+    (#t
+      (let ((name (tintin-strip-braces (list-ref args 0)))
+             (value (tintin-strip-braces (list-ref args 1))))
+        (hash-set! *tintin-variables* name value)
+        (tintin-echo (concat "Variable '" name "' set to '" value "'\r\n"))
+        ""))))
 
 ;; Handle #unalias command
 ;; args: (name)
@@ -1631,32 +1659,51 @@
         ""))))
 
 ;; Handle #highlight command
-;; args: () or (pattern color) or (pattern color priority)
+;; args: (), (pattern), (pattern color), or (pattern color priority)
 ;; Color spec format: "fg", "fg:bg", "<rgb>", "bold red", etc.
 ;; Entry format: pattern → (fg-color bg-color priority)
 (defun tintin-handle-highlight (args)
-  (if (or (null? args) (= 0 (list-length args)))
+  (cond
     ;; No arguments - list all highlights
-    (tintin-list-highlights)
+    ((or (null? args) (= 0 (list-length args)))
+      (tintin-list-highlights))
+    ;; One argument - show specific highlight
+    ((= 1 (list-length args))
+      (let ((pattern (tintin-strip-braces (list-ref args 0))))
+        (let ((highlight-data (hash-ref *tintin-highlights* pattern)))
+          (if highlight-data
+            (let ((fg-color (car highlight-data))
+                   (bg-color (car (cdr highlight-data)))
+                   (priority (car (cdr (cdr highlight-data)))))
+              (tintin-echo (concat "Highlight '" pattern "': " pattern " → "
+                             (if fg-color fg-color "")
+                             (if (and fg-color bg-color) ":" "")
+                             (if bg-color bg-color "")
+                             " (priority: " (number->string priority) ")\r\n"))
+              "")
+            (progn
+              (tintin-echo (concat "Highlight '" pattern "' not found\r\n"))
+              "")))))
     ;; Two or three arguments - create highlight
-    (let* ((pattern (tintin-strip-braces (list-ref args 0)))
-            (color-spec (tintin-strip-braces (list-ref args 1)))
-            (priority (if (>= (list-length args) 3)
-                        (string->number (tintin-strip-braces (list-ref args 2)))
-                        5)))  ; Default priority
-      ;; Parse color spec into FG and BG components
-      (let ((parts (tintin-split-fg-bg color-spec)))
-        (let ((fg-part (list-ref parts 0))
-               (bg-part (list-ref parts 1)))
-          ;; Store as (fg-color bg-color priority)
-          (hash-set! *tintin-highlights* pattern
-            (list (if (string=? fg-part "") nil fg-part)
-              bg-part
-              priority))
-          (tintin-echo (concat "Highlight '" pattern "' created: "
-                         pattern " → " color-spec
-                         " (priority: " (number->string priority) ")\r\n"))
-          "")))))
+    (#t
+      (let* ((pattern (tintin-strip-braces (list-ref args 0)))
+              (color-spec (tintin-strip-braces (list-ref args 1)))
+              (priority (if (>= (list-length args) 3)
+                          (string->number (tintin-strip-braces (list-ref args 2)))
+                          5)))  ; Default priority
+        ;; Parse color spec into FG and BG components
+        (let ((parts (tintin-split-fg-bg color-spec)))
+          (let ((fg-part (list-ref parts 0))
+                 (bg-part (list-ref parts 1)))
+            ;; Store as (fg-color bg-color priority)
+            (hash-set! *tintin-highlights* pattern
+              (list (if (string=? fg-part "") nil fg-part)
+                bg-part
+                priority))
+            (tintin-echo (concat "Highlight '" pattern "' created: "
+                           pattern " → " color-spec
+                           " (priority: " (number->string priority) ")\r\n"))
+            ""))))))
 
 ;; Handle #unhighlight command
 ;; args: (pattern)
@@ -1702,13 +1749,13 @@
 
 ;; Register commands with metadata (now that handlers are defined)
 (hash-set! *tintin-commands* "alias"
-  (list tintin-handle-alias 2 "#alias {name} {commands}"))
+  (list tintin-handle-alias 2 "#alias or #alias {name} or #alias {name} {commands}"))
 (hash-set! *tintin-commands* "unalias"
   (list tintin-handle-unalias 1 "#unalias {name}"))
 (hash-set! *tintin-commands* "variable"
-  (list tintin-handle-variable 2 "#variable {name} {value}"))
+  (list tintin-handle-variable 2 "#variable or #variable {name} or #variable {name} {value}"))
 (hash-set! *tintin-commands* "highlight"
-  (list tintin-handle-highlight 2 "#highlight {pattern} {color}"))
+  (list tintin-handle-highlight 2 "#highlight or #highlight {pattern} or #highlight {pattern} {color}"))
 (hash-set! *tintin-commands* "unhighlight"
   (list tintin-handle-unhighlight 1 "#unhighlight {pattern}"))
 (hash-set! *tintin-commands* "save"
@@ -1742,6 +1789,17 @@
     ;; If we have more characters, there are arguments
     (< pos len)))
 
+;; Try parsing with progressively fewer arguments (for variable-arg commands)
+;; Returns parsed args list or nil if all attempts fail
+(defun tintin-try-parse-arguments (input max-count)
+  (if (<= max-count 0)
+    nil
+    (let ((args (tintin-parse-arguments input max-count)))
+      (if args
+        args
+        ;; Try with one fewer argument
+        (tintin-try-parse-arguments input (- max-count 1))))))
+
 ;; Dispatch a TinTin++ command using metadata-driven approach
 ;; cmd-name: matched command name (e.g., "alias")
 ;; input: original input string (e.g., "#alias {k} {kill %1}")
@@ -1758,8 +1816,8 @@
           (if (not has-args)
             ;; No arguments - call handler with empty list
             (handler '())
-            ;; Has arguments - parse and validate
-            (let ((args (tintin-parse-arguments input arg-count)))
+            ;; Has arguments - try parsing with max count down to 1
+            (let ((args (tintin-try-parse-arguments input arg-count)))
               (if args
                 (handler args)
                 (tintin-syntax-error syntax-help)))))))))
