@@ -77,8 +77,8 @@
 (defun trim-punctuation (word)
   (if (not (and (string? word) (> (string-length word) 0)))
     ""
-    (let* ((no-trailing (regex-replace "[.,!?;:()\\[\\]{}'\"\\-]+$" "" word))
-            (cleaned (regex-replace "^[.,!?;:()\\[\\]{}'\"\\-]+" "" no-trailing)))
+    (let* ((no-trailing (regex-replace "[.,!?;:()\\[\\]{}'\"\\-]+$" word ""))
+            (cleaned (regex-replace "^[.,!?;:()\\[\\]{}'\"\\-]+" no-trailing "")))
       cleaned)))
 
 ;; Extract words from text as consecutive non-whitespace characters

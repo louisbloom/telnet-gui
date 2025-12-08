@@ -47,29 +47,29 @@
 ;; ===========================================
 
 ;; Replace all occurrences (replaces all by default)
-(assert-equal (regex-replace "\\d+" "X" "a1b2c3") "aXbXcX" "regex-replace all digits")
+(assert-equal (regex-replace "\\d+" "a1b2c3" "X") "aXbXcX" "regex-replace all digits")
 
 ;; Replace all occurrences explicitly
-(assert-equal (regex-replace-all "\\d+" "X" "a1b2c3") "aXbXcX" "regex-replace-all digits")
+(assert-equal (regex-replace-all "\\d+" "a1b2c3" "X") "aXbXcX" "regex-replace-all digits")
 
 ;; Replace with capture groups - swap email parts
-(assert-equal (regex-replace "(\\w+)@(\\w+)" "$2@$1" "user@domain") "domain@user" "regex-replace swap email parts")
+(assert-equal (regex-replace "(\\w+)@(\\w+)" "user@domain" "$2@$1") "domain@user" "regex-replace swap email parts")
 
 ;; Replace with capture groups - change date format
-(assert-equal (regex-replace "(\\d+)-(\\d+)" "$2/$1" "2025-10") "10/2025" "regex-replace date format")
+(assert-equal (regex-replace "(\\d+)-(\\d+)" "2025-10" "$2/$1") "10/2025" "regex-replace date format")
 
 ;; ===========================================
 ;; Replacing - Partial Match Tests
 ;; ===========================================
 
 ;; Replace only matched portion (trailing comma)
-(assert-equal (regex-replace ",$" "X" "hello,") "helloX" "regex-replace trailing comma")
+(assert-equal (regex-replace ",$" "hello," "X") "helloX" "regex-replace trailing comma")
 
 ;; Remove trailing punctuation (empty replacement)
-(assert-equal (regex-replace "a+$" "" "baaa") "b" "regex-replace remove trailing")
+(assert-equal (regex-replace "a+$" "baaa" "") "b" "regex-replace remove trailing")
 
 ;; Remove leading punctuation
-(assert-equal (regex-replace "^a+" "" "aaab") "b" "regex-replace remove leading")
+(assert-equal (regex-replace "^a+" "aaab" "") "b" "regex-replace remove leading")
 
 ;; ===========================================
 ;; Splitting Strings
@@ -133,7 +133,7 @@
 (assert-equal (regex-find-all "\\d+" "I have 3 apples and 5 oranges") '("3" "5") "extract numbers")
 
 ;; Clean multiple whitespace
-(assert-equal (regex-replace-all "\\s+" " " "hello    world   test") "hello world test" "clean multiple whitespace")
+(assert-equal (regex-replace-all "\\s+" "hello    world   test" " ") "hello world test" "clean multiple whitespace")
 
 ;; Extract capitalized words
 (assert-equal (regex-find-all "[A-Z][a-z]+" "Hello World Test") '("Hello" "World" "Test") "extract capitalized words")
@@ -147,7 +147,7 @@
 (assert-equal (regex-find-all "#\\w+" "Check out #lisp and #programming!") '("#lisp" "#programming") "extract hashtags")
 
 ;; Remove HTML tags
-(assert-equal (regex-replace-all "<[^>]+>" "" "<p>Hello <b>World</b></p>") "Hello World" "remove HTML tags")
+(assert-equal (regex-replace-all "<[^>]+>" "<p>Hello <b>World</b></p>" "") "Hello World" "remove HTML tags")
 
 ;; Extract IPv4 addresses
 (assert-equal (regex-find-all "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}" "Server at 192.168.1.1 and 10.0.0.1") '("192.168.1.1" "10.0.0.1") "extract IPv4 addresses")

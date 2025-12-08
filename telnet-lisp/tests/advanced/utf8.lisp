@@ -35,5 +35,5 @@
 ;; Note: Case conversion only works for ASCII characters, Unicode is preserved
 (assert-equal (string-upcase "hello 世界") "HELLO 世界" "upcase preserves Unicode")
 (assert-equal (string-downcase "HELLO 世界") "hello 世界" "downcase preserves Unicode")
-(assert-equal (string-replace "世界" "universe" "hello 世界") "hello universe" "replace Chinese characters")
-(assert-equal (string-replace "o" "O" "hello 世界") "hellO 世界" "replace ASCII in UTF-8 string")
+(assert-equal (string-replace "hello 世界" "世界" "universe") "hello universe" "replace Chinese characters")
+(assert-equal (string-replace "hello 世界" "o" "O") "hellO 世界" "replace ASCII in UTF-8 string")

@@ -1285,9 +1285,9 @@ static LispObject *builtin_string_replace(LispObject *args, Environment *env) {
         return lisp_make_error("string-replace requires 3 arguments");
     }
 
-    LispObject *old_obj = lisp_car(args);
-    LispObject *new_obj = lisp_car(lisp_cdr(args));
-    LispObject *str_obj = lisp_car(lisp_cdr(lisp_cdr(args)));
+    LispObject *str_obj = lisp_car(args);
+    LispObject *old_obj = lisp_car(lisp_cdr(args));
+    LispObject *new_obj = lisp_car(lisp_cdr(lisp_cdr(args)));
 
     if (old_obj->type != LISP_STRING || new_obj->type != LISP_STRING || str_obj->type != LISP_STRING) {
         return lisp_make_error("string-replace requires strings");
@@ -1837,8 +1837,8 @@ static LispObject *builtin_regex_replace(LispObject *args, Environment *env) {
     }
 
     LispObject *pattern_obj = lisp_car(args);
-    LispObject *replacement_obj = lisp_car(lisp_cdr(args));
-    LispObject *string_obj = lisp_car(lisp_cdr(lisp_cdr(args)));
+    LispObject *string_obj = lisp_car(lisp_cdr(args));
+    LispObject *replacement_obj = lisp_car(lisp_cdr(lisp_cdr(args)));
 
     if (pattern_obj->type != LISP_STRING || replacement_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
         return lisp_make_error("regex-replace requires strings");
@@ -1853,8 +1853,9 @@ static LispObject *builtin_regex_replace(LispObject *args, Environment *env) {
         return lisp_make_error(error);
     }
 
-    size_t output_len = strlen(string_obj->value.string) * 2 + 256;
-    PCRE2_UCHAR *output = GC_malloc(output_len);
+    size_t output_buffer_size = strlen(string_obj->value.string) * 2 + 256;
+    size_t output_len = output_buffer_size;
+    PCRE2_UCHAR *output = GC_malloc(output_buffer_size + 1); // +1 for null terminator
 
     int rc = pcre2_substitute(re, (PCRE2_SPTR)string_obj->value.string, PCRE2_ZERO_TERMINATED, 0, /* start offset */
                               PCRE2_SUBSTITUTE_GLOBAL, /* options - replace all */
@@ -1865,8 +1866,13 @@ static LispObject *builtin_regex_replace(LispObject *args, Environment *env) {
     pcre2_code_free(re);
 
     if (rc < 0) {
-        return lisp_make_error("regex-replace: substitution failed");
+        char error[256];
+        snprintf(error, sizeof(error), "regex-replace: substitution failed (error code: %d)", rc);
+        return lisp_make_error(error);
     }
+
+    /* Ensure null termination */
+    output[output_len] = '\0';
 
     return lisp_make_string((char *)output);
 }

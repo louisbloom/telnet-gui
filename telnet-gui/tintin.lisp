@@ -214,7 +214,7 @@
     (do ((i 0 (+ i 1)))
       ((>= i (list-length *tintin-attributes*)) result)
       (let ((keyword (car (list-ref *tintin-attributes* i))))
-        (set! result (string-replace keyword "" result))))
+        (set! result (string-replace result keyword ""))))
     ;; Trim whitespace
     (tintin-trim result)))
 
@@ -692,9 +692,9 @@
                                             "\033[0m"
                                             ;; Reset first to clear all attributes, then restore prev state
                                             (concat "\033[0m" prev-state))))))
-                              (string-replace matched-text
-                                (concat ansi-open matched-text ansi-close)
-                                line)))))))
+                              (string-replace line
+                                matched-text
+                                (concat ansi-open matched-text ansi-close))))))))
                   line)))))))))
 
 ;; Apply highlights to a single line
@@ -1073,7 +1073,7 @@
         ((>= i (list-length var-names)) result)
         (let* ((var-name (list-ref var-names i))
                 (var-value (hash-ref *tintin-variables* var-name)))
-          (set! result (string-replace (concat "$" var-name) var-value result)))))))
+          (set! result (string-replace result (concat "$" var-name) var-value)))))))
 
 ;; Expand $variable references in a string (optimized O(m) single-pass)
 (defun tintin-expand-variables-fast (str)
@@ -1146,7 +1146,7 @@
         (let ((placeholder (concat "%" (number->string (+ i 1))))
                (value (list-ref captures i)))
           (if (string? value)
-            (set! result (string-replace placeholder value result))))))))
+            (set! result (string-replace result placeholder value))))))))
 
 ;; ============================================================================
 ;; SAVE/LOAD UTILITY FUNCTIONS
@@ -1155,8 +1155,8 @@
 ;; Escape string for Lisp syntax (backslashes first, then quotes)
 (defun tintin-escape-string (str)
   (let ((result str))
-    (set! result (string-replace "\\" "\\\\" result))  ; Escape backslashes first
-    (set! result (string-replace "\"" "\\\"" result))  ; Then escape quotes
+    (set! result (string-replace result "\\" "\\\\"))  ; Escape backslashes first
+    (set! result (string-replace result "\"" "\\\""))  ; Then escape quotes
     result))
 
 
@@ -1348,7 +1348,7 @@
           (set! all-args (concat all-args
                            (if (> i 0) " " "")
                            (list-ref arg-vals i))))
-        (set! result (string-replace "%0" all-args result))
+        (set! result (string-replace result "%0" all-args))
         ;; Mark all args as used if %0 was replaced
         (if (not (string=? result old-result))
           (do ((i 0 (+ i 1)))
@@ -1360,7 +1360,7 @@
       ((>= i (list-length arg-vals)))
       (let ((placeholder (concat "%" (number->string (+ i 1))))
              (old-result result))
-        (set! result (string-replace placeholder (list-ref arg-vals i) result))
+        (set! result (string-replace result placeholder (list-ref arg-vals i)))
         (if (not (string=? result old-result))
           (vector-set! used-args i #t))))
 
@@ -1775,8 +1775,8 @@
 (defun tintin-pad-string (str width)
   (if (not (string? str))
     ""
-    (let ((str-len (string-length str)))
-      (let ((padding-needed (- width str-len)))
+    (let ((visual-len (tintin-visual-length str)))
+      (let ((padding-needed (- width visual-len)))
         (if (<= padding-needed 0)
           str
           (let ((result str))
@@ -1796,7 +1796,7 @@
 (defun tintin-visual-length (str)
   (if (not (string? str))
     0
-    (let ((ansi-pattern "\\x1b\\[[0-9;]*m"))
+    (let ((ansi-pattern "\\033\\[[0-9;]*m"))
       (string-length (regex-replace-all ansi-pattern str "")))))
 
 ;; Find best position to break text near width boundary
@@ -2021,7 +2021,7 @@
             (do ((i 0 (+ i 1)))
               ((>= i (list-length headers)))
               (let ((header (list-ref headers i)))
-                (set! bold-headers (cons (concat "\x1b[1m" header "\x1b[0m") bold-headers))))
+                (set! bold-headers (cons (concat "\033[1m" header "\033[0m") bold-headers))))
             (set! bold-headers (reverse bold-headers))
 
             ;; Draw header lines

@@ -1202,15 +1202,15 @@ Convert to tail recursion by:
 (string-ref "Hello, 世界!" 7)        ; => "世"
 
 ; String transformations
-(string-replace "world" "universe" "hello world")  ; => "hello universe"
-(string-replace "l" "L" "hello")                   ; => "heLLo"
+(string-replace "hello world" "world" "universe")  ; => "hello universe"
+(string-replace "hello" "l" "L")                   ; => "heLLo"
 (string-upcase "hello world")                     ; => "HELLO WORLD"
 (string-downcase "HELLO WORLD")                    ; => "hello world"
 ```
 
 ### Regex Operations
 
-**Note:** Regex replace functions use the argument order: `(regex-replace PATTERN REPLACEMENT STRING)`
+**Note:** Regex replace functions use the argument order: `(regex-replace PATTERN STRING REPLACEMENT)`
 
 ```lisp
 ; Basic regex matching
@@ -1225,13 +1225,13 @@ Convert to tail recursion by:
 (regex-extract "(\\d+)-(\\d+)-(\\d+)" "2025-10-24")  ; => ("2025" "10" "24")
 
 ; Replacing text - replaces ALL occurrences (both functions behave the same)
-; Arguments: (regex-replace PATTERN REPLACEMENT STRING)
-(regex-replace "\\d+" "X" "a1b2c3")  ; => "aXbXcX" (replaces all)
-(regex-replace-all "\\s+" "_" "hello  world")  ; => "hello_world"
+; Arguments: (regex-replace PATTERN STRING REPLACEMENT)
+(regex-replace "\\d+" "a1b2c3" "X")  ; => "aXbXcX" (replaces all)
+(regex-replace-all "\\s+" "hello  world" "_")  ; => "hello_world"
 
 ; Replace only matched portion, not entire string
-(regex-replace ",$" "X" "hello,")    ; => "helloX" (replaces comma only)
-(regex-replace "a+$" "" "baaa")      ; => "b" (removes trailing a's)
+(regex-replace ",$" "hello," "X")    ; => "helloX" (replaces comma only)
+(regex-replace "a+$" "baaa" "")      ; => "b" (removes trailing a's)
 
 ; Splitting by regex
 (regex-split "," "apple,banana,cherry")  ; => ("apple" "banana" "cherry")

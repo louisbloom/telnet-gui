@@ -29,11 +29,11 @@
 (assert-false (string-prefix? "xyz" "hello") "string-prefix? rejects non-matching prefix")
 
 ;; String transformations
-(assert-equal (string-replace "world" "universe" "hello world") "hello universe" "string-replace changes substring")
-(assert-equal (string-replace "l" "L" "hello") "heLLo" "string-replace changes all occurrences")
-(assert-equal (string-replace "foo" "bar" "foofoofoo") "barbarbar" "string-replace multiple occurrences")
-(assert-equal (string-replace "x" "y" "x") "y" "string-replace single character")
-(assert-equal (string-replace "x" "y" "abc") "abc" "string-replace with no match returns original")
+(assert-equal (string-replace "hello world" "world" "universe") "hello universe" "string-replace changes substring")
+(assert-equal (string-replace "hello" "l" "L") "heLLo" "string-replace changes all occurrences")
+(assert-equal (string-replace "foofoofoo" "foo" "bar") "barbarbar" "string-replace multiple occurrences")
+(assert-equal (string-replace "x" "x" "y") "y" "string-replace single character")
+(assert-equal (string-replace "abc" "x" "y") "abc" "string-replace with no match returns original")
 
 ;; String case conversion
 (assert-equal (string-upcase "hello world") "HELLO WORLD" "string-upcase converts to uppercase")
