@@ -9,11 +9,10 @@
 #define OUTPUT_BUFFER_INITIAL_SIZE 4096
 #define SCROLLBACK_MAX_LINES 10000
 
-/* libvterm version string (detected at compile-time) */
+/* libvterm version string (detected at compile-time via CMake) */
 #ifndef LIBVTERM_VERSION
 #define LIBVTERM_VERSION "unknown"
 #endif
-static const char *LIBVTERM_VERSION_STRING = LIBVTERM_VERSION;
 
 /* Scrollback line storage */
 typedef struct {
@@ -564,7 +563,7 @@ int terminal_get_max_scrollback_lines(Terminal *term) {
 }
 
 const char *terminal_get_libvterm_version(void) {
-    return LIBVTERM_VERSION_STRING;
+    return LIBVTERM_VERSION;
 }
 
 /* Set max scrollback lines (0 = unbounded, limited by SCROLLBACK_MAX_LINES for safety) */
