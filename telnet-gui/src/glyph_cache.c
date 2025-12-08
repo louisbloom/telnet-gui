@@ -143,14 +143,15 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
     int minx, maxx, miny, maxy, advance;
     TTF_GlyphMetrics(cache->font, ' ', &minx, &maxx, &miny, &maxy, &advance);
 
-    /* Get font height metrics */
-    int font_height = TTF_FontHeight(cache->font);
+    /* Get font metrics without line gap (terminal standard) */
+    int ascent = TTF_FontAscent(cache->font);
+    int descent = TTF_FontDescent(cache->font); /* Returns negative value */
 
     /* Cell width: use advance width from space character (monospace) */
     cache->cell_w = advance;
 
-    /* Cell height: use font height (no extra spacing) */
-    cache->cell_h = font_height;
+    /* Cell height: use ascent + descent (no line gap) for compact terminal appearance */
+    cache->cell_h = ascent + abs(descent);
 
     /* Try to load emoji font as fallback */
     cache->emoji_font = NULL;
