@@ -14,6 +14,10 @@
     (set! *telnet-send-log* (cons text *telnet-send-log*))
     nil))  ; ignore
 
+(define terminal-info
+  (lambda ()
+    '((cols . 80) (rows . 24))))  ; ignore
+
 ;; Load test helper macros
 (load "test-helpers.lisp")  ; ignore
 

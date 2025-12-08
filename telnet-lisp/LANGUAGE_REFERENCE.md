@@ -432,6 +432,7 @@ Convert number to string representation with optional radix parameter.
 - `list-length` - Get length of list
 - `list-ref` - Get element at index (0-based)
 - `reverse` - Reverse a list (returns new list with elements in reverse order)
+- `append` - Concatenate multiple lists into a single list (returns new list)
 - `null?` - Check if list is empty
 - `atom?` - Check if value is an atom (not a list)
 
@@ -1287,6 +1288,13 @@ Convert to tail recursion by:
 (car (list 1 2 3))                   ; => 1
 (cdr (list 1 2 3))                   ; => (2 3)
 (cons 1 (list 2 3))                  ; => (1 2 3)
+
+; Concatenate lists
+(append '(1 2) '(3 4))               ; => (1 2 3 4)
+(append '(1 2) '(3 4) '(5 6))        ; => (1 2 3 4 5 6)
+(append '() '(1 2))                  ; => (1 2)
+(append '(1 2) '())                  ; => (1 2)
+(append)                             ; => nil
 ```
 
 ### Quotes

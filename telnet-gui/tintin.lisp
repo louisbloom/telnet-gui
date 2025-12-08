@@ -1851,13 +1851,13 @@
   (if (or (null? widths) (= (list-length widths) 0))
     ""
     (let* ((chars (cond ((eq? position 'top) '("┌" "┬" "┐"))
-                   ((eq? position 'middle) '("├" "┼" "┤"))
-                   ((eq? position 'bottom) '("└" "┴" "┘"))
-                   (#t '("├" "┼" "┤"))))  ; default to middle
-           (left (car chars))
-           (middle (list-ref chars 1))
-           (right (list-ref chars 2))
-           (line left))
+                    ((eq? position 'middle) '("├" "┼" "┤"))
+                    ((eq? position 'bottom) '("└" "┴" "┘"))
+                    (#t '("├" "┼" "┤"))))  ; default to middle
+            (left (car chars))
+            (middle (list-ref chars 1))
+            (right (list-ref chars 2))
+            (line left))
       ;; Build border: left + (─*width1) + middle + (─*width2) + ... + right
       (do ((i 0 (+ i 1)))
         ((>= i (list-length widths)))

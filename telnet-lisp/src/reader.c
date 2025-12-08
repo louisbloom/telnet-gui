@@ -207,6 +207,9 @@ static LispObject *read_list(const char **input) {
         if (elem == NULL) {
             return lisp_make_error("Syntax error in list");
         }
+        if (elem->type == LISP_ERROR) {
+            return elem;
+        }
 
         LispObject *new_cons = lisp_make_cons(elem, NIL);
 
@@ -375,6 +378,8 @@ LispObject *lisp_read(const char **input) {
         } else if (*p == '(') {
             return read_vector(input);
         }
+        /* Unknown # syntax - advance past # and next char to prevent silent exit */
+        (*input) += (*p ? 2 : 1);
         return lisp_make_error("Unknown # syntax");
     }
 

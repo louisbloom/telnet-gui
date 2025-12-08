@@ -50,6 +50,7 @@ static LispObject *builtin_list(LispObject *args, Environment *env);
 static LispObject *builtin_list_length(LispObject *args, Environment *env);
 static LispObject *builtin_list_ref(LispObject *args, Environment *env);
 static LispObject *builtin_reverse(LispObject *args, Environment *env);
+static LispObject *builtin_append(LispObject *args, Environment *env);
 
 /* Predicates */
 static LispObject *builtin_null_question(LispObject *args, Environment *env);
@@ -191,6 +192,7 @@ void register_builtins(Environment *env) {
     env_define(env, "list-length", lisp_make_builtin(builtin_list_length, "list-length"));
     env_define(env, "list-ref", lisp_make_builtin(builtin_list_ref, "list-ref"));
     env_define(env, "reverse", lisp_make_builtin(builtin_reverse, "reverse"));
+    env_define(env, "append", lisp_make_builtin(builtin_append, "append"));
 
     /* Alist operations */
     env_define(env, "assoc", lisp_make_builtin(builtin_assoc, "assoc"));
@@ -1567,6 +1569,50 @@ static LispObject *builtin_reverse(LispObject *args, Environment *env) {
     while (lst != NIL && lst != NULL && lst->type == LISP_CONS) {
         result = lisp_make_cons(lisp_car(lst), result);
         lst = lisp_cdr(lst);
+    }
+
+    return result;
+}
+
+static LispObject *builtin_append(LispObject *args, Environment *env) {
+    (void)env;
+
+    /* No arguments: return empty list */
+    if (args == NIL) {
+        return NIL;
+    }
+
+    /* Build result by concatenating all argument lists */
+    LispObject *result = NIL;
+    LispObject *result_tail = NIL;
+
+    /* Iterate through each argument */
+    LispObject *current_arg = args;
+    while (current_arg != NIL) {
+        LispObject *list = lisp_car(current_arg);
+
+        /* Each argument must be a list (or NIL) */
+        if (list != NIL && list->type != LISP_CONS) {
+            return lisp_make_error("append requires list arguments");
+        }
+
+        /* Copy elements from this list */
+        LispObject *elem = list;
+        while (elem != NIL && elem->type == LISP_CONS) {
+            LispObject *new_cons = lisp_make_cons(lisp_car(elem), NIL);
+
+            if (result == NIL) {
+                result = new_cons;
+                result_tail = new_cons;
+            } else {
+                result_tail->value.cons.cdr = new_cons;
+                result_tail = new_cons;
+            }
+
+            elem = lisp_cdr(elem);
+        }
+
+        current_arg = lisp_cdr(current_arg);
     }
 
     return result;
