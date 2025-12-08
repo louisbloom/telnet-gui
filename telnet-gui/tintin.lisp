@@ -1831,7 +1831,19 @@
         (let* ((break-pos (tintin-find-break-point text width))
                 ;; Ensure we always make progress (at least 1 char)
                 (safe-break-pos (if (<= break-pos 0) 1 break-pos))
-                (line1 (substring text 0 safe-break-pos))
+                (line1-raw (substring text 0 safe-break-pos))
+                ;; Strip trailing spaces from line1 (they get added as padding later)
+                (line1-len (string-length line1-raw))
+                (line1-end line1-len)
+                (line1 (progn
+                         ;; Find last non-space character
+                         (do ()
+                           ((or (<= line1-end 0)
+                              (not (string=? (string-ref line1-raw (- line1-end 1)) " "))))
+                           (set! line1-end (- line1-end 1)))
+                         (if (= line1-end line1-len)
+                           line1-raw  ; No trailing spaces
+                           (substring line1-raw 0 line1-end))))  ; Strip trailing spaces
                 (rest-start safe-break-pos)
                 ;; Skip leading space in rest
                 (rest-start-adj (if (and (< rest-start (string-length text))
