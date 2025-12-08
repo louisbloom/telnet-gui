@@ -267,7 +267,7 @@ static void print_help(const char *program_name) {
 
 int main(int argc, char **argv) {
     /* Default settings */
-    int hinting_mode = TTF_HINTING_MONO;             /* Default: monospace-optimized hinting */
+    int hinting_mode = TTF_HINTING_NONE;             /* Default: no hinting (no vertical stretching) */
     SDL_ScaleMode scale_mode = SDL_ScaleModeNearest; /* Default: nearest (pixel-perfect) scaling */
     const char *hostname = NULL;
     int port = 0;
