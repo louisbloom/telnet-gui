@@ -379,6 +379,11 @@ Terminal *terminal_create(int rows, int cols) {
     vterm_screen_set_callbacks(term->screen, &term->callbacks, term);
 
 #if HAVE_VTERM_PUSHLINE4
+    /* Tell libvterm we support the pushline4 callback (with continuation parameter for text reflow) */
+    vterm_screen_callbacks_has_pushline4(term->screen);
+#endif
+
+#if HAVE_VTERM_PUSHLINE4
     fprintf(stderr, "Using libvterm with pushline4 (text reflow enabled)\n");
 #else
     fprintf(stderr, "Using legacy libvterm (text reflow disabled)\n");
