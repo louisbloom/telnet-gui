@@ -1791,55 +1791,263 @@
       ((>= i count) result)
       (set! result (concat result str)))))
 
-;; Draw table border line
-;; style: 'top, 'middle, 'bottom
-(defun tintin-draw-table-border (widths style)
-  (let ((left (cond ((eq? style 'top) "┌") ((eq? style 'middle) "├") (#t "└")))
-         (right (cond ((eq? style 'top) "┐") ((eq? style 'middle) "┤") (#t "┘")))
-         (junction (cond ((eq? style 'top) "┬") ((eq? style 'middle) "┼") (#t "┴")))
-         (line ""))
-    ;; Build line segment by segment
-    (set! line (concat left "─" (tintin-repeat-string "─" (list-ref widths 0)) "─"))
-    (do ((i 1 (+ i 1)))
-      ((>= i (list-length widths)))
-      (set! line (concat line junction "─" (tintin-repeat-string "─" (list-ref widths i)) "─")))
-    (concat line right "\r\n")))
+;; Get visual length of string, excluding ANSI escape sequences
+;; This is critical for table alignment with colored text
+(defun tintin-visual-length (str)
+  (if (not (string? str))
+    0
+    (let ((ansi-pattern "\\x1b\\[[0-9;]*m"))
+      (string-length (regex-replace-all ansi-pattern str "")))))
 
-;; Draw table row with data
-(defun tintin-draw-table-row (values widths)
-  (let ((line "│ "))
-    (do ((i 0 (+ i 1)))
-      ((>= i (list-length values)) (concat line " │\r\n"))
-      (let ((value (list-ref values i))
-             (width (list-ref widths i)))
-        (set! line (concat line (tintin-pad-string value width)))
-        (if (< (+ i 1) (list-length values))
-          (set! line (concat line " │ ")))))))
+;; Find best position to break text near width boundary
+;; Returns position to break at (searches backwards for space/hyphen)
+(defun tintin-find-break-point (text width)
+  (if (<= (tintin-visual-length text) width)
+    (string-length text)
+    (let* ((text-len (string-length text))
+            (start-pos (if (< width text-len) width (- text-len 1))))
+      ;; Search backwards from width (or text end) for space or hyphen
+      (do ((i start-pos (- i 1)))
+        ((or (< i 0)
+           (and (< i text-len)  ; Bounds check
+             (let ((ch (string-ref text i)))
+               (or (char=? ch #\space)
+                 (char=? ch #\-)
+                 (char=? ch #\newline)))))
+          (if (< i 0)
+            (if (< width text-len) width text-len)  ; Hard break at width or text end
+            (+ i 1)))))))  ; Break after space/hyphen
 
-;; Calculate maximum width for each column across all rows
-;; rows: list of lists of strings
-;; Returns: list of column widths
-(defun tintin-calculate-column-widths (rows)
-  (if (or (null? rows) (= (list-length rows) 0))
-    '()
-    (let ((num-cols (list-length (car rows)))
-           (widths (make-vector (list-length (car rows)) 0)))
-      ;; Iterate through all rows
+;; Wrap text to fit within width, returning list of lines
+(defun tintin-wrap-text (text width)
+  (if (or (not (string? text)) (= (tintin-visual-length text) 0))
+    '("")
+    ;; Guard against invalid width
+    (if (<= width 0)
+      (list text)  ; Return as-is if width is too small
+      (if (<= (tintin-visual-length text) width)
+        (list text)
+        ;; Find break point and split
+        (let* ((break-pos (tintin-find-break-point text width))
+                ;; Ensure we always make progress (at least 1 char)
+                (safe-break-pos (if (<= break-pos 0) 1 break-pos))
+                (line1 (substring text 0 safe-break-pos))
+                (rest-start safe-break-pos)
+                ;; Skip leading space in rest
+                (rest-start-adj (if (and (< rest-start (string-length text))
+                                      (char=? (string-ref text rest-start) #\space))
+                                  (+ rest-start 1)
+                                  rest-start)))
+          (if (>= rest-start-adj (string-length text))
+            (list line1)
+            (let ((rest (substring text rest-start-adj (string-length text))))
+              (cons line1 (tintin-wrap-text rest width)))))))))
+
+;; Draw generic table border for any number of columns
+;; widths: list of column widths
+;; position: 'top, 'middle, or 'bottom
+;; Returns: border string with Unicode box-drawing characters
+(defun tintin-draw-border (widths position)
+  (if (or (null? widths) (= (list-length widths) 0))
+    ""
+    (let ((chars (cond ((eq? position 'top) '("┌" "┬" "┐"))
+                   ((eq? position 'middle) '("├" "┼" "┤"))
+                   ((eq? position 'bottom) '("└" "┴" "┘"))
+                   (#t '("├" "┼" "┤"))))  ; default to middle
+           (left (car chars))
+           (middle (cadr chars))
+           (right (caddr chars))
+           (line left))
+      ;; Build border: left + (─*width1) + middle + (─*width2) + ... + right
       (do ((i 0 (+ i 1)))
-        ((>= i (list-length rows)))
-        (let ((row (list-ref rows i)))
-          ;; Check each column
+        ((>= i (list-length widths)))
+        (let ((width (list-ref widths i)))
+          ;; Add horizontal line segment
+          (set! line (concat line "─" (tintin-repeat-string "─" width) "─"))
+          ;; Add junction or right cap
+          (if (< (+ i 1) (list-length widths))
+            (set! line (concat line middle))
+            (set! line (concat line right)))))
+      (concat line "\r\n"))))
+
+;; DEPRECATED: Old function kept for compatibility
+;; Use tintin-draw-border instead
+(defun tintin-draw-table-border (widths style)
+  (tintin-draw-border widths style))
+
+;; Draw table row with wrapping support
+;; cells: list of cell values (strings)
+;; widths: list of column widths
+;; Returns: list of display lines for this logical row
+(defun tintin-draw-row (cells widths)
+  (if (or (null? cells) (null? widths))
+    '("")
+    (let ((wrapped-cells '())
+           (max-lines 0))
+      ;; Step 1: Wrap each cell to its column width
+      (do ((i 0 (+ i 1)))
+        ((>= i (list-length cells)))
+        (let ((cell (list-ref cells i))
+               (width (list-ref widths i)))
+          (let ((wrapped (tintin-wrap-text cell width)))
+            (set! wrapped-cells (cons wrapped wrapped-cells))
+            ;; Track max lines needed
+            (if (> (list-length wrapped) max-lines)
+              (set! max-lines (list-length wrapped))))))
+
+      ;; Reverse to restore original order
+      (set! wrapped-cells (reverse wrapped-cells))
+
+      ;; Step 2: Build each display line
+      (let ((result '()))
+        (do ((line-idx 0 (+ line-idx 1)))
+          ((>= line-idx max-lines) (reverse result))
+          (let ((line "│ "))
+            ;; Build this display line from all columns
+            (do ((col-idx 0 (+ col-idx 1)))
+              ((>= col-idx (list-length cells)))
+              (let* ((wrapped-cell (list-ref wrapped-cells col-idx))
+                      (width (list-ref widths col-idx))
+                      ;; Get text for this line (or empty if this cell has fewer lines)
+                      (text (if (< line-idx (list-length wrapped-cell))
+                              (list-ref wrapped-cell line-idx)
+                              ""))
+                      (padded (tintin-pad-string text width)))
+                (set! line (concat line padded))
+                ;; Add separator or end cap
+                (if (< (+ col-idx 1) (list-length cells))
+                  (set! line (concat line " │ "))
+                  (set! line (concat line " │\r\n")))))
+            (set! result (cons line result))))))))
+
+;; DEPRECATED: Old function kept for compatibility
+;; Use tintin-draw-row instead
+(defun tintin-draw-table-row (values widths)
+  (let ((lines (tintin-draw-row values widths)))
+    ;; Return first line only (no wrapping in old version)
+    (if (null? lines)
+      ""
+      (car lines))))
+
+;; Calculate optimal column widths that fit within max-width
+;; data: list of lists (rows x columns)
+;; max-width: terminal width in characters (from terminal-info)
+;; min-col-width: minimum width per column (default 8)
+;; Returns: list of column widths that fit within max-width
+(defun tintin-calculate-optimal-widths (data max-width min-col-width)
+  (if (or (null? data) (= (list-length data) 0))
+    '()
+    (let ((num-cols (list-length (car data)))
+           (col-maxes (make-vector (list-length (car data)) 0)))
+      ;; Step 1: Find max visual width for each column
+      (do ((i 0 (+ i 1)))
+        ((>= i (list-length data)))
+        (let ((row (list-ref data i)))
           (do ((j 0 (+ j 1)))
             ((>= j (list-length row)))
-            (let ((cell (list-ref row j))
-                   (current-max (vector-ref widths j)))
-              (if (> (string-length cell) current-max)
-                (vector-set! widths j (string-length cell)))))))
-      ;; Convert vector to list
-      (let ((result '()))
+            (let ((cell (list-ref row j)))
+              (let ((cell-width (tintin-visual-length cell))
+                     (current-max (vector-ref col-maxes j)))
+                (if (> cell-width current-max)
+                  (vector-set! col-maxes j cell-width)))))))
+
+      ;; Step 2: Calculate total needed width
+      ;; formula: sum(widths) + (num-cols + 1) + (num-cols - 1) * 3
+      (let ((content-width 0))
+        ;; Sum up column widths
         (do ((k 0 (+ k 1)))
-          ((>= k num-cols) (reverse result))
-          (set! result (cons (vector-ref widths k) result)))))))
+          ((>= k num-cols))
+          (set! content-width (+ content-width (vector-ref col-maxes k))))
+
+        (let* ((border-width (+ num-cols 1))
+                (separator-width (* (- num-cols 1) 3))
+                (total-width (+ content-width border-width separator-width)))
+
+          ;; Step 3: If total > max-width, scale down proportionally
+          (if (<= total-width max-width)
+            ;; Fits within terminal, return as-is
+            (let ((result '()))
+              (do ((k 0 (+ k 1)))
+                ((>= k num-cols) (reverse result))
+                (set! result (cons (vector-ref col-maxes k) result))))
+            ;; Needs scaling: available = max-width - borders - separators
+            (let ((available (- max-width border-width separator-width))
+                   (result '()))
+              (do ((k 0 (+ k 1)))
+                ((>= k num-cols) (reverse result))
+                (let* ((col-width (vector-ref col-maxes k))
+                        ;; Proportional scaling: (width * available) / content-width
+                        (scaled-width (quotient (* col-width available) content-width))
+                        ;; Ensure at least min-col-width
+                        (final-width (if (< scaled-width min-col-width)
+                                       min-col-width
+                                       scaled-width)))
+                  (set! result (cons final-width result)))))))))))
+
+;; DEPRECATED: Old function kept for compatibility
+;; Use tintin-calculate-optimal-widths instead
+(defun tintin-calculate-column-widths (rows)
+  (tintin-calculate-optimal-widths rows 80 8))
+
+;; ============================================================================
+;; GENERIC TABLE PRINTER
+;; ============================================================================
+
+;; Print formatted table from list of lists
+;; data: ((header1 header2 ...) (row1-col1 row1-col2 ...) ...)
+;; First list is treated as headers (rendered in bold)
+;; Automatically detects terminal width and optimizes column layout
+(defun tintin-print-table (data)
+  (if (or (null? data) (= (list-length data) 0))
+    (tintin-echo "Error: Table data cannot be empty")
+    (let* ((term-info (terminal-info))
+            (term-cols (cdr (assoc 'cols term-info)))
+            (min-col-width 8)
+            (headers (car data))
+            (rows (cdr data))
+            (all-rows data))
+
+      ;; Validate that we have at least headers
+      (if (or (null? headers) (= (list-length headers) 0))
+        (tintin-echo "Error: Table must have at least header row")
+        (let ((widths (tintin-calculate-optimal-widths all-rows term-cols min-col-width)))
+
+          ;; Draw top border
+          (tintin-echo (tintin-draw-border widths 'top))
+
+          ;; Draw header row (with bold formatting)
+          (let ((bold-headers '()))
+            ;; Add bold formatting to each header
+            (do ((i 0 (+ i 1)))
+              ((>= i (list-length headers)))
+              (let ((header (list-ref headers i)))
+                (set! bold-headers (cons (concat "\x1b[1m" header "\x1b[0m") bold-headers))))
+            (set! bold-headers (reverse bold-headers))
+
+            ;; Draw header lines
+            (let ((header-lines (tintin-draw-row bold-headers widths)))
+              (do ((i 0 (+ i 1)))
+                ((>= i (list-length header-lines)))
+                (tintin-echo (list-ref header-lines i)))))
+
+          ;; Draw middle border
+          (tintin-echo (tintin-draw-border widths 'middle))
+
+          ;; Draw data rows (with wrapping if needed)
+          (do ((row-idx 0 (+ row-idx 1)))
+            ((>= row-idx (list-length rows)))
+            (let* ((row (list-ref rows row-idx))
+                    (row-lines (tintin-draw-row row widths)))
+              (do ((line-idx 0 (+ line-idx 1)))
+                ((>= line-idx (list-length row-lines)))
+                (tintin-echo (list-ref row-lines line-idx)))))
+
+          ;; Draw bottom border
+          (tintin-echo (tintin-draw-border widths 'bottom)))))))
+
+;; ============================================================================
+;; LIST COMMANDS (using generic table printer)
+;; ============================================================================
 
 ;; List all defined aliases
 (defun tintin-list-aliases ()
@@ -1853,8 +2061,8 @@
         (tintin-echo (concat "Aliases (" (number->string count) "):\r\n"))
         ;; Sort aliases alphabetically
         (let ((sorted (tintin-sort-aliases-alphabetically alias-entries)))
-          ;; Prepare rows for table (header + data)
-          (let ((rows (list (list "Name" "Commands" "Priority"))))
+          ;; Build data structure: headers + data rows
+          (let ((data (list (list "Name" "Commands" "Priority"))))
             ;; Add data rows
             (do ((i 0 (+ i 1)))
               ((>= i (list-length sorted)))
@@ -1864,18 +2072,9 @@
                       (commands (car value))
                       (priority (car (cdr value)))
                       (priority-str (if (= priority 5) "" (number->string priority))))
-                (set! rows (cons (list name commands priority-str) rows))))
-            (set! rows (reverse rows))
-            ;; Calculate column widths
-            (let ((widths (tintin-calculate-column-widths rows)))
-              ;; Draw table
-              (tintin-echo (tintin-draw-table-border widths 'top))
-              (tintin-echo (tintin-draw-table-row (list-ref rows 0) widths))
-              (tintin-echo (tintin-draw-table-border widths 'middle))
-              (do ((i 1 (+ i 1)))
-                ((>= i (list-length rows)))
-                (tintin-echo (tintin-draw-table-row (list-ref rows i) widths)))
-              (tintin-echo (tintin-draw-table-border widths 'bottom)))))
+                (set! data (append data (list (list name commands priority-str))))))
+            ;; Print table using generic printer
+            (tintin-print-table data)))
         ""))))
 
 ;; List all defined variables
@@ -1888,12 +2087,17 @@
         "")
       (progn
         (tintin-echo (concat "Variables (" (number->string count) "):\r\n"))
-        (do ((i 0 (+ i 1)))
-          ((>= i (list-length var-entries)))
-          (let* ((entry (list-ref var-entries i))
-                  (name (car entry))
-                  (value (cdr entry)))
-            (tintin-echo (concat "  " name " = " value "\r\n"))))
+        ;; Build data structure: headers + data rows
+        (let ((data (list (list "Variable" "Value"))))
+          ;; Add data rows
+          (do ((i 0 (+ i 1)))
+            ((>= i (list-length var-entries)))
+            (let* ((entry (list-ref var-entries i))
+                    (name (car entry))
+                    (value (cdr entry)))
+              (set! data (append data (list (list name value))))))
+          ;; Print table using generic printer
+          (tintin-print-table data))
         ""))))
 
 ;; List all defined highlights (sorted alphabetically)
@@ -1908,33 +2112,24 @@
         (tintin-echo (concat "Highlights (" (number->string count) "):\r\n"))
         ;; Sort alphabetically before displaying
         (let ((sorted (tintin-sort-highlights-alphabetically highlight-entries)))
-          ;; Prepare rows for table (header + data)
-          (let ((rows (list (list "Pattern" "Color" "Priority"))))
+          ;; Build data structure: headers + data rows
+          (let ((data (list (list "Pattern" "Color" "Priority"))))
             ;; Add data rows
             (do ((i 0 (+ i 1)))
               ((>= i (list-length sorted)))
               (let* ((entry (list-ref sorted i))
                       (pattern (car entry))
-                      (data (cdr entry))
-                      (fg-color (car data))
-                      (bg-color (car (cdr data)))
-                      (priority (car (cdr (cdr data))))
+                      (entry-data (cdr entry))
+                      (fg-color (car entry-data))
+                      (bg-color (car (cdr entry-data)))
+                      (priority (car (cdr (cdr entry-data))))
                       (color-str (concat (if fg-color fg-color "")
                                    (if (and fg-color bg-color) ":" "")
                                    (if bg-color bg-color "")))
                       (priority-str (if (= priority 5) "" (number->string priority))))
-                (set! rows (cons (list pattern color-str priority-str) rows))))
-            (set! rows (reverse rows))
-            ;; Calculate column widths
-            (let ((widths (tintin-calculate-column-widths rows)))
-              ;; Draw table
-              (tintin-echo (tintin-draw-table-border widths 'top))
-              (tintin-echo (tintin-draw-table-row (list-ref rows 0) widths))
-              (tintin-echo (tintin-draw-table-border widths 'middle))
-              (do ((i 1 (+ i 1)))
-                ((>= i (list-length rows)))
-                (tintin-echo (tintin-draw-table-row (list-ref rows i) widths)))
-              (tintin-echo (tintin-draw-table-border widths 'bottom)))))
+                (set! data (append data (list (list pattern color-str priority-str))))))
+            ;; Print table using generic printer
+            (tintin-print-table data)))
         ""))))
 
 ;; List all defined actions (sorted alphabetically)
@@ -1949,29 +2144,20 @@
         (tintin-echo (concat "Actions (" (number->string count) "):\r\n"))
         ;; Sort alphabetically before displaying
         (let ((sorted (tintin-sort-actions-alphabetically action-entries)))
-          ;; Prepare rows for table (header + data)
-          (let ((rows (list (list "Pattern" "Commands" "Priority"))))
+          ;; Build data structure: headers + data rows
+          (let ((data (list (list "Pattern" "Commands" "Priority"))))
             ;; Add data rows
             (do ((i 0 (+ i 1)))
               ((>= i (list-length sorted)))
               (let* ((entry (list-ref sorted i))
                       (pattern (car entry))
-                      (data (cdr entry))
-                      (commands (car data))
-                      (priority (car (cdr data)))
+                      (entry-data (cdr entry))
+                      (commands (car entry-data))
+                      (priority (car (cdr entry-data)))
                       (priority-str (if (= priority 5) "" (number->string priority))))
-                (set! rows (cons (list pattern commands priority-str) rows))))
-            (set! rows (reverse rows))
-            ;; Calculate column widths
-            (let ((widths (tintin-calculate-column-widths rows)))
-              ;; Draw table
-              (tintin-echo (tintin-draw-table-border widths 'top))
-              (tintin-echo (tintin-draw-table-row (list-ref rows 0) widths))
-              (tintin-echo (tintin-draw-table-border widths 'middle))
-              (do ((i 1 (+ i 1)))
-                ((>= i (list-length rows)))
-                (tintin-echo (tintin-draw-table-row (list-ref rows i) widths)))
-              (tintin-echo (tintin-draw-table-border widths 'bottom)))))
+                (set! data (append data (list (list pattern commands priority-str))))))
+            ;; Print table using generic printer
+            (tintin-print-table data)))
         ""))))
 
 ;; ============================================================================
