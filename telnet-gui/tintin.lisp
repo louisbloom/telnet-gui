@@ -1811,9 +1811,9 @@
         ((or (< i 0)
            (and (< i text-len)  ; Bounds check
              (let ((ch (string-ref text i)))
-               (or (char=? ch #\space)
-                 (char=? ch #\-)
-                 (char=? ch #\newline)))))
+               (or (string=? ch " ")
+                 (string=? ch "-")
+                 (string=? ch "\n")))))
           (if (< i 0)
             (if (< width text-len) width text-len)  ; Hard break at width or text end
             (+ i 1)))))))  ; Break after space/hyphen
@@ -1835,7 +1835,7 @@
                 (rest-start safe-break-pos)
                 ;; Skip leading space in rest
                 (rest-start-adj (if (and (< rest-start (string-length text))
-                                      (char=? (string-ref text rest-start) #\space))
+                                      (string=? (string-ref text rest-start) " "))
                                   (+ rest-start 1)
                                   rest-start)))
           (if (>= rest-start-adj (string-length text))
@@ -1850,13 +1850,13 @@
 (defun tintin-draw-border (widths position)
   (if (or (null? widths) (= (list-length widths) 0))
     ""
-    (let ((chars (cond ((eq? position 'top) '("┌" "┬" "┐"))
+    (let* ((chars (cond ((eq? position 'top) '("┌" "┬" "┐"))
                    ((eq? position 'middle) '("├" "┼" "┤"))
                    ((eq? position 'bottom) '("└" "┴" "┘"))
                    (#t '("├" "┼" "┤"))))  ; default to middle
            (left (car chars))
-           (middle (cadr chars))
-           (right (caddr chars))
+           (middle (list-ref chars 1))
+           (right (list-ref chars 2))
            (line left))
       ;; Build border: left + (─*width1) + middle + (─*width2) + ... + right
       (do ((i 0 (+ i 1)))
@@ -2472,6 +2472,7 @@
 ;; ============================================================================
 ;; Automatically activate TinTin++ when this file is loaded
 
+;; Activate TinTin++ user input hook
 (define user-input-hook tintin-user-input-hook)
 
 ;; Hook function for telnet-input-filter-hook integration
