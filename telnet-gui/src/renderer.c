@@ -190,8 +190,8 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
                     int tex_w, tex_h;
                     SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);
 
-                    /* Center glyph horizontally, align to baseline vertically */
-                    int dst_x = col * r->cell_w + (r->cell_w - tex_w) / 2;
+                    /* Center glyph horizontally with proper rounding, align to baseline vertically */
+                    int dst_x = col * r->cell_w + (r->cell_w - tex_w + 1) / 2;
                     int dst_y = row * r->cell_h;
                     SDL_Rect dst = {dst_x, dst_y, tex_w, tex_h};
 
@@ -298,7 +298,7 @@ void renderer_render_input_area(Renderer *r, Terminal *term, const char *text, i
             if (glyph) {
                 int tex_w, tex_h;
                 SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);
-                SDL_Rect dst = {x + (r->cell_w - tex_w) / 2, y, tex_w, tex_h};
+                SDL_Rect dst = {x + (r->cell_w - tex_w + 1) / 2, y, tex_w, tex_h};
                 SDL_RenderCopy(r->sdl_renderer, glyph, NULL, &dst);
             }
             x += r->cell_w;
