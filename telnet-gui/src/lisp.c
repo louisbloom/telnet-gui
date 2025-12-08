@@ -4,6 +4,8 @@
 #include "input_area.h"
 #include "terminal.h"
 #include "telnet.h"
+#include "glyph_cache.h"
+#include "window.h"
 #include "../../telnet-lisp/include/lisp.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -16,6 +18,8 @@ static Environment *lisp_env = NULL;
 /* Registered terminal pointer for terminal-echo builtin */
 static Terminal *registered_terminal = NULL;
 static Telnet *registered_telnet = NULL;
+static GlyphCache *registered_glyph_cache = NULL;
+static Window *registered_window = NULL;
 
 /* Static buffer for ANSI code stripping (pre-allocated at startup, freed on exit) */
 static char *ansi_strip_buffer = NULL;
@@ -398,6 +402,84 @@ static LispObject *builtin_telnet_send(LispObject *args, Environment *env) {
     return NIL;
 }
 
+static LispObject *builtin_terminal_info(LispObject *args, Environment *env) {
+    (void)args; /* No arguments expected */
+    (void)env;
+
+    /* Check if all required components are registered */
+    if (!registered_terminal) {
+        return lisp_make_error("terminal-info: no terminal registered");
+    }
+    if (!registered_glyph_cache) {
+        return lisp_make_error("terminal-info: no glyph cache registered");
+    }
+    if (!registered_window) {
+        return lisp_make_error("terminal-info: no window registered");
+    }
+
+    /* Collect terminal dimensions */
+    int rows, cols;
+    terminal_get_size(registered_terminal, &rows, &cols);
+
+    /* Collect cell dimensions */
+    int cell_w, cell_h;
+    glyph_cache_get_cell_size(registered_glyph_cache, &cell_w, &cell_h);
+
+    /* Collect window dimensions */
+    int window_w, window_h;
+    window_get_size(registered_window, &window_w, &window_h);
+
+    /* Collect scrollback information */
+    int viewport_offset = terminal_get_viewport_offset(registered_terminal);
+    int scrollback_size = terminal_get_scrollback_size(registered_terminal);
+    int max_scrollback = terminal_get_max_scrollback_lines(registered_terminal);
+
+    /* Collect font information */
+    const char *font_path = glyph_cache_get_font_path(registered_glyph_cache);
+    const char *font_name = glyph_cache_get_font_name(registered_glyph_cache);
+
+    /* Get libvterm version */
+    const char *libvterm_version = terminal_get_libvterm_version();
+
+    /* Build association list using tail-pointer pattern for efficiency */
+    LispObject *result = NIL;
+    LispObject *tail = NULL;
+
+    /* Helper macro to add key-value pairs */
+#define ADD_PAIR(key_name, value_expr)                                                                                 \
+    do {                                                                                                               \
+        LispObject *key = lisp_make_symbol(key_name);                                                                  \
+        LispObject *value = (value_expr);                                                                              \
+        LispObject *pair = lisp_make_cons(key, value);                                                                 \
+        LispObject *new_cons = lisp_make_cons(pair, NIL);                                                              \
+        if (result == NIL) {                                                                                           \
+            result = new_cons;                                                                                         \
+            tail = new_cons;                                                                                           \
+        } else {                                                                                                       \
+            tail->value.cons.cdr = new_cons;                                                                           \
+            tail = new_cons;                                                                                           \
+        }                                                                                                              \
+    } while (0)
+
+    /* Add all pairs in logical order */
+    ADD_PAIR("cols", lisp_make_integer(cols));
+    ADD_PAIR("rows", lisp_make_integer(rows));
+    ADD_PAIR("cell-width", lisp_make_integer(cell_w));
+    ADD_PAIR("cell-height", lisp_make_integer(cell_h));
+    ADD_PAIR("window-width", lisp_make_integer(window_w));
+    ADD_PAIR("window-height", lisp_make_integer(window_h));
+    ADD_PAIR("viewport-offset", lisp_make_integer(viewport_offset));
+    ADD_PAIR("scrollback-size", lisp_make_integer(scrollback_size));
+    ADD_PAIR("max-scrollback", lisp_make_integer(max_scrollback));
+    ADD_PAIR("font-path", lisp_make_string(font_path ? font_path : ""));
+    ADD_PAIR("font-name", lisp_make_string(font_name ? font_name : ""));
+    ADD_PAIR("libvterm-version", lisp_make_string(libvterm_version));
+
+#undef ADD_PAIR
+
+    return result;
+}
+
 int lisp_x_init(void) {
     /* Initialize Lisp interpreter */
     if (lisp_init() < 0) {
@@ -530,6 +612,10 @@ int lisp_x_init(void) {
     /* Register telnet-send builtin */
     LispObject *telnet_send_builtin = lisp_make_builtin(builtin_telnet_send, "telnet-send");
     env_define(lisp_env, "telnet-send", telnet_send_builtin);
+
+    /* Register terminal-info builtin */
+    LispObject *terminal_info_builtin = lisp_make_builtin(builtin_terminal_info, "terminal-info");
+    env_define(lisp_env, "terminal-info", terminal_info_builtin);
 
     return 0;
 }
@@ -1352,6 +1438,14 @@ void lisp_x_register_terminal(Terminal *term) {
 
 void lisp_x_register_telnet(Telnet *t) {
     registered_telnet = t;
+}
+
+void lisp_x_register_glyph_cache(GlyphCache *cache) {
+    registered_glyph_cache = cache;
+}
+
+void lisp_x_register_window(Window *w) {
+    registered_window = w;
 }
 
 /* Get lisp environment (for accessing Lisp variables from C) */

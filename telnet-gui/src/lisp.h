@@ -75,11 +75,21 @@ void lisp_x_get_terminal_bg_color(int *r, int *g, int *b);
 /* Forward declaration for Telnet type (defined in telnet.h) */
 struct Telnet;
 
+/* Forward declarations for GlyphCache and Window types */
+struct GlyphCache;
+struct Window;
+
 /* Register terminal pointer for terminal-echo builtin */
 void lisp_x_register_terminal(Terminal *term);
 
 /* Register telnet pointer for telnet-send builtin */
 void lisp_x_register_telnet(struct Telnet *t);
+
+/* Register glyph cache pointer for terminal-info builtin */
+void lisp_x_register_glyph_cache(struct GlyphCache *cache);
+
+/* Register window pointer for terminal-info builtin */
+void lisp_x_register_window(struct Window *w);
 
 /* Get lisp environment (for accessing Lisp variables from C) */
 void *lisp_x_get_environment(void);

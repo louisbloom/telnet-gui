@@ -2,6 +2,7 @@
 
 #include "commands.h"
 #include "lisp.h"
+#include "../../telnet-lisp/include/lisp.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,6 +34,7 @@ int process_command(const char *text, Telnet *telnet, Terminal *term, int *conne
                                "  :disconnect                   - Disconnect from current server\r\n"
                                "  :load <filepath>              - Load and execute a Lisp file\r\n"
                                "  :test <filepath>              - Run a Lisp test file\r\n"
+                               "  :repl <code>                  - Evaluate Lisp code and show result\r\n"
                                "  :quit                         - Exit application\r\n"
                                "\r\n";
         terminal_feed_data(term, help_msg, strlen(help_msg));
@@ -113,6 +115,71 @@ int process_command(const char *text, Telnet *telnet, Terminal *term, int *conne
         }
 
         return 1; /* Command processed */
+    }
+
+    /* :repl <code> - Evaluate Lisp code and echo result */
+    if (strncmp(cmd, "repl ", 5) == 0) {
+        const char *code = cmd + 5;
+
+        /* Skip leading spaces */
+        while (*code == ' ')
+            code++;
+
+        if (*code == '\0') {
+            const char *msg = "\r\n*** Usage: :repl <lisp-code> ***\r\n";
+            terminal_feed_data(term, msg, strlen(msg));
+            return 1;
+        }
+
+        /* Get the Lisp environment */
+        Environment *env = (Environment *)lisp_x_get_environment();
+        if (!env) {
+            const char *msg = "\r\n*** Error: Lisp environment not initialized ***\r\n";
+            terminal_feed_data(term, msg, strlen(msg));
+            return 1;
+        }
+
+        /* Evaluate the code */
+        LispObject *result = lisp_eval_string(code, env);
+
+        /* Check for errors */
+        if (!result) {
+            const char *msg = "\r\n*** Error: Evaluation returned NULL ***\r\n";
+            terminal_feed_data(term, msg, strlen(msg));
+            return 1;
+        }
+
+        if (result->type == LISP_ERROR) {
+            char *err_str = lisp_print(result);
+            if (err_str) {
+                /* Format error message */
+                size_t err_len = strlen(err_str);
+                size_t msg_size = err_len + 50;
+                char *error_msg = malloc(msg_size);
+                if (error_msg) {
+                    snprintf(error_msg, msg_size, "\r\n*** Error: %s ***\r\n", err_str);
+                    terminal_feed_data(term, error_msg, strlen(error_msg));
+                    free(error_msg);
+                }
+            }
+            return 1;
+        }
+
+        /* Echo result to terminal */
+        char *result_str = lisp_print(result);
+        if (result_str) {
+            /* Format output message */
+            size_t result_len = strlen(result_str);
+            size_t msg_size = result_len + 10;
+            char *output_msg = malloc(msg_size);
+            if (output_msg) {
+                snprintf(output_msg, msg_size, "\r\n> %s\r\n", result_str);
+                terminal_feed_data(term, output_msg, strlen(output_msg));
+                free(output_msg);
+            }
+        }
+
+        return 1;
     }
 
     /* :connect command */

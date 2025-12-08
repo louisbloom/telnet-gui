@@ -1683,6 +1683,164 @@
         (substring str 1 (- len 1))
         str))))
 
+;; Sort alias entries alphabetically by name
+;; Input: list of (name . (commands priority)) pairs
+;; Output: sorted list alphabetically by name
+(defun tintin-sort-aliases-alphabetically (alias-list)
+  (if (or (null? alias-list) (= (list-length alias-list) 0))
+    '()
+    ;; Simple insertion sort by name
+    (let ((sorted '()))
+      (do ((remaining alias-list (cdr remaining)))
+        ((null? remaining) sorted)
+        (let ((entry (car remaining))
+               (name (car (car remaining))))
+          ;; Insert entry in alphabetically sorted position
+          (set! sorted (tintin-insert-alias-alphabetically entry name sorted)))))))
+
+;; Helper: Insert alias entry into sorted list alphabetically by name
+(defun tintin-insert-alias-alphabetically (entry name sorted-list)
+  (if (null? sorted-list)
+    (list entry)
+    (let ((first-entry (car sorted-list))
+           (first-name (car (car sorted-list))))
+      (if (string<? name first-name)
+        ;; Insert before first entry
+        (cons entry sorted-list)
+        ;; Insert later in list
+        (cons first-entry
+          (tintin-insert-alias-alphabetically entry name (cdr sorted-list)))))))
+
+;; Sort highlight entries alphabetically by pattern
+;; Input: list of (pattern . (fg-color bg-color priority)) pairs
+;; Output: sorted list alphabetically by pattern
+(defun tintin-sort-highlights-alphabetically (highlight-list)
+  (if (or (null? highlight-list) (= (list-length highlight-list) 0))
+    '()
+    ;; Simple insertion sort by pattern
+    (let ((sorted '()))
+      (do ((remaining highlight-list (cdr remaining)))
+        ((null? remaining) sorted)
+        (let ((entry (car remaining))
+               (pattern (car (car remaining))))
+          ;; Insert entry in alphabetically sorted position
+          (set! sorted (tintin-insert-highlight-alphabetically entry pattern sorted)))))))
+
+;; Helper: Insert highlight entry into sorted list alphabetically by pattern
+(defun tintin-insert-highlight-alphabetically (entry pattern sorted-list)
+  (if (null? sorted-list)
+    (list entry)
+    (let ((first-entry (car sorted-list))
+           (first-pattern (car (car sorted-list))))
+      (if (string<? pattern first-pattern)
+        ;; Insert before first entry
+        (cons entry sorted-list)
+        ;; Insert later in list
+        (cons first-entry
+          (tintin-insert-highlight-alphabetically entry pattern (cdr sorted-list)))))))
+
+;; Sort action entries alphabetically by pattern
+;; Input: list of (pattern . (commands-string priority)) pairs
+;; Output: sorted list alphabetically by pattern
+(defun tintin-sort-actions-alphabetically (action-list)
+  (if (or (null? action-list) (= (list-length action-list) 0))
+    '()
+    ;; Simple insertion sort by pattern
+    (let ((sorted '()))
+      (do ((remaining action-list (cdr remaining)))
+        ((null? remaining) sorted)
+        (let ((entry (car remaining))
+               (pattern (car (car remaining))))
+          ;; Insert entry in alphabetically sorted position
+          (set! sorted (tintin-insert-action-alphabetically entry pattern sorted)))))))
+
+;; Helper: Insert action entry into sorted list alphabetically by pattern
+(defun tintin-insert-action-alphabetically (entry pattern sorted-list)
+  (if (null? sorted-list)
+    (list entry)
+    (let ((first-entry (car sorted-list))
+           (first-pattern (car (car sorted-list))))
+      (if (string<? pattern first-pattern)
+        ;; Insert before first entry
+        (cons entry sorted-list)
+        ;; Insert later in list
+        (cons first-entry
+          (tintin-insert-action-alphabetically entry pattern (cdr sorted-list)))))))
+
+;; ============================================================================
+;; TABLE FORMATTING UTILITIES
+;; ============================================================================
+
+;; Pad string to specified width with spaces
+(defun tintin-pad-string (str width)
+  (if (not (string? str))
+    ""
+    (let ((str-len (string-length str)))
+      (let ((padding-needed (- width str-len)))
+        (if (<= padding-needed 0)
+          str
+          (let ((result str))
+            (do ((i 0 (+ i 1)))
+              ((>= i padding-needed) result)
+              (set! result (concat result " ")))))))))
+
+;; Repeat a string N times
+(defun tintin-repeat-string (str count)
+  (let ((result ""))
+    (do ((i 0 (+ i 1)))
+      ((>= i count) result)
+      (set! result (concat result str)))))
+
+;; Draw table border line
+;; style: 'top, 'middle, 'bottom
+(defun tintin-draw-table-border (widths style)
+  (let ((left (cond ((eq? style 'top) "┌") ((eq? style 'middle) "├") (#t "└")))
+         (right (cond ((eq? style 'top) "┐") ((eq? style 'middle) "┤") (#t "┘")))
+         (junction (cond ((eq? style 'top) "┬") ((eq? style 'middle) "┼") (#t "┴")))
+         (line ""))
+    ;; Build line segment by segment
+    (set! line (concat left "─" (tintin-repeat-string "─" (list-ref widths 0)) "─"))
+    (do ((i 1 (+ i 1)))
+      ((>= i (list-length widths)))
+      (set! line (concat line junction "─" (tintin-repeat-string "─" (list-ref widths i)) "─")))
+    (concat line right "\r\n")))
+
+;; Draw table row with data
+(defun tintin-draw-table-row (values widths)
+  (let ((line "│ "))
+    (do ((i 0 (+ i 1)))
+      ((>= i (list-length values)) (concat line " │\r\n"))
+      (let ((value (list-ref values i))
+             (width (list-ref widths i)))
+        (set! line (concat line (tintin-pad-string value width)))
+        (if (< (+ i 1) (list-length values))
+          (set! line (concat line " │ ")))))))
+
+;; Calculate maximum width for each column across all rows
+;; rows: list of lists of strings
+;; Returns: list of column widths
+(defun tintin-calculate-column-widths (rows)
+  (if (or (null? rows) (= (list-length rows) 0))
+    '()
+    (let ((num-cols (list-length (car rows)))
+           (widths (make-vector (list-length (car rows)) 0)))
+      ;; Iterate through all rows
+      (do ((i 0 (+ i 1)))
+        ((>= i (list-length rows)))
+        (let ((row (list-ref rows i)))
+          ;; Check each column
+          (do ((j 0 (+ j 1)))
+            ((>= j (list-length row)))
+            (let ((cell (list-ref row j))
+                   (current-max (vector-ref widths j)))
+              (if (> (string-length cell) current-max)
+                (vector-set! widths j (string-length cell)))))))
+      ;; Convert vector to list
+      (let ((result '()))
+        (do ((k 0 (+ k 1)))
+          ((>= k num-cols) (reverse result))
+          (set! result (cons (vector-ref widths k) result)))))))
+
 ;; List all defined aliases
 (defun tintin-list-aliases ()
   (let ((alias-entries (hash-entries *tintin-aliases*))
@@ -1693,15 +1851,31 @@
         "")
       (progn
         (tintin-echo (concat "Aliases (" (number->string count) "):\r\n"))
-        (do ((i 0 (+ i 1)))
-          ((>= i (list-length alias-entries)))
-          (let* ((entry (list-ref alias-entries i))
-                  (name (car entry))
-                  (value (cdr entry))
-                  (commands (car value))
-                  (priority (car (cdr value))))
-            (tintin-echo (concat "  " name " → " commands
-                           " (priority: " (number->string priority) ")\r\n"))))
+        ;; Sort aliases alphabetically
+        (let ((sorted (tintin-sort-aliases-alphabetically alias-entries)))
+          ;; Prepare rows for table (header + data)
+          (let ((rows (list (list "Name" "Commands" "Priority"))))
+            ;; Add data rows
+            (do ((i 0 (+ i 1)))
+              ((>= i (list-length sorted)))
+              (let* ((entry (list-ref sorted i))
+                      (name (car entry))
+                      (value (cdr entry))
+                      (commands (car value))
+                      (priority (car (cdr value)))
+                      (priority-str (if (= priority 5) "" (number->string priority))))
+                (set! rows (cons (list name commands priority-str) rows))))
+            (set! rows (reverse rows))
+            ;; Calculate column widths
+            (let ((widths (tintin-calculate-column-widths rows)))
+              ;; Draw table
+              (tintin-echo (tintin-draw-table-border widths 'top))
+              (tintin-echo (tintin-draw-table-row (list-ref rows 0) widths))
+              (tintin-echo (tintin-draw-table-border widths 'middle))
+              (do ((i 1 (+ i 1)))
+                ((>= i (list-length rows)))
+                (tintin-echo (tintin-draw-table-row (list-ref rows i) widths)))
+              (tintin-echo (tintin-draw-table-border widths 'bottom)))))
         ""))))
 
 ;; List all defined variables
@@ -1722,7 +1896,7 @@
             (tintin-echo (concat "  " name " = " value "\r\n"))))
         ""))))
 
-;; List all defined highlights (sorted by priority)
+;; List all defined highlights (sorted alphabetically)
 (defun tintin-list-highlights ()
   (let ((highlight-entries (hash-entries *tintin-highlights*))
          (count (hash-count *tintin-highlights*)))
@@ -1732,24 +1906,38 @@
         "")
       (progn
         (tintin-echo (concat "Highlights (" (number->string count) "):\r\n"))
-        ;; Sort by priority before displaying
-        (let ((sorted (tintin-sort-highlights-by-priority highlight-entries)))
-          (do ((i 0 (+ i 1)))
-            ((>= i (list-length sorted)))
-            (let* ((entry (list-ref sorted i))
-                    (pattern (car entry))
-                    (data (cdr entry))
-                    (fg-color (car data))
-                    (bg-color (car (cdr data)))
-                    (priority (car (cdr (cdr data)))))
-              (tintin-echo (concat "  " pattern " → "
-                             (if fg-color fg-color "")
-                             (if (and fg-color bg-color) ":" "")
-                             (if bg-color bg-color "")
-                             " (priority: " (number->string priority) ")\r\n")))))
+        ;; Sort alphabetically before displaying
+        (let ((sorted (tintin-sort-highlights-alphabetically highlight-entries)))
+          ;; Prepare rows for table (header + data)
+          (let ((rows (list (list "Pattern" "Color" "Priority"))))
+            ;; Add data rows
+            (do ((i 0 (+ i 1)))
+              ((>= i (list-length sorted)))
+              (let* ((entry (list-ref sorted i))
+                      (pattern (car entry))
+                      (data (cdr entry))
+                      (fg-color (car data))
+                      (bg-color (car (cdr data)))
+                      (priority (car (cdr (cdr data))))
+                      (color-str (concat (if fg-color fg-color "")
+                                   (if (and fg-color bg-color) ":" "")
+                                   (if bg-color bg-color "")))
+                      (priority-str (if (= priority 5) "" (number->string priority))))
+                (set! rows (cons (list pattern color-str priority-str) rows))))
+            (set! rows (reverse rows))
+            ;; Calculate column widths
+            (let ((widths (tintin-calculate-column-widths rows)))
+              ;; Draw table
+              (tintin-echo (tintin-draw-table-border widths 'top))
+              (tintin-echo (tintin-draw-table-row (list-ref rows 0) widths))
+              (tintin-echo (tintin-draw-table-border widths 'middle))
+              (do ((i 1 (+ i 1)))
+                ((>= i (list-length rows)))
+                (tintin-echo (tintin-draw-table-row (list-ref rows i) widths)))
+              (tintin-echo (tintin-draw-table-border widths 'bottom)))))
         ""))))
 
-;; List all defined actions (sorted by priority)
+;; List all defined actions (sorted alphabetically)
 (defun tintin-list-actions ()
   (let ((action-entries (hash-entries *tintin-actions*))
          (count (hash-count *tintin-actions*)))
@@ -1759,17 +1947,31 @@
         "")
       (progn
         (tintin-echo (concat "Actions (" (number->string count) "):\r\n"))
-        ;; Sort by priority before displaying
-        (let ((sorted (tintin-sort-actions-by-priority action-entries)))
-          (do ((i 0 (+ i 1)))
-            ((>= i (list-length sorted)))
-            (let* ((entry (list-ref sorted i))
-                    (pattern (car entry))
-                    (data (cdr entry))
-                    (commands (car data))
-                    (priority (car (cdr data))))
-              (tintin-echo (concat "  " pattern " → " commands
-                             " (priority: " (number->string priority) ")\r\n")))))
+        ;; Sort alphabetically before displaying
+        (let ((sorted (tintin-sort-actions-alphabetically action-entries)))
+          ;; Prepare rows for table (header + data)
+          (let ((rows (list (list "Pattern" "Commands" "Priority"))))
+            ;; Add data rows
+            (do ((i 0 (+ i 1)))
+              ((>= i (list-length sorted)))
+              (let* ((entry (list-ref sorted i))
+                      (pattern (car entry))
+                      (data (cdr entry))
+                      (commands (car data))
+                      (priority (car (cdr data)))
+                      (priority-str (if (= priority 5) "" (number->string priority))))
+                (set! rows (cons (list pattern commands priority-str) rows))))
+            (set! rows (reverse rows))
+            ;; Calculate column widths
+            (let ((widths (tintin-calculate-column-widths rows)))
+              ;; Draw table
+              (tintin-echo (tintin-draw-table-border widths 'top))
+              (tintin-echo (tintin-draw-table-row (list-ref rows 0) widths))
+              (tintin-echo (tintin-draw-table-border widths 'middle))
+              (do ((i 1 (+ i 1)))
+                ((>= i (list-length rows)))
+                (tintin-echo (tintin-draw-table-row (list-ref rows i) widths)))
+              (tintin-echo (tintin-draw-table-border widths 'bottom)))))
         ""))))
 
 ;; ============================================================================
@@ -1791,7 +1993,10 @@
             (let ((commands (car alias-data))
                    (priority (car (cdr alias-data))))
               (tintin-echo (concat "Alias '" name "': " name " → " commands
-                             " (priority: " (number->string priority) ")\r\n"))
+                             (if (= priority 5)
+                               ""
+                               (concat " (priority: " (number->string priority) ")"))
+                             "\r\n"))
               "")
             (progn
               (tintin-echo (concat "Alias '" name "' not found\r\n"))
@@ -1803,7 +2008,10 @@
              (priority 5))  ; Default priority
         (hash-set! *tintin-aliases* name (list commands priority))
         (tintin-echo (concat "Alias '" name "' created: " name " → " commands
-                       " (priority: " (number->string priority) ")\r\n"))
+                       (if (= priority 5)
+                         ""
+                         (concat " (priority: " (number->string priority) ")"))
+                       "\r\n"))
         ""))))
 
 ;; Handle #variable command
@@ -1866,7 +2074,10 @@
                              (if fg-color fg-color "")
                              (if (and fg-color bg-color) ":" "")
                              (if bg-color bg-color "")
-                             " (priority: " (number->string priority) ")\r\n"))
+                             (if (= priority 5)
+                               ""
+                               (concat " (priority: " (number->string priority) ")"))
+                             "\r\n"))
               "")
             (progn
               (tintin-echo (concat "Highlight '" pattern "' not found\r\n"))
@@ -1889,7 +2100,10 @@
                 priority))
             (tintin-echo (concat "Highlight '" pattern "' created: "
                            pattern " → " color-spec
-                           " (priority: " (number->string priority) ")\r\n"))
+                           (if (= priority 5)
+                             ""
+                             (concat " (priority: " (number->string priority) ")"))
+                           "\r\n"))
             ""))))))
 
 ;; Handle #unhighlight command
@@ -1921,7 +2135,10 @@
             (let ((commands (car action-data))
                    (priority (car (cdr action-data))))
               (tintin-echo (concat "Action '" pattern "': " pattern " → " commands
-                             " (priority: " (number->string priority) ")\r\n"))
+                             (if (= priority 5)
+                               ""
+                               (concat " (priority: " (number->string priority) ")"))
+                             "\r\n"))
               "")
             (progn
               (tintin-echo (concat "Action '" pattern "' not found\r\n"))
@@ -1937,7 +2154,10 @@
         (hash-set! *tintin-actions* pattern (list commands priority))
         (tintin-echo (concat "Action '" pattern "' created: "
                        pattern " → " commands
-                       " (priority: " (number->string priority) ")\r\n"))
+                       (if (= priority 5)
+                         ""
+                         (concat " (priority: " (number->string priority) ")"))
+                       "\r\n"))
         ""))))
 
 ;; Handle #unaction command

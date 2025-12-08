@@ -67,6 +67,9 @@ int terminal_get_scrollback_size(Terminal *term);
 /* Get max scrollback lines (0 = unbounded) */
 int terminal_get_max_scrollback_lines(Terminal *term);
 
+/* Get libvterm version string */
+const char *terminal_get_libvterm_version(void);
+
 /* Set max scrollback lines (0 = unbounded, limited by SCROLLBACK_MAX_LINES for safety) */
 void terminal_set_max_scrollback_lines(Terminal *term, int max_lines);
 

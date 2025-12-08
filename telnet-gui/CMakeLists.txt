@@ -375,6 +375,18 @@ else()
     endif()
 endif()
 
+# Pass libvterm version to C code with pushline4 indicator
+if(VTERM_VERSION)
+    if(HAVE_VTERM_PUSHLINE4)
+        set(VTERM_VERSION_WITH_FEATURES "${VTERM_VERSION}+pushline4")
+    else()
+        set(VTERM_VERSION_WITH_FEATURES "${VTERM_VERSION}")
+    endif()
+    target_compile_definitions(telnet-gui PRIVATE LIBVTERM_VERSION="${VTERM_VERSION_WITH_FEATURES}")
+else()
+    target_compile_definitions(telnet-gui PRIVATE LIBVTERM_VERSION="unknown")
+endif()
+
 # Test for vterm_screen_enable_reflow
 check_c_source_compiles("
     #include <vterm.h>

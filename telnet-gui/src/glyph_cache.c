@@ -21,6 +21,8 @@ struct GlyphCache {
     int cache_size;
     int cell_w, cell_h;
     SDL_ScaleMode scale_mode;
+    char *font_path; /* Path to loaded font file */
+    char *font_name; /* Display name of font */
 };
 
 /* Check if a codepoint is likely an emoji */
@@ -88,8 +90,8 @@ static uint32_t hash_key(uint32_t codepoint, SDL_Color fg, SDL_Color bg, int bol
     return hash;
 }
 
-GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, int font_size, int hinting_mode,
-                               SDL_ScaleMode scale_mode) {
+GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, const char *font_name, int font_size,
+                               int hinting_mode, SDL_ScaleMode scale_mode) {
     GlyphCache *cache = (GlyphCache *)malloc(sizeof(GlyphCache));
     if (!cache)
         return NULL;
@@ -108,6 +110,10 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, in
     /* Verify font loaded successfully */
     fprintf(stderr, "Font loaded successfully from: %s\n", font_path);
     fprintf(stderr, "Font size: %dpt\n", font_size);
+
+    /* Store font path and name */
+    cache->font_path = strdup(font_path);
+    cache->font_name = strdup(font_name);
 
     /* Try to get font style to verify it loaded correctly */
     int font_style = TTF_GetFontStyle(cache->font);
@@ -279,6 +285,18 @@ void glyph_cache_get_cell_size(GlyphCache *cache, int *cell_w, int *cell_h) {
     *cell_h = cache->cell_h;
 }
 
+const char *glyph_cache_get_font_path(GlyphCache *cache) {
+    if (!cache)
+        return NULL;
+    return cache->font_path;
+}
+
+const char *glyph_cache_get_font_name(GlyphCache *cache) {
+    if (!cache)
+        return NULL;
+    return cache->font_name;
+}
+
 void glyph_cache_destroy(GlyphCache *cache) {
     if (!cache)
         return;
@@ -296,6 +314,14 @@ void glyph_cache_destroy(GlyphCache *cache) {
         if (cache->cache[i].texture) {
             SDL_DestroyTexture(cache->cache[i].texture);
         }
+    }
+
+    /* Free font path and name strings */
+    if (cache->font_path) {
+        free(cache->font_path);
+    }
+    if (cache->font_name) {
+        free(cache->font_name);
     }
 
     free(cache->cache);

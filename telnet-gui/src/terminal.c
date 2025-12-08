@@ -9,6 +9,12 @@
 #define OUTPUT_BUFFER_INITIAL_SIZE 4096
 #define SCROLLBACK_MAX_LINES 10000
 
+/* libvterm version string (detected at compile-time) */
+#ifndef LIBVTERM_VERSION
+#define LIBVTERM_VERSION "unknown"
+#endif
+static const char *LIBVTERM_VERSION_STRING = LIBVTERM_VERSION;
+
 /* Scrollback line storage */
 typedef struct {
     VTermScreenCell *cells; /* Array of cells for this line */
@@ -374,8 +380,6 @@ Terminal *terminal_create(int rows, int cols) {
     vterm_screen_set_callbacks(term->screen, &term->callbacks, term);
 
 #if HAVE_VTERM_PUSHLINE4
-    /* Enable pushline4 callback support */
-    vterm_screen_callbacks_has_pushline4(term->screen);
     fprintf(stderr, "Using libvterm with pushline4 (text reflow enabled)\n");
 #else
     fprintf(stderr, "Using legacy libvterm (text reflow disabled)\n");
@@ -557,6 +561,10 @@ int terminal_get_scrollback_size(Terminal *term) {
 /* Get max scrollback lines (0 = unbounded) */
 int terminal_get_max_scrollback_lines(Terminal *term) {
     return term ? term->max_scrollback_lines : 0;
+}
+
+const char *terminal_get_libvterm_version(void) {
+    return LIBVTERM_VERSION_STRING;
 }
 
 /* Set max scrollback lines (0 = unbounded, limited by SCROLLBACK_MAX_LINES for safety) */

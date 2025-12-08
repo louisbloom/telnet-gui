@@ -623,7 +623,7 @@ int main(int argc, char **argv) {
         }
 
         /* Use specified font size with specified hinting and antialiasing */
-        glyph_cache = glyph_cache_create(renderer, font_paths[i], font_size, hinting_mode, scale_mode);
+        glyph_cache = glyph_cache_create(renderer, font_paths[i], font_name, font_size, hinting_mode, scale_mode);
         if (glyph_cache) {
             loaded_font_path = font_paths[i];
             loaded_font_label = font_path_labels[i];
@@ -698,6 +698,12 @@ int main(int argc, char **argv) {
 
     /* Register telnet with Lisp bridge for telnet-send builtin */
     lisp_x_register_telnet(telnet);
+
+    /* Register glyph cache with Lisp bridge for terminal-info builtin */
+    lisp_x_register_glyph_cache(glyph_cache);
+
+    /* Register window with Lisp bridge for terminal-info builtin */
+    lisp_x_register_window(win);
 
     /* Wire telnet to terminal for output buffering */
     terminal_set_telnet(term, telnet);
