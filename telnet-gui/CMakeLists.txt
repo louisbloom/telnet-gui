@@ -404,6 +404,23 @@ else()
     target_compile_definitions(telnet-gui PRIVATE HAVE_VTERM_REFLOW=0)
 endif()
 
+# Check for SDL_ttf DPI support (SDL_ttf 2.20.0+)
+check_c_source_compiles("
+    #include <SDL2/SDL_ttf.h>
+    int main() {
+        TTF_OpenFontDPI(\"test.ttf\", 12, 96, 96);
+        return 0;
+    }
+" HAVE_SDL_TTF_DPI)
+
+if(HAVE_SDL_TTF_DPI)
+    message(STATUS "SDL_ttf DPI support: available (SDL_ttf 2.20.0+)")
+    target_compile_definitions(telnet-gui PRIVATE HAVE_SDL_TTF_DPI=1)
+else()
+    message(STATUS "SDL_ttf DPI support: not available (SDL_ttf < 2.20.0)")
+    target_compile_definitions(telnet-gui PRIVATE HAVE_SDL_TTF_DPI=0)
+endif()
+
 pkg_check_modules(GC REQUIRED bdw-gc)
 pkg_check_modules(PCRE2 REQUIRED libpcre2-8)
 

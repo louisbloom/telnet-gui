@@ -501,6 +501,24 @@ int main(int argc, char **argv) {
 
     SDL_Renderer *renderer = window_get_sdl_renderer(win);
 
+    /* Query display DPI for font rendering */
+    float ddpi = 96.0f, hdpi = 96.0f, vdpi = 96.0f; /* Default to 96 DPI (Windows standard) */
+
+    if (SDL_GetDisplayDPI(0, &ddpi, &hdpi, &vdpi) == 0) {
+        fprintf(stderr, "Display DPI: %.1f diagonal, %.1f horizontal, %.1f vertical\n", ddpi, hdpi, vdpi);
+    } else {
+        fprintf(stderr, "Could not query display DPI: %s\n", SDL_GetError());
+        fprintf(stderr, "Using default 96 DPI\n");
+        hdpi = 96.0f;
+        vdpi = 96.0f;
+    }
+
+#if HAVE_SDL_TTF_DPI
+    fprintf(stderr, "Using TTF_OpenFontDPI for DPI-aware font rendering\n");
+#else
+    fprintf(stderr, "SDL_ttf DPI support not available - font sizes may not match system expectations\n");
+#endif
+
     /* Determine font filename based on user preference */
     const char *font_filename;
     const char *font_name;
@@ -623,7 +641,8 @@ int main(int argc, char **argv) {
         }
 
         /* Use specified font size with specified hinting and antialiasing */
-        glyph_cache = glyph_cache_create(renderer, font_paths[i], font_name, font_size, hinting_mode, scale_mode);
+        glyph_cache = glyph_cache_create(renderer, font_paths[i], font_name, font_size, hinting_mode, scale_mode,
+                                         (int)hdpi, (int)vdpi);
         if (glyph_cache) {
             loaded_font_path = font_paths[i];
             loaded_font_label = font_path_labels[i];

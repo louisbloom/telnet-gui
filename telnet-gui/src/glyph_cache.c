@@ -91,25 +91,36 @@ static uint32_t hash_key(uint32_t codepoint, SDL_Color fg, SDL_Color bg, int bol
 }
 
 GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, const char *font_name, int font_size,
-                               int hinting_mode, SDL_ScaleMode scale_mode) {
+                               int hinting_mode, SDL_ScaleMode scale_mode, int hdpi, int vdpi) {
     GlyphCache *cache = (GlyphCache *)malloc(sizeof(GlyphCache));
     if (!cache)
         return NULL;
 
     cache->renderer = renderer;
 
-    /* Try to load the requested font */
+    /* Try to load the requested font with DPI awareness if available */
+#if HAVE_SDL_TTF_DPI
+    cache->font = TTF_OpenFontDPI(font_path, font_size, hdpi, vdpi);
+    if (!cache->font) {
+        fprintf(stderr, "Font loading error: Failed to load font from '%s' with DPI (%d, %d): %s\n", font_path, hdpi,
+                vdpi, TTF_GetError());
+        free(cache);
+        return NULL;
+    }
+    fprintf(stderr, "Font loaded with DPI: %dx%d at %dpt\n", hdpi, vdpi, font_size);
+#else
+    /* Fallback to non-DPI version for older SDL_ttf */
     cache->font = TTF_OpenFont(font_path, font_size);
     if (!cache->font) {
-        /* Log the error */
         fprintf(stderr, "Font loading error: Failed to load font from '%s': %s\n", font_path, TTF_GetError());
         free(cache);
         return NULL;
     }
+    fprintf(stderr, "Font loaded (no DPI support) at %dpt\n", font_size);
+#endif
 
     /* Verify font loaded successfully */
     fprintf(stderr, "Font loaded successfully from: %s\n", font_path);
-    fprintf(stderr, "Font size: %dpt\n", font_size);
 
     /* Store font path and name */
     cache->font_path = strdup(font_path);
@@ -157,7 +168,11 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
     cache->emoji_font = NULL;
     const char *emoji_font_path = find_emoji_font();
     if (emoji_font_path) {
+#if HAVE_SDL_TTF_DPI
+        cache->emoji_font = TTF_OpenFontDPI(emoji_font_path, font_size, hdpi, vdpi);
+#else
         cache->emoji_font = TTF_OpenFont(emoji_font_path, font_size);
+#endif
         if (cache->emoji_font) {
             fprintf(stderr, "Emoji font loaded successfully from: %s\n", emoji_font_path);
         } else {
