@@ -1989,7 +1989,7 @@
                 (if (> total-scaled available)
                   ;; Over budget - reduce all columns proportionally to fit
                   (let ((result '())
-                         (absolute-min 4))  ; Absolute minimum per column
+                         (absolute-min 1))  ; Minimum 1 char per column (headers will truncate)
                     (do ((k 0 (+ k 1)))
                       ((>= k num-cols) (reverse result))
                       (let* ((width (vector-ref widths k))
@@ -2037,11 +2037,17 @@
 
           ;; Draw header row (with bold formatting)
           (let ((bold-headers '()))
-            ;; Add bold formatting to each header
+            ;; Add bold formatting to each header (truncate if too long for column)
             (do ((i 0 (+ i 1)))
               ((>= i (list-length headers)))
-              (let ((header (list-ref headers i)))
-                (set! bold-headers (cons (concat "\033[1m" header "\033[0m") bold-headers))))
+              (let* ((header (list-ref headers i))
+                      (col-width (list-ref widths i))
+                      (header-len (tintin-visual-length header))
+                      ;; Truncate header if longer than column width
+                      (truncated (if (> header-len col-width)
+                                   (substring header 0 col-width)
+                                   header)))
+                (set! bold-headers (cons (concat "\033[1m" truncated "\033[0m") bold-headers))))
             (set! bold-headers (reverse bold-headers))
 
             ;; Draw header lines
