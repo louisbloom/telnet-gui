@@ -1959,7 +1959,7 @@
           ((>= k num-cols))
           (set! content-width (+ content-width (vector-ref col-maxes k))))
 
-        (let* ((border-width (+ num-cols 1))
+        (let* ((border-width 4)  ; Left "│ " (2) + right " │" (2)
                 (separator-width (* (- num-cols 1) 3))
                 (total-width (+ content-width border-width separator-width)))
 
