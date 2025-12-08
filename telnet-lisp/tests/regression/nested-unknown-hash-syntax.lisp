@@ -1,48 +1,54 @@
-					; Test that unknown #\ syntax fails cleanly at all nesting levels
-					; Previously, this would hang infinitely in nested contexts
+;; Regression test for parser hang on unknown #\ syntax
+;; Previously, encountering unknown syntax like #\space would cause:
+;;   1. Silent REPL exit (no error propagation)
+;;   2. Infinite loops in nested contexts (input pointer not advancing)
+;; Fixed in commit dc19a66 with:
+;;   1. Error propagation in read_list() (lines 210-212 of reader.c)
+;;   2. Input advancement for unknown # syntax (lines 381-382 of reader.c)
+;; This test verifies the parser fails cleanly at all nesting levels
 
-					; Top level should fail cleanly
-#\space
-					; ERROR: Unknown # syntax
+(load "tests/test-helpers.lisp")
 
-					; Nested in let should fail cleanly (not hang)
-(let ((x #\space)) x)
-					; ERROR: Unknown # syntax
+;; Helper function to test that parsing code with unknown #\ syntax fails cleanly
+;; We must use a temp file approach because parse errors occur during reading,
+;; before evaluation, so they can't be caught directly by assert-error
+(defun test-parse-error (code-str description)
+  (let ((temp-file (concat (expand-path "~/") ".telnet-lisp-parse-test.tmp")))
+    ;; Write test code to temp file
+    (let ((f (open temp-file "w")))
+      (write-line f code-str)
+      (close f))
+    ;; Try to load it - should fail with parse error
+    (assert-error (load temp-file) description)))
 
-					; Nested in let binding value should fail cleanly
-(let ((x 1) (y #\space)) y)
-					; ERROR: Unknown # syntax
+;; Top level should fail cleanly
+(test-parse-error "#\\space" "Top level unknown hash syntax")
 
-					; Nested in do loop test should fail cleanly (not hang)
-(do ((i 10 (- i 1)))
-  ((let ((ch #\space)) (= i 0)))
-  (display i))
-					; ERROR: Unknown # syntax
+;; Nested in let body should fail cleanly (not hang)
+(test-parse-error "(let ((x #\\space)) x)" "Let body with unknown syntax")
 
-					; Deep nesting (5 levels) should fail cleanly - the original bug case
-(defun test-func ()
-  (do ((i 10 (- i 1)))
-    ((let ((ch #\space)) (= i 0)))
-    (display i)))
-					; ERROR: Unknown # syntax
+;; Nested in let binding value should fail cleanly
+(test-parse-error "(let ((x 1) (y #\\space)) y)" "Let binding with unknown syntax")
 
-					; Nested in function call arguments
-(+ 1 #\space 3)
-					; ERROR: Unknown # syntax
+;; Nested in do loop test should fail cleanly (not hang)
+(test-parse-error "(do ((i 10 (- i 1))) ((let ((ch #\\space)) (= i 0))) (display i))"
+  "Do loop with unknown syntax")
 
-					; Nested in if condition
-(if #\space 1 2)
-					; ERROR: Unknown # syntax
+;; Deep nesting (5 levels) should fail cleanly - the original bug case
+(test-parse-error "(defun test-func () (do ((i 10 (- i 1))) ((let ((ch #\\space)) (= i 0))) (display i)))"
+  "Deep nesting with unknown syntax")
 
-					; Nested in cond clause
-(cond (#\space 1) (else 2))
-					; ERROR: Unknown # syntax
+;; Nested in function call arguments
+(test-parse-error "(+ 1 #\\space 3)" "Function arguments with unknown syntax")
 
-					; Nested in vector
-[1 2 #\space 4]
-					; ERROR: Unknown # syntax
+;; Nested in if condition
+(test-parse-error "(if #\\space 1 2)" "If condition with unknown syntax")
 
-					; Nested in quoted form (should not error - quote protects it)
-					; Actually, this will error during read, before quote is processed
-'(foo #\space bar)
-					; ERROR: Unknown # syntax
+;; Nested in cond clause
+(test-parse-error "(cond (#\\space 1) (else 2))" "Cond clause with unknown syntax")
+
+;; Nested in vector
+(test-parse-error "[1 2 #\\space 4]" "Vector with unknown syntax")
+
+;; Nested in quoted form (errors during read, before quote is processed)
+(test-parse-error "'(foo #\\space bar)" "Quoted form with unknown syntax")
