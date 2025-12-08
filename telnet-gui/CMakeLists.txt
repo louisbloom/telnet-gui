@@ -405,13 +405,36 @@ else()
 endif()
 
 # Check for SDL_ttf DPI support (SDL_ttf 2.20.0+)
+# Set up required includes and libraries for the compile test
+set(SDL_TTF_TEST_INCLUDES "")
+list(APPEND SDL_TTF_TEST_INCLUDES ${SDL2_TTF_INCLUDE_DIRS})
+list(APPEND SDL_TTF_TEST_INCLUDES ${SDL2_INCLUDE_DIRS})
+
+# Add UCRT64 system includes when running on Windows
+if(WIN32 AND DEFINED UCRT64_ROOT)
+    list(APPEND SDL_TTF_TEST_INCLUDES "${UCRT64_ROOT}/include")
+endif()
+
+# Save current values and set up for test
+set(CMAKE_REQUIRED_INCLUDES_SAVE ${CMAKE_REQUIRED_INCLUDES})
+set(CMAKE_REQUIRED_LIBRARIES_SAVE ${CMAKE_REQUIRED_LIBRARIES})
+set(CMAKE_REQUIRED_INCLUDES ${SDL_TTF_TEST_INCLUDES})
+set(CMAKE_REQUIRED_LIBRARIES ${SDL2_TTF_LIBRARIES})
+
 check_c_source_compiles("
-    #include <SDL2/SDL_ttf.h>
-    int main() {
-        TTF_OpenFontDPI(\"test.ttf\", 12, 96, 96);
+    #include <SDL_ttf.h>
+    int main(int argc, char *argv[]) {
+        TTF_Font *font = TTF_OpenFontDPI(\"test.ttf\", 12, 96, 96);
+        (void)font;
+        (void)argc;
+        (void)argv;
         return 0;
     }
 " HAVE_SDL_TTF_DPI)
+
+# Restore previous values
+set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_SAVE})
+set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES_SAVE})
 
 if(HAVE_SDL_TTF_DPI)
     message(STATUS "SDL_ttf DPI support: available (SDL_ttf 2.20.0+)")
