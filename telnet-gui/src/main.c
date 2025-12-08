@@ -267,8 +267,8 @@ static void print_help(const char *program_name) {
 
 int main(int argc, char **argv) {
     /* Default settings */
-    int hinting_mode = TTF_HINTING_NONE;
-    SDL_ScaleMode scale_mode = SDL_ScaleModeLinear;
+    int hinting_mode = TTF_HINTING_MONO;             /* Default: monospace-optimized hinting */
+    SDL_ScaleMode scale_mode = SDL_ScaleModeNearest; /* Default: nearest (pixel-perfect) scaling */
     const char *hostname = NULL;
     int port = 0;
     const char *lisp_files[16]; /* Support up to 16 -l flags */
