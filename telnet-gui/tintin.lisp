@@ -1971,18 +1971,38 @@
                 ((>= k num-cols) (reverse result))
                 (set! result (cons (vector-ref col-maxes k) result))))
             ;; Needs scaling: available = max-width - borders - separators
-            (let ((available (- max-width border-width separator-width))
-                   (result '()))
-              (do ((k 0 (+ k 1)))
-                ((>= k num-cols) (reverse result))
-                (let* ((col-width (vector-ref col-maxes k))
-                        ;; Proportional scaling: (width * available) / content-width
-                        (scaled-width (quotient (* col-width available) content-width))
-                        ;; Ensure at least min-col-width
-                        (final-width (if (< scaled-width min-col-width)
-                                       min-col-width
-                                       scaled-width)))
-                  (set! result (cons final-width result)))))))))))
+            (let ((available (- max-width border-width separator-width)))
+              ;; First pass: calculate widths with minimum enforcement
+              (let ((widths (make-vector num-cols 0))
+                     (total-scaled 0))
+                (do ((k 0 (+ k 1)))
+                  ((>= k num-cols))
+                  (let* ((col-width (vector-ref col-maxes k))
+                          (scaled-width (quotient (* col-width available) content-width))
+                          (final-width (if (< scaled-width min-col-width)
+                                         min-col-width
+                                         scaled-width)))
+                    (vector-set! widths k final-width)
+                    (set! total-scaled (+ total-scaled final-width))))
+
+                ;; Second pass: if total exceeds available, scale down proportionally
+                (if (> total-scaled available)
+                  ;; Over budget - reduce all columns proportionally to fit
+                  (let ((result '())
+                         (absolute-min 4))  ; Absolute minimum per column
+                    (do ((k 0 (+ k 1)))
+                      ((>= k num-cols) (reverse result))
+                      (let* ((width (vector-ref widths k))
+                              ;; Scale down: (width * available) / total-scaled
+                              (adjusted (quotient (* width available) total-scaled))
+                              ;; But respect absolute minimum
+                              (final (if (< adjusted absolute-min) absolute-min adjusted)))
+                        (set! result (cons final result)))))
+                  ;; Within budget - return as-is
+                  (let ((result '()))
+                    (do ((k 0 (+ k 1)))
+                      ((>= k num-cols) (reverse result))
+                      (set! result (cons (vector-ref widths k) result)))))))))))))
 
 ;; DEPRECATED: Old function kept for compatibility
 ;; Use tintin-calculate-optimal-widths instead
