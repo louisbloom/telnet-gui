@@ -102,6 +102,9 @@ int input_area_get_cursor_pos(InputArea *area);
 /* Check if needs redraw */
 int input_area_needs_redraw(InputArea *area);
 
+/* Request redraw */
+void input_area_request_redraw(InputArea *area);
+
 /* Mark as drawn */
 void input_area_mark_drawn(InputArea *area);
 

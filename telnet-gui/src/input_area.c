@@ -639,6 +639,12 @@ int input_area_needs_redraw(InputArea *area) {
     return area->needs_redraw;
 }
 
+void input_area_request_redraw(InputArea *area) {
+    if (!area)
+        return;
+    area->needs_redraw = 1;
+}
+
 void input_area_mark_drawn(InputArea *area) {
     if (!area)
         return;
