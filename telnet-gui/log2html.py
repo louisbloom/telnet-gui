@@ -132,7 +132,7 @@ body {
     background-color: #0d1117;
     color: #c9d1d9;
     font-family: 'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
-    font-size: 16px;
+    font-size: 14px;
     line-height: 1.3;
     padding: 20px;
     margin: 0;
@@ -528,8 +528,8 @@ def format_log_entry(entry, parser):
         # Unescape log data and parse ANSI codes
         unescaped_data = unescape_log_data(entry["data"])
 
-        # Remove trailing newlines/carriage returns for cleaner display
-        unescaped_data = unescaped_data.rstrip("\r\n")
+        # Remove leading and trailing newlines/carriage returns for cleaner display
+        unescaped_data = unescaped_data.strip("\r\n")
 
         # Skip empty lines
         if not unescaped_data:
