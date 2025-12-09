@@ -100,6 +100,12 @@ void terminal_request_redraw(Terminal *term) {
     term->backend->request_redraw(term->backend_state);
 }
 
+void terminal_get_cursor_info(Terminal *term, int *row, int *col, int *visible) {
+    if (!term || !term->backend || !term->backend->get_cursor_info)
+        return;
+    term->backend->get_cursor_info(term->backend_state, row, col, visible);
+}
+
 void terminal_set_telnet(Terminal *term, void *telnet) {
     if (term)
         term->telnet = (Telnet *)telnet;

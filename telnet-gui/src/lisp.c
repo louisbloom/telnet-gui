@@ -380,20 +380,8 @@ static LispObject *builtin_telnet_send(LispObject *args, Environment *env) {
         return NIL;
     }
 
-    /* Send text with CRLF appended */
-    size_t text_len = strlen(text);
-    size_t total_len = text_len + 2; /* +2 for \r\n */
-    char *buffer = malloc(total_len);
-    if (!buffer) {
-        return lisp_make_error("telnet-send: memory allocation failed");
-    }
-
-    memcpy(buffer, text, text_len);
-    buffer[text_len] = '\r';
-    buffer[text_len + 1] = '\n';
-
-    int result = telnet_send(registered_telnet, buffer, total_len);
-    free(buffer);
+    /* Send text with CRLF appended (using telnet's reusable buffer) */
+    int result = telnet_send_with_crlf(registered_telnet, text, strlen(text));
 
     if (result < 0) {
         return lisp_make_error("telnet-send: failed to send data");

@@ -810,7 +810,8 @@ int main(int argc, char **argv) {
     /* Render initial terminal state */
     char title[256];
     snprintf(title, sizeof(title), "Telnet: %s:%d", hostname ? hostname : "", port);
-    renderer_render(rend, term, title, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    int initial_cursor_pos = input_area_get_cursor_pos(&input_area);
+    renderer_render(rend, term, title, 0, 0, 0, 0, 0, 0, 0, 0, 0, initial_cursor_pos);
 
     /* Present the initial frame immediately */
     SDL_RenderPresent(renderer);
@@ -1381,11 +1382,12 @@ int main(int argc, char **argv) {
 
             char title[256];
             snprintf(title, sizeof(title), "Telnet: %s:%d", hostname, port);
+            int cursor_pos = input_area_get_cursor_pos(&input_area);
             renderer_render(rend, term, title, terminal_selection.active, terminal_selection.start_row,
                             terminal_selection.start_col, terminal_selection.start_viewport_offset,
                             terminal_selection.start_scrollback_size, terminal_selection.end_row,
                             terminal_selection.end_col, terminal_selection.end_viewport_offset,
-                            terminal_selection.end_scrollback_size);
+                            terminal_selection.end_scrollback_size, cursor_pos);
             terminal_mark_drawn(term);
             needs_render = 1;
         }

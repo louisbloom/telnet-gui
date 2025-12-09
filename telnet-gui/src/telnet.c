@@ -2,6 +2,7 @@
 
 #include "telnet.h"
 #include "lisp.h"
+#include "dynamic_buffer.h"
 #include "../../telnet-lisp/include/lisp.h"
 #include <stdlib.h>
 #include <string.h>
@@ -61,8 +62,10 @@ struct Telnet {
     int socket;
     TelnetState state;
     int rows, cols;
-    FILE *log_file;          /* Log file handle for I/O logging */
-    char log_filename[1024]; /* Path to current log file */
+    FILE *log_file;             /* Log file handle for I/O logging */
+    char log_filename[1024];    /* Path to current log file */
+    DynamicBuffer *send_buffer; /* Buffer for IAC escaping (reused across calls) */
+    DynamicBuffer *crlf_buffer; /* Buffer for adding CRLF to Lisp sends (reused across calls) */
 };
 
 /* Send Telnet command */
@@ -217,6 +220,18 @@ Telnet *telnet_create(void) {
     t->rows = 40;
     t->cols = 80;
 
+    /* Create reusable buffers for send operations */
+    t->send_buffer = dynamic_buffer_create(4096);
+    t->crlf_buffer = dynamic_buffer_create(4096);
+    if (!t->send_buffer || !t->crlf_buffer) {
+        if (t->send_buffer)
+            dynamic_buffer_destroy(t->send_buffer);
+        if (t->crlf_buffer)
+            dynamic_buffer_destroy(t->crlf_buffer);
+        free(t);
+        return NULL;
+    }
+
     return t;
 }
 
@@ -318,30 +333,43 @@ int telnet_send(Telnet *t, const char *data, size_t len) {
     if (!t || t->socket < 0)
         return -1;
 
-    /* IAC escaping */
-    size_t send_len = 0;
-    char *buf = malloc(len * 2);
-    if (!buf)
-        return -1;
+    /* Reuse send_buffer for IAC escaping */
+    DynamicBuffer *buf = t->send_buffer;
+    dynamic_buffer_clear(buf);
 
+    /* IAC escaping - double any IAC bytes */
     for (size_t i = 0; i < len; i++) {
         if ((unsigned char)data[i] == IAC) {
-            buf[send_len++] = IAC;
-            buf[send_len++] = IAC;
+            dynamic_buffer_append(buf, (const char[]){IAC, IAC}, 2);
         } else {
-            buf[send_len++] = data[i];
+            dynamic_buffer_append(buf, &data[i], 1);
         }
     }
 
-    int result = send(t->socket, buf, send_len, 0);
+    int result = send(t->socket, dynamic_buffer_data(buf), dynamic_buffer_len(buf), 0);
 
     /* Log raw sent data */
     if (result > 0) {
-        telnet_log_data(t, "SEND", (unsigned char *)buf, result);
+        telnet_log_data(t, "SEND", (const unsigned char *)dynamic_buffer_data(buf), result);
     }
 
-    free(buf);
     return result;
+}
+
+int telnet_send_with_crlf(Telnet *t, const char *data, size_t len) {
+    if (!t || t->socket < 0)
+        return -1;
+
+    /* Reuse crlf_buffer to append CRLF */
+    DynamicBuffer *buf = t->crlf_buffer;
+    dynamic_buffer_clear(buf);
+
+    /* Append data and CRLF */
+    dynamic_buffer_append(buf, data, len);
+    dynamic_buffer_append(buf, "\r\n", 2);
+
+    /* Send via telnet_send which handles IAC escaping */
+    return telnet_send(t, dynamic_buffer_data(buf), dynamic_buffer_len(buf));
 }
 
 int telnet_receive(Telnet *t, char *buffer, size_t bufsize) {
@@ -466,5 +494,9 @@ void telnet_destroy(Telnet *t) {
     if (!t)
         return;
     telnet_disconnect(t);
+    if (t->send_buffer)
+        dynamic_buffer_destroy(t->send_buffer);
+    if (t->crlf_buffer)
+        dynamic_buffer_destroy(t->crlf_buffer);
     free(t);
 }

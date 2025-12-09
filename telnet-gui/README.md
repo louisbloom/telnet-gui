@@ -771,3 +771,22 @@ The project uses clang-format for consistent code style. To use the format targe
 ```bash
 clang-format -i src/*.c src/*.h
 ```
+
+## Documentation
+
+Additional technical documentation is available in the `docs/` directory:
+
+- **[ansi-escape-sequences.md](docs/ansi-escape-sequences.md)** - Reference for ANSI/VT100 escape sequences
+  - Cursor control (CUP, CUU, CUD, CUF, CUB)
+  - Scrolling regions (DECSTBM)
+  - Screen manipulation (ED, EL)
+  - Text attributes and colors (SGR)
+  - Implementation notes and common pitfalls
+
+- **[terminal-emulation.md](docs/terminal-emulation.md)** - Terminal emulation concepts and libvterm usage
+  - libvterm architecture and initialization
+  - Scrolling region implementation
+  - Cursor management (separate vterm and input area cursors)
+  - Screen layout and row indexing
+  - Color handling and conversion
+  - Scrollback buffer management

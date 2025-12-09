@@ -43,6 +43,9 @@ typedef struct TerminalBackend {
     void (*mark_drawn)(void *state);
     void (*request_redraw)(void *state);
 
+    /* Cursor info */
+    void (*get_cursor_info)(void *state, int *row, int *col, int *visible);
+
     /* Output handling (for telnet/local echo) */
     void (*set_output_callback)(void *state, void (*callback)(const char *s, size_t len, void *user), void *user);
     void (*echo_local)(void *state);

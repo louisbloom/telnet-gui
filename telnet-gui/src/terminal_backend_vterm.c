@@ -4,6 +4,7 @@
 #include "term_cell.h"
 #include "input_area.h"
 #include "telnet.h"
+#include "dynamic_buffer.h"
 #include <vterm.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,6 +47,9 @@ typedef struct {
     void (*output_callback_fn)(const char *s, size_t len, void *user);
     void *output_callback_user;
 
+    /* Render buffer for building ANSI sequences (reused across calls) */
+    DynamicBuffer *render_buffer;
+
     /* Scrollback */
     ScrollbackLine *scrollback;
     int scrollback_size;
@@ -53,6 +57,11 @@ typedef struct {
     int scrollback_capacity;
     int max_scrollback_lines;
     int viewport_offset;
+
+    /* Cursor tracking */
+    int cursor_row;
+    int cursor_col;
+    int cursor_visible;
 } VTermBackendState;
 
 /* Helper: Convert logical scrollback index to physical circular buffer index */
@@ -117,12 +126,14 @@ static int damage(VTermRect rect, void *user) {
 }
 
 static int screen_movecursor(VTermPos pos, VTermPos oldpos, int visible, void *user) {
-    (void)pos;
     (void)oldpos;
-    (void)visible;
     VTermBackendState *state = (VTermBackendState *)user;
     if (!state)
         return 0;
+    /* Track cursor position and visibility for rendering */
+    state->cursor_row = pos.row;
+    state->cursor_col = pos.col;
+    state->cursor_visible = visible;
     state->needs_redraw = 1;
     return 1;
 }
@@ -366,10 +377,19 @@ static void *vterm_create(int rows, int cols) {
     state->output_callback_fn = NULL;
     state->output_callback_user = NULL;
 
+    state->render_buffer = dynamic_buffer_create(4096);
+    if (!state->render_buffer) {
+        free(state->output_buffer);
+        vterm_free(state->vterm);
+        free(state);
+        return NULL;
+    }
+
     vterm_output_set_callback(state->vterm, output_callback, state);
 
     state->screen = vterm_obtain_screen(state->vterm);
     if (!state->screen) {
+        dynamic_buffer_destroy(state->render_buffer);
         free(state->output_buffer);
         vterm_free(state->vterm);
         free(state);
@@ -388,6 +408,11 @@ static void *vterm_create(int rows, int cols) {
     state->scrollback_capacity = 0;
     state->max_scrollback_lines = 0;
     state->viewport_offset = 0;
+
+    /* Initialize cursor tracking */
+    state->cursor_row = 0;
+    state->cursor_col = 0;
+    state->cursor_visible = 1;
 
     memset(&state->callbacks, 0, sizeof(state->callbacks));
     state->callbacks.damage = damage;
@@ -432,6 +457,9 @@ static void vterm_destroy(void *vstate) {
 
     if (state->output_buffer)
         free(state->output_buffer);
+
+    if (state->render_buffer)
+        dynamic_buffer_destroy(state->render_buffer);
 
     if (state->scrollback) {
         for (int i = 0; i < state->scrollback_size; i++) {
@@ -661,6 +689,18 @@ static void vterm_request_redraw(void *vstate) {
         state->needs_redraw = 1;
 }
 
+static void vterm_get_cursor_info(void *vstate, int *row, int *col, int *visible) {
+    VTermBackendState *state = (VTermBackendState *)vstate;
+    if (!state)
+        return;
+    if (row)
+        *row = state->cursor_row;
+    if (col)
+        *col = state->cursor_col;
+    if (visible)
+        *visible = state->cursor_visible;
+}
+
 static void vterm_set_output_callback(void *vstate, void (*callback)(const char *s, size_t len, void *user),
                                       void *user) {
     VTermBackendState *state = (VTermBackendState *)vstate;
@@ -705,25 +745,41 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
     if (!state || !input_area)
         return;
 
-    char seq[8192];
-    int len = 0;
+    /* Reuse state's render buffer (clear it first) */
+    DynamicBuffer *buf = state->render_buffer;
+    dynamic_buffer_clear(buf);
+
+    /* Save cursor position so telnet input can restore it for correct echo positioning */
+    dynamic_buffer_append_str(buf, "\0337"); /* DECSC - Save Cursor */
 
     int separator_row_1indexed = input_row + 1;
     int input_text_row_1indexed = separator_row_1indexed + 1;
 
-    len += snprintf(seq + len, sizeof(seq) - len, "\033[%d;1H\033[K", separator_row_1indexed);
+    /* Position cursor and clear line for separator */
+    dynamic_buffer_append_printf(buf, "\033[%d;1H\033[K", separator_row_1indexed);
 
-    len += snprintf(seq + len, sizeof(seq) - len, "\033[7m");
-    for (int i = 0; i < cols; i++) {
-        len += snprintf(seq + len, sizeof(seq) - len, "\u2500");
+    /* Draw separator line - reverse video */
+    dynamic_buffer_append_str(buf, "\033[7m");
+
+    /* Use vterm's scrolling region width (state->cols) if available, otherwise use cols param */
+    int actual_cols = (state->cols > 0) ? state->cols : cols;
+
+    /* Draw box drawing character (U+2500 = horizontal line) for each column */
+    /* UTF-8 encoding: 0xE2 0x94 0x80 */
+    char box_char[4] = {(char)0xE2, (char)0x94, (char)0x80, '\0'};
+    for (int i = 0; i < actual_cols; i++) {
+        dynamic_buffer_append(buf, box_char, 3);
     }
-    len += snprintf(seq + len, sizeof(seq) - len, "\033[27m");
 
-    len += snprintf(seq + len, sizeof(seq) - len, "\033[%d;1H\033[K", input_text_row_1indexed);
+    /* Normal video */
+    dynamic_buffer_append_str(buf, "\033[27m");
 
+    /* Position cursor for input text and clear line */
+    dynamic_buffer_append_printf(buf, "\033[%d;1H\033[K", input_text_row_1indexed);
+
+    /* Render input text with selection highlighting */
     const char *text = input_area_get_text(input_area);
     int text_len = input_area_get_length(input_area);
-    int cursor_pos = input_area_get_cursor_pos(input_area);
     int sel_start = 0, sel_end = 0;
     int has_sel = input_area_has_selection(input_area);
     if (has_sel)
@@ -731,28 +787,25 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
 
     for (int i = 0; i < text_len; i++) {
         if (has_sel && i == sel_start) {
-            len += snprintf(seq + len, sizeof(seq) - len, "\033[7m");
+            dynamic_buffer_append_str(buf, "\033[7m");
         }
         if (has_sel && i == sel_end) {
-            len += snprintf(seq + len, sizeof(seq) - len, "\033[27m");
+            dynamic_buffer_append_str(buf, "\033[27m");
         }
-        if (len < (int)sizeof(seq) - 1) {
-            seq[len++] = text[i];
-        }
+        dynamic_buffer_append(buf, &text[i], 1);
     }
     if (has_sel && sel_end >= text_len) {
-        len += snprintf(seq + len, sizeof(seq) - len, "\033[27m");
+        dynamic_buffer_append_str(buf, "\033[27m");
     }
 
-    len += snprintf(seq + len, sizeof(seq) - len, "\033[%d;%dH", input_text_row_1indexed, cursor_pos + 1);
-
     /* Re-establish scrolling region to ensure input area rows stay fixed */
-    len += snprintf(seq + len, sizeof(seq) - len, "\033[1;%dr", state->scrolling_rows);
+    dynamic_buffer_append_printf(buf, "\033[1;%dr", state->scrolling_rows);
 
-    /* Move cursor back to bottom of scrolling region to prevent new terminal output from overwriting input area */
-    len += snprintf(seq + len, sizeof(seq) - len, "\033[%d;1H", state->scrolling_rows);
+    /* Restore cursor position so telnet input echoes at the correct location */
+    dynamic_buffer_append_str(buf, "\0338"); /* DECRC - Restore Cursor */
 
-    vterm_input_write(state->vterm, seq, len);
+    /* Send all escape sequences to vterm */
+    vterm_input_write(state->vterm, dynamic_buffer_data(buf), dynamic_buffer_len(buf));
     vterm_screen_flush_damage(state->screen);
     state->needs_redraw = 1;
 }
@@ -790,6 +843,7 @@ const TerminalBackend terminal_backend_vterm = {
     .needs_redraw = vterm_needs_redraw,
     .mark_drawn = vterm_mark_drawn,
     .request_redraw = vterm_request_redraw,
+    .get_cursor_info = vterm_get_cursor_info,
     .set_output_callback = vterm_set_output_callback,
     .echo_local = vterm_echo_local,
     .send_buffer = vterm_send_buffer,

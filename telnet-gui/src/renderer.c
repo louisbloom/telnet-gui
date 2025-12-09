@@ -40,7 +40,7 @@ Renderer *renderer_create(SDL_Renderer *sdl_renderer, GlyphCache *glyph_cache, i
 
 void renderer_render(Renderer *r, Terminal *term, const char *title, int selection_active, int sel_start_row,
                      int sel_start_col, int sel_start_offset, int sel_start_scrollback, int sel_end_row,
-                     int sel_end_col, int sel_end_offset, int sel_end_scrollback) {
+                     int sel_end_col, int sel_end_offset, int sel_end_scrollback, int input_cursor_pos) {
     if (!r || !term)
         return;
     (void)title; /* unused for now */
@@ -115,11 +115,16 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
         }
     }
 
+    /* Render input area cursor only (user always types in input area, not terminal) */
+    /* Note: vterm cursor is tracked but not rendered - it's only used for positioning output */
+    if (current_offset == 0 && r->backend && r->backend->render_cursor) {
+        int input_text_row = scrolling_rows + 1; /* Row 42 (0-indexed: row scrolling_rows + 1) */
+        r->backend->render_cursor(r->backend_state, input_text_row, input_cursor_pos, r->cell_w, r->cell_h);
+    }
+
     /* End frame */
     if (r->backend && r->backend->end_frame)
         r->backend->end_frame(r->backend_state);
-
-    /* Don't draw terminal cursor - user input is handled by input area at bottom */
 }
 
 void renderer_destroy(Renderer *r) {

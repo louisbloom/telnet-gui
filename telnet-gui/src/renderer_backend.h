@@ -34,6 +34,14 @@ typedef struct RendererBackend {
     void (*render_cell)(void *state, Terminal *term, int row, int col,
                        const TermCell *cell, int in_selection,
                        int cell_w, int cell_h);
+
+    /* Cursor rendering - renders cursor at specified position
+     * Parameters:
+     *   state - backend state
+     *   row, col - cursor position in cells
+     *   cell_w, cell_h - cell dimensions in pixels (for SDL) or ignored (for TUI)
+     */
+    void (*render_cursor)(void *state, int row, int col, int cell_w, int cell_h);
 } RendererBackend;
 
 /* Backend registry - implemented backends */

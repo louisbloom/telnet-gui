@@ -231,6 +231,21 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
     }
 }
 
+static void sdl_render_cursor(void *vstate, int row, int col, int cell_w, int cell_h) {
+    SDLBackendState *state = (SDLBackendState *)vstate;
+    if (!state)
+        return;
+
+    /* Get cursor color from Lisp config */
+    int cursor_r, cursor_g, cursor_b;
+    lisp_x_get_cursor_color(&cursor_r, &cursor_g, &cursor_b);
+
+    /* Render cursor as filled block */
+    SDL_SetRenderDrawColor(state->sdl_renderer, cursor_r, cursor_g, cursor_b, 255);
+    SDL_Rect cursor_rect = {col * cell_w, row * cell_h, cell_w, cell_h};
+    SDL_RenderFillRect(state->sdl_renderer, &cursor_rect);
+}
+
 /* Backend registration */
 const RendererBackend renderer_backend_sdl = {
     .create = sdl_create,
@@ -238,4 +253,5 @@ const RendererBackend renderer_backend_sdl = {
     .begin_frame = sdl_begin_frame,
     .end_frame = sdl_end_frame,
     .render_cell = sdl_render_cell,
+    .render_cursor = sdl_render_cursor,
 };

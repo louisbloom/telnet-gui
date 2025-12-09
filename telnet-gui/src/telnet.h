@@ -32,6 +32,9 @@ void telnet_disconnect(Telnet *t);
 /* Send data to server */
 int telnet_send(Telnet *t, const char *data, size_t len);
 
+/* Send data to server with CRLF appended (for line-based protocols) */
+int telnet_send_with_crlf(Telnet *t, const char *data, size_t len);
+
 /* Receive data from server */
 int telnet_receive(Telnet *t, char *buffer, size_t bufsize);
 

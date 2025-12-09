@@ -36,6 +36,9 @@ void terminal_mark_drawn(Terminal *term);
 /* Request terminal redraw */
 void terminal_request_redraw(Terminal *term);
 
+/* Get cursor information (position and visibility) */
+void terminal_get_cursor_info(Terminal *term, int *row, int *col, int *visible);
+
 /* Set telnet connection for sending output */
 void terminal_set_telnet(Terminal *term, void *telnet);
 
