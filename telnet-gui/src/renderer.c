@@ -198,11 +198,8 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
                         int tex_w, tex_h;
                         SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);
 
-                        /* Get glyph minx for precise positioning */
-                        int minx = glyph_cache_get_minx(r->glyph_cache, cell.chars[0], fg_color, bg_color);
-
-                        /* Position glyph using its left bearing (minx) to respect font metrics */
-                        int dst_x = col * r->cell_w + minx;
+                        /* Position glyph at cell boundary - no minx adjustment for monospace alignment */
+                        int dst_x = col * r->cell_w;
                         int dst_y = row * r->cell_h;
                         SDL_Rect dst = {dst_x, dst_y, tex_w, tex_h};
 
@@ -315,10 +312,8 @@ void renderer_render_input_area(Renderer *r, Terminal *term, const char *text, i
                     int tex_w, tex_h;
                     SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);
 
-                    /* Get glyph minx for precise positioning */
-                    int minx = glyph_cache_get_minx(r->glyph_cache, codepoint, char_fg_color, bg_color);
-
-                    SDL_Rect dst = {x + minx, y, tex_w, tex_h};
+                    /* Position glyph at cell boundary - no minx adjustment for monospace alignment */
+                    SDL_Rect dst = {x, y, tex_w, tex_h};
                     SDL_RenderCopy(r->sdl_renderer, glyph, NULL, &dst);
                 }
             }

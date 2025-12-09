@@ -96,7 +96,7 @@ Example:
 **Font Options:**
 
 - `-f, --font-size SIZE` - Set font size in points (default: 16)
-- `-F<letter>` - Select font (default: m for Cascadia Mono):
+- `-F<letter>` - Select font (default: d for DejaVu Sans Mono):
   - `m` = Cascadia Mono, `i` = Inconsolata, `p` = IBM Plex Mono, `d` = DejaVu Sans Mono, `c` = Courier Prime
 - `--font <name>` - Select font by name (cascadia, inconsolata, plex, dejavu, courier)
 - `-H, --hinting MODE` - Font hinting mode: none (default), light, normal, mono
@@ -118,7 +118,7 @@ Example:
 # Start in unconnected mode
 ./build/telnet-gui/telnet-gui.exe
 
-# Connect with larger font (uses default Cascadia Mono)
+# Connect with larger font (uses default DejaVu Sans Mono)
 ./build/telnet-gui/telnet-gui.exe -f 20 telnet-server 4449
 
 # Use Inconsolata font
@@ -141,10 +141,10 @@ Example:
 
 The application includes five monospace fonts optimized for terminal use:
 
-- **Cascadia Mono** (default) - Microsoft's programming font designed specifically for terminal applications. Clean rendering without ligatures. [SIL OFL 1.1]
-- **Inconsolata** - Previous default. Compact monospace font with excellent readability. [SIL OFL 1.1]
+- **DejaVu Sans Mono** (default) - Bitstream Vera derivative with excellent Unicode coverage. [Bitstream Vera License]
+- **Cascadia Mono** - Microsoft's programming font designed specifically for terminal applications. Clean rendering without ligatures. [SIL OFL 1.1]
+- **Inconsolata** - Compact monospace font with excellent readability. [SIL OFL 1.1]
 - **IBM Plex Mono** - IBM's corporate font family, part of the Plex typeface system. [SIL OFL 1.1]
-- **DejaVu Sans Mono** - Bitstream Vera derivative with excellent Unicode coverage. [Bitstream Vera License]
 - **Courier Prime** - Modern interpretation of Courier, designed for screenwriting. [SIL OFL 1.1]
 
 All bundled fonts are licensed under permissive open-source licenses that allow redistribution.

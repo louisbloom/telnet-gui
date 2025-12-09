@@ -213,12 +213,12 @@ static void print_help(const char *program_name) {
     printf("\n");
     printf("  Font Options:\n");
     printf("    -f, --font-size SIZE   Set font size in points (default: 12)\n");
-    printf("    -F<letter>             Select font (default: m):\n");
+    printf("    -F<letter>             Select font (default: d):\n");
     printf("                             m = Cascadia Mono, i = Inconsolata, p = IBM Plex Mono,\n");
     printf("                             d = DejaVu Sans Mono, c = Courier Prime\n");
     printf("    --font <name>          Select font by name:\n");
     printf("                             cascadia, inconsolata, plex, dejavu, courier\n");
-    printf("    -H, --hinting MODE     Set font hinting mode (default: light)\n");
+    printf("    -H, --hinting MODE     Set font hinting mode (default: none)\n");
     printf("                            MODE can be: none, light, normal, mono\n");
     printf("    -a, --antialiasing MODE Set anti-aliasing mode (default: linear)\n");
     printf("                            MODE can be: nearest, linear\n");
@@ -267,14 +267,15 @@ static void print_help(const char *program_name) {
 
 int main(int argc, char **argv) {
     /* Default settings */
-    int hinting_mode = TTF_HINTING_LIGHT;            /* Default: light hinting for smoother, Windows-like appearance */
+    int hinting_mode = TTF_HINTING_NONE;             /* Default: no hinting for crisp rendering */
     SDL_ScaleMode scale_mode = SDL_ScaleModeNearest; /* Default: nearest (pixel-perfect) scaling */
     const char *hostname = NULL;
     int port = 0;
     const char *lisp_files[16]; /* Support up to 16 -l flags */
     int lisp_file_count = 0;
     const char *test_file = NULL; /* Test file for headless mode */
-    char font_choice = 'm'; /* Font selection: m=Cascadia Mono (default), i=Inconsolata, p=Plex, d=DejaVu, c=Courier */
+    char font_choice =
+        'd'; /* Font selection: d=DejaVu Sans Mono (default), m=Cascadia Mono, i=Inconsolata, p=Plex, c=Courier */
     int font_size = 12;     /* Default font size */
     int terminal_cols = 80; /* Default terminal columns */
     int terminal_rows = 40; /* Default terminal rows */

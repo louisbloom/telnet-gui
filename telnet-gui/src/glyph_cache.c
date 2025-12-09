@@ -21,6 +21,7 @@ struct GlyphCache {
     CacheNode *cache;
     int cache_size;
     int cell_w, cell_h;
+    int space_minx; /* Baseline minx from space character for consistent positioning */
     SDL_ScaleMode scale_mode;
     char *font_path; /* Path to loaded font file */
     char *font_name; /* Display name of font */
@@ -167,6 +168,9 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
 
     /* Cell height: use ascent + descent (no line gap) for compact terminal appearance */
     cache->cell_h = ascent + abs(descent);
+
+    /* Store space character's minx as baseline for consistent positioning */
+    cache->space_minx = minx;
 
     /* Try to load emoji font as fallback */
     cache->emoji_font = NULL;
@@ -329,7 +333,8 @@ int glyph_cache_get_minx(GlyphCache *cache, uint32_t codepoint, SDL_Color fg_col
     int slot = key % cache->cache_size;
 
     if (cache->cache[slot].key == key && cache->cache[slot].texture) {
-        return cache->cache[slot].minx;
+        /* Return normalized minx relative to space character baseline for consistent spacing */
+        return cache->cache[slot].minx - cache->space_minx;
     }
     return 0;
 }
