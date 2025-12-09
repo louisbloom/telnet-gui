@@ -840,6 +840,9 @@ int main(int argc, char **argv) {
                     /* Update terminal size */
                     terminal_resize(term, new_rows, new_cols);
 
+                    /* Re-render input area to match new terminal width */
+                    terminal_render_input_area(term, &input_area);
+
                     /* Send NAWS to telnet server */
                     telnet_set_terminal_size(telnet, new_cols, new_rows);
                 }
