@@ -131,7 +131,7 @@ CSS_TEMPLATE = """
 body {
     background-color: #0d1117;
     color: #c9d1d9;
-    font-family: 'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-family: 'DejaVu Sans Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 14px;
     line-height: 1.3;
     padding: 20px;
@@ -582,11 +582,8 @@ def generate_css_with_fonts():
 }}
 """
 
-    # Return font faces + original CSS (with updated font-family)
-    return font_faces + CSS_TEMPLATE.replace(
-        "'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace",
-        "'DejaVu Sans Mono', 'Consolas', 'Monaco', 'Courier New', monospace",
-    )
+    # Return font faces + original CSS
+    return font_faces + CSS_TEMPLATE
 
 
 def convert_log_to_html(input_file, output_file):
