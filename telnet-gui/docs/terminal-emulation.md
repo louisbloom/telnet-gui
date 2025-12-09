@@ -192,48 +192,73 @@ vterm_input_write(vterm, seq, strlen(seq));
 
 ### Two Cursor Positions
 
-telnet-gui maintains **two logical cursors**:
+telnet-gui uses **two separate cursors**:
 
-1. **VTerm Cursor**: Position in terminal buffer (for output)
-2. **Input Area Cursor**: Position in input text (for typing)
+1. **VTerm Cursor**: Tracks output position in vterm's screen buffer
+   - Managed by vterm, positioned by server output
+   - Used to determine where `vterm_input_write()` places text
+   - **Not rendered** - only tracked for positioning
+
+2. **Input Area Cursor (SDL)**: Visual cursor shown in input area
+   - Rendered by SDL at row 42, column = user's typing position
+   - Completely independent of vterm cursor
+   - Always visible when typing
 
 ### Why Two Cursors?
 
-**Problem**: If vterm cursor is in input area (row 42):
+**Problem**: Server needs to position cursor for proper output formatting, but user needs to see cursor in input area.
 
-- Server output via `vterm_input_write()` goes to row 42
-- Input area gets overwritten by terminal output
+**If we only had one cursor**:
 
-**Solution**:
+- Moving vterm cursor to input area (row 42) → server output appears in input area
+- Keeping vterm cursor at row 40 → server can't position cursor properly
 
-1. Keep vterm cursor at row 40 (bottom of scrolling region)
-2. Render input area cursor separately in SDL
+**Solution**: Preserve server's cursor position using DECSC/DECRC, render input cursor separately in SDL.
 
 ### Implementation
 
+The key is to **preserve the server's cursor position** while drawing the input area:
+
 ```c
-// After rendering input area text
-char seq[1024];
-int len = 0;
+// Use DECSC/DECRC to preserve server cursor positioning
+DynamicBuffer *buf = state->render_buffer;
+dynamic_buffer_clear(buf);
 
-// 1. Write input area text and separator
-len += snprintf(seq + len, sizeof(seq) - len, "\033[41;1H\033[K");
-len += snprintf(seq + len, sizeof(seq) - len, "────────");  // Separator
+// 1. SAVE cursor position (wherever server positioned it)
+dynamic_buffer_append_str(buf, "\0337");  /* DECSC - Save Cursor */
 
-len += snprintf(seq + len, sizeof(seq) - len, "\033[42;1H\033[K");
-len += snprintf(seq + len, sizeof(seq) - len, "%s", input_text);
+// 2. Draw separator line
+dynamic_buffer_append_printf(buf, "\033[41;1H\033[K");  // Position and clear
+dynamic_buffer_append_str(buf, "\033[7m");               // Reverse video
+// ... draw box drawing characters ...
+dynamic_buffer_append_str(buf, "\033[27m");              // Normal video
 
-// 2. Set scrolling region (cursor moves to 1,1)
-len += snprintf(seq + len, sizeof(seq) - len, "\033[1;40r");
+// 3. Draw input area text
+dynamic_buffer_append_printf(buf, "\033[42;1H\033[K");  // Position and clear
+dynamic_buffer_append_str(buf, input_text);             // Draw text
 
-// 3. Move cursor to row 40 (so output goes there)
-len += snprintf(seq + len, sizeof(seq) - len, "\033[40;1H");
+// 4. Re-establish scrolling region (side effect: moves cursor to 1,1)
+dynamic_buffer_append_printf(buf, "\033[1;%dr", scrolling_rows);
 
-vterm_input_write(vterm, seq, len);
+// 5. RESTORE cursor to original position (where server left it)
+dynamic_buffer_append_str(buf, "\0338");  /* DECRC - Restore Cursor */
 
-// 4. Render input area cursor in SDL separately
-// See renderer.c: render_cursor() called at row 42, col input_cursor_pos
+vterm_input_write(vterm, buf->data, buf->len);
+
+// 6. Render input area cursor separately in SDL
+// This is purely visual - vterm cursor remains where server positioned it
+// See renderer_backend_sdl.c: sdl_render_cursor() at row 42
 ```
+
+### Why DECSC/DECRC?
+
+**DECSC (Save Cursor)** and **DECRC (Restore Cursor)** preserve the server's cursor position:
+
+- Server output positions cursor at end of last line (e.g., row 35, column 20)
+- Input area rendering temporarily moves cursor to draw UI (rows 41-42)
+- DECRC restores cursor to (35, 20) so next server output appears in the correct location
+
+**See Also**: `ansi-escape-sequences.md` for detailed DECSC/DECRC documentation
 
 ### Cursor Tracking
 
