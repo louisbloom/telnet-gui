@@ -50,7 +50,7 @@ set(TEST_HELPERS_SRC "${CMAKE_CURRENT_SOURCE_DIR}/test-helpers.lisp")
 set(TEST_HELPERS_DST "${CMAKE_CURRENT_BINARY_DIR}/test-helpers.lisp")
 
 # Copy log2html.py script to build directory
-set(LOG2HTML_SRC "${CMAKE_CURRENT_SOURCE_DIR}/log2html.py")
+set(LOG2HTML_SRC "${CMAKE_CURRENT_SOURCE_DIR}/scripts/log2html.py")
 set(LOG2HTML_DST "${CMAKE_CURRENT_BINARY_DIR}/log2html.py")
 
 # Copy DejaVu Sans Mono fonts for log2html.py
