@@ -4,12 +4,7 @@
 #define TELNET_GUI_LISP_H
 
 #include <stddef.h>
-
-/* Forward declaration */
-#ifndef TERMINAL_TYPE_DEFINED
-#define TERMINAL_TYPE_DEFINED
-typedef struct Terminal Terminal;
-#endif
+#include "terminal.h"
 
 /* Initialize Lisp interpreter, environment, and load bootstrap file */
 int lisp_x_init(void);

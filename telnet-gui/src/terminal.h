@@ -1,29 +1,25 @@
-/* Terminal emulation using libvterm */
+/* Terminal emulation - backend-independent interface */
 
 #ifndef TERMINAL_H
 #define TERMINAL_H
 
-#include <vterm.h>
+#include "term_cell.h"
+#include "input_area.h"
 
-#ifndef TERMINAL_TYPE_DEFINED
-#define TERMINAL_TYPE_DEFINED
+/* Opaque Terminal type - actual definition is in terminal.c */
 typedef struct Terminal Terminal;
-#endif
 
-/* Create a new terminal with initial size */
+/* Create a new terminal with initial size (uses vterm backend by default) */
 Terminal *terminal_create(int rows, int cols);
+
+/* Create a new terminal with specified backend */
+Terminal *terminal_create_with_backend(int rows, int cols, const char *backend_name);
 
 /* Destroy terminal */
 void terminal_destroy(Terminal *term);
 
 /* Feed data to the terminal */
 void terminal_feed_data(Terminal *term, const char *data, size_t len);
-
-/* Get terminal VTerm instance */
-VTerm *terminal_get_vterm(Terminal *term);
-
-/* Get terminal screen */
-VTermScreen *terminal_get_screen(Terminal *term);
 
 /* Resize terminal */
 void terminal_resize(Terminal *term, int rows, int cols);
@@ -74,9 +70,17 @@ const char *terminal_get_libvterm_version(void);
 void terminal_set_max_scrollback_lines(Terminal *term, int max_lines);
 
 /* Get cell at position considering viewport offset */
-int terminal_get_cell_at(Terminal *term, int row, int col, VTermScreenCell *cell);
+int terminal_get_cell_at(Terminal *term, int row, int col, TermCell *cell);
 
 /* Get cell at absolute scrollback position (independent of viewport) */
-int terminal_get_cell_at_scrollback_index(Terminal *term, int scrollback_index, int col, VTermScreenCell *cell);
+int terminal_get_cell_at_scrollback_index(Terminal *term, int scrollback_index, int col, TermCell *cell);
+
+/* Render input area to vterm using ANSI escape sequences */
+void terminal_render_input_area(Terminal *term, InputArea *input_area);
+
+/* TEMPORARY: VTerm accessors (will be removed when input/renderer are abstracted) */
+#include <vterm.h>
+VTerm *terminal_get_vterm(Terminal *term);
+VTermScreen *terminal_get_screen(Terminal *term);
 
 #endif /* TERMINAL_H */

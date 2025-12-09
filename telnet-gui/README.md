@@ -496,8 +496,14 @@ if (!vterm_check_version(0, 3)) {
 ### Components
 
 - **main.c**: Application entry point, SDL initialization, event loop
-- **terminal.c**: Terminal emulation using libvterm
-- **renderer.c**: SDL-based rendering of terminal cells and input area
+- **terminal.c**: Terminal emulation wrapper with backend abstraction
+- **terminal_backend.h**: Terminal backend interface (function pointer vtable)
+- **terminal_backend_vterm.c**: libvterm terminal backend implementation
+- **term_cell.h**: Generic terminal cell structure (backend-independent)
+- **renderer.c**: Renderer wrapper that delegates to backend
+- **renderer_backend.h**: Renderer backend interface (function pointer vtable)
+- **renderer_backend_sdl.c**: SDL2 renderer backend implementation
+- **box_drawing.c**: Pixel-perfect box drawing character rendering
 - **glyph_cache.c**: Font glyph caching for performance
 - **window.c**: SDL window management (simplified - delegates to OS for chrome)
 - **input.c**: Keyboard and mouse input handling
@@ -505,6 +511,40 @@ if (!vterm_check_version(0, 3)) {
 - **telnet.c**: Telnet protocol client implementation
 - **commands.c**: Slash command processor (/help, /connect, /disconnect, /test)
 - **lisp.c**: Lisp scripting integration (hooks, colors, configuration)
+
+### Backend Architecture
+
+The application uses a pluggable backend architecture that separates terminal emulation and rendering concerns:
+
+**Terminal Backend (terminal_backend.h, terminal_backend_vterm.c):**
+
+- Abstracts terminal emulation layer using function pointer vtables
+- Current implementation: libvterm backend
+- Provides: cell access, scrollback, viewport management, data feeding
+- Enables future alternative terminal emulators without breaking existing code
+
+**Renderer Backend (renderer_backend.h, renderer_backend_sdl.c):**
+
+- Abstracts rendering layer using function pointer vtables
+- Current implementation: SDL2 backend (graphical)
+- Provides: frame lifecycle, cell rendering, color handling
+- **Future work (Phase 4)**: TUI backend for terminal-based output
+  - Would output ANSI escape sequences to stdout
+  - Enable running in pure terminal mode without SDL
+  - Follow pattern of Emacs/Vim/Neovim TUI implementations
+
+**Generic Types (term_cell.h):**
+
+- `TermCell` structure: backend-independent cell representation
+- Contains: UTF-32 characters, text attributes (bold/italic/underline), RGB/indexed/default colors
+- Used as common interface between terminal and renderer backends
+
+This architecture enables:
+
+- Runtime backend selection
+- Clean separation of concerns
+- Easy testing and mocking
+- Future TUI mode implementation
 
 ### Terminal Emulation Flow
 

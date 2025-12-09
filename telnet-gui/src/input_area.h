@@ -8,7 +8,7 @@
 
 typedef enum { INPUT_AREA_MODE_NORMAL = 0, INPUT_AREA_MODE_EVAL = 1 } InputAreaMode;
 
-typedef struct {
+typedef struct InputArea {
     char buffer[INPUT_AREA_MAX_LENGTH];
     int cursor_pos;   /* Cursor position in buffer */
     int length;       /* Current length of text */

@@ -6,8 +6,10 @@ set(GUI_SOURCES
     src/commands.c
     src/telnet.c
     src/terminal.c
+    src/terminal_backend_vterm.c
     src/window.c
     src/renderer.c
+    src/renderer_backend_sdl.c
     src/glyph_cache.c
     src/box_drawing.c
     src/input.c

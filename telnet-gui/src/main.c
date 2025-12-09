@@ -134,7 +134,7 @@ static void copy_terminal_selection(Terminal *term) {
 
         /* Get text from this row */
         for (int col = col_start; col <= col_end; col++) {
-            VTermScreenCell cell;
+            TermCell cell;
             if (terminal_get_cell_at_scrollback_index(term, idx, col, &cell)) {
                 /* Convert cell characters to UTF-8 */
                 if (cell.chars[0]) {
@@ -189,20 +189,17 @@ static void cleanup(void) {
 }
 
 /* Calculate terminal size (rows, cols) based on window dimensions */
-static void calculate_terminal_size(int window_width, int window_height, int cell_w, int cell_h, int input_area_height,
-                                    int *rows, int *cols) {
+static void calculate_terminal_size(int window_width, int window_height, int cell_w, int cell_h, int *rows, int *cols) {
     /* Calculate columns from window width */
     *cols = window_width / cell_w;
-    if (*cols < 1)
-        *cols = 1;
+    if (*cols < 10)
+        *cols = 10; /* Minimum width */
 
-    /* Calculate available height for terminal (window height minus input area) */
-    int available_height = window_height - input_area_height;
-    /* Calculate number of rows that fit exactly in available space */
-    /* Use integer division - this ensures terminal doesn't exceed available space */
-    *rows = available_height / cell_h;
+    /* Calculate number of rows that fit in window height */
+    /* Subtract 2 rows for separator and input area */
+    *rows = window_height / cell_h - 2;
     if (*rows < 1)
-        *rows = 1;
+        *rows = 1; /* Minimum: 1 scrolling row (+ separator and input added by terminal) */
 }
 
 static void print_help(const char *program_name) {
@@ -668,9 +665,9 @@ int main(int argc, char **argv) {
     glyph_cache_get_cell_size(glyph_cache, &cell_w, &cell_h);
 
     /* Calculate exact window size for terminal geometry using actual glyph metrics */
-    int input_area_height_local = cell_h;
+    int separator_and_input_height = 2 * cell_h; /* Separator + input row */
     int precise_width = terminal_cols * cell_w;
-    int precise_height = terminal_rows * cell_h + input_area_height_local;
+    int precise_height = terminal_rows * cell_h + separator_and_input_height;
 
     /* Clean up hidden window and temporary renderer */
     SDL_DestroyRenderer(temp_renderer);
@@ -792,12 +789,11 @@ int main(int argc, char **argv) {
     input_area_init(&input_area);
 
     /* Get actual window size after resize and resize terminal to match */
-    int input_area_height = cell_h; /* Input area is one cell height */
+    int input_area_height = 2 * cell_h; /* Separator + input row */
     int actual_width, actual_height;
     SDL_GetWindowSize(sdl_window, &actual_width, &actual_height);
     int initial_rows, initial_cols;
-    calculate_terminal_size(actual_width, actual_height, cell_w, cell_h, input_area_height, &initial_rows,
-                            &initial_cols);
+    calculate_terminal_size(actual_width, actual_height, cell_w, cell_h, &initial_rows, &initial_cols);
     terminal_resize(term, initial_rows, initial_cols);
     telnet_set_terminal_size(telnet, initial_cols, initial_rows);
 
@@ -808,22 +804,13 @@ int main(int argc, char **argv) {
     SDL_SetRenderDrawColor(renderer, bg_r, bg_g, bg_b, 255);
     SDL_RenderClear(renderer);
 
+    /* Render input area to vterm FIRST (must happen before renderer reads vterm cells) */
+    terminal_render_input_area(term, &input_area);
+
     /* Render initial terminal state */
     char title[256];
     snprintf(title, sizeof(title), "Telnet: %s:%d", hostname ? hostname : "", port);
     renderer_render(rend, term, title, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-
-    /* Render input area */
-    int sel_start = 0, sel_end = 0;
-    if (input_area_has_selection(&input_area)) {
-        input_area_get_selection_range(&input_area, &sel_start, &sel_end);
-    }
-    int window_width, window_height;
-    window_get_size(win, &window_width, &window_height);
-    int current_input_area_height = cell_h;
-    renderer_render_input_area(rend, term, input_area_get_text(&input_area), input_area_get_length(&input_area),
-                               input_area_get_cursor_pos(&input_area), window_width, current_input_area_height,
-                               sel_start, sel_end);
 
     /* Present the initial frame immediately */
     SDL_RenderPresent(renderer);
@@ -847,8 +834,7 @@ int main(int argc, char **argv) {
 
                     /* Calculate new terminal size based on window size */
                     int new_rows, new_cols;
-                    calculate_terminal_size(new_width, new_height, cell_w, cell_h, input_area_height, &new_rows,
-                                            &new_cols);
+                    calculate_terminal_size(new_width, new_height, cell_w, cell_h, &new_rows, &new_cols);
 
                     /* Update terminal size */
                     terminal_resize(term, new_rows, new_cols);
@@ -1373,6 +1359,14 @@ int main(int argc, char **argv) {
             }
         }
 
+        /* Render input area to vterm first if it needs redraw */
+        /* This must happen BEFORE checking terminal_needs_redraw() */
+        if (input_area_needs_redraw(&input_area)) {
+            terminal_render_input_area(term, &input_area);
+            input_area_mark_drawn(&input_area);
+            /* Input area updates vterm which triggers terminal_needs_redraw */
+        }
+
         /* Render if needed */
         int window_width, window_height;
         window_get_size(win, &window_width, &window_height);
@@ -1396,24 +1390,10 @@ int main(int argc, char **argv) {
             needs_render = 1;
         }
 
-        /* Always render input area if it needs redraw or if terminal was rendered */
-        if (input_area_needs_redraw(&input_area) || needs_render) {
-            int sel_start = 0, sel_end = 0;
-            if (input_area_has_selection(&input_area)) {
-                input_area_get_selection_range(&input_area, &sel_start, &sel_end);
-            }
-            /* Recalculate input area dimensions based on current cell size */
-            int current_input_area_height = cell_h;
-            renderer_render_input_area(rend, term, input_area_get_text(&input_area), input_area_get_length(&input_area),
-                                       input_area_get_cursor_pos(&input_area), window_width, current_input_area_height,
-                                       sel_start, sel_end);
-            input_area_mark_drawn(&input_area);
-            needs_render = 1; /* Input area rendered, need to present frame */
-        }
-
         /* Present frame if anything was rendered */
         if (needs_render) {
-            SDL_RenderPresent(window_get_sdl_renderer(win));
+            SDL_Renderer *present_renderer = window_get_sdl_renderer(win);
+            SDL_RenderPresent(present_renderer);
 
             /* Exit after first render if debug mode enabled */
             if (debug_exit) {
