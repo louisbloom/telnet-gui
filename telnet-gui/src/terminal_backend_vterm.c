@@ -5,6 +5,7 @@
 #include "input_area.h"
 #include "telnet.h"
 #include "dynamic_buffer.h"
+#include "ansi_sequences.h"
 #include <vterm.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -443,7 +444,7 @@ static void *vterm_create(int rows, int cols) {
     vterm_screen_reset(state->screen, 1);
 
     char seq[32];
-    snprintf(seq, sizeof(seq), "\033[%d;%dr", 1, rows);
+    ansi_format_scroll_region(seq, sizeof(seq), 1, rows);
     vterm_input_write(state->vterm, seq, strlen(seq));
     vterm_screen_flush_damage(state->screen);
 
@@ -582,7 +583,7 @@ static void vterm_resize(void *vstate, int rows, int cols) {
     vterm_set_size(state->vterm, total_rows, cols);
 
     char seq[32];
-    snprintf(seq, sizeof(seq), "\033[%d;%dr", 1, rows);
+    ansi_format_scroll_region(seq, sizeof(seq), 1, rows);
     vterm_input_write(state->vterm, seq, strlen(seq));
     vterm_screen_flush_damage(state->screen);
 
@@ -750,16 +751,20 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
     dynamic_buffer_clear(buf);
 
     /* Save cursor position so telnet input can restore it for correct echo positioning */
-    dynamic_buffer_append_str(buf, "\0337"); /* DECSC - Save Cursor */
+    dynamic_buffer_append_str(buf, ANSI_CURSOR_SAVE); /* DECSC - Save Cursor */
 
     int separator_row_1indexed = input_row + 1;
     int input_text_row_1indexed = separator_row_1indexed + 1;
 
-    /* Position cursor and clear line for separator */
-    dynamic_buffer_append_printf(buf, "\033[%d;1H\033[K", separator_row_1indexed);
+    /* Position cursor at separator row and clear from here to end of screen */
+    /* This removes old separator/input content when resizing */
+    char cursor_buf[16];
+    ansi_format_cursor_pos(cursor_buf, sizeof(cursor_buf), separator_row_1indexed, 1);
+    dynamic_buffer_append_str(buf, cursor_buf);
+    dynamic_buffer_append_str(buf, ANSI_ERASE_TO_EOS);
 
     /* Draw separator line - reverse video */
-    dynamic_buffer_append_str(buf, "\033[7m");
+    dynamic_buffer_append_str(buf, ANSI_SGR_REVERSE);
 
     /* Use vterm's scrolling region width (state->cols) if available, otherwise use cols param */
     int actual_cols = (state->cols > 0) ? state->cols : cols;
@@ -772,10 +777,11 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
     }
 
     /* Normal video */
-    dynamic_buffer_append_str(buf, "\033[27m");
+    dynamic_buffer_append_str(buf, ANSI_SGR_REVERSE_OFF);
 
-    /* Position cursor for input text and clear line */
-    dynamic_buffer_append_printf(buf, "\033[%d;1H\033[K", input_text_row_1indexed);
+    /* Position cursor for input text (already cleared by previous ANSI_ERASE_TO_EOS) */
+    ansi_format_cursor_pos(cursor_buf, sizeof(cursor_buf), input_text_row_1indexed, 1);
+    dynamic_buffer_append_str(buf, cursor_buf);
 
     /* Render input text with selection highlighting */
     const char *text = input_area_get_text(input_area);
@@ -787,22 +793,24 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
 
     for (int i = 0; i < text_len; i++) {
         if (has_sel && i == sel_start) {
-            dynamic_buffer_append_str(buf, "\033[7m");
+            dynamic_buffer_append_str(buf, ANSI_SGR_REVERSE);
         }
         if (has_sel && i == sel_end) {
-            dynamic_buffer_append_str(buf, "\033[27m");
+            dynamic_buffer_append_str(buf, ANSI_SGR_REVERSE_OFF);
         }
         dynamic_buffer_append(buf, &text[i], 1);
     }
     if (has_sel && sel_end >= text_len) {
-        dynamic_buffer_append_str(buf, "\033[27m");
+        dynamic_buffer_append_str(buf, ANSI_SGR_REVERSE_OFF);
     }
 
     /* Re-establish scrolling region to ensure input area rows stay fixed */
-    dynamic_buffer_append_printf(buf, "\033[1;%dr", state->scrolling_rows);
+    char scroll_buf[24];
+    ansi_format_scroll_region(scroll_buf, sizeof(scroll_buf), 1, state->scrolling_rows);
+    dynamic_buffer_append_str(buf, scroll_buf);
 
     /* Restore cursor position so telnet input echoes at the correct location */
-    dynamic_buffer_append_str(buf, "\0338"); /* DECRC - Restore Cursor */
+    dynamic_buffer_append_str(buf, ANSI_CURSOR_RESTORE); /* DECRC - Restore Cursor */
 
     /* Send all escape sequences to vterm */
     vterm_input_write(state->vterm, dynamic_buffer_data(buf), dynamic_buffer_len(buf));

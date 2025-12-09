@@ -16,6 +16,7 @@ set(GUI_SOURCES
     src/input_area.c
     src/lisp.c
     src/dynamic_buffer.c
+    src/ansi_sequences.c
 )
 
 # Create telnet-gui executable

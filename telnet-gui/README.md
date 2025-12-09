@@ -500,9 +500,10 @@ if (!vterm_check_version(0, 3)) {
 - **terminal_backend.h**: Terminal backend interface (function pointer vtable)
 - **terminal_backend_vterm.c**: libvterm terminal backend implementation
 - **term_cell.h**: Generic terminal cell structure (backend-independent)
+- **ansi_sequences.h/c**: ANSI escape sequence constants and helpers (universal, reusable)
 - **renderer.c**: Renderer wrapper that delegates to backend
 - **renderer_backend.h**: Renderer backend interface (function pointer vtable)
-- **renderer_backend_sdl.c**: SDL2 renderer backend implementation
+- **renderer_backend_sdl.c**: SDL2 renderer backend implementation (permanent)
 - **box_drawing.c**: Pixel-perfect box drawing character rendering
 - **glyph_cache.c**: Font glyph caching for performance
 - **window.c**: SDL window management (simplified - delegates to OS for chrome)
@@ -519,19 +520,29 @@ The application uses a pluggable backend architecture that separates terminal em
 **Terminal Backend (terminal_backend.h, terminal_backend_vterm.c):**
 
 - Abstracts terminal emulation layer using function pointer vtables
-- Current implementation: libvterm backend
+- Current implementation: libvterm backend (permanent for GUI mode)
 - Provides: cell access, scrollback, viewport management, data feeding
 - Enables future alternative terminal emulators without breaking existing code
+
+**ANSI Sequences (ansi_sequences.h, ansi_sequences.c):**
+
+- Static ANSI escape sequence table compatible with xterm/screen/linux
+- Symbolic constants for readability: `ANSI_CURSOR_SAVE`, `ANSI_SGR_REVERSE`, etc.
+- Helper functions for parameterized sequences: cursor positioning, scroll regions, colors
+- **Universal design**: Reusable for both GUI mode (libvterm control) and future custom TUI rendering
+- No terminfo dependencies, cross-platform compatibility
 
 **Renderer Backend (renderer_backend.h, renderer_backend_sdl.c):**
 
 - Abstracts rendering layer using function pointer vtables
-- Current implementation: SDL2 backend (graphical)
+- Current implementation: SDL2 backend (graphical, permanent)
 - Provides: frame lifecycle, cell rendering, color handling
-- **Future work (Phase 4)**: TUI backend for terminal-based output
-  - Would output ANSI escape sequences to stdout
-  - Enable running in pure terminal mode without SDL
-  - Follow pattern of Emacs/Vim/Neovim TUI implementations
+- **Future work**: Custom TUI renderer backend for terminal-based output
+  - Will be an _additional_ backend alongside SDL2 (not a replacement)
+  - Will use ANSI escape sequences from ansi_sequences.h for rendering
+  - Custom implementation (no termios/ncurses/Windows Console API)
+  - Enable dual-mode operation: GUI (SDL2) or TUI (custom ANSI renderer)
+  - Will reuse existing terminal backend (libvterm) for VT100 parsing
 
 **Generic Types (term_cell.h):**
 
@@ -541,10 +552,11 @@ The application uses a pluggable backend architecture that separates terminal em
 
 This architecture enables:
 
-- Runtime backend selection
+- Runtime backend selection (GUI vs future TUI mode)
 - Clean separation of concerns
 - Easy testing and mocking
-- Future TUI mode implementation
+- Code reusability between backends
+- Future dual-mode operation without architectural rewrites
 
 ### Terminal Emulation Flow
 
