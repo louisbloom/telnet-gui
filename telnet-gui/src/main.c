@@ -837,11 +837,11 @@ int main(int argc, char **argv) {
                     int new_rows, new_cols;
                     calculate_terminal_size(new_width, new_height, cell_w, cell_h, &new_rows, &new_cols);
 
-                    /* Update terminal size - this marks needs_redraw, main loop will handle rendering */
+                    /* Update terminal size */
                     terminal_resize(term, new_rows, new_cols);
 
-                    /* Mark input area as needing redraw to match new terminal width */
-                    input_area_request_redraw(&input_area);
+                    /* Re-render input area immediately to update divider position and restore cursor */
+                    terminal_render_input_area(term, &input_area);
 
                     /* Send NAWS to telnet server */
                     telnet_set_terminal_size(telnet, new_cols, new_rows);

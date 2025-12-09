@@ -806,7 +806,7 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
 
     /* Send all escape sequences to vterm */
     vterm_input_write(state->vterm, dynamic_buffer_data(buf), dynamic_buffer_len(buf));
-    vterm_screen_flush_damage(state->screen);
+    /* Note: Don't flush damage here - let the main render loop handle it to avoid blocking */
     state->needs_redraw = 1;
 }
 
