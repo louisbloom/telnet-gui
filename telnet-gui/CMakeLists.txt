@@ -116,6 +116,20 @@ install(FILES "${TINTIN_SRC}"
     COMPONENT Runtime
 )
 
+# Install log2html.py as log2html (without .py extension)
+install(PROGRAMS "${LOG2HTML_SRC}"
+    DESTINATION "bin"
+    RENAME "log2html"
+    COMPONENT Runtime
+)
+
+# Install DejaVu fonts for log2html (in bin/fonts directory)
+install(DIRECTORY "${DEJAVU_FONTS_SRC_DIR}/"
+    DESTINATION "bin/fonts"
+    COMPONENT Runtime
+    FILES_MATCHING PATTERN "*.ttf"
+)
+
 # Find required packages
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL2 REQUIRED sdl2)
