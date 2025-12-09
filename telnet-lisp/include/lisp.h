@@ -67,18 +67,26 @@ struct LispObject {
         struct {
             BuiltinFunc func;
             const char *name;
+            const char *docstring;  /* Documentation string (CommonMark format) */
         } builtin;
         struct {
-            LispObject *params;
-            LispObject *body;
-            Environment *closure;
-            char *name; /* Optional function name for debugging */
+            LispObject *params;            /* Full parameter list (for display) */
+            LispObject *required_params;   /* List of required parameter symbols */
+            LispObject *optional_params;   /* List of optional parameter symbols */
+            LispObject *rest_param;        /* Rest parameter symbol (or NULL) */
+            int required_count;            /* Number of required params */
+            int optional_count;            /* Number of optional params */
+            LispObject *body;              /* Body expressions */
+            Environment *closure;          /* Lexical environment */
+            char *name;                    /* Optional function name for debugging */
+            char *docstring;               /* Documentation string (CommonMark format) */
         } lambda;
         struct {
             LispObject *params;
             LispObject *body;
             Environment *closure;
-            char *name; /* Optional macro name for debugging */
+            char *name;       /* Optional macro name for debugging */
+            char *docstring;  /* Documentation string (CommonMark format) */
         } macro;
         char *error;
         FILE *file;
@@ -144,8 +152,11 @@ LispObject *lisp_make_symbol(const char *name);
 LispObject *lisp_make_boolean(int value);
 LispObject *lisp_make_cons(LispObject *car, LispObject *cdr);
 LispObject *lisp_make_error(const char *message);
-LispObject *lisp_make_builtin(BuiltinFunc func, const char *name);
+LispObject *lisp_make_builtin(BuiltinFunc func, const char *name, const char *docstring);
 LispObject *lisp_make_lambda(LispObject *params, LispObject *body, Environment *closure, const char *name);
+LispObject *lisp_make_lambda_ext(LispObject *params, LispObject *required_params, LispObject *optional_params,
+                                  LispObject *rest_param, int required_count, int optional_count,
+                                  LispObject *body, Environment *closure, const char *name);
 LispObject *lisp_make_macro(LispObject *params, LispObject *body, Environment *closure, const char *name);
 LispObject *lisp_make_file_stream(FILE *file);
 LispObject *lisp_make_vector(size_t capacity);
@@ -176,6 +187,8 @@ extern LispObject *sym_or;
 extern LispObject *sym_condition_case;
 extern LispObject *sym_unwind_protect;
 extern LispObject *sym_else;
+extern LispObject *sym_optional;
+extern LispObject *sym_rest;
 extern LispObject *sym_error;
 
 /* Hash table entry structure */

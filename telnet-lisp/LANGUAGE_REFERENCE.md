@@ -36,7 +36,7 @@ A reference for the Telnet Lisp language, covering data types, special forms, bu
 - `if` - Conditional evaluation
 - `define` - Define variables and functions
 - `set!` - Mutate existing variables (works inside lambdas/hooks)
-- `lambda` - Create anonymous functions with parameters (body has implicit progn: evaluates all expressions, returns last with tail recursion optimization)
+- `lambda` - Create anonymous functions with required, optional (&optional), and rest (&rest) parameters (body has implicit progn: evaluates all expressions, returns last with tail recursion optimization)
 - `defmacro` - Define macros for code transformation at evaluation time
 - `let` - Local variable bindings (parallel evaluation, body has implicit progn)
 - `let*` - Local variable bindings (sequential evaluation, can reference previous bindings, body has implicit progn)
@@ -190,6 +190,230 @@ Define a macro that transforms code before evaluation.
       1
       (* n (factorial (- n 1)))))
 (factorial 5)  ; => 120
+```
+
+#### lambda
+
+Create anonymous functions with optional and rest parameters. Lambda functions support lexical scoping and capture their environment (closures).
+
+**Syntax:**
+
+```lisp
+(lambda (params...) body...)
+(lambda (required... &optional optional... &rest rest-param) body...)
+```
+
+**Parameter Types:**
+
+- **Required parameters**: Must be provided, bound in order
+- **Optional parameters** (after `&optional`): Default to `nil` if not provided
+- **Rest parameter** (after `&rest`): Collects remaining arguments as a list
+
+**Features:**
+
+- Body has implicit `progn`: evaluates all expressions, returns last value
+- Tail recursion optimization for last expression
+- Lexical scoping: captures environment variables
+- Named via `define` for better stack traces
+
+**Examples:**
+
+```lisp
+; Basic lambda
+((lambda (x) (* x 2)) 5)  ; => 10
+
+; Multiple parameters
+((lambda (a b) (+ a b)) 3 4)  ; => 7
+
+; Multiple body expressions (implicit progn)
+((lambda (x)
+   (+ x 1)
+   (+ x 2)
+   (* x 3)) 5)  ; => 15 (only last expression returned)
+
+; Optional parameters (default to nil)
+((lambda (a &optional b) (list a b)) 1)     ; => (1 nil)
+((lambda (a &optional b) (list a b)) 1 2)   ; => (1 2)
+
+; Multiple optional parameters
+((lambda (a &optional b c d) (list a b c d)) 1 2)  ; => (1 2 nil nil)
+
+; Only optional parameters (no required)
+((lambda (&optional a b) (list a b)))      ; => (nil nil)
+((lambda (&optional a b) (list a b)) 10)   ; => (10 nil)
+
+; Default values via (or param default)
+(define greet
+  (lambda (name &optional greeting)
+    (let ((g (or greeting "Hello")))
+      (concat g ", " name "!"))))
+(greet "Alice")      ; => "Hello, Alice!"
+(greet "Bob" "Hi")   ; => "Hi, Bob!"
+
+; Rest parameter (collects remaining args)
+((lambda (a &rest more) (list a more)) 1 2 3)  ; => (1 (2 3))
+((lambda (&rest all) all) 1 2 3 4)             ; => (1 2 3 4)
+
+; Combined optional and rest
+((lambda (a &optional b &rest more) (list a b more)) 1)        ; => (1 nil ())
+((lambda (a &optional b &rest more) (list a b more)) 1 2 3 4)  ; => (1 2 (3 4))
+
+; Variadic function with rest parameter
+(define sum
+  (lambda (initial &rest numbers)
+    (let ((total initial))
+      (do ((nums numbers (cdr nums)))
+        ((null? nums) total)
+        (set! total (+ total (car nums)))))))
+(sum 1)           ; => 1
+(sum 1 2 3 4 5)   ; => 15
+
+; Closures (capture environment)
+(define make-adder
+  (lambda (x)
+    (lambda (y) (+ x y))))
+(define add5 (make-adder 5))
+(add5 10)  ; => 15
+
+; Named functions (via define)
+(define factorial
+  (lambda (n)
+    (if (<= n 1) 1 (* n (factorial (- n 1))))))
+(factorial 5)  ; => 120
+```
+
+**Parameter Order Rules:**
+
+1. Required parameters come first
+2. `&optional` marker introduces optional parameters (all default to `nil`)
+3. `&rest` marker must be last, followed by exactly one parameter name
+4. `&optional` cannot appear after `&rest`
+
+**Arity Checking:**
+
+- Too few arguments (missing required): Error
+- Too many arguments (without `&rest`): Error
+- With `&rest`: No maximum argument limit
+
+### Docstrings
+
+Lambda and macro definitions support documentation strings (docstrings) following Emacs Lisp conventions. Docstrings use CommonMark (Markdown) format for rich documentation.
+
+**Syntax:**
+
+For lambdas:
+```lisp
+(lambda (params...)
+  "Docstring here (optional)"
+  body...)
+```
+
+For macros:
+```lisp
+(defmacro name (params...)
+  "Docstring here (optional)"
+  body...)
+```
+
+**Requirements:**
+
+- Docstring must be a string literal
+- Must be the first expression after parameters
+- Must be followed by at least one more expression (the actual body)
+- Single-expression functions cannot have docstrings (prevents ambiguity)
+- Docstrings use CommonMark (Markdown) format
+
+**Introspection Functions:**
+
+- `(documentation symbol)` - Get docstring for function/macro bound to symbol
+- `(lambda-docstring lambda)` - Get docstring from lambda object
+- `(macro-docstring macro)` - Get docstring from macro object
+
+Returns `nil` if no docstring exists.
+
+**Examples:**
+
+```lisp
+; Function with docstring
+(define calculate-area
+  (lambda (width height)
+    "Calculate the area of a rectangle.
+
+    ## Parameters
+    - `width` - Width of the rectangle
+    - `height` - Height of the rectangle
+
+    ## Returns
+    The area as a number."
+    (* width height)))
+
+(documentation 'calculate-area)
+; => "Calculate the area of a rectangle.\n\n    ## Parameters..."
+
+; Lambda with docstring
+(define greet
+  (lambda (name)
+    "Greet a person by NAME."
+    (concat "Hello, " name "!")))
+
+(lambda-docstring greet)
+; => "Greet a person by NAME."
+
+; Macro with docstring
+(defmacro when (condition . body)
+  "Execute BODY when CONDITION is true."
+  `(if ,condition (progn ,@body) nil))
+
+(documentation 'when)
+; => "Execute BODY when CONDITION is true."
+
+; Single-expression lambda (NO docstring - string is return value)
+(define return-msg (lambda () "Hello"))
+(documentation 'return-msg)  ; => nil
+(return-msg)                 ; => "Hello"
+
+; Multi-line CommonMark docstring
+(define process-data
+  (lambda (data)
+    "Process data using various transformations.
+
+    ## Description
+    This function applies a series of transformations:
+    1. Validate input
+    2. Transform data
+    3. Return result
+
+    ## Example
+    ```lisp
+    (process-data '(1 2 3))  ; => '(2 4 6)
+    ```
+
+    **Note**: Input must be a list."
+    (map (lambda (x) (* x 2)) data)))
+
+; Closures preserve docstrings
+(define make-multiplier
+  (lambda (factor)
+    "Create a function that multiplies by FACTOR."
+    (lambda (x)
+      "Multiply X by the captured factor."
+      (* x factor))))
+
+(define times5 (make-multiplier 5))
+(lambda-docstring times5)  ; => "Multiply X by the captured factor."
+```
+
+**Edge Cases:**
+
+```lisp
+; Lambda without docstring
+(define double (lambda (x) (* x 2)))
+(documentation 'double)  ; => nil
+
+; String-only body is NOT a docstring
+(define msg (lambda () "Just a message"))
+(documentation 'msg)  ; => nil (only one expression)
+(msg)  ; => "Just a message" (returns the string)
 ```
 
 ## Built-in Functions

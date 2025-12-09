@@ -75,6 +75,53 @@
 ;; Helper function to trim punctuation from word boundaries
 ;; Uses regex-replace to remove leading and trailing punctuation
 (defun trim-punctuation (word)
+  "Remove leading and trailing punctuation from word.
+
+  ## Parameters
+  - `word` - String to clean
+
+  ## Returns
+  String with punctuation removed from both ends, or empty string if input invalid.
+
+  ## Description
+  Strips common punctuation characters from the beginning and end of a word,
+  preserving punctuation in the middle. Used for cleaning words extracted from
+  server output before adding to completion store.
+
+  **Removed punctuation:** `. , ! ? ; : ( ) [ ] { } ' \" -`
+
+  ## Examples
+  ```lisp
+  (trim-punctuation \"hello\")
+  ; => \"hello\"
+
+  (trim-punctuation \"hello!\")
+  ; => \"hello\"
+
+  (trim-punctuation \"(world)\")
+  ; => \"world\"
+
+  (trim-punctuation \"don't\")
+  ; => \"don't\"  ; Preserves internal apostrophe
+
+  (trim-punctuation \"--test--\")
+  ; => \"test\"
+
+  (trim-punctuation \"...\")
+  ; => \"\"  ; All punctuation
+
+  (trim-punctuation \"\")
+  ; => \"\"
+  ```
+
+  ## Notes
+  - Internal punctuation preserved (e.g., contractions, hyphenated words)
+  - Multiple consecutive punctuation marks removed
+  - Returns empty string for invalid input
+
+  ## See Also
+  - `clean-word` - Wrapper that validates and trims
+  - `collect-words-from-text` - Uses this for word extraction"
   (if (not (and (string? word) (> (string-length word) 0)))
     ""
     (let* ((no-trailing (regex-replace "[.,!?;:()\\[\\]{}'\"\\-]+$" word ""))
@@ -88,12 +135,66 @@
 ;; Helper: Clean a single word (trim punctuation, validate)
 ;; Returns cleaned word string or empty string if invalid
 (defun clean-word (word)
+  "Clean a word by trimming punctuation.
+
+  ## Parameters
+  - `word` - String to clean
+
+  ## Returns
+  Cleaned word string (punctuation removed from ends), or empty string if invalid.
+
+  ## Description
+  Validates input and delegates to `trim-punctuation` for cleaning. This is a
+  convenience wrapper used by word extraction functions.
+
+  ## Examples
+  ```lisp
+  (clean-word \"hello!\")
+  ; => \"hello\"
+
+  (clean-word nil)
+  ; => \"\"
+
+  (clean-word \"\")
+  ; => \"\"
+  ```
+
+  ## See Also
+  - `trim-punctuation` - Performs actual punctuation removal
+  - `valid-word?` - Check if cleaned word is valid"
   (if (and (string? word) (> (string-length word) 0))
     (trim-punctuation word)
     ""))
 
 ;; Helper: Check if a cleaned word is valid for storage
 (defun valid-word? (cleaned)
+  "Check if a cleaned word is valid for storage.
+
+  ## Parameters
+  - `cleaned` - String to validate (should be pre-cleaned)
+
+  ## Returns
+  `#t` if word is valid (non-empty string), `#f` otherwise.
+
+  ## Description
+  Validates that a word is suitable for adding to the completion store.
+  Used after cleaning to filter out empty results.
+
+  ## Examples
+  ```lisp
+  (valid-word? \"hello\")
+  ; => #t
+
+  (valid-word? \"\")
+  ; => #f
+
+  (valid-word? nil)
+  ; => #f
+  ```
+
+  ## See Also
+  - `clean-word` - Cleans words before validation
+  - `word-valid-for-store?` - Checks minimum length requirement"
   (and (string? cleaned)
     (> (string-length cleaned) 0)))
 
@@ -160,6 +261,60 @@
 ;; Words are always added at newest position, even if they already exist
 ;; This ensures most recently seen words appear first in completions
 (defun add-word-to-store (word)
+  "Add a word to the completion store with FIFO eviction.
+
+  ## Parameters
+  - `word` - Word to add (string)
+
+  ## Returns
+  - `1` if word was added
+  - `0` if word was rejected (< 3 characters or invalid)
+
+  ## Description
+  Adds a word to the circular buffer completion store. If the store is full,
+  evicts the oldest word (FIFO). Words are always added at the newest position,
+  even if they already exist in the store, ensuring most recently seen words
+  appear first in completion results.
+
+  **Storage Rules:**
+  - Minimum word length: 3 characters
+  - Store capacity: `*completion-word-store-size*` (default: 1000)
+  - Eviction policy: FIFO (oldest word removed when full)
+  - Duplicates allowed: Same word can appear multiple times
+  - Reference counting: Tracks occurrences for proper eviction
+
+  ## Examples
+  ```lisp
+  (add-word-to-store \"hello\")
+  ; => 1  ; Added
+
+  (add-word-to-store \"hi\")
+  ; => 0  ; Too short (< 3 chars)
+
+  (add-word-to-store \"\")
+  ; => 0  ; Invalid
+
+  ; Adding duplicate moves it to newest position
+  (add-word-to-store \"dragon\")  ; Added at position N
+  (add-word-to-store \"wizard\")  ; Added at position N+1
+  (add-word-to-store \"dragon\")  ; Added again at position N+2 (newest)
+  ; \"dragon\" now appears twice in store
+  ```
+
+  ## Notes
+  - Words < 3 characters silently rejected
+  - Duplicates increase recency (newest wins in completions)
+  - Reference counting prevents premature removal
+  - Circular buffer wraps around when full
+  - Thread-safe for single-threaded Lisp environment
+
+  ## Configuration Variables
+  - `*completion-word-store-size*` - Max words in store (default: 1000)
+
+  ## See Also
+  - `collect-words-from-text` - Extracts and adds multiple words
+  - `get-completions-from-store` - Retrieves matching words
+  - `word-valid-for-store?` - Validation predicate"
   ;; Early return for invalid words
   (if (not (word-valid-for-store? word))
     0
@@ -177,6 +332,61 @@
 
 ;; Collect all words from text and add them to the store
 (defun collect-words-from-text (text)
+  "Extract words from text and add them to completion store.
+
+  ## Parameters
+  - `text` - Text to extract words from (typically server output)
+
+  ## Returns
+  `nil` - This function is side-effect only.
+
+  ## Description
+  Extracts all words from text by splitting on whitespace, cleans them by
+  removing punctuation, and adds valid words (>= 3 characters) to the
+  completion word store. This is the primary function used by `telnet-input-hook`
+  to populate the tab completion system.
+
+  **Process:**
+  1. Split text on whitespace (spaces, tabs, newlines)
+  2. Remove leading/trailing punctuation from each word
+  3. Filter words < 3 characters
+  4. Add remaining words to circular buffer store (FIFO eviction)
+
+  ## Examples
+  ```lisp
+  ; Extract from server output
+  (collect-words-from-text \"The dragon guards the treasure!\")
+  ; Adds: \"The\", \"dragon\", \"guards\", \"the\", \"treasure\" to store
+
+  ; Short words filtered out
+  (collect-words-from-text \"Go to the inn\")
+  ; Only adds: \"the\", \"inn\" (\"Go\" and \"to\" are too short)
+
+  ; Punctuation removed
+  (collect-words-from-text \"Hello, world!\")
+  ; Adds: \"Hello\", \"world\"
+
+  ; Empty input
+  (collect-words-from-text \"\")
+  ; No effect
+  ```
+
+  ## Notes
+  - Minimum word length: 3 characters (after cleaning)
+  - Punctuation stripped: `. , ! ? ; : ( ) [ ] { } ' \" -`
+  - Internal punctuation preserved (e.g., \"don't\" keeps apostrophe)
+  - Store bounded by `*completion-word-store-size*` (default: 1000)
+  - Oldest words evicted when store is full (FIFO)
+  - Side-effect only: return value ignored
+
+  ## Configuration Variables
+  - `*completion-word-store-size*` - Max words in store (default: 1000)
+
+  ## See Also
+  - `telnet-input-hook` - Calls this function automatically
+  - `add-word-to-store` - Adds individual words to store
+  - `get-completions-from-store` - Retrieves matching words
+  - `completion-hook` - Uses word store for tab completion"
   (let ((words (extract-words text)))
     (if (null? words)
       ()
@@ -237,6 +447,65 @@
 ;; Get all words from store that match a prefix (case-insensitive)
 ;; Returns a list of matching words (strings)
 (defun get-completions-from-store (prefix)
+  "Retrieve words from store matching a prefix (case-insensitive).
+
+  ## Parameters
+  - `prefix` - Prefix to match (string)
+
+  ## Returns
+  List of matching words (strings), newest first, or empty list `()` if no matches.
+
+  ## Description
+  Searches the completion word store for all words matching the given prefix.
+  Matching is case-insensitive (\"hel\" matches \"Hello\", \"HELP\", \"helmet\").
+  Results are returned in newest-first order with duplicates removed.
+
+  **Search Strategy:**
+  1. **Primary**: Scan circular buffer from newest to oldest
+  2. **Fallback**: If no matches found, scan hash table keys
+  3. **Deduplication**: Uses temporary hash to track seen words
+  4. **Limit**: Returns up to `*completion-max-results*` matches (default: 50)
+
+  **Match Priority:**
+  - Newest occurrences appear first (most recently seen in server output)
+  - Earlier results prioritized over later ones
+  - Circular buffer scan faster than hash scan (preferred)
+
+  ## Examples
+  ```lisp
+  ; Assuming store contains: \"hello\", \"help\", \"helmet\", \"world\"
+  (get-completions-from-store \"hel\")
+  ; => (\"helmet\" \"help\" \"hello\")  ; Newest first
+
+  (get-completions-from-store \"wor\")
+  ; => (\"world\")
+
+  (get-completions-from-store \"xyz\")
+  ; => ()  ; No matches
+
+  (get-completions-from-store \"H\")
+  ; => (\"helmet\" \"help\" \"hello\")  ; Case-insensitive
+
+  (get-completions-from-store \"\")
+  ; => ()  ; Empty prefix
+  ```
+
+  ## Notes
+  - **Case-insensitive**: \"HEL\" matches \"hello\"
+  - **Prefix only**: \"lo\" does NOT match \"hello\" (not prefix)
+  - **Newest first**: Most recent server output prioritized
+  - **Deduplication**: Same word appears only once in results
+  - **Performance**: O(n) where n = store size (typically 1000)
+  - **Limited results**: Returns max `*completion-max-results*` matches
+
+  ## Configuration Variables
+  - `*completion-max-results*` - Max completions returned (default: 50)
+  - `*completion-word-store-size*` - Total store capacity (default: 1000)
+
+  ## See Also
+  - `completion-hook` - Calls this function for tab completion
+  - `add-word-to-store` - Adds words to store
+  - `collect-words-from-text` - Populates store from text"
   ;; Early return for invalid prefix
   (if (not (and (string? prefix) (> (string-length prefix) 0)))
     '()
@@ -307,6 +576,65 @@
 ;; No completions:
 ;;   (defun completion-hook (text) ())
 (defun completion-hook (text)
+  "Provide tab completion candidates from word store.
+
+  ## Parameters
+  - `text` - Partial text to complete (matched by `*completion-pattern*` regex)
+
+  ## Returns
+  List of completion candidate strings, newest matches first. Returns empty
+  list `()` if no matches found or text is invalid.
+
+  ## Description
+  Searches the word store for words matching the given prefix (case-insensitive).
+  The word store is automatically populated from telnet server output by
+  `telnet-input-hook`. Only words >= 3 characters are stored in the circular
+  buffer (bounded by `*completion-word-store-size*`).
+
+  **Completion Process:**
+  1. User presses TAB in input area
+  2. C code extracts text matching `*completion-pattern*` regex (default: `\\S+$`)
+  3. Calls this hook with extracted text
+  4. Hook searches word store for prefix matches
+  5. Returns list of candidates for C code to display
+
+  **Match Priority:**
+  - Newest words first (most recently seen in server output)
+  - Case-insensitive matching (\"hel\" matches \"Hello\", \"HELP\", \"helmet\")
+  - Duplicates automatically removed
+  - Limited to `*completion-max-results*` entries (default: 50)
+
+  ## Examples
+  ```lisp
+  ; Assuming word store contains: hello, help, helmet, world
+  (completion-hook \"hel\")
+  ; => (\"helmet\" \"help\" \"hello\")  ; Newest first
+
+  (completion-hook \"wo\")
+  ; => (\"world\")
+
+  (completion-hook \"xyz\")
+  ; => ()  ; No matches
+
+  (completion-hook \"\")
+  ; => ()  ; Empty prefix
+  ```
+
+  ## Notes
+  - Called by C code during TAB completion (user never calls directly)
+  - Word store populated automatically by `telnet-input-hook`
+  - Override this function to implement custom completion logic
+  - Can return any list of strings (not limited to word store)
+
+  ## Configuration Variables
+  - `*completion-pattern*` - Regex for matching partial text (default: `\\S+$`)
+  - `*completion-word-store-size*` - Max words in store (default: 1000)
+  - `*completion-max-results*` - Max completions returned (default: 50)
+
+  ## See Also
+  - `telnet-input-hook` - Populates word store from server output
+  - `get-completions-from-store` - Internal function that performs search
+  - `add-word-to-store` - Adds words to completion store"
   (if (and (string? text) (> (string-length text) 0))
     (get-completions-from-store text)
     '()))
@@ -374,6 +702,81 @@
 ;;   (defun telnet-input-hook (text)
 ;;     (collect-words-from-text text))
 (defun telnet-input-hook (text)
+  "Process incoming telnet server output for word collection (side-effect only).
+
+  ## Parameters
+  - `text` - Plain text from server (ANSI escape codes already stripped)
+
+  ## Returns
+  `nil` - This hook is side-effect only; return value is ignored by C code.
+
+  ## Description
+  Called automatically when text arrives from the telnet server, AFTER ANSI
+  escape codes have been removed. The default implementation extracts words
+  from server output and adds them to the completion word store for tab
+  completion support.
+
+  **Default Behavior:**
+  - Extracts words by splitting on whitespace
+  - Strips punctuation from word boundaries
+  - Only stores words >= 3 characters
+  - Uses circular buffer with FIFO eviction (bounded by `*completion-word-store-size*`)
+  - Preserves newest-first ordering for completion results
+
+  **Word Extraction Rules:**
+  - Split text on whitespace (spaces, tabs, newlines)
+  - Remove leading/trailing punctuation: `.,!?;:()[]{}'\"'-`
+  - Minimum word length: 3 characters
+  - Case-preserved in store (matching is case-insensitive)
+
+  ## Examples
+  ```lisp
+  ; Default implementation (collects words for completion)
+  (defun telnet-input-hook (text)
+    (collect-words-from-text text))
+
+  ; Custom: Log all server output to file
+  (defun telnet-input-hook (text)
+    (progn
+      (collect-words-from-text text)  ; Keep default word collection
+      (let ((file (open \"server.log\" \"a\")))
+        (write-line file text)
+        (close file))))
+
+  ; Custom: Check for alerts and trigger actions
+  (defun telnet-input-hook (text)
+    (progn
+      (collect-words-from-text text)
+      (if (string-contains? text \"You have new mail\")
+        (terminal-echo \"\\r\\n*** ALERT: New mail received ***\\r\\n\"))))
+
+  ; Custom: Silent (no word collection)
+  (defun telnet-input-hook (text)
+    ())
+  ```
+
+  ## Important Notes
+  - **Side-effect only**: Return value is ignored by C code
+  - **Cannot modify data flow**: Text is already processed before hook
+  - **ANSI codes removed**: Text is plain (for filtering ANSI, use `telnet-input-filter-hook`)
+  - **Synchronous**: Called during telnet processing (avoid long operations)
+  - **Called frequently**: Invoked for every chunk of server output
+
+  ## Use Cases
+  - Word collection for tab completion (default)
+  - Logging server output to files
+  - Triggering alerts on specific patterns
+  - Updating UI elements based on server state
+  - Statistical analysis of game output
+
+  ## Configuration Variables
+  - `*completion-word-store-size*` - Max words in store (default: 1000)
+
+  ## See Also
+  - `completion-hook` - Uses word store for tab completion
+  - `telnet-input-filter-hook` - For modifying ANSI output before display
+  - `collect-words-from-text` - Internal word extraction function
+  - `add-word-to-store` - Adds individual words to completion store"
   (collect-words-from-text text))
 
 ;; ============================================================================
@@ -435,7 +838,87 @@
 ;;       (if (string-prefix? ">" text)
 ;;           (string-append "PROMPT: " text)
 ;;           text)))
-(define telnet-input-filter-hook (lambda (text) text))
+(defun telnet-input-filter-hook (text)
+  "Transform telnet server output before displaying in terminal.
+
+  ## Parameters
+  - `text` - Raw telnet data from server (includes ANSI escape codes)
+
+  ## Returns
+  String to display in terminal. If non-string returned, original text is used.
+
+  ## Description
+  Called BEFORE displaying text in the terminal, allowing transformation,
+  filtering, or replacement of telnet server output. The returned string is
+  what actually gets displayed. This hook receives raw ANSI-encoded data and
+  can modify the visual output before rendering.
+
+  **Default Behavior:**
+  - Pass-through: Returns text unchanged (identity function)
+
+  **Data Flow:**
+  1. Server sends data → telnet.c receives
+  2. **This hook transforms data** (with ANSI codes intact)
+  3. Data displayed in terminal (libvterm processes ANSI)
+  4. `telnet-input-hook` processes stripped text (side-effects only)
+
+  ## Examples
+  ```lisp
+  ; Default (no transformation)
+  (defun telnet-input-filter-hook (text)
+    text)
+
+  ; Remove ANSI color codes (strip all formatting)
+  (defun telnet-input-filter-hook (text)
+    (strip-ansi text))
+
+  ; Filter out sensitive patterns
+  (defun telnet-input-filter-hook (text)
+    (if (string-contains? text \"PASSWORD\")
+      \"\"  ; Suppress output
+      text))
+
+  ; Highlight errors in red
+  (defun telnet-input-filter-hook (text)
+    (string-replace text \"ERROR\"
+      \"\\033[1;31mERROR\\033[0m\"))  ; Bold red
+
+  ; Add timestamp prefix to all output
+  (defun telnet-input-filter-hook (text)
+    (concat \"[\" (current-time-string) \"] \" text))
+
+  ; Conditional transformation based on content
+  (defun telnet-input-filter-hook (text)
+    (cond
+      ((string-prefix? \">\" text)
+        (concat \"\\033[1;32m\" text \"\\033[0m\"))  ; Green prompts
+      ((string-contains? text \"You died\")
+        (concat \"\\033[1;31m\" text \"\\033[0m\"))  ; Red death messages
+      (#t text)))  ; Default: unchanged
+  ```
+
+  ## Important Notes
+  - **Must return string**: Non-string returns use original text
+  - **ANSI codes preserved**: Text includes raw escape sequences
+  - **Transforms data flow**: Changes what user sees (unlike `telnet-input-hook`)
+  - **Called frequently**: Invoked for every chunk from server
+  - **Synchronous**: Avoid long operations (blocks rendering)
+  - **Can combine with telnet-input-hook**: Both hooks work together
+
+  ## Use Cases
+  - Color highlighting and formatting
+  - Filtering sensitive information
+  - Pattern-based text replacement
+  - Adding visual markers or prefixes
+  - ANSI color removal (accessibility)
+  - Custom text styling
+
+  ## See Also
+  - `telnet-input-hook` - Side-effect hook (word collection, logging)
+  - `strip-ansi` - Remove ANSI escape codes from text
+  - `terminal-echo` - Echo text directly to terminal
+  - TinTin++ highlight system - Pattern-based coloring"
+  text)
 
 ;; ============================================================================
 ;; USER INPUT HOOK CONFIGURATION
@@ -500,7 +983,111 @@
 ;;       (if (string-prefix? "password " text)
 ;;           ()  ; nil - hook handles it (or suppresses it)
 ;;           text)))
-(define user-input-hook (lambda (text cursor-pos) text))
+(defun user-input-hook (text cursor-pos)
+  "Transform user input before sending to telnet server.
+
+  ## Parameters
+  - `text` - Text user typed in input area
+  - `cursor-pos` - Cursor position in input area (integer, 0-based)
+
+  ## Returns
+  - String: C code echoes and sends this text (with CRLF appended)
+  - `nil` or non-string: Hook handled echo/send itself (proper way)
+  - Empty string `\"\"`: Same as `nil` (hook handled everything)
+
+  ## Description
+  Called BEFORE sending text to the telnet server, allowing transformation,
+  filtering, or replacement of user input. You can either:
+  1. Return transformed string for C code to echo/send
+  2. Return `nil` after handling echo/send yourself (via `terminal-echo`/`telnet-send`)
+
+  **Default Behavior:**
+  - Pass-through: Returns text unchanged
+
+  **Hook Contract:**
+  - If you call `terminal-echo` and `telnet-send` yourself, return `nil`
+  - If you return a string, C code handles echo/send
+  - Called for every Enter keypress (even empty input)
+
+  ## Examples
+  ```lisp
+  ; Default (no transformation)
+  (defun user-input-hook (text cursor-pos)
+    text)
+
+  ; Convert to uppercase
+  (defun user-input-hook (text cursor-pos)
+    (string-upcase text))
+
+  ; Command aliases (simple)
+  (defun user-input-hook (text cursor-pos)
+    (cond
+      ((string=? text \"n\") \"north\")
+      ((string=? text \"s\") \"south\")
+      ((string=? text \"e\") \"east\")
+      ((string=? text \"w\") \"west\")
+      (#t text)))
+
+  ; Cursor position aware (only transform if cursor at end)
+  (defun user-input-hook (text cursor-pos)
+    (if (= cursor-pos (string-length text))
+      (string-upcase text)  ; Cursor at end - transform
+      text))  ; Cursor in middle - don't transform
+
+  ; Add prefix to all commands
+  (defun user-input-hook (text cursor-pos)
+    (concat \">\" text))
+
+  ; Suppress specific commands (handle manually)
+  (defun user-input-hook (text cursor-pos)
+    (if (string-prefix? \"password \" text)
+      (progn
+        ; Don't echo password, just send it
+        (telnet-send (concat text \"\\r\\n\"))
+        ())  ; Return nil - we handled it
+      text))  ; Normal commands - let C code handle
+
+  ; TinTin++ integration (command expansion)
+  (defun user-input-hook (text cursor-pos)
+    (progn
+      ; Echo original input
+      (terminal-echo (concat text \"\\r\\n\"))
+      ; Process through TinTin++ (expands aliases, speedwalk)
+      (let ((processed (tintin-process-input text)))
+        (if (string? processed)
+          (progn
+            ; Echo expanded command if different
+            (if (not (string=? text processed))
+              (terminal-echo (concat processed \"\\r\\n\")))
+            ; Send to server
+            (telnet-send (concat processed \"\\r\\n\"))
+            ())  ; Return nil - we handled it
+          ()))))  ; TinTin++ handled it
+  ```
+
+  ## Important Notes
+  - **Proper way to handle everything**: Return `nil` (not empty string)
+  - **If you call terminal-echo/telnet-send**: You MUST return `nil`
+  - **Called for every Enter press**: Even on empty input
+  - **Cursor position useful**: Check if user is at end or editing middle
+  - **Synchronous**: Avoid long operations (blocks input)
+
+  ## Use Cases
+  - Command aliases and shortcuts
+  - Input transformation (uppercase, prefix, etc.)
+  - TinTin++ scripting integration
+  - Password handling (no echo)
+  - Input validation and filtering
+  - Command history manipulation
+  - Cursor-aware transformations
+
+  ## See Also
+  - `terminal-echo` - Echo text to terminal (for manual handling)
+  - `telnet-send` - Send text to server (for manual handling)
+  - `tintin-process-input` - TinTin++ command processing
+  - `telnet-input-filter-hook` - Transform server output
+  - `telnet-input-hook` - Process server output (side-effects)"
+  text)
 
 ;; ============================================================================
 ;; MOUSE WHEEL SCROLLING CONFIGURATION

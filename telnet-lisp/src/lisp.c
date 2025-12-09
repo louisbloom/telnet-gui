@@ -31,6 +31,8 @@ LispObject *sym_or = NULL;
 LispObject *sym_condition_case = NULL;
 LispObject *sym_unwind_protect = NULL;
 LispObject *sym_else = NULL;
+LispObject *sym_optional = NULL;
+LispObject *sym_rest = NULL;
 LispObject *sym_error = NULL;
 
 /* Object creation functions */
@@ -134,11 +136,12 @@ LispObject *lisp_attach_stack_trace(LispObject *error, Environment *env) {
     return error;
 }
 
-LispObject *lisp_make_builtin(BuiltinFunc func, const char *name) {
+LispObject *lisp_make_builtin(BuiltinFunc func, const char *name, const char *docstring) {
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_BUILTIN;
     obj->value.builtin.func = func;
     obj->value.builtin.name = name;
+    obj->value.builtin.docstring = docstring;
     return obj;
 }
 
@@ -146,9 +149,33 @@ LispObject *lisp_make_lambda(LispObject *params, LispObject *body, Environment *
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_LAMBDA;
     obj->value.lambda.params = params;
+    obj->value.lambda.required_params = params; /* For backward compat: all params are required */
+    obj->value.lambda.optional_params = NIL;
+    obj->value.lambda.rest_param = NULL;
+    obj->value.lambda.required_count = 0; /* Will be computed during apply */
+    obj->value.lambda.optional_count = 0;
     obj->value.lambda.body = body;
     obj->value.lambda.closure = closure;
     obj->value.lambda.name = name ? GC_strdup(name) : NULL;
+    obj->value.lambda.docstring = NULL;
+    return obj;
+}
+
+LispObject *lisp_make_lambda_ext(LispObject *params, LispObject *required_params, LispObject *optional_params,
+                                 LispObject *rest_param, int required_count, int optional_count, LispObject *body,
+                                 Environment *closure, const char *name) {
+    LispObject *obj = GC_malloc(sizeof(LispObject));
+    obj->type = LISP_LAMBDA;
+    obj->value.lambda.params = params;
+    obj->value.lambda.required_params = required_params;
+    obj->value.lambda.optional_params = optional_params;
+    obj->value.lambda.rest_param = rest_param;
+    obj->value.lambda.required_count = required_count;
+    obj->value.lambda.optional_count = optional_count;
+    obj->value.lambda.body = body;
+    obj->value.lambda.closure = closure;
+    obj->value.lambda.name = name ? GC_strdup(name) : NULL;
+    obj->value.lambda.docstring = NULL;
     return obj;
 }
 
@@ -159,6 +186,7 @@ LispObject *lisp_make_macro(LispObject *params, LispObject *body, Environment *c
     obj->value.macro.body = body;
     obj->value.macro.closure = closure;
     obj->value.macro.name = name ? GC_strdup(name) : NULL;
+    obj->value.macro.docstring = NULL;
     return obj;
 }
 
@@ -293,6 +321,8 @@ int lisp_init(void) {
     sym_condition_case = lisp_intern("condition-case");
     sym_unwind_protect = lisp_intern("unwind-protect");
     sym_else = lisp_intern("else");
+    sym_optional = lisp_intern("&optional");
+    sym_rest = lisp_intern("&rest");
     sym_error = lisp_intern("error");
 
     if (global_env == NULL) {

@@ -319,6 +319,144 @@ static LispObject *eval_set_bang(LispObject *args, Environment *env) {
     return value;
 }
 
+/*
+ * Parse lambda parameter list (Emacs Lisp core style)
+ *
+ * Input: (a b &optional c d &rest more)
+ * Output: Sets required_params, optional_params, rest_param, counts
+ *
+ * Returns: 0 on success, -1 on error (sets error message)
+ */
+static int parse_lambda_params(LispObject *params, LispObject **required_out, LispObject **optional_out,
+                               LispObject **rest_out, int *required_count_out, int *optional_count_out,
+                               char **error_msg_out) {
+    /* States for parameter parsing */
+    enum { REQUIRED, OPTIONAL, REST } state = REQUIRED;
+
+    /* Build lists using cons cells (reversed, will reverse at end) */
+    LispObject *required_list = NIL;
+    LispObject *optional_list = NIL;
+    LispObject *rest_param = NULL;
+    int required_count = 0;
+    int optional_count = 0;
+    int seen_optional = 0;
+    int seen_rest = 0;
+
+    /* Empty parameter list is valid */
+    if (params == NIL) {
+        *required_out = NIL;
+        *optional_out = NIL;
+        *rest_out = NULL;
+        *required_count_out = 0;
+        *optional_count_out = 0;
+        return 0;
+    }
+
+    /* Walk through parameter list */
+    LispObject *current = params;
+    while (current != NIL && current != NULL) {
+        /* Check for proper list structure */
+        if (current->type != LISP_CONS) {
+            *error_msg_out = "Invalid parameter list structure";
+            return -1;
+        }
+
+        LispObject *param = lisp_car(current);
+
+        /* Check for &optional marker */
+        if (param->type == LISP_SYMBOL && param == sym_optional) {
+            if (seen_optional) {
+                *error_msg_out = "Multiple &optional markers in parameter list";
+                return -1;
+            }
+            if (state == REST) {
+                *error_msg_out = "&optional cannot appear after &rest";
+                return -1;
+            }
+            seen_optional = 1;
+            state = OPTIONAL;
+            current = lisp_cdr(current);
+            continue;
+        }
+
+        /* Check for &rest marker */
+        if (param->type == LISP_SYMBOL && param == sym_rest) {
+            if (seen_rest) {
+                *error_msg_out = "Multiple &rest markers in parameter list";
+                return -1;
+            }
+            seen_rest = 1;
+            state = REST;
+            current = lisp_cdr(current);
+
+            /* Rest parameter must be followed by exactly one symbol */
+            if (current == NIL) {
+                *error_msg_out = "&rest must be followed by a parameter name";
+                return -1;
+            }
+            if (current->type != LISP_CONS) {
+                *error_msg_out = "Invalid parameter list structure after &rest";
+                return -1;
+            }
+
+            LispObject *rest_sym = lisp_car(current);
+            if (rest_sym->type != LISP_SYMBOL) {
+                *error_msg_out = "&rest parameter must be a symbol";
+                return -1;
+            }
+
+            rest_param = rest_sym;
+            current = lisp_cdr(current);
+
+            /* &rest parameter must be last */
+            if (current != NIL) {
+                *error_msg_out = "&rest parameter must be the last parameter";
+                return -1;
+            }
+            break;
+        }
+
+        /* Regular parameter - must be a symbol */
+        if (param->type != LISP_SYMBOL) {
+            *error_msg_out = "Parameter must be a symbol";
+            return -1;
+        }
+
+        /* Add to appropriate list based on state */
+        if (state == REQUIRED) {
+            required_list = lisp_make_cons(param, required_list);
+            required_count++;
+        } else if (state == OPTIONAL) {
+            optional_list = lisp_make_cons(param, optional_list);
+            optional_count++;
+        }
+
+        current = lisp_cdr(current);
+    }
+
+    /* Reverse lists (we built them backwards) */
+    LispObject *reversed_required = NIL;
+    while (required_list != NIL) {
+        reversed_required = lisp_make_cons(lisp_car(required_list), reversed_required);
+        required_list = lisp_cdr(required_list);
+    }
+
+    LispObject *reversed_optional = NIL;
+    while (optional_list != NIL) {
+        reversed_optional = lisp_make_cons(lisp_car(optional_list), reversed_optional);
+        optional_list = lisp_cdr(optional_list);
+    }
+
+    /* Set output parameters */
+    *required_out = reversed_required;
+    *optional_out = reversed_optional;
+    *rest_out = rest_param;
+    *required_count_out = required_count;
+    *optional_count_out = optional_count;
+
+    return 0;
+}
+
 static LispObject *eval_lambda(LispObject *args, Environment *env) {
     if (args == NIL) {
         return lisp_make_error("lambda requires at least 2 arguments");
@@ -331,10 +469,44 @@ static LispObject *eval_lambda(LispObject *args, Environment *env) {
         return lisp_make_error("lambda requires a body");
     }
 
-    /* Store all body expressions (implicit progn) */
-    LispObject *body = rest;
+    /* Parse parameter list */
+    LispObject *required_params = NULL;
+    LispObject *optional_params = NULL;
+    LispObject *rest_param = NULL;
+    int required_count = 0;
+    int optional_count = 0;
+    char *error_msg = NULL;
 
-    return lisp_make_lambda(params, body, env, NULL);
+    if (parse_lambda_params(params, &required_params, &optional_params, &rest_param, &required_count, &optional_count,
+                            &error_msg) != 0) {
+        return lisp_make_error(error_msg);
+    }
+
+    /* Extract docstring from body if present */
+    LispObject *body = rest;
+    char *docstring = NULL;
+
+    /* Check if first body expression is a string AND there are more expressions */
+    LispObject *first_expr = lisp_car(body);
+    size_t body_length = lisp_list_length(body);
+
+    if (first_expr != NIL && first_expr->type == LISP_STRING && body_length > 1) {
+        /* First expr is docstring - extract it and skip it in body */
+        docstring = GC_strdup(first_expr->value.string);
+        body = lisp_cdr(body);
+    }
+
+    /* Create lambda with parsed params and extracted docstring */
+    LispObject *lambda =
+        lisp_make_lambda_ext(params, required_params, optional_params, rest_param, required_count, optional_count,
+                             body, env, NULL);
+
+    /* Set docstring if extracted */
+    if (docstring != NULL) {
+        lambda->value.lambda.docstring = docstring;
+    }
+
+    return lambda;
 }
 
 static LispObject *eval_defmacro(LispObject *args, Environment *env) {
@@ -359,8 +531,24 @@ static LispObject *eval_defmacro(LispObject *args, Environment *env) {
         return lisp_make_error("defmacro requires a body");
     }
 
+    /* Extract docstring from body if present */
+    char *docstring = NULL;
+    LispObject *first_expr = lisp_car(body);
+    size_t body_length = lisp_list_length(body);
+
+    if (first_expr != NIL && first_expr->type == LISP_STRING && body_length > 1) {
+        /* First expr is docstring - extract it and skip it in body */
+        docstring = GC_strdup(first_expr->value.string);
+        body = lisp_cdr(body);
+    }
+
     /* Create the macro */
     LispObject *macro = lisp_make_macro(params, body, env, name->value.symbol);
+
+    /* Set docstring if extracted */
+    if (docstring != NULL) {
+        macro->value.macro.docstring = docstring;
+    }
 
     /* Define it in the environment */
     env_define(env, name->value.symbol, macro);
@@ -992,41 +1180,57 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
         /* Push call frame for lambda */
         push_call_frame(new_env, frame_name);
 
-        /* Bind parameters */
-        LispObject *params = lambda_params;
+        /* Bind parameters (with optional and rest support) */
+        int required_count = func->value.lambda.required_count;
+        int optional_count = func->value.lambda.optional_count;
+        LispObject *rest_param = func->value.lambda.rest_param;
+
+        /* Count arguments */
+        int arg_count = 0;
+        LispObject *arg_counter = args;
+        while (arg_counter != NIL && arg_counter != NULL) {
+            arg_count++;
+            arg_counter = lisp_cdr(arg_counter);
+        }
+
+        /* Arity check */
+        if (arg_count < required_count) {
+            LispObject *err = lisp_make_error_with_stack("Too few arguments to lambda", new_env);
+            pop_call_frame(new_env);
+            return err;
+        }
+        if (!rest_param && arg_count > required_count + optional_count) {
+            LispObject *err = lisp_make_error_with_stack("Too many arguments to lambda", new_env);
+            pop_call_frame(new_env);
+            return err;
+        }
+
+        /* Bind required parameters */
+        LispObject *params = func->value.lambda.required_params;
         LispObject *arg_list = args;
-
         while (params != NIL && params != NULL) {
-            if (params->type != LISP_CONS) {
-                LispObject *err = lisp_make_error_with_stack("Invalid lambda parameter list", new_env);
-                pop_call_frame(new_env);
-                return err;
-            }
-
             LispObject *param = lisp_car(params);
-            if (param->type != LISP_SYMBOL) {
-                LispObject *err = lisp_make_error_with_stack("Lambda parameter must be a symbol", new_env);
-                pop_call_frame(new_env);
-                return err;
-            }
-
-            if (arg_list == NIL) {
-                LispObject *err = lisp_make_error_with_stack("Too few arguments to lambda", new_env);
-                pop_call_frame(new_env);
-                return err;
-            }
-
             LispObject *arg = lisp_car(arg_list);
             env_define(new_env, param->value.symbol, arg);
-
             params = lisp_cdr(params);
             arg_list = lisp_cdr(arg_list);
         }
 
-        if (arg_list != NIL) {
-            LispObject *err = lisp_make_error_with_stack("Too many arguments to lambda", new_env);
-            pop_call_frame(new_env);
-            return err;
+        /* Bind optional parameters (default to nil) */
+        LispObject *opt_params = func->value.lambda.optional_params;
+        while (opt_params != NIL && opt_params != NULL) {
+            LispObject *param_sym = lisp_car(opt_params);
+            LispObject *value = (arg_list != NIL) ? lisp_car(arg_list) : NIL;
+            env_define(new_env, param_sym->value.symbol, value);
+            opt_params = lisp_cdr(opt_params);
+            if (arg_list != NIL) {
+                arg_list = lisp_cdr(arg_list);
+            }
+        }
+
+        /* Bind rest parameter (collect remaining args as list) */
+        if (rest_param) {
+            env_define(new_env, rest_param->value.symbol, arg_list);
         }
 
         /* Evaluate body with tail position awareness (implicit progn) */
@@ -1078,41 +1282,57 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
             /* Push call frame for tail-called lambda */
             push_call_frame(tail_env, tail_frame_name);
 
-            /* Bind parameters */
-            LispObject *tail_params = tail_lambda_params;
+            /* Bind parameters (with optional and rest support) */
+            int tail_required_count = tail_func->value.lambda.required_count;
+            int tail_optional_count = tail_func->value.lambda.optional_count;
+            LispObject *tail_rest_param = tail_func->value.lambda.rest_param;
+
+            /* Count arguments */
+            int tail_arg_count = 0;
+            LispObject *tail_arg_counter = tail_args;
+            while (tail_arg_counter != NIL && tail_arg_counter != NULL) {
+                tail_arg_count++;
+                tail_arg_counter = lisp_cdr(tail_arg_counter);
+            }
+
+            /* Arity check */
+            if (tail_arg_count < tail_required_count) {
+                result = lisp_make_error_with_stack("Too few arguments to lambda", tail_env);
+                pop_call_frame(tail_env);
+                goto trampoline_done;
+            }
+            if (!tail_rest_param && tail_arg_count > tail_required_count + tail_optional_count) {
+                result = lisp_make_error_with_stack("Too many arguments to lambda", tail_env);
+                pop_call_frame(tail_env);
+                goto trampoline_done;
+            }
+
+            /* Bind required parameters */
+            LispObject *tail_params = tail_func->value.lambda.required_params;
             LispObject *tail_arg_list = tail_args;
-
             while (tail_params != NIL && tail_params != NULL) {
-                if (tail_params->type != LISP_CONS) {
-                    result = lisp_make_error_with_stack("Invalid lambda parameter list", tail_env);
-                    pop_call_frame(tail_env);
-                    goto trampoline_done;
-                }
-
                 LispObject *tail_param = lisp_car(tail_params);
-                if (tail_param->type != LISP_SYMBOL) {
-                    result = lisp_make_error_with_stack("Lambda parameter must be a symbol", tail_env);
-                    pop_call_frame(tail_env);
-                    goto trampoline_done;
-                }
-
-                if (tail_arg_list == NIL) {
-                    result = lisp_make_error_with_stack("Too few arguments to lambda", tail_env);
-                    pop_call_frame(tail_env);
-                    goto trampoline_done;
-                }
-
                 LispObject *tail_arg = lisp_car(tail_arg_list);
                 env_define(tail_env, tail_param->value.symbol, tail_arg);
-
                 tail_params = lisp_cdr(tail_params);
                 tail_arg_list = lisp_cdr(tail_arg_list);
             }
 
-            if (tail_arg_list != NIL) {
-                result = lisp_make_error_with_stack("Too many arguments to lambda", tail_env);
-                pop_call_frame(tail_env);
-                goto trampoline_done;
+            /* Bind optional parameters (default to nil) */
+            LispObject *tail_opt_params = tail_func->value.lambda.optional_params;
+            while (tail_opt_params != NIL && tail_opt_params != NULL) {
+                LispObject *tail_param_sym = lisp_car(tail_opt_params);
+                LispObject *tail_value = (tail_arg_list != NIL) ? lisp_car(tail_arg_list) : NIL;
+                env_define(tail_env, tail_param_sym->value.symbol, tail_value);
+                tail_opt_params = lisp_cdr(tail_opt_params);
+                if (tail_arg_list != NIL) {
+                    tail_arg_list = lisp_cdr(tail_arg_list);
+                }
+            }
+
+            /* Bind rest parameter (collect remaining args as list) */
+            if (tail_rest_param) {
+                env_define(tail_env, tail_rest_param->value.symbol, tail_arg_list);
             }
 
             /* Execute lambda body (in tail position) */

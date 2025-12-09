@@ -56,13 +56,14 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
         break;
 
     case LISP_LAMBDA:
+        append_str(buffer, size, pos, "#<lambda ");
         if (obj->value.lambda.name != NULL) {
-            append_str(buffer, size, pos, "#<lambda:");
             append_str(buffer, size, pos, obj->value.lambda.name);
-            append_str(buffer, size, pos, ">");
-        } else {
-            append_str(buffer, size, pos, "#<lambda>");
+            append_str(buffer, size, pos, " ");
         }
+        /* Print full parameter list (shows &optional and &rest markers) */
+        print_object(obj->value.lambda.params, buffer, size, pos);
+        append_str(buffer, size, pos, ">");
         break;
 
     case LISP_MACRO:
@@ -214,11 +215,13 @@ static void princ_object(LispObject *obj) {
         break;
 
     case LISP_LAMBDA:
+        printf("#<lambda ");
         if (obj->value.lambda.name != NULL) {
-            printf("#<lambda:%s>", obj->value.lambda.name);
-        } else {
-            printf("#<lambda>");
+            printf("%s ", obj->value.lambda.name);
         }
+        /* Print full parameter list (shows &optional and &rest markers) */
+        princ_object(obj->value.lambda.params);
+        printf(">");
         break;
 
     case LISP_MACRO:
