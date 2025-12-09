@@ -11,6 +11,7 @@ typedef struct CacheNode {
     SDL_Texture *texture;
     int cell_width;  /* Advance width of this glyph */
     int cell_height; /* Height of the glyph */
+    int minx;        /* Left bearing of the glyph for positioning */
 } CacheNode;
 
 struct GlyphCache {
@@ -143,6 +144,9 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
     /* Set font rendering style - use provided hinting mode */
     TTF_SetFontHinting(cache->font, hinting_mode);
 
+    /* Disable kerning for monospaced fonts to ensure uniform spacing */
+    TTF_SetFontKerning(cache->font, 0);
+
     /* Store scale mode for texture creation */
     cache->scale_mode = scale_mode;
 
@@ -262,6 +266,20 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
         int tex_w, tex_h;
         SDL_QueryTexture(texture, NULL, NULL, &tex_w, &tex_h);
 
+        /* Get glyph metrics for positioning */
+        int minx = 0, maxx, miny, maxy, advance;
+        if (codepoint < 0x10000) {
+            TTF_GlyphMetrics(cache->font, (uint16_t)codepoint, &minx, &maxx, &miny, &maxy, &advance);
+        } else {
+            /* TTF_GlyphMetrics32 is available in newer SDL_ttf versions, or use fallback */
+#if SDL_TTF_MAJOR_VERSION > 2 || (SDL_TTF_MAJOR_VERSION == 2 && SDL_TTF_MINOR_VERSION >= 20)
+            TTF_GlyphMetrics32(cache->font, codepoint, &minx, &maxx, &miny, &maxy, &advance);
+#else
+            /* Fallback for older SDL_ttf: Emoji usually don't need minx adjust */
+            minx = 0;
+#endif
+        }
+
         /* Store in cache */
         if (cache->cache[slot].texture) {
             SDL_DestroyTexture(cache->cache[slot].texture);
@@ -270,6 +288,7 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
         cache->cache[slot].texture = texture;
         cache->cache[slot].cell_width = tex_w;
         cache->cache[slot].cell_height = tex_h;
+        cache->cache[slot].minx = minx;
     }
 
     return texture;
@@ -294,6 +313,25 @@ int glyph_cache_get_glyph_width(GlyphCache *cache, uint32_t codepoint, SDL_Color
 
     /* Fallback to default cell width if not found */
     return cache->cell_w;
+}
+
+int glyph_cache_get_minx(GlyphCache *cache, uint32_t codepoint, SDL_Color fg_color, SDL_Color bg_color) {
+    (void)bg_color;
+    if (!cache)
+        return 0;
+
+    /* Ensure glyph is cached */
+    SDL_Color black_bg = {0, 0, 0, 255};
+    glyph_cache_get(cache, codepoint, fg_color, black_bg, 0, 0);
+
+    /* Look up cache entry */
+    uint32_t key = hash_key(codepoint, fg_color, black_bg, 0, 0);
+    int slot = key % cache->cache_size;
+
+    if (cache->cache[slot].key == key && cache->cache[slot].texture) {
+        return cache->cache[slot].minx;
+    }
+    return 0;
 }
 
 void glyph_cache_get_cell_size(GlyphCache *cache, int *cell_w, int *cell_h) {

@@ -1,6 +1,7 @@
 /* Terminal renderer implementation */
 
 #include "renderer.h"
+#include "box_drawing.h"
 #include "lisp.h"
 #include "../../telnet-lisp/include/utf8.h"
 #include <stdlib.h>
@@ -183,19 +184,30 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
                     }
                 }
 
-                SDL_Texture *glyph = glyph_cache_get(r->glyph_cache, cell.chars[0], fg_color, bg_color, cell.attrs.bold,
-                                                     cell.attrs.italic);
-                if (glyph) {
-                    /* Get actual texture size */
-                    int tex_w, tex_h;
-                    SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);
-
-                    /* Center glyph horizontally with proper rounding, align to baseline vertically */
-                    int dst_x = col * r->cell_w + (r->cell_w - tex_w + 1) / 2;
+                /* Handle box drawing characters manually for pixel-perfect alignment */
+                if (is_box_drawing_char(cell.chars[0])) {
+                    int dst_x = col * r->cell_w;
                     int dst_y = row * r->cell_h;
-                    SDL_Rect dst = {dst_x, dst_y, tex_w, tex_h};
+                    render_box_drawing_char(r->sdl_renderer, cell.chars[0], dst_x, dst_y, r->cell_w, r->cell_h,
+                                            fg_color);
+                } else {
+                    SDL_Texture *glyph = glyph_cache_get(r->glyph_cache, cell.chars[0], fg_color, bg_color,
+                                                         cell.attrs.bold, cell.attrs.italic);
+                    if (glyph) {
+                        /* Get actual texture size */
+                        int tex_w, tex_h;
+                        SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);
 
-                    SDL_RenderCopy(r->sdl_renderer, glyph, NULL, &dst);
+                        /* Get glyph minx for precise positioning */
+                        int minx = glyph_cache_get_minx(r->glyph_cache, cell.chars[0], fg_color, bg_color);
+
+                        /* Position glyph using its left bearing (minx) to respect font metrics */
+                        int dst_x = col * r->cell_w + minx;
+                        int dst_y = row * r->cell_h;
+                        SDL_Rect dst = {dst_x, dst_y, tex_w, tex_h};
+
+                        SDL_RenderCopy(r->sdl_renderer, glyph, NULL, &dst);
+                    }
                 }
             }
         }
@@ -293,13 +305,22 @@ void renderer_render_input_area(Renderer *r, Terminal *term, const char *text, i
                 char_fg_color = sel_fg_color; /* Black text on orange background */
             }
 
-            /* Render the character (bg_color not used by glyph cache, just for cache key) */
-            SDL_Texture *glyph = glyph_cache_get(r->glyph_cache, codepoint, char_fg_color, bg_color, 0, 0);
-            if (glyph) {
-                int tex_w, tex_h;
-                SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);
-                SDL_Rect dst = {x + (r->cell_w - tex_w + 1) / 2, y, tex_w, tex_h};
-                SDL_RenderCopy(r->sdl_renderer, glyph, NULL, &dst);
+            /* Handle box drawing characters manually */
+            if (is_box_drawing_char(codepoint)) {
+                render_box_drawing_char(r->sdl_renderer, codepoint, x, y, r->cell_w, r->cell_h, char_fg_color);
+            } else {
+                /* Render the character (bg_color not used by glyph cache, just for cache key) */
+                SDL_Texture *glyph = glyph_cache_get(r->glyph_cache, codepoint, char_fg_color, bg_color, 0, 0);
+                if (glyph) {
+                    int tex_w, tex_h;
+                    SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);
+
+                    /* Get glyph minx for precise positioning */
+                    int minx = glyph_cache_get_minx(r->glyph_cache, codepoint, char_fg_color, bg_color);
+
+                    SDL_Rect dst = {x + minx, y, tex_w, tex_h};
+                    SDL_RenderCopy(r->sdl_renderer, glyph, NULL, &dst);
+                }
             }
             x += r->cell_w;
             i += bytes_consumed; /* Advance by number of bytes consumed */

@@ -4403,8 +4403,8 @@
               (rows (cdr data))
               (all-rows data))
 
-	;; Validate that we have at least headers
-	(if (or (null? headers) (= (list-length headers) 0))
+        ;; Validate that we have at least headers
+        (if (or (null? headers) (= (list-length headers) 0))
           (tintin-echo "Error: Table must have at least header row")
           (let ((widths (tintin-calculate-optimal-widths all-rows term-cols min-col-width)))
 
@@ -4415,12 +4415,12 @@
             (let ((bold-headers '()))
               ;; Add bold formatting to each header (truncate if too long for column)
               (do ((i 0 (+ i 1)))
-		((>= i (list-length headers)))
-		(let* ((header (list-ref headers i))
-			(col-width (list-ref widths i))
-			(header-len (tintin-visual-length header))
-			;; Truncate header if longer than column width
-			(truncated (if (> header-len col-width)
+                ((>= i (list-length headers)))
+                (let* ((header (list-ref headers i))
+                        (col-width (list-ref widths i))
+                        (header-len (tintin-visual-length header))
+                        ;; Truncate header if longer than column width
+                        (truncated (if (> header-len col-width)
                                      (substring header 0 col-width)
                                      header)))
                   (set! bold-headers (cons (concat "\033[1m" truncated "\033[0m") bold-headers))))
@@ -4428,7 +4428,7 @@
 
               ;; Draw header lines
               (let ((header-lines (tintin-draw-row bold-headers widths)))
-		(do ((i 0 (+ i 1)))
+                (do ((i 0 (+ i 1)))
                   ((>= i (list-length header-lines)))
                   (tintin-echo (list-ref header-lines i)))))
 
@@ -4440,13 +4440,13 @@
               ((>= row-idx (list-length rows)))
               (let* ((row (list-ref rows row-idx))
                       (row-lines (tintin-draw-row row widths)))
-		(do ((line-idx 0 (+ line-idx 1)))
+                (do ((line-idx 0 (+ line-idx 1)))
                   ((>= line-idx (list-length row-lines)))
                   (tintin-echo (list-ref row-lines line-idx))))
 
               ;; Draw separator after each row (except the last row)
               (if (and row-sep (< (+ row-idx 1) (list-length rows)))
-		(tintin-echo (tintin-draw-border widths 'middle))))
+                (tintin-echo (tintin-draw-border widths 'middle))))
 
             ;; Draw bottom border
             (tintin-echo (tintin-draw-border widths 'bottom))))))))

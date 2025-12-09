@@ -497,9 +497,8 @@ static LispObject *eval_lambda(LispObject *args, Environment *env) {
     }
 
     /* Create lambda with parsed params and extracted docstring */
-    LispObject *lambda =
-        lisp_make_lambda_ext(params, required_params, optional_params, rest_param, required_count, optional_count,
-                             body, env, NULL);
+    LispObject *lambda = lisp_make_lambda_ext(params, required_params, optional_params, rest_param, required_count,
+                                              optional_count, body, env, NULL);
 
     /* Set docstring if extracted */
     if (docstring != NULL) {

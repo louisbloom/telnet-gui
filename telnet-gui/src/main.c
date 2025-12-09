@@ -212,13 +212,13 @@ static void print_help(const char *program_name) {
     printf("  -h, --help              Show this help message and exit\n");
     printf("\n");
     printf("  Font Options:\n");
-    printf("    -f, --font-size SIZE   Set font size in points (default: 16)\n");
+    printf("    -f, --font-size SIZE   Set font size in points (default: 12)\n");
     printf("    -F<letter>             Select font (default: m):\n");
     printf("                             m = Cascadia Mono, i = Inconsolata, p = IBM Plex Mono,\n");
     printf("                             d = DejaVu Sans Mono, c = Courier Prime\n");
     printf("    --font <name>          Select font by name:\n");
     printf("                             cascadia, inconsolata, plex, dejavu, courier\n");
-    printf("    -H, --hinting MODE     Set font hinting mode (default: none)\n");
+    printf("    -H, --hinting MODE     Set font hinting mode (default: light)\n");
     printf("                            MODE can be: none, light, normal, mono\n");
     printf("    -a, --antialiasing MODE Set anti-aliasing mode (default: linear)\n");
     printf("                            MODE can be: nearest, linear\n");
@@ -267,7 +267,7 @@ static void print_help(const char *program_name) {
 
 int main(int argc, char **argv) {
     /* Default settings */
-    int hinting_mode = TTF_HINTING_NONE;             /* Default: no hinting (no vertical stretching) */
+    int hinting_mode = TTF_HINTING_LIGHT;            /* Default: light hinting for smoother, Windows-like appearance */
     SDL_ScaleMode scale_mode = SDL_ScaleModeNearest; /* Default: nearest (pixel-perfect) scaling */
     const char *hostname = NULL;
     int port = 0;
@@ -275,7 +275,7 @@ int main(int argc, char **argv) {
     int lisp_file_count = 0;
     const char *test_file = NULL; /* Test file for headless mode */
     char font_choice = 'm'; /* Font selection: m=Cascadia Mono (default), i=Inconsolata, p=Plex, d=DejaVu, c=Courier */
-    int font_size = 16;     /* Default font size */
+    int font_size = 12;     /* Default font size */
     int terminal_cols = 80; /* Default terminal columns */
     int terminal_rows = 40; /* Default terminal rows */
     int debug_exit = 0;     /* Exit after initialization for debug output */
@@ -445,17 +445,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    /* Estimate initial window size based on terminal geometry and font size */
-    /* Inconsolata metrics: width ≈ 0.63 * font_size, height ≈ 1.18 * font_size */
-    /* At 17pt: approximately 11x20 pixels per cell */
-    int estimated_cell_w = (int)(font_size * 0.63);
-    int estimated_cell_h = (int)(font_size * 1.18);
-    int estimated_input_area_h = estimated_cell_h; /* Input area is one cell height */
-
-    /* Calculate initial window size from terminal geometry */
-    int initial_window_width = terminal_cols * estimated_cell_w;
-    int initial_window_height = terminal_rows * estimated_cell_h + estimated_input_area_h;
-
     /* Set locale for UTF-8 support */
     setlocale(LC_ALL, "");
 
@@ -491,15 +480,6 @@ int main(int argc, char **argv) {
     }
 
     atexit(cleanup);
-
-    /* Create window with estimated size based on terminal geometry */
-    Window *win = window_create("Telnet GUI", initial_window_width, initial_window_height);
-    if (!win) {
-        fprintf(stderr, "Failed to create window\n");
-        return 1;
-    }
-
-    SDL_Renderer *renderer = window_get_sdl_renderer(win);
 
     /* Query display DPI for font rendering */
     float ddpi = 96.0f, hdpi = 96.0f, vdpi = 96.0f; /* Default to 96 DPI (Windows standard) */
@@ -623,6 +603,25 @@ int main(int argc, char **argv) {
     font_path_labels[font_path_count++] = "Windows system fallback (Consola)";
     font_paths[font_path_count] = NULL;
 
+    /* Create a minimal hidden window to get a renderer for font loading */
+    /* This allows us to calculate exact window size before creating the real window */
+    SDL_Window *hidden_window =
+        SDL_CreateWindow("", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 1, 1, SDL_WINDOW_HIDDEN);
+    if (!hidden_window) {
+        fprintf(stderr, "Failed to create hidden window for font loading: %s\n", SDL_GetError());
+        SDL_Quit();
+        return 1;
+    }
+
+    SDL_Renderer *temp_renderer = SDL_CreateRenderer(hidden_window, -1, SDL_RENDERER_ACCELERATED);
+    if (!temp_renderer) {
+        fprintf(stderr, "Failed to create renderer for font loading: %s\n", SDL_GetError());
+        SDL_DestroyWindow(hidden_window);
+        SDL_Quit();
+        return 1;
+    }
+
+    /* Load font using temporary renderer to get actual cell metrics */
     GlyphCache *glyph_cache = NULL;
     const char *loaded_font_path = NULL;
     const char *loaded_font_label = NULL;
@@ -641,7 +640,7 @@ int main(int argc, char **argv) {
         }
 
         /* Use specified font size with specified hinting and antialiasing */
-        glyph_cache = glyph_cache_create(renderer, font_paths[i], font_name, font_size, hinting_mode, scale_mode,
+        glyph_cache = glyph_cache_create(temp_renderer, font_paths[i], font_name, font_size, hinting_mode, scale_mode,
                                          (int)hdpi, (int)vdpi);
         if (glyph_cache) {
             loaded_font_path = font_paths[i];
@@ -657,26 +656,61 @@ int main(int argc, char **argv) {
 
     if (!glyph_cache) {
         fprintf(stderr, "Font resolution: ERROR - Failed to create glyph cache from all attempted paths\n");
-        window_destroy(win);
+        SDL_DestroyRenderer(temp_renderer);
+        SDL_DestroyWindow(hidden_window);
+        SDL_Quit();
         return 1;
     }
 
+    /* Get actual cell metrics from loaded font */
     int cell_w, cell_h;
     glyph_cache_get_cell_size(glyph_cache, &cell_w, &cell_h);
 
     /* Calculate exact window size for terminal geometry using actual glyph metrics */
     int input_area_height_local = cell_h;
-
-    /* Precise window dimensions: cols * cell_w, rows * cell_h + UI elements */
     int precise_width = terminal_cols * cell_w;
     int precise_height = terminal_rows * cell_h + input_area_height_local;
 
-    /* Set window to exact size immediately (before first render) */
-    SDL_Window *sdl_window = window_get_sdl_window(win);
-    SDL_SetWindowSize(sdl_window, precise_width, precise_height);
+    /* Clean up hidden window and temporary renderer */
+    SDL_DestroyRenderer(temp_renderer);
+    SDL_DestroyWindow(hidden_window);
 
-    /* Pump events to allow window resize to complete */
-    SDL_PumpEvents();
+    /* Create the real window with the exact calculated size */
+    Window *win = window_create("Telnet GUI", precise_width, precise_height);
+    if (!win) {
+        fprintf(stderr, "Failed to create window\n");
+        glyph_cache_destroy(glyph_cache);
+        SDL_Quit();
+        return 1;
+    }
+
+    SDL_Renderer *renderer = window_get_sdl_renderer(win);
+    SDL_Window *sdl_window = window_get_sdl_window(win);
+
+    /* Recreate glyph cache with the real renderer (font is already loaded, but cache needs real renderer) */
+    /* We need to destroy the old cache and create a new one with the real renderer */
+    glyph_cache_destroy(glyph_cache);
+    glyph_cache = NULL;
+
+    for (int i = 0; font_paths[i] != NULL; i++) {
+        if (strcmp(font_paths[i], loaded_font_path) == 0) {
+            glyph_cache = glyph_cache_create(renderer, font_paths[i], font_name, font_size, hinting_mode, scale_mode,
+                                             (int)hdpi, (int)vdpi);
+            if (glyph_cache) {
+                break;
+            }
+        }
+    }
+
+    if (!glyph_cache) {
+        fprintf(stderr, "Font resolution: ERROR - Failed to recreate glyph cache with real renderer\n");
+        window_destroy(win);
+        SDL_Quit();
+        return 1;
+    }
+
+    /* Get cell metrics again (should be the same, but get from new cache) */
+    glyph_cache_get_cell_size(glyph_cache, &cell_w, &cell_h);
 
     /* Create renderer */
     Renderer *rend = renderer_create(renderer, glyph_cache, cell_w, cell_h);
@@ -765,6 +799,33 @@ int main(int argc, char **argv) {
                             &initial_cols);
     terminal_resize(term, initial_rows, initial_cols);
     telnet_set_terminal_size(telnet, initial_cols, initial_rows);
+
+    /* Perform initial render to eliminate white border artifact */
+    /* Clear renderer to terminal background color */
+    int bg_r, bg_g, bg_b;
+    lisp_x_get_terminal_bg_color(&bg_r, &bg_g, &bg_b);
+    SDL_SetRenderDrawColor(renderer, bg_r, bg_g, bg_b, 255);
+    SDL_RenderClear(renderer);
+
+    /* Render initial terminal state */
+    char title[256];
+    snprintf(title, sizeof(title), "Telnet: %s:%d", hostname ? hostname : "", port);
+    renderer_render(rend, term, title, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+    /* Render input area */
+    int sel_start = 0, sel_end = 0;
+    if (input_area_has_selection(&input_area)) {
+        input_area_get_selection_range(&input_area, &sel_start, &sel_end);
+    }
+    int window_width, window_height;
+    window_get_size(win, &window_width, &window_height);
+    int current_input_area_height = cell_h;
+    renderer_render_input_area(rend, term, input_area_get_text(&input_area), input_area_get_length(&input_area),
+                               input_area_get_cursor_pos(&input_area), window_width, current_input_area_height,
+                               sel_start, sel_end);
+
+    /* Present the initial frame immediately */
+    SDL_RenderPresent(renderer);
 
     /* Main loop */
     SDL_Event event;

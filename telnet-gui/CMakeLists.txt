@@ -9,6 +9,7 @@ set(GUI_SOURCES
     src/window.c
     src/renderer.c
     src/glyph_cache.c
+    src/box_drawing.c
     src/input.c
     src/input_area.c
     src/lisp.c

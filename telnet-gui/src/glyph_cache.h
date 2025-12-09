@@ -31,6 +31,9 @@ const char *glyph_cache_get_font_name(GlyphCache *cache);
 /* Get the actual rendered width of a glyph (returns cached width if available, or renders and caches it) */
 int glyph_cache_get_glyph_width(GlyphCache *cache, uint32_t codepoint, SDL_Color fg_color, SDL_Color bg_color);
 
+/* Get the left bearing (minx) of a glyph for precise positioning */
+int glyph_cache_get_minx(GlyphCache *cache, uint32_t codepoint, SDL_Color fg_color, SDL_Color bg_color);
+
 /* Clean up and destroy the cache */
 void glyph_cache_destroy(GlyphCache *cache);
 

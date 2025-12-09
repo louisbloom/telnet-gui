@@ -302,6 +302,7 @@ Lambda and macro definitions support documentation strings (docstrings) followin
 **Syntax:**
 
 For lambdas:
+
 ```lisp
 (lambda (params...)
   "Docstring here (optional)"
@@ -309,6 +310,7 @@ For lambdas:
 ```
 
 For macros:
+
 ```lisp
 (defmacro name (params...)
   "Docstring here (optional)"
@@ -333,7 +335,7 @@ Returns `nil` if no docstring exists.
 
 **Examples:**
 
-```lisp
+````lisp
 ; Function with docstring
 (define calculate-area
   (lambda (width height)
@@ -401,7 +403,7 @@ Returns `nil` if no docstring exists.
 
 (define times5 (make-multiplier 5))
 (lambda-docstring times5)  ; => "Multiply X by the captured factor."
-```
+````
 
 **Edge Cases:**
 
