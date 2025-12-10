@@ -6,7 +6,9 @@
 #include "telnet.h"
 #include "dynamic_buffer.h"
 #include "ansi_sequences.h"
+#include "lisp.h"
 #include <vterm.h>
+#include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -480,7 +482,29 @@ static void vterm_feed_data(void *vstate, const char *data, size_t len) {
     VTermBackendState *state = (VTermBackendState *)vstate;
     if (!state || !data)
         return;
-    vterm_input_write(state->vterm, data, len);
+
+    /* Normalize LF to CRLF to keep cursor at column 0 on new lines */
+    size_t max_out = len * 2;
+    char stack_buf[1024];
+    char *tmp = (max_out <= sizeof(stack_buf)) ? stack_buf : (char *)malloc(max_out);
+    if (!tmp)
+        return;
+
+    size_t out_len = 0;
+    for (size_t i = 0; i < len; i++) {
+        char c = data[i];
+        if (c == '\n') {
+            char prev = (i == 0) ? '\0' : data[i - 1];
+            if (prev != '\r') {
+                tmp[out_len++] = '\r';
+            }
+        }
+        tmp[out_len++] = c;
+    }
+
+    vterm_input_write(state->vterm, tmp, out_len);
+    if (tmp != stack_buf)
+        free(tmp);
     vterm_screen_flush_damage(state->screen);
 }
 
@@ -569,18 +593,43 @@ static int vterm_get_cell_at_scrollback_index(void *vstate, int scrollback_index
     }
 }
 
-static void vterm_resize(void *vstate, int rows, int cols) {
+static void vterm_resize(void *vstate, int rows, int cols, int input_visible_rows) {
     VTermBackendState *state = (VTermBackendState *)vstate;
     if (!state)
         return;
 
-    int total_rows = rows + 2;
+    int old_scrolling_rows = state->scrolling_rows;
+    int total_rows = rows + 1 + input_visible_rows; /* separator + variable input rows */
+
+    /* If scrolling region is shrinking (input area growing), scroll content up first */
+    if (rows < old_scrolling_rows) {
+        int lines_to_scroll = old_scrolling_rows - rows;
+        /* Position cursor at bottom of current scrolling region */
+        char pos_seq[32];
+        ansi_format_cursor_pos(pos_seq, sizeof(pos_seq), old_scrolling_rows, 1);
+        vterm_input_write(state->vterm, pos_seq, strlen(pos_seq));
+        /* Insert newlines to scroll content up into scrollback */
+        for (int i = 0; i < lines_to_scroll; i++) {
+            vterm_input_write(state->vterm, "\n", 1);
+        }
+    }
+
     state->rows = total_rows;
     state->cols = cols;
     state->scrolling_rows = rows;
     state->input_row = rows;
 
     vterm_set_size(state->vterm, total_rows, cols);
+
+    /* Clear old input area if terminal grew (input area shrank) */
+    if (rows > old_scrolling_rows) {
+        char clear_seq[64];
+        /* Position at old separator row and clear to end of screen */
+        int old_separator_row = old_scrolling_rows + 1; /* 1-indexed */
+        ansi_format_cursor_pos(clear_seq, sizeof(clear_seq), old_separator_row, 1);
+        vterm_input_write(state->vterm, clear_seq, strlen(clear_seq));
+        vterm_input_write(state->vterm, ANSI_ERASE_TO_EOS, strlen(ANSI_ERASE_TO_EOS));
+    }
 
     char seq[32];
     ansi_format_scroll_region(seq, sizeof(seq), 1, rows);
@@ -719,9 +768,41 @@ static void vterm_echo_local(void *vstate) {
 
     state->echoing_locally = 1;
 
+    /* Echo new bytes, expanding LF to CRLF for proper cursor return */
     size_t new_bytes = state->output_buffer_len - state->output_buffer_echoed;
-    vterm_input_write(state->vterm, state->output_buffer + state->output_buffer_echoed, new_bytes);
+    const char *src = state->output_buffer + state->output_buffer_echoed;
+
+    /* Worst-case buffer: every byte is '\n' -> doubles size */
+    size_t max_out = new_bytes * 2;
+    char stack_buf[1024];
+    char *tmp = (max_out <= sizeof(stack_buf)) ? stack_buf : (char *)malloc(max_out);
+    if (!tmp) {
+        state->echoing_locally = 0;
+        return;
+    }
+
+    size_t out_len = 0;
+    for (size_t i = 0; i < new_bytes; i++) {
+        char c = src[i];
+        int needs_cr = (c == '\n');
+        /* Insert CR if this LF is not already preceded by CR (consider previous byte overall) */
+        if (needs_cr) {
+            char prev =
+                (i == 0)
+                    ? ((state->output_buffer_echoed > 0) ? state->output_buffer[state->output_buffer_echoed - 1] : '\0')
+                    : src[i - 1];
+            if (prev != '\r') {
+                tmp[out_len++] = '\r';
+            }
+        }
+        tmp[out_len++] = c;
+    }
+
+    vterm_input_write(state->vterm, tmp, out_len);
     vterm_screen_flush_damage(state->screen);
+
+    if (tmp != stack_buf)
+        free(tmp);
 
     state->output_buffer_echoed = state->output_buffer_len;
     state->echoing_locally = 0;
@@ -739,6 +820,85 @@ static void vterm_send_buffer(void *vstate, void *telnet) {
     /* Clear buffer */
     state->output_buffer_len = 0;
     state->output_buffer_echoed = 0;
+}
+
+/* Helper: Get byte range for a specific visual row */
+static void get_visual_row_byte_range(const char *buffer, int length, int cols, int target_visual_row, int *out_start,
+                                      int *out_end) {
+    if (cols <= 0)
+        cols = 80;
+
+    int current_row = 0;
+    int current_col = 0;
+    int row_start = -1;
+
+    /* If looking for row 0, it starts at position 0 */
+    if (target_visual_row == 0) {
+        row_start = 0;
+    }
+
+    for (int i = 0; i <= length; i++) {
+        /* End of buffer */
+        if (i == length) {
+            if (current_row == target_visual_row) {
+                /* We're on the target row at end of buffer */
+                if (row_start == -1)
+                    row_start = i;
+                *out_start = row_start;
+                *out_end = length;
+            } else if (row_start >= 0) {
+                /* We were on target row but now past it */
+                *out_start = row_start;
+                *out_end = i;
+            } else {
+                /* Never reached target row */
+                *out_start = length;
+                *out_end = length;
+            }
+            return;
+        }
+
+        /* Process character to update position */
+        if (buffer[i] == '\n') {
+            /* If we're on target row and encounter newline, end the row here (exclude newline) */
+            if (current_row == target_visual_row && row_start >= 0) {
+                *out_start = row_start;
+                *out_end = i; /* Exclude the newline */
+                return;
+            }
+            current_row++;
+            current_col = 0;
+            /* After processing newline, check if we've entered target row */
+            if (current_row == target_visual_row && row_start == -1) {
+                row_start = i + 1; /* Start after the newline */
+            }
+        } else {
+            /* Check if we've entered the target row */
+            if (current_row == target_visual_row && row_start == -1) {
+                row_start = i;
+            }
+
+            current_col++;
+            if (current_col >= cols) {
+                /* Line wrapped - if we're on target row, end it here */
+                if (current_row == target_visual_row && row_start >= 0) {
+                    *out_start = row_start;
+                    *out_end = i + 1; /* Include current character */
+                    return;
+                }
+                current_row++;
+                current_col = 0;
+                /* After wrapping, check if we've entered target row */
+                if (current_row == target_visual_row && row_start == -1) {
+                    row_start = i + 1; /* Start after wrapped character */
+                }
+            }
+        }
+    }
+
+    /* Shouldn't reach here, but handle it */
+    *out_start = row_start >= 0 ? row_start : 0;
+    *out_end = length;
 }
 
 static void vterm_render_input_area(void *vstate, void *input_area_ptr, int input_row, int cols) {
@@ -777,35 +937,69 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
         dynamic_buffer_append(buf, box_char, 3);
     }
 
-    /* Normal video */
+    /* Normal video after separator (turn off reverse) */
     dynamic_buffer_append_str(buf, ANSI_SGR_REVERSE_OFF);
 
-    /* Position cursor for input text (already cleared by previous ANSI_ERASE_TO_EOS) */
-    ansi_format_cursor_pos(cursor_buf, sizeof(cursor_buf), input_text_row_1indexed, 1);
-    dynamic_buffer_append_str(buf, cursor_buf);
+    /* Get input area colors (will be set per-row) */
+    int fg_r, fg_g, fg_b, bg_r, bg_g, bg_b;
+    lisp_x_get_input_area_fg_color(&fg_r, &fg_g, &fg_b);
+    lisp_x_get_input_area_bg_color(&bg_r, &bg_g, &bg_b);
 
-    /* Render input text with selection highlighting */
+    char color_buf[32];
+
+    /* Get input area state for multi-row rendering */
     const char *text = input_area_get_text(input_area);
     int text_len = input_area_get_length(input_area);
+    int visible_rows = input_area_get_visible_rows(input_area);
+    int scroll_offset = input_area->scroll_offset;
     int sel_start = 0, sel_end = 0;
     int has_sel = input_area_has_selection(input_area);
     if (has_sel)
         input_area_get_selection_range(input_area, &sel_start, &sel_end);
 
-    for (int i = 0; i < text_len; i++) {
-        if (has_sel && i == sel_start) {
-            dynamic_buffer_append_str(buf, ANSI_SGR_REVERSE);
+    /* Render each visible row */
+    for (int vis_row = 0; vis_row < visible_rows; vis_row++) {
+        int visual_row = scroll_offset + vis_row;
+        /* Position cursor at start of this absolute row */
+        int absolute_row = input_text_row_1indexed + vis_row;
+        ansi_format_cursor_pos(cursor_buf, sizeof(cursor_buf), absolute_row, 1);
+        dynamic_buffer_append_str(buf, cursor_buf);
+
+        /* Set colors for this row AFTER positioning */
+        ansi_format_fg_color_rgb(color_buf, sizeof(color_buf), fg_r, fg_g, fg_b);
+        dynamic_buffer_append_str(buf, color_buf);
+        ansi_format_bg_color_rgb(color_buf, sizeof(color_buf), bg_r, bg_g, bg_b);
+        dynamic_buffer_append_str(buf, color_buf);
+
+        /* Erase line to fill with current background color */
+        dynamic_buffer_append_str(buf, "\x1b[2K"); /* EL2 - Erase entire line */
+
+        /* Get byte range for this visual row */
+        int row_start, row_end;
+        get_visual_row_byte_range(text, text_len, actual_cols, visual_row, &row_start, &row_end);
+
+        /* Render characters in this row with selection highlighting */
+        for (int i = row_start; i < row_end; i++) {
+            if (has_sel && i == sel_start) {
+                dynamic_buffer_append_str(buf, ANSI_SGR_REVERSE);
+            }
+            if (has_sel && i == sel_end) {
+                /* Turn off reverse video after selection */
+                dynamic_buffer_append_str(buf, ANSI_SGR_REVERSE_OFF);
+            }
+
+            /* Skip newline characters (they mark end of line, don't render) */
+            if (text[i] != '\n') {
+                dynamic_buffer_append(buf, &text[i], 1);
+            }
         }
-        if (has_sel && i == sel_end) {
+        /* Turn off selection if it extends past this row */
+        if (has_sel && sel_end > row_start && sel_end <= row_end) {
             dynamic_buffer_append_str(buf, ANSI_SGR_REVERSE_OFF);
         }
-        dynamic_buffer_append(buf, &text[i], 1);
-    }
-    if (has_sel && sel_end >= text_len) {
-        dynamic_buffer_append_str(buf, ANSI_SGR_REVERSE_OFF);
     }
 
-    /* Re-establish scrolling region to ensure input area rows stay fixed */
+    /* Restore scrolling region */
     char scroll_buf[24];
     ansi_format_scroll_region(scroll_buf, sizeof(scroll_buf), 1, state->scrolling_rows);
     dynamic_buffer_append_str(buf, scroll_buf);
@@ -815,7 +1009,8 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
 
     /* Send all escape sequences to vterm */
     vterm_input_write(state->vterm, dynamic_buffer_data(buf), dynamic_buffer_len(buf));
-    /* Note: Don't flush damage here - let the main render loop handle it to avoid blocking */
+    /* Flush damage to ensure all rows are processed */
+    vterm_screen_flush_damage(state->screen);
     state->needs_redraw = 1;
 }
 

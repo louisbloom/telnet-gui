@@ -22,7 +22,7 @@ void terminal_destroy(Terminal *term);
 void terminal_feed_data(Terminal *term, const char *data, size_t len);
 
 /* Resize terminal */
-void terminal_resize(Terminal *term, int rows, int cols);
+void terminal_resize(Terminal *term, int rows, int cols, int input_visible_rows);
 
 /* Get current terminal size */
 void terminal_get_size(Terminal *term, int *rows, int *cols);
@@ -79,7 +79,7 @@ int terminal_get_cell_at(Terminal *term, int row, int col, TermCell *cell);
 int terminal_get_cell_at_scrollback_index(Terminal *term, int scrollback_index, int col, TermCell *cell);
 
 /* Render input area to vterm using ANSI escape sequences */
-void terminal_render_input_area(Terminal *term, InputArea *input_area);
+void terminal_render_input_area(Terminal *term, InputArea *input_area, int terminal_cols);
 
 /* TEMPORARY: VTerm accessors (will be removed when input/renderer are abstracted) */
 #include <vterm.h>

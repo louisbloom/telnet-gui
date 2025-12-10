@@ -69,6 +69,10 @@
 #define SGR_HIDDEN_OFF      CSI "28" SGR_FINAL      /* SGR 28 - Not hidden */
 #define SGR_STRIKETHROUGH_OFF CSI "29" SGR_FINAL    /* SGR 29 - Not strikethrough */
 
+/* SGR RGB color prefixes (for use with ansi_format_fg/bg_color_rgb) */
+#define SGR_FG_RGB_PREFIX "38;2;"  /* SGR 38;2;r;g;b - Set foreground RGB color */
+#define SGR_BG_RGB_PREFIX "48;2;"  /* SGR 48;2;r;g;b - Set background RGB color */
+
 /* Compatibility aliases using ANSI_ prefix */
 #define ANSI_SGR_RESET          SGR_RESET
 #define ANSI_SGR_BOLD           SGR_BOLD

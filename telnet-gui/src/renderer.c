@@ -40,7 +40,8 @@ Renderer *renderer_create(SDL_Renderer *sdl_renderer, GlyphCache *glyph_cache, i
 
 void renderer_render(Renderer *r, Terminal *term, const char *title, int selection_active, int sel_start_row,
                      int sel_start_col, int sel_start_offset, int sel_start_scrollback, int sel_end_row,
-                     int sel_end_col, int sel_end_offset, int sel_end_scrollback, int input_cursor_pos) {
+                     int sel_end_col, int sel_end_offset, int sel_end_scrollback, InputArea *input_area,
+                     int terminal_cols) {
     if (!r || !term)
         return;
     (void)title; /* unused for now */
@@ -49,8 +50,15 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
     int scrolling_rows, cols;
     terminal_get_size(term, &scrolling_rows, &cols);
 
-    /* Total display includes scrolling area + 2 rows for separator and input area */
-    int total_rows = scrolling_rows + 2;
+    /* Total display includes scrolling area + separator + all visible input rows */
+    int input_rows = 1;
+    if (input_area) {
+        input_rows = input_area_get_visible_rows(input_area);
+        if (input_rows < 1)
+            input_rows = 1;
+    }
+
+    int total_rows = scrolling_rows + 1 + input_rows;
     int window_width = cols * r->cell_w;
     int window_height = total_rows * r->cell_h;
 
@@ -117,9 +125,19 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
 
     /* Render input area cursor only (user always types in input area, not terminal) */
     /* Note: vterm cursor is tracked but not rendered - it's only used for positioning output */
-    if (current_offset == 0 && r->backend && r->backend->render_cursor) {
-        int input_text_row = scrolling_rows + 1; /* Row 42 (0-indexed: row scrolling_rows + 1) */
-        r->backend->render_cursor(r->backend_state, input_text_row, input_cursor_pos, r->cell_w, r->cell_h);
+    if (current_offset == 0 && r->backend && r->backend->render_cursor && input_area) {
+        /* Calculate visual cursor position for multi-line input */
+        int cursor_visual_row, cursor_visual_col;
+        input_area_get_cursor_visual_position(input_area, terminal_cols, &cursor_visual_row, &cursor_visual_col);
+
+        /* Adjust for scroll offset */
+        int visible_cursor_row = cursor_visual_row - input_area->scroll_offset;
+
+        /* Calculate screen row (0-indexed) */
+        int input_text_first_row = scrolling_rows + 1; /* First row of input text */
+        int screen_row = input_text_first_row + visible_cursor_row;
+
+        r->backend->render_cursor(r->backend_state, screen_row, cursor_visual_col, r->cell_w, r->cell_h);
     }
 
     /* End frame */

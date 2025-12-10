@@ -48,6 +48,9 @@ static struct {
 /* Global quit flag for :quit command */
 static int quit_requested = 0;
 
+/* Track previous input area height for resize detection */
+static int prev_input_visible_rows = 1;
+
 /* Clear terminal selection */
 static void clear_terminal_selection(Terminal *term) {
     terminal_selection.active = 0;
@@ -189,17 +192,19 @@ static void cleanup(void) {
 }
 
 /* Calculate terminal size (rows, cols) based on window dimensions */
-static void calculate_terminal_size(int window_width, int window_height, int cell_w, int cell_h, int *rows, int *cols) {
+static void calculate_terminal_size(int window_width, int window_height, int cell_w, int cell_h, InputArea *input_area,
+                                    int *rows, int *cols) {
     /* Calculate columns from window width */
     *cols = window_width / cell_w;
     if (*cols < 10)
         *cols = 10; /* Minimum width */
 
     /* Calculate number of rows that fit in window height */
-    /* Subtract 2 rows for separator and input area */
-    *rows = window_height / cell_h - 2;
+    /* Subtract rows for separator and dynamic input area height */
+    int input_height_rows = 1 + input_area_get_visible_rows(input_area); /* Separator + visible input rows */
+    *rows = (window_height / cell_h) - input_height_rows;
     if (*rows < 1)
-        *rows = 1; /* Minimum: 1 scrolling row (+ separator and input added by terminal) */
+        *rows = 1; /* Minimum: 1 scrolling row */
 }
 
 static void print_help(const char *program_name) {
@@ -793,8 +798,9 @@ int main(int argc, char **argv) {
     int actual_width, actual_height;
     SDL_GetWindowSize(sdl_window, &actual_width, &actual_height);
     int initial_rows, initial_cols;
-    calculate_terminal_size(actual_width, actual_height, cell_w, cell_h, &initial_rows, &initial_cols);
-    terminal_resize(term, initial_rows, initial_cols);
+    calculate_terminal_size(actual_width, actual_height, cell_w, cell_h, &input_area, &initial_rows, &initial_cols);
+    int input_visible_rows = input_area_get_visible_rows(&input_area);
+    terminal_resize(term, initial_rows, initial_cols, input_visible_rows);
     telnet_set_terminal_size(telnet, initial_cols, initial_rows);
 
     /* Perform initial render to eliminate white border artifact */
@@ -805,13 +811,12 @@ int main(int argc, char **argv) {
     SDL_RenderClear(renderer);
 
     /* Render input area to vterm FIRST (must happen before renderer reads vterm cells) */
-    terminal_render_input_area(term, &input_area);
+    terminal_render_input_area(term, &input_area, initial_cols);
 
     /* Render initial terminal state */
     char title[256];
     snprintf(title, sizeof(title), "Telnet: %s:%d", hostname ? hostname : "", port);
-    int initial_cursor_pos = input_area_get_cursor_pos(&input_area);
-    renderer_render(rend, term, title, 0, 0, 0, 0, 0, 0, 0, 0, 0, initial_cursor_pos);
+    renderer_render(rend, term, title, 0, 0, 0, 0, 0, 0, 0, 0, 0, &input_area, initial_cols);
 
     /* Present the initial frame immediately */
     SDL_RenderPresent(renderer);
@@ -835,13 +840,17 @@ int main(int argc, char **argv) {
 
                     /* Calculate new terminal size based on window size */
                     int new_rows, new_cols;
-                    calculate_terminal_size(new_width, new_height, cell_w, cell_h, &new_rows, &new_cols);
+                    calculate_terminal_size(new_width, new_height, cell_w, cell_h, &input_area, &new_rows, &new_cols);
+
+                    /* Recalculate input area layout with new width */
+                    input_area_recalculate_layout(&input_area, new_cols);
 
                     /* Update terminal size */
-                    terminal_resize(term, new_rows, new_cols);
+                    int input_visible_rows = input_area_get_visible_rows(&input_area);
+                    terminal_resize(term, new_rows, new_cols, input_visible_rows);
 
                     /* Re-render input area immediately to update divider position and restore cursor */
-                    terminal_render_input_area(term, &input_area);
+                    terminal_render_input_area(term, &input_area, new_cols);
 
                     /* Send NAWS to telnet server */
                     telnet_set_terminal_size(telnet, new_cols, new_rows);
@@ -918,14 +927,31 @@ int main(int argc, char **argv) {
 
                             /* Hook contract: non-string or empty string = hook handled everything */
                             /* Proper way: return nil to indicate hook handled echo/send */
+
+                            if (transformed_length == 0 && length > 0) {
+                                transformed_text = text;
+                                transformed_length = length;
+                            }
+
                             if (transformed_length > 0) {
-                                /* Echo transformed text to terminal with CRLF */
-                                char echo_buf[INPUT_AREA_MAX_LENGTH + 2];
-                                if (transformed_length < INPUT_AREA_MAX_LENGTH) {
-                                    memcpy(echo_buf, transformed_text, transformed_length);
-                                    echo_buf[transformed_length] = '\r';
-                                    echo_buf[transformed_length + 1] = '\n';
-                                    terminal_feed_data(term, echo_buf, transformed_length + 2);
+                                /* Echo transformed text to terminal with CRLF (normalize LFs -> CRLF) */
+                                char echo_buf[INPUT_AREA_MAX_LENGTH * 2 + 2];
+                                int echo_len = 0;
+                                for (int i = 0; i < transformed_length && echo_len < (int)(sizeof(echo_buf) - 2); i++) {
+                                    char c = transformed_text[i];
+                                    if (c == '\n') {
+                                        if (echo_len < (int)(sizeof(echo_buf) - 2)) {
+                                            echo_buf[echo_len++] = '\r';
+                                            echo_buf[echo_len++] = '\n';
+                                        }
+                                    } else {
+                                        echo_buf[echo_len++] = c;
+                                    }
+                                }
+                                if (echo_len < (int)(sizeof(echo_buf) - 2)) {
+                                    echo_buf[echo_len++] = '\r';
+                                    echo_buf[echo_len++] = '\n';
+                                    terminal_feed_data(term, echo_buf, echo_len);
                                 }
 
                                 /* Scroll to bottom on user input if configured */
@@ -935,12 +961,24 @@ int main(int argc, char **argv) {
 
                                 /* Send transformed text to telnet with CRLF (if connected) */
                                 if (connected_mode) {
-                                    char telnet_buf[INPUT_AREA_MAX_LENGTH + 2];
-                                    if (transformed_length < INPUT_AREA_MAX_LENGTH) {
-                                        memcpy(telnet_buf, transformed_text, transformed_length);
-                                        telnet_buf[transformed_length] = '\r';
-                                        telnet_buf[transformed_length + 1] = '\n';
-                                        int sent = telnet_send(telnet, telnet_buf, transformed_length + 2);
+                                    char telnet_buf[INPUT_AREA_MAX_LENGTH * 2 + 2];
+                                    int telnet_len = 0;
+                                    for (int i = 0;
+                                         i < transformed_length && telnet_len < (int)(sizeof(telnet_buf) - 2); i++) {
+                                        char c = transformed_text[i];
+                                        if (c == '\n') {
+                                            if (telnet_len < (int)(sizeof(telnet_buf) - 2)) {
+                                                telnet_buf[telnet_len++] = '\r';
+                                                telnet_buf[telnet_len++] = '\n';
+                                            }
+                                        } else {
+                                            telnet_buf[telnet_len++] = c;
+                                        }
+                                    }
+                                    if (telnet_len < (int)(sizeof(telnet_buf) - 2)) {
+                                        telnet_buf[telnet_len++] = '\r';
+                                        telnet_buf[telnet_len++] = '\n';
+                                        int sent = telnet_send(telnet, telnet_buf, telnet_len);
                                         if (sent < 0) {
                                             fprintf(stderr, "Failed to send data via telnet\n");
                                             /* Connection lost - switch to unconnected mode */
@@ -1027,11 +1065,25 @@ int main(int argc, char **argv) {
                     break;
                 }
                 case SDL_SCANCODE_UP: {
-                    input_area_history_prev(&input_area);
+                    /* Navigate lines in multi-line input, or history if at first line */
+                    int rows, cols;
+                    terminal_get_size(term, &rows, &cols);
+                    if (!input_area_is_at_first_visual_line(&input_area, cols)) {
+                        input_area_move_cursor_up_line(&input_area, cols);
+                    } else {
+                        input_area_history_prev(&input_area);
+                    }
                     break;
                 }
                 case SDL_SCANCODE_DOWN: {
-                    input_area_history_next(&input_area);
+                    /* Navigate lines in multi-line input, or history if at last line */
+                    int rows, cols;
+                    terminal_get_size(term, &rows, &cols);
+                    if (!input_area_is_at_last_visual_line(&input_area, cols)) {
+                        input_area_move_cursor_down_line(&input_area, cols);
+                    } else {
+                        input_area_history_next(&input_area);
+                    }
                     break;
                 }
                 case SDL_SCANCODE_HOME: {
@@ -1155,6 +1207,13 @@ int main(int argc, char **argv) {
                             input_area_sync_state(&input_area);
                             input_area_move_cursor(&input_area, cursor_pos);
                         }
+                    }
+                    break;
+                }
+                case SDL_SCANCODE_J: {
+                    if (mod & KMOD_CTRL) {
+                        /* Ctrl+J: Insert newline for multi-line input */
+                        input_area_insert_text(&input_area, "\n", 1);
                     }
                     break;
                 }
@@ -1363,10 +1422,39 @@ int main(int argc, char **argv) {
             }
         }
 
-        /* Render input area to vterm first if it needs redraw */
-        /* This must happen BEFORE checking terminal_needs_redraw() */
+        /* Handle input area layout and sizing BEFORE rendering */
+        int term_rows, term_cols;
+        terminal_get_size(term, &term_rows, &term_cols);
+
+        /* Recalculate layout if needed (text changed, newline inserted, etc.) */
+        if (input_area.needs_layout_recalc) {
+            input_area_recalculate_layout(&input_area, term_cols);
+        }
+
+        /* Check if input area height changed and resize terminal if needed */
+        /* This must happen BEFORE rendering so vterm has correct scrolling region */
+        int current_visible_rows = input_area_get_visible_rows(&input_area);
+        if (current_visible_rows != prev_input_visible_rows) {
+            prev_input_visible_rows = current_visible_rows;
+
+            /* Recalculate terminal size with new input area height */
+            int window_width, window_height;
+            window_get_size(win, &window_width, &window_height);
+            int new_rows, new_cols;
+            calculate_terminal_size(window_width, window_height, cell_w, cell_h, &input_area, &new_rows, &new_cols);
+
+            /* Resize terminal to accommodate new input area height */
+            terminal_resize(term, new_rows, new_cols, current_visible_rows);
+            telnet_set_terminal_size(telnet, new_cols, new_rows);
+
+            /* Update term_rows/cols for rendering below */
+            terminal_get_size(term, &term_rows, &term_cols);
+        }
+
+        /* Render input area to vterm if it needs redraw */
+        /* This must happen AFTER terminal resize so cursor is positioned correctly */
         if (input_area_needs_redraw(&input_area)) {
-            terminal_render_input_area(term, &input_area);
+            terminal_render_input_area(term, &input_area, term_cols);
             input_area_mark_drawn(&input_area);
             /* Input area updates vterm which triggers terminal_needs_redraw */
         }
@@ -1385,12 +1473,13 @@ int main(int argc, char **argv) {
 
             char title[256];
             snprintf(title, sizeof(title), "Telnet: %s:%d", hostname, port);
-            int cursor_pos = input_area_get_cursor_pos(&input_area);
+            int term_rows, term_cols;
+            terminal_get_size(term, &term_rows, &term_cols);
             renderer_render(rend, term, title, terminal_selection.active, terminal_selection.start_row,
                             terminal_selection.start_col, terminal_selection.start_viewport_offset,
                             terminal_selection.start_scrollback_size, terminal_selection.end_row,
                             terminal_selection.end_col, terminal_selection.end_viewport_offset,
-                            terminal_selection.end_scrollback_size, cursor_pos);
+                            terminal_selection.end_scrollback_size, &input_area, term_cols);
             terminal_mark_drawn(term);
             needs_render = 1;
         }

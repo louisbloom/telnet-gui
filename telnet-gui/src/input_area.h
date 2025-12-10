@@ -35,6 +35,15 @@ typedef struct InputArea {
 
     /* Mode */
     InputAreaMode mode;
+
+    /* Multi-line support */
+    int line_breaks[64];     /* Byte offsets of '\n' characters (max 64 explicit newlines) */
+    int line_break_count;    /* Number of explicit newlines in buffer */
+    int visual_rows;         /* Total visual rows (including wrapped lines) */
+    int visible_rows;        /* Currently visible rows (for display) */
+    int scroll_offset;       /* First visible row (0 = showing top) */
+    int max_visible_rows;    /* Config: max rows before scrolling (default: 5) */
+    int needs_layout_recalc; /* Flag: recalculate visual rows */
 } InputArea;
 
 /* Initialize input area */
@@ -117,5 +126,15 @@ void input_area_sync_state(InputArea *area);
 /* Mode management */
 void input_area_set_mode(InputArea *area, InputAreaMode mode);
 InputAreaMode input_area_get_mode(InputArea *area);
+
+/* Multi-line support */
+void input_area_recalculate_layout(InputArea *area, int terminal_cols);
+void input_area_get_cursor_visual_position(InputArea *area, int cols, int *out_row, int *out_col);
+void input_area_ensure_cursor_visible(InputArea *area, int cols);
+int input_area_get_visible_rows(InputArea *area);
+int input_area_is_at_first_visual_line(InputArea *area, int cols);
+int input_area_is_at_last_visual_line(InputArea *area, int cols);
+void input_area_move_cursor_up_line(InputArea *area, int cols);
+void input_area_move_cursor_down_line(InputArea *area, int cols);
 
 #endif /* INPUT_AREA_H */

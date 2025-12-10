@@ -26,7 +26,7 @@ typedef struct TerminalBackend {
     int (*get_cell_at_scrollback_index)(void *state, int scrollback_index, int col, TermCell *cell);
 
     /* Size management */
-    void (*resize)(void *state, int rows, int cols);
+    void (*resize)(void *state, int rows, int cols, int input_visible_rows);
     void (*get_size)(void *state, int *rows, int *cols);
 
     /* Scrollback/viewport management */

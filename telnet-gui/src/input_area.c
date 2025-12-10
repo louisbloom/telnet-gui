@@ -45,6 +45,14 @@ void input_area_init(InputArea *area) {
 
     area->history_index = -1; /* Start with new entry */
     area->mode = INPUT_AREA_MODE_NORMAL;
+
+    /* Initialize multi-line fields */
+    area->line_break_count = 0;
+    area->visual_rows = 1;         /* Start with one row */
+    area->visible_rows = 1;        /* Show one row initially */
+    area->scroll_offset = 0;       /* No scrolling initially */
+    area->max_visible_rows = 5;    /* Default: up to 5 rows before scrolling */
+    area->needs_layout_recalc = 0; /* No recalc needed for empty buffer */
 }
 
 void input_area_insert_text(InputArea *area, const char *text, int text_len) {
@@ -64,6 +72,7 @@ void input_area_insert_text(InputArea *area, const char *text, int text_len) {
             area->buffer[area->length] = '\0';
         }
         area->needs_redraw = 1;
+        area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
 
         /* Reset history prefix search when text is edited */
         reset_history_search(area);
@@ -85,6 +94,7 @@ void input_area_delete_char(InputArea *area) {
             area->buffer[area->length] = '\0';
         }
         area->needs_redraw = 1;
+        area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
 
         /* Reset history prefix search when text is edited */
         reset_history_search(area);
@@ -106,6 +116,7 @@ void input_area_backspace(InputArea *area) {
             area->buffer[area->length] = '\0';
         }
         area->needs_redraw = 1;
+        area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
 
         /* Reset history prefix search when text is edited */
         reset_history_search(area);
@@ -374,6 +385,7 @@ void input_area_paste(InputArea *area, const char *text) {
         area->length += text_len;
         area->buffer[area->length] = '\0';
         area->needs_redraw = 1;
+        area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
 
         /* Reset history prefix search when text is edited */
         reset_history_search(area);
@@ -471,6 +483,7 @@ void input_area_history_restore_current(InputArea *area) {
     area->cursor_pos = area->length;
     area->history_index = -1;
     area->needs_redraw = 1;
+    area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
 
     /* Reset prefix search */
     area->history_search_active = 0;
@@ -559,6 +572,7 @@ void input_area_history_prev(InputArea *area) {
             area->length = strlen(area->buffer);
             area->cursor_pos = area->length;
             area->needs_redraw = 1;
+            area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
             return;
         }
     }
@@ -595,6 +609,7 @@ void input_area_history_next(InputArea *area) {
             area->length = strlen(area->buffer);
             area->cursor_pos = area->length;
             area->needs_redraw = 1;
+            area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
             return;
         }
     }
@@ -613,6 +628,7 @@ void input_area_clear(InputArea *area) {
     area->length = 0;
     area->cursor_pos = 0;
     area->needs_redraw = 1;
+    area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
 }
 
 const char *input_area_get_text(InputArea *area) {
@@ -681,4 +697,248 @@ InputAreaMode input_area_get_mode(InputArea *area) {
     if (!area)
         return INPUT_AREA_MODE_NORMAL;
     return area->mode;
+}
+
+/* Multi-line support functions */
+
+/* Calculate visual rows considering wrapping and explicit newlines */
+static int calculate_visual_rows(const char *buffer, int length, int cols) {
+    if (cols <= 0)
+        cols = 80; /* Default to avoid division by zero */
+    if (length == 0)
+        return 1; /* Empty buffer still takes one row */
+
+    int visual_rows = 0;
+    int current_col = 0;
+
+    for (int i = 0; i < length; i++) {
+        if (buffer[i] == '\n') {
+            visual_rows++;
+            current_col = 0;
+        } else {
+            current_col++;
+            if (current_col >= cols) {
+                visual_rows++;
+                current_col = 0;
+            }
+        }
+    }
+
+    /* Always count the final row where the cursor is (even if empty after newline) */
+    visual_rows++;
+
+    return visual_rows;
+}
+
+void input_area_recalculate_layout(InputArea *area, int terminal_cols) {
+    if (!area)
+        return;
+
+    if (!area->needs_layout_recalc)
+        return;
+
+    /* Find all explicit newlines */
+    area->line_break_count = 0;
+    for (int i = 0; i < area->length && area->line_break_count < 64; i++) {
+        if (area->buffer[i] == '\n') {
+            area->line_breaks[area->line_break_count++] = i;
+        }
+    }
+
+    /* Calculate visual rows considering wrapping */
+    area->visual_rows = calculate_visual_rows(area->buffer, area->length, terminal_cols);
+
+    /* Update visible rows (capped at max_visible_rows) */
+    area->visible_rows = (area->visual_rows < area->max_visible_rows) ? area->visual_rows : area->max_visible_rows;
+
+    /* Ensure cursor is visible */
+    input_area_ensure_cursor_visible(area, terminal_cols);
+
+    area->needs_layout_recalc = 0;
+}
+
+void input_area_get_cursor_visual_position(InputArea *area, int cols, int *out_row, int *out_col) {
+    if (!area || !out_row || !out_col) {
+        if (out_row)
+            *out_row = 0;
+        if (out_col)
+            *out_col = 0;
+        return;
+    }
+
+    if (cols <= 0)
+        cols = 80; /* Default */
+
+    int visual_row = 0;
+    int visual_col = 0;
+
+    for (int i = 0; i < area->cursor_pos; i++) {
+        if (area->buffer[i] == '\n') {
+            visual_row++;
+            visual_col = 0;
+        } else {
+            visual_col++;
+            if (visual_col >= cols) {
+                visual_row++;
+                visual_col = 0;
+            }
+        }
+    }
+
+    *out_row = visual_row;
+    *out_col = visual_col;
+}
+
+void input_area_ensure_cursor_visible(InputArea *area, int cols) {
+    if (!area)
+        return;
+
+    int cursor_row, cursor_col;
+    input_area_get_cursor_visual_position(area, cols, &cursor_row, &cursor_col);
+
+    /* Scroll up if cursor is above viewport */
+    if (cursor_row < area->scroll_offset) {
+        area->scroll_offset = cursor_row;
+    }
+
+    /* Scroll down if cursor is below viewport */
+    int viewport_bottom = area->scroll_offset + area->visible_rows - 1;
+    if (cursor_row > viewport_bottom) {
+        area->scroll_offset = cursor_row - area->visible_rows + 1;
+    }
+
+    /* Clamp scroll_offset to valid range */
+    int max_scroll = area->visual_rows - area->visible_rows;
+    if (max_scroll < 0)
+        max_scroll = 0;
+    if (area->scroll_offset > max_scroll)
+        area->scroll_offset = max_scroll;
+    if (area->scroll_offset < 0)
+        area->scroll_offset = 0;
+}
+
+int input_area_get_visible_rows(InputArea *area) {
+    if (!area)
+        return 1;
+    return area->visible_rows;
+}
+
+int input_area_is_at_first_visual_line(InputArea *area, int cols) {
+    if (!area)
+        return 1;
+
+    int cursor_row, cursor_col;
+    input_area_get_cursor_visual_position(area, cols, &cursor_row, &cursor_col);
+    return (cursor_row == 0);
+}
+
+int input_area_is_at_last_visual_line(InputArea *area, int cols) {
+    if (!area)
+        return 1;
+
+    int cursor_row, cursor_col;
+    input_area_get_cursor_visual_position(area, cols, &cursor_row, &cursor_col);
+    return (cursor_row >= area->visual_rows - 1);
+}
+
+void input_area_move_cursor_up_line(InputArea *area, int cols) {
+    if (!area || cols <= 0)
+        return;
+
+    int cursor_row, cursor_col;
+    input_area_get_cursor_visual_position(area, cols, &cursor_row, &cursor_col);
+
+    if (cursor_row == 0)
+        return; /* Already at first line */
+
+    /* Find position in previous visual line at same column */
+    int target_row = cursor_row - 1;
+    int current_row = 0;
+    int current_col = 0;
+    int target_pos = 0;
+
+    for (int i = 0; i <= area->length; i++) {
+        if (current_row == target_row && current_col == cursor_col) {
+            target_pos = i;
+            break;
+        }
+        if (current_row == target_row && current_col > cursor_col) {
+            /* Target column doesn't exist on previous line, use end of line */
+            target_pos = i;
+            break;
+        }
+        if (i == area->length) {
+            target_pos = i;
+            break;
+        }
+
+        if (area->buffer[i] == '\n') {
+            current_row++;
+            current_col = 0;
+            if (current_row == target_row + 1 && current_col == 0) {
+                /* Previous line ends with newline */
+                target_pos = i;
+                break;
+            }
+        } else {
+            current_col++;
+            if (current_col >= cols) {
+                current_row++;
+                current_col = 0;
+            }
+        }
+    }
+
+    input_area_move_cursor(area, target_pos);
+}
+
+void input_area_move_cursor_down_line(InputArea *area, int cols) {
+    if (!area || cols <= 0)
+        return;
+
+    int cursor_row, cursor_col;
+    input_area_get_cursor_visual_position(area, cols, &cursor_row, &cursor_col);
+
+    if (cursor_row >= area->visual_rows - 1)
+        return; /* Already at last line */
+
+    /* Find position in next visual line at same column */
+    int target_row = cursor_row + 1;
+    int current_row = 0;
+    int current_col = 0;
+    int target_pos = area->length;
+
+    for (int i = 0; i <= area->length; i++) {
+        if (current_row == target_row && current_col == cursor_col) {
+            target_pos = i;
+            break;
+        }
+        if (current_row == target_row && current_col > cursor_col) {
+            /* Target column doesn't exist on next line, use end of line */
+            target_pos = i;
+            break;
+        }
+        if (i == area->length) {
+            target_pos = i;
+            break;
+        }
+
+        if (area->buffer[i] == '\n') {
+            current_row++;
+            current_col = 0;
+            if (current_row == target_row + 1) {
+                /* Next line ends with newline */
+                target_pos = i;
+                break;
+            }
+        } else {
+            current_col++;
+            if (current_col >= cols) {
+                current_row++;
+                current_col = 0;
+            }
+        }
+    }
+
+    input_area_move_cursor(area, target_pos);
 }

@@ -70,10 +70,10 @@ void terminal_echo_local(Terminal *term) {
     term->backend->echo_local(term->backend_state);
 }
 
-void terminal_resize(Terminal *term, int rows, int cols) {
+void terminal_resize(Terminal *term, int rows, int cols, int input_visible_rows) {
     if (!term || !term->backend || !term->backend->resize)
         return;
-    term->backend->resize(term->backend_state, rows, cols);
+    term->backend->resize(term->backend_state, rows, cols, input_visible_rows);
 }
 
 void terminal_get_size(Terminal *term, int *rows, int *cols) {
@@ -176,9 +176,12 @@ int terminal_get_cell_at_scrollback_index(Terminal *term, int scrollback_index, 
     return term->backend->get_cell_at_scrollback_index(term->backend_state, scrollback_index, col, cell);
 }
 
-void terminal_render_input_area(Terminal *term, InputArea *input_area) {
+void terminal_render_input_area(Terminal *term, InputArea *input_area, int terminal_cols) {
     if (!term || !term->backend || !term->backend->render_input_area)
         return;
+
+    /* Recalculate layout before rendering */
+    input_area_recalculate_layout(input_area, terminal_cols);
 
     int rows, cols;
     terminal_get_size(term, &rows, &cols);
