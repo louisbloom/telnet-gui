@@ -4398,7 +4398,7 @@
       (tintin-echo "Error: Table data cannot be empty")
       (let* ((term-info (terminal-info))
               (term-cols (cdr (assoc 'cols term-info)))
-              (min-col-width 8)
+              (min-col-width 3)
               (headers (car data))
               (rows (cdr data))
               (all-rows data))
@@ -4519,7 +4519,7 @@
         ;; Sort aliases alphabetically
         (let ((sorted (tintin-sort-aliases-alphabetically alias-entries)))
           ;; Build data structure: headers + data rows
-          (let ((data (list (list "Name" "Commands" "Priority"))))
+          (let ((data (list (list "Name" "Commands" "P"))))
             ;; Add data rows
             (do ((i 0 (+ i 1)))
               ((>= i (list-length sorted)))
@@ -4528,7 +4528,7 @@
                       (value (cdr entry))
                       (commands (car value))
                       (priority (car (cdr value)))
-                      (priority-str (if (= priority 5) "" (number->string priority))))
+                      (priority-str (number->string priority)))
                 (set! data (append data (list (list name commands priority-str))))))
             ;; Print table using generic printer
             (tintin-print-table data)))
@@ -4673,7 +4673,7 @@
         ;; Sort alphabetically before displaying
         (let ((sorted (tintin-sort-highlights-alphabetically highlight-entries)))
           ;; Build data structure: headers + data rows
-          (let ((data (list (list "Pattern" "Color" "Priority"))))
+          (let ((data (list (list "Pattern" "Color" "P"))))
             ;; Add data rows
             (do ((i 0 (+ i 1)))
               ((>= i (list-length sorted)))
@@ -4686,7 +4686,7 @@
                       (color-str (concat (if fg-color fg-color "")
                                    (if (and fg-color bg-color) ":" "")
                                    (if bg-color bg-color "")))
-                      (priority-str (if (= priority 5) "" (number->string priority))))
+                      (priority-str (number->string priority)))
                 (set! data (append data (list (list pattern color-str priority-str))))))
             ;; Print table using generic printer
             (tintin-print-table data)))
@@ -4759,7 +4759,7 @@
         ;; Sort alphabetically before displaying
         (let ((sorted (tintin-sort-actions-alphabetically action-entries)))
           ;; Build data structure: headers + data rows
-          (let ((data (list (list "Pattern" "Commands" "Priority"))))
+          (let ((data (list (list "Pattern" "Commands" "P"))))
             ;; Add data rows
             (do ((i 0 (+ i 1)))
               ((>= i (list-length sorted)))
@@ -4768,7 +4768,7 @@
                       (entry-data (cdr entry))
                       (commands (car entry-data))
                       (priority (car (cdr entry-data)))
-                      (priority-str (if (= priority 5) "" (number->string priority))))
+                      (priority-str (number->string priority)))
                 (set! data (append data (list (list pattern commands priority-str))))))
             ;; Print table using generic printer
             (tintin-print-table data)))
