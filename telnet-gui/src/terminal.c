@@ -111,6 +111,12 @@ void terminal_set_telnet(Terminal *term, void *telnet) {
         term->telnet = (Telnet *)telnet;
 }
 
+void terminal_clear_output_buffer(Terminal *term) {
+    if (!term || !term->backend || !term->backend->clear_output_buffer)
+        return;
+    term->backend->clear_output_buffer(term->backend_state);
+}
+
 void terminal_send_buffer(Terminal *term) {
     if (!term || !term->backend || !term->backend->send_buffer)
         return;

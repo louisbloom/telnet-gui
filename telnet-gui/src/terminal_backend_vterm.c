@@ -483,12 +483,18 @@ static void vterm_feed_data(void *vstate, const char *data, size_t len) {
     if (!state || !data)
         return;
 
+    /* Set echoing_locally flag to prevent output callback from buffering when feeding data for display */
+    /* This prevents echoed text from being sent to telnet */
+    state->echoing_locally = 1;
+
     /* Normalize LF to CRLF to keep cursor at column 0 on new lines */
     size_t max_out = len * 2;
     char stack_buf[1024];
     char *tmp = (max_out <= sizeof(stack_buf)) ? stack_buf : (char *)malloc(max_out);
-    if (!tmp)
+    if (!tmp) {
+        state->echoing_locally = 0;
         return;
+    }
 
     size_t out_len = 0;
     for (size_t i = 0; i < len; i++) {
@@ -505,7 +511,12 @@ static void vterm_feed_data(void *vstate, const char *data, size_t len) {
     vterm_input_write(state->vterm, tmp, out_len);
     if (tmp != stack_buf)
         free(tmp);
+
+    /* Flush damage - this may trigger output, so keep echoing_locally set */
     vterm_screen_flush_damage(state->screen);
+
+    /* Clear echoing_locally flag after all processing is complete */
+    state->echoing_locally = 0;
 }
 
 static int vterm_get_cell_at(void *vstate, int row, int col, TermCell *cell) {
@@ -808,6 +819,14 @@ static void vterm_echo_local(void *vstate) {
     state->echoing_locally = 0;
 }
 
+static void vterm_clear_output_buffer(void *vstate) {
+    VTermBackendState *state = (VTermBackendState *)vstate;
+    if (!state)
+        return;
+    state->output_buffer_len = 0;
+    state->output_buffer_echoed = 0;
+}
+
 static void vterm_send_buffer(void *vstate, void *telnet) {
     VTermBackendState *state = (VTermBackendState *)vstate;
     if (!state || !telnet || state->output_buffer_len == 0)
@@ -1007,11 +1026,18 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
     /* Restore cursor position so telnet input echoes at the correct location */
     dynamic_buffer_append_str(buf, ANSI_CURSOR_RESTORE); /* DECRC - Restore Cursor */
 
+    /* Set echoing_locally flag to prevent output callback from buffering when rendering input area */
+    /* This prevents input area text from being sent to telnet when we're just rendering it */
+    state->echoing_locally = 1;
+
     /* Send all escape sequences to vterm */
     vterm_input_write(state->vterm, dynamic_buffer_data(buf), dynamic_buffer_len(buf));
     /* Flush damage to ensure all rows are processed */
     vterm_screen_flush_damage(state->screen);
     state->needs_redraw = 1;
+
+    /* Clear echoing_locally flag after rendering */
+    state->echoing_locally = 0;
 }
 
 static const char *vterm_get_version(void) {
@@ -1051,6 +1077,7 @@ const TerminalBackend terminal_backend_vterm = {
     .set_output_callback = vterm_set_output_callback,
     .echo_local = vterm_echo_local,
     .send_buffer = vterm_send_buffer,
+    .clear_output_buffer = vterm_clear_output_buffer,
     .render_input_area = vterm_render_input_area,
     .get_version = vterm_get_version,
     .get_vterm = vterm_get_vterm,

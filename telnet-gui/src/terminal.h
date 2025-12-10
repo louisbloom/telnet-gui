@@ -42,6 +42,9 @@ void terminal_get_cursor_info(Terminal *term, int *row, int *col, int *visible);
 /* Set telnet connection for sending output */
 void terminal_set_telnet(Terminal *term, void *telnet);
 
+/* Clear output buffer (prevents accidentally buffered output from being sent) */
+void terminal_clear_output_buffer(Terminal *term);
+
 /* Send buffered output to telnet server */
 void terminal_send_buffer(Terminal *term);
 

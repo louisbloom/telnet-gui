@@ -927,32 +927,15 @@ int main(int argc, char **argv) {
 
                             /* Hook contract: non-string or empty string = hook handled everything */
                             /* Proper way: return nil to indicate hook handled echo/send */
-
-                            if (transformed_length == 0 && length > 0) {
-                                transformed_text = text;
-                                transformed_length = length;
-                            }
+                            /* If hook returns empty string, it means hook handled echo/send - don't send again */
 
                             if (transformed_length > 0) {
-                                /* Echo transformed text to terminal with CRLF (normalize LFs -> CRLF) */
-                                char echo_buf[INPUT_AREA_MAX_LENGTH * 2 + 2];
-                                int echo_len = 0;
-                                for (int i = 0; i < transformed_length && echo_len < (int)(sizeof(echo_buf) - 2); i++) {
-                                    char c = transformed_text[i];
-                                    if (c == '\n') {
-                                        if (echo_len < (int)(sizeof(echo_buf) - 2)) {
-                                            echo_buf[echo_len++] = '\r';
-                                            echo_buf[echo_len++] = '\n';
-                                        }
-                                    } else {
-                                        echo_buf[echo_len++] = c;
-                                    }
-                                }
-                                if (echo_len < (int)(sizeof(echo_buf) - 2)) {
-                                    echo_buf[echo_len++] = '\r';
-                                    echo_buf[echo_len++] = '\n';
-                                    terminal_feed_data(term, echo_buf, echo_len);
-                                }
+                                /* Echo transformed text to terminal (vterm_feed_data will normalize LF to CRLF) */
+                                char echo_buf[INPUT_AREA_MAX_LENGTH + 2];
+                                int echo_len = transformed_length;
+                                memcpy(echo_buf, transformed_text, transformed_length);
+                                echo_buf[echo_len++] = '\n'; /* Add newline - vterm_feed_data will add \r if needed */
+                                terminal_feed_data(term, echo_buf, echo_len);
 
                                 /* Scroll to bottom on user input if configured */
                                 if (lisp_x_get_scroll_to_bottom_on_user_input()) {
@@ -961,6 +944,10 @@ int main(int argc, char **argv) {
 
                                 /* Send transformed text to telnet with CRLF (if connected) */
                                 if (connected_mode) {
+                                    /* Clear any accidentally buffered output before sending */
+                                    /* This prevents echoed text from being sent twice */
+                                    terminal_clear_output_buffer(term);
+
                                     char telnet_buf[INPUT_AREA_MAX_LENGTH * 2 + 2];
                                     int telnet_len = 0;
                                     for (int i = 0;
@@ -1006,6 +993,9 @@ int main(int argc, char **argv) {
                     } else {
                         /* Even if input is empty, send CRLF for newline (if connected) */
                         if (connected_mode) {
+                            /* Clear any accidentally buffered output before sending */
+                            terminal_clear_output_buffer(term);
+
                             char crlf[] = "\r\n";
                             int sent = telnet_send(telnet, crlf, 2);
                             if (sent < 0) {
@@ -1016,8 +1006,8 @@ int main(int argc, char **argv) {
                                                    strlen("\r\n*** Connection lost ***\r\n"));
                             }
                         }
-                        /* Echo CRLF to terminal */
-                        terminal_feed_data(term, "\r\n", 2);
+                        /* Echo newline to terminal (vterm_feed_data will normalize LF to CRLF) */
+                        terminal_feed_data(term, "\n", 1);
 
                         /* Scroll to bottom on user input if configured */
                         if (lisp_x_get_scroll_to_bottom_on_user_input()) {

@@ -50,6 +50,7 @@ typedef struct TerminalBackend {
     void (*set_output_callback)(void *state, void (*callback)(const char *s, size_t len, void *user), void *user);
     void (*echo_local)(void *state);
     void (*send_buffer)(void *state, void *telnet);
+    void (*clear_output_buffer)(void *state);
 
     /* Input area rendering (ANSI sequences to vterm) */
     void (*render_input_area)(void *state, void *input_area, int input_row, int cols);
