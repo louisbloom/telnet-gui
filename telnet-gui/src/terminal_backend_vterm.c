@@ -585,7 +585,8 @@ static void vterm_resize(void *vstate, int rows, int cols) {
     char seq[32];
     ansi_format_scroll_region(seq, sizeof(seq), 1, rows);
     vterm_input_write(state->vterm, seq, strlen(seq));
-    vterm_screen_flush_damage(state->screen);
+    /* Don't flush damage here - let the main render loop handle it to avoid blocking during reflow */
+    /* vterm_screen_flush_damage(state->screen); */
 
     VTermRect full_rect = {0, 0, total_rows, cols};
     damage(full_rect, state);
