@@ -50,7 +50,7 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
     int scrolling_rows, cols;
     terminal_get_size(term, &scrolling_rows, &cols);
 
-    /* Total display includes scrolling area + separator + all visible input rows */
+    /* Total display includes scrolling area + top divider + bottom divider + all visible input rows */
     int input_rows = 1;
     if (input_area) {
         input_rows = input_area_get_visible_rows(input_area);
@@ -58,7 +58,7 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
             input_rows = 1;
     }
 
-    int total_rows = scrolling_rows + 1 + input_rows;
+    int total_rows = scrolling_rows + 2 + input_rows;
     int window_width = cols * r->cell_w;
     int window_height = total_rows * r->cell_h;
 

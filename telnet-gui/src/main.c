@@ -200,8 +200,9 @@ static void calculate_terminal_size(int window_width, int window_height, int cel
         *cols = 10; /* Minimum width */
 
     /* Calculate number of rows that fit in window height */
-    /* Subtract rows for separator and dynamic input area height */
-    int input_height_rows = 1 + input_area_get_visible_rows(input_area); /* Separator + visible input rows */
+    /* Subtract rows for top divider, bottom divider, and dynamic input area height */
+    int input_height_rows =
+        2 + input_area_get_visible_rows(input_area); /* Top divider + bottom divider + visible input rows */
     *rows = (window_height / cell_h) - input_height_rows;
     if (*rows < 1)
         *rows = 1; /* Minimum: 1 scrolling row */
@@ -670,7 +671,7 @@ int main(int argc, char **argv) {
     glyph_cache_get_cell_size(glyph_cache, &cell_w, &cell_h);
 
     /* Calculate exact window size for terminal geometry using actual glyph metrics */
-    int separator_and_input_height = 2 * cell_h; /* Separator + input row */
+    int separator_and_input_height = 3 * cell_h; /* Top divider + bottom divider + input row */
     int precise_width = terminal_cols * cell_w;
     int precise_height = terminal_rows * cell_h + separator_and_input_height;
 
@@ -794,7 +795,7 @@ int main(int argc, char **argv) {
     input_area_init(&input_area);
 
     /* Get actual window size after resize and resize terminal to match */
-    int input_area_height = 2 * cell_h; /* Separator + input row */
+    int input_area_height = 3 * cell_h; /* Top divider + bottom divider + input row */
     int actual_width, actual_height;
     SDL_GetWindowSize(sdl_window, &actual_width, &actual_height);
     int initial_rows, initial_cols;

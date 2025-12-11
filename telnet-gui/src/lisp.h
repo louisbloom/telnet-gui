@@ -55,9 +55,6 @@ const char *lisp_x_call_telnet_input_filter_hook(const char *text, size_t len, s
 const char *lisp_x_call_user_input_hook(const char *text, int cursor_pos);
 
 /* Color configuration getters - return RGB components (0-255) */
-/* Input area colors */
-void lisp_x_get_input_area_fg_color(int *r, int *g, int *b);
-void lisp_x_get_input_area_bg_color(int *r, int *g, int *b);
 void lisp_x_get_selection_fg_color(int *r, int *g, int *b);
 void lisp_x_get_selection_bg_color(int *r, int *g, int *b);
 void lisp_x_get_cursor_color(int *r, int *g, int *b);

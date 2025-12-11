@@ -53,7 +53,7 @@ typedef struct TerminalBackend {
     void (*clear_output_buffer)(void *state);
 
     /* Input area rendering (ANSI sequences to vterm) */
-    void (*render_input_area)(void *state, void *input_area, int input_row, int cols);
+    void (*render_input_area)(void *state, void *input_area, int input_row, int cols, int connected);
 
     /* Version info */
     const char* (*get_version)(void);

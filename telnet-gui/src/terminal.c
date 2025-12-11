@@ -194,7 +194,14 @@ void terminal_render_input_area(Terminal *term, InputArea *input_area, int termi
     /* Input row starts right after scrolling region (rows is 0-indexed, so row 'rows' is outside scrolling region) */
     int input_row = rows;
 
-    term->backend->render_input_area(term->backend_state, input_area, input_row, cols);
+    /* Get connection status from telnet */
+    int connected = 0;
+    if (term->telnet) {
+        TelnetState state = telnet_get_state(term->telnet);
+        connected = (state == TELNET_STATE_CONNECTED);
+    }
+
+    term->backend->render_input_area(term->backend_state, input_area, input_row, cols, connected);
 }
 
 VTerm *terminal_get_vterm(Terminal *term) {

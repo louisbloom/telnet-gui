@@ -610,7 +610,7 @@ static void vterm_resize(void *vstate, int rows, int cols, int input_visible_row
         return;
 
     int old_scrolling_rows = state->scrolling_rows;
-    int total_rows = rows + 1 + input_visible_rows; /* separator + variable input rows */
+    int total_rows = rows + 2 + input_visible_rows; /* top divider + bottom divider + variable input rows */
 
     /* If scrolling region is shrinking (input area growing), scroll content up first */
     if (rows < old_scrolling_rows) {
@@ -920,7 +920,7 @@ static void get_visual_row_byte_range(const char *buffer, int length, int cols, 
     *out_end = length;
 }
 
-static void vterm_render_input_area(void *vstate, void *input_area_ptr, int input_row, int cols) {
+static void vterm_render_input_area(void *vstate, void *input_area_ptr, int input_row, int cols, int connected) {
     VTermBackendState *state = (VTermBackendState *)vstate;
     InputArea *input_area = (InputArea *)input_area_ptr;
     if (!state || !input_area)
@@ -933,21 +933,48 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
     /* Save cursor position so telnet input can restore it for correct echo positioning */
     dynamic_buffer_append_str(buf, ANSI_CURSOR_SAVE); /* DECSC - Save Cursor */
 
-    int separator_row_1indexed = input_row + 1;
-    int input_text_row_1indexed = separator_row_1indexed + 1;
+    /* Calculate divider colors based on connection status */
+    int divider_r, divider_g, divider_b;
+    if (connected) {
+        divider_r = 120;
+        divider_g = 140;
+        divider_b = 120; /* Muted green-gray when connected */
+    } else {
+        divider_r = 100;
+        divider_g = 100;
+        divider_b = 100; /* Grayish when disconnected */
+    }
 
-    /* Position cursor at separator row and clear from here to end of screen */
-    /* This removes old separator/input content when resizing */
-    char cursor_buf[16];
-    ansi_format_cursor_pos(cursor_buf, sizeof(cursor_buf), separator_row_1indexed, 1);
-    dynamic_buffer_append_str(buf, cursor_buf);
-    dynamic_buffer_append_str(buf, ANSI_ERASE_TO_EOS);
-
-    /* Draw separator line - reverse video */
-    dynamic_buffer_append_str(buf, ANSI_SGR_REVERSE);
+    /* Get terminal background color for divider background */
+    int term_bg_r, term_bg_g, term_bg_b;
+    lisp_x_get_terminal_bg_color(&term_bg_r, &term_bg_g, &term_bg_b);
 
     /* Use vterm's scrolling region width (state->cols) if available, otherwise use cols param */
     int actual_cols = (state->cols > 0) ? state->cols : cols;
+
+    /* Get input area state for multi-row rendering */
+    const char *text = input_area_get_text(input_area);
+    int text_len = input_area_get_length(input_area);
+    int visible_rows = input_area_get_visible_rows(input_area);
+
+    /* Calculate row positions (1-indexed) */
+    int top_divider_row = input_row + 1;
+    int input_text_start_row = input_row + 2;
+    int bottom_divider_row = input_text_start_row + visible_rows;
+
+    /* Position cursor at top divider row and clear from here to end of screen */
+    /* This removes old separator/input content when resizing */
+    char cursor_buf[16];
+    ansi_format_cursor_pos(cursor_buf, sizeof(cursor_buf), top_divider_row, 1);
+    dynamic_buffer_append_str(buf, cursor_buf);
+    dynamic_buffer_append_str(buf, ANSI_ERASE_TO_EOS);
+
+    /* Draw top divider - colored box drawing character */
+    char color_buf[32];
+    ansi_format_fg_color_rgb(color_buf, sizeof(color_buf), divider_r, divider_g, divider_b);
+    dynamic_buffer_append_str(buf, color_buf);
+    ansi_format_bg_color_rgb(color_buf, sizeof(color_buf), term_bg_r, term_bg_g, term_bg_b);
+    dynamic_buffer_append_str(buf, color_buf);
 
     /* Draw box drawing character (U+2500 = horizontal line) for each column */
     /* UTF-8 encoding: 0xE2 0x94 0x80 */
@@ -956,20 +983,12 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
         dynamic_buffer_append(buf, box_char, 3);
     }
 
-    /* Normal video after separator (turn off reverse) */
-    dynamic_buffer_append_str(buf, ANSI_SGR_REVERSE_OFF);
-
-    /* Get input area colors (will be set per-row) */
+    /* Get input area colors - use default terminal colors */
     int fg_r, fg_g, fg_b, bg_r, bg_g, bg_b;
-    lisp_x_get_input_area_fg_color(&fg_r, &fg_g, &fg_b);
-    lisp_x_get_input_area_bg_color(&bg_r, &bg_g, &bg_b);
-
-    char color_buf[32];
+    lisp_x_get_terminal_fg_color(&fg_r, &fg_g, &fg_b);
+    lisp_x_get_terminal_bg_color(&bg_r, &bg_g, &bg_b);
 
     /* Get input area state for multi-row rendering */
-    const char *text = input_area_get_text(input_area);
-    int text_len = input_area_get_length(input_area);
-    int visible_rows = input_area_get_visible_rows(input_area);
     int scroll_offset = input_area->scroll_offset;
     int sel_start = 0, sel_end = 0;
     int has_sel = input_area_has_selection(input_area);
@@ -980,7 +999,7 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
     for (int vis_row = 0; vis_row < visible_rows; vis_row++) {
         int visual_row = scroll_offset + vis_row;
         /* Position cursor at start of this absolute row */
-        int absolute_row = input_text_row_1indexed + vis_row;
+        int absolute_row = input_text_start_row + vis_row;
         ansi_format_cursor_pos(cursor_buf, sizeof(cursor_buf), absolute_row, 1);
         dynamic_buffer_append_str(buf, cursor_buf);
 
@@ -1016,6 +1035,19 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
         if (has_sel && sel_end > row_start && sel_end <= row_end) {
             dynamic_buffer_append_str(buf, ANSI_SGR_REVERSE_OFF);
         }
+    }
+
+    /* Draw bottom divider - colored box drawing character */
+    ansi_format_cursor_pos(cursor_buf, sizeof(cursor_buf), bottom_divider_row, 1);
+    dynamic_buffer_append_str(buf, cursor_buf);
+    ansi_format_fg_color_rgb(color_buf, sizeof(color_buf), divider_r, divider_g, divider_b);
+    dynamic_buffer_append_str(buf, color_buf);
+    ansi_format_bg_color_rgb(color_buf, sizeof(color_buf), term_bg_r, term_bg_g, term_bg_b);
+    dynamic_buffer_append_str(buf, color_buf);
+
+    /* Draw box drawing character (U+2500 = horizontal line) for each column */
+    for (int i = 0; i < actual_cols; i++) {
+        dynamic_buffer_append(buf, box_char, 3);
     }
 
     /* Restore scrolling region */

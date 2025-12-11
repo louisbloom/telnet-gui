@@ -1227,10 +1227,6 @@
 (define *terminal-fg-color* '(255 255 255))  ; White text
 (define *terminal-bg-color* '(0 0 0))        ; Black background
 
-;; Input area colors
-(define *input-area-fg-color* '(255 255 0))  ; Yellow text
-(define *input-area-bg-color* '(25 40 60))   ; Dark blue background
-
 ;; Text selection colors
 (define *selection-fg-color* '(0 0 0))       ; Black text on selection
 (define *selection-bg-color* '(255 140 0))   ; Orange selection background

@@ -1533,15 +1533,6 @@ static void get_color_from_lisp(const char *var_name, int *r, int *g, int *b, in
     }
 }
 
-/* Input area colors */
-void lisp_x_get_input_area_fg_color(int *r, int *g, int *b) {
-    get_color_from_lisp("*input-area-fg-color*", r, g, b, 255, 255, 0); /* Yellow */
-}
-
-void lisp_x_get_input_area_bg_color(int *r, int *g, int *b) {
-    get_color_from_lisp("*input-area-bg-color*", r, g, b, 25, 40, 60); /* Dark blue */
-}
-
 void lisp_x_get_selection_fg_color(int *r, int *g, int *b) {
     get_color_from_lisp("*selection-fg-color*", r, g, b, 0, 0, 0); /* Black */
 }
