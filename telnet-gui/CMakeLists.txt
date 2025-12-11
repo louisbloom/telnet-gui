@@ -135,6 +135,198 @@ install(DIRECTORY "${DEJAVU_FONTS_SRC_DIR}/"
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL2 REQUIRED sdl2)
 pkg_check_modules(SDL2_TTF REQUIRED SDL2_ttf)
+
+# On Windows, prefer static linking for SDL libraries to avoid DLL dependencies
+if(WIN32)
+    message(STATUS "Windows detected: attempting static linking for SDL libraries")
+
+    # Get library directory from pkg-config
+    execute_process(
+        COMMAND ${PKG_CONFIG_EXECUTABLE} --variable=libdir SDL2_ttf
+        OUTPUT_VARIABLE SDL2_TTF_LIBDIR_RAW
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+
+    # Normalize path (convert backslashes to forward slashes for consistency)
+    string(REPLACE "\\" "/" SDL2_TTF_LIBDIR "${SDL2_TTF_LIBDIR_RAW}")
+
+    # Check if static libraries exist and use them explicitly
+    set(SDL2_STATIC_LIB "${SDL2_TTF_LIBDIR}/libSDL2.a")
+    set(SDL2_TTF_STATIC_LIB "${SDL2_TTF_LIBDIR}/libSDL2_ttf.a")
+
+    # Also try to find static libraries in common UCRT64 locations as fallback
+    set(SDL2_STATIC_LIB_FOUND "")
+    set(SDL2_TTF_STATIC_LIB_FOUND "")
+
+    # Helper function to normalize paths (convert backslashes to forward slashes)
+    # This prevents CMake from interpreting backslashes as escape sequences
+    function(normalize_path VAR PATH)
+        string(REPLACE "\\" "/" NORMALIZED "${PATH}")
+        set(${VAR} "${NORMALIZED}" PARENT_SCOPE)
+    endfunction()
+
+    # First try the pkg-config libdir
+    if(SDL2_TTF_LIBDIR AND EXISTS "${SDL2_STATIC_LIB}" AND EXISTS "${SDL2_TTF_STATIC_LIB}")
+        normalize_path(SDL2_STATIC_LIB_FOUND "${SDL2_STATIC_LIB}")
+        normalize_path(SDL2_TTF_STATIC_LIB_FOUND "${SDL2_TTF_STATIC_LIB}")
+    else()
+        # Try to find UCRT64_ROOT and check there
+        if(DEFINED UCRT64_ROOT)
+            set(UCRT64_LIBDIR "${UCRT64_ROOT}/lib")
+            set(UCRT64_SDL2_STATIC "${UCRT64_LIBDIR}/libSDL2.a")
+            set(UCRT64_SDL2_TTF_STATIC "${UCRT64_LIBDIR}/libSDL2_ttf.a")
+            if(EXISTS "${UCRT64_SDL2_STATIC}" AND EXISTS "${UCRT64_SDL2_TTF_STATIC}")
+                normalize_path(SDL2_STATIC_LIB_FOUND "${UCRT64_SDL2_STATIC}")
+                normalize_path(SDL2_TTF_STATIC_LIB_FOUND "${UCRT64_SDL2_TTF_STATIC}")
+                normalize_path(SDL2_TTF_LIBDIR "${UCRT64_LIBDIR}")
+            endif()
+        endif()
+
+        # If still not found, try common MSYS2 locations
+        if(NOT SDL2_STATIC_LIB_FOUND)
+            set(MSYS2_PATHS
+                "C:/msys64/ucrt64/lib"
+                "C:/tools/msys64/ucrt64/lib"
+                "$ENV{USERPROFILE}/scoop/apps/msys2/current/ucrt64/lib"
+                "$ENV{ProgramFiles}/msys64/ucrt64/lib"
+            )
+            # Also check for versioned Scoop installations
+            if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
+                file(GLOB SCOOP_UCRT64_LIBS "$ENV{USERPROFILE}/scoop/apps/msys2/*/ucrt64/lib")
+                list(APPEND MSYS2_PATHS ${SCOOP_UCRT64_LIBS})
+            endif()
+
+            foreach(LIBDIR IN LISTS MSYS2_PATHS)
+                set(TEST_SDL2_STATIC "${LIBDIR}/libSDL2.a")
+                set(TEST_SDL2_TTF_STATIC "${LIBDIR}/libSDL2_ttf.a")
+                if(EXISTS "${TEST_SDL2_STATIC}" AND EXISTS "${TEST_SDL2_TTF_STATIC}")
+                    normalize_path(SDL2_STATIC_LIB_FOUND "${TEST_SDL2_STATIC}")
+                    normalize_path(SDL2_TTF_STATIC_LIB_FOUND "${TEST_SDL2_TTF_STATIC}")
+                    normalize_path(SDL2_TTF_LIBDIR "${LIBDIR}")
+                    break()
+                endif()
+            endforeach()
+        endif()
+    endif()
+
+    if(SDL2_STATIC_LIB_FOUND AND SDL2_TTF_STATIC_LIB_FOUND)
+        # Paths are already normalized by the normalize_path function
+        set(SDL2_STATIC_LIB "${SDL2_STATIC_LIB_FOUND}")
+        set(SDL2_TTF_STATIC_LIB "${SDL2_TTF_STATIC_LIB_FOUND}")
+        message(STATUS "Found static SDL libraries: ${SDL2_STATIC_LIB}, ${SDL2_TTF_STATIC_LIB}")
+
+        # Get dependency flags from pkg-config (but not the SDL libraries themselves)
+        execute_process(
+            COMMAND ${PKG_CONFIG_EXECUTABLE} --libs --static SDL2_ttf
+            OUTPUT_VARIABLE SDL2_TTF_STATIC_LIBS_RAW
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+
+        if(SDL2_TTF_STATIC_LIBS_RAW)
+            # Parse the pkg-config output into a list first
+            string(REPLACE " " ";" SDL2_TTF_LIBS_LIST ${SDL2_TTF_STATIC_LIBS_RAW})
+
+            # List of libraries that should be statically linked (replace -l flags with .a files)
+            # These are SDL_ttf dependencies that have both .a and .dll.a versions
+            set(STATIC_LIB_NAMES
+                freetype bz2 png16 z harfbuzz
+                glib-2.0 intl pcre2-8 graphite2
+                brotlidec brotlicommon
+            )
+
+            # Build a new list with static libraries instead of -l flags
+            set(SDL2_TTF_LIBRARIES "")
+            foreach(LIB IN LISTS SDL2_TTF_LIBS_LIST)
+                # Skip -lSDL2_ttf and -lSDL2, we'll add the static libraries explicitly
+                if(LIB STREQUAL "-lSDL2_ttf" OR LIB STREQUAL "-lSDL2")
+                    continue()
+                endif()
+
+                # Check if this is a library we should statically link
+                set(REPLACED FALSE)
+                if(LIB MATCHES "^-l(.+)$")
+                    set(LIB_NAME "${CMAKE_MATCH_1}")
+                    foreach(STATIC_NAME IN LISTS STATIC_LIB_NAMES)
+                        if(LIB_NAME STREQUAL STATIC_NAME)
+                            # Try to find the static library
+                            set(STATIC_LIB_PATH "${SDL2_TTF_LIBDIR}/lib${LIB_NAME}.a")
+                            if(EXISTS "${STATIC_LIB_PATH}")
+                                normalize_path(STATIC_LIB_PATH_NORM "${STATIC_LIB_PATH}")
+                                list(APPEND SDL2_TTF_LIBRARIES "${STATIC_LIB_PATH_NORM}")
+                                set(REPLACED TRUE)
+                                break()
+                            endif()
+                        endif()
+                    endforeach()
+                endif()
+
+                # If not replaced, keep the original flag/library
+                if(NOT REPLACED)
+                    list(APPEND SDL2_TTF_LIBRARIES ${LIB})
+                endif()
+            endforeach()
+
+            # Insert static libraries in the correct order: SDL2_ttf depends on SDL2
+            # Insert SDL2_ttf first (it will be linked first, then SDL2)
+            list(INSERT SDL2_TTF_LIBRARIES 0 "${SDL2_TTF_STATIC_LIB}")
+            # Find where -lSDL2main is (if present) and insert SDL2 before it
+            # Otherwise, insert SDL2 right after SDL2_ttf
+            list(FIND SDL2_TTF_LIBRARIES "-lSDL2main" SDL2MAIN_INDEX)
+            if(SDL2MAIN_INDEX GREATER_EQUAL 0)
+                list(INSERT SDL2_TTF_LIBRARIES ${SDL2MAIN_INDEX} "${SDL2_STATIC_LIB}")
+            else()
+                list(INSERT SDL2_TTF_LIBRARIES 1 "${SDL2_STATIC_LIB}")
+            endif()
+
+            # Add C++ standard library for harfbuzz and graphite2 (they contain C++ code)
+            list(APPEND SDL2_TTF_LIBRARIES -lstdc++)
+
+            message(STATUS "Using explicit static SDL libraries with dependencies from pkg-config")
+            message(STATUS "  Statically linking SDL_ttf dependencies: freetype, bz2, png16, z, harfbuzz, glib-2.0, intl, pcre2-8, graphite2, brotlidec, brotlicommon")
+            message(STATUS "  Adding C++ standard library for harfbuzz and graphite2")
+        else()
+            # Fallback: use explicit paths with static libraries for dependencies
+            # Build list of static dependency libraries
+            set(STATIC_DEPS "")
+            set(STATIC_DEP_NAMES freetype bz2 png16 z harfbuzz glib-2.0 intl pcre2-8 graphite2 brotlidec brotlicommon)
+            foreach(DEP_NAME IN LISTS STATIC_DEP_NAMES)
+                set(DEP_STATIC "${SDL2_TTF_LIBDIR}/lib${DEP_NAME}.a")
+                if(EXISTS "${DEP_STATIC}")
+                    normalize_path(DEP_STATIC_NORM "${DEP_STATIC}")
+                    list(APPEND STATIC_DEPS "${DEP_STATIC_NORM}")
+                else()
+                    # Fallback to -l flag if static library not found
+                    list(APPEND STATIC_DEPS "-l${DEP_NAME}")
+                endif()
+            endforeach()
+
+            set(SDL2_TTF_LIBRARIES
+                -lmingw32 -mwindows -lSDL2main
+                "${SDL2_STATIC_LIB}"
+                "${SDL2_TTF_STATIC_LIB}"
+                -lm -lkernel32 -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lversion -luuid
+                -ladvapi32 -lsetupapi -lshell32 -ldinput8
+                ${STATIC_DEPS}
+                -lusp10 -ldwrite
+                -lws2_32 -lshlwapi -latomic
+                -lstdc++
+            )
+            message(STATUS "Using explicit static SDL libraries (with fallback dependencies)")
+            message(STATUS "  Adding C++ standard library for harfbuzz and graphite2")
+        endif()
+    else()
+        message(WARNING "Static SDL libraries not found")
+        message(WARNING "  Checked: ${SDL2_STATIC_LIB}")
+        message(WARNING "  Checked: ${SDL2_TTF_STATIC_LIB}")
+        if(SDL2_TTF_LIBDIR)
+            message(WARNING "  pkg-config libdir: ${SDL2_TTF_LIBDIR}")
+        endif()
+        message(WARNING "Falling back to dynamic linking - DLLs will be required at runtime")
+        # Don't override SDL2_TTF_LIBRARIES here - let pkg_check_modules set it
+    endif()
+endif()
 # Try pkg-config with /ucrt64/lib/pkgconfig (MSYS2 package) or /usr/local/lib/pkgconfig (source build)
 # Find the pkg-config file location first
 set(VTERM_PKG_CONFIG "")
