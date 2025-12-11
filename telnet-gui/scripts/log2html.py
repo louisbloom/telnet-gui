@@ -131,7 +131,7 @@ CSS_TEMPLATE = """
 body {
     background-color: #0d1117;
     color: #c9d1d9;
-    font-family: 'DejaVu Sans Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-family: 'Consolas', 'Menlo', 'Monaco', 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace;
     font-size: 15px;
     line-height: 1.3;
     padding: 20px;
@@ -556,34 +556,10 @@ def format_log_entry(entry, parser):
 
 
 def generate_css_with_fonts():
-    """Generate CSS with embedded DejaVu Sans Mono fonts."""
-    # Load font files
-    regular_font = get_font_base64("DejaVuSansMono.ttf")
-    bold_font = get_font_base64("DejaVuSansMono-Bold.ttf")
-
-    # Build @font-face declarations
-    font_faces = ""
-    if regular_font:
-        font_faces += f"""
-@font-face {{
-    font-family: 'DejaVu Sans Mono';
-    font-style: normal;
-    font-weight: 400;
-    src: url(data:font/truetype;charset=utf-8;base64,{regular_font}) format('truetype');
-}}
-"""
-    if bold_font:
-        font_faces += f"""
-@font-face {{
-    font-family: 'DejaVu Sans Mono';
-    font-style: normal;
-    font-weight: 700;
-    src: url(data:font/truetype;charset=utf-8;base64,{bold_font}) format('truetype');
-}}
-"""
-
-    # Return font faces + original CSS
-    return font_faces + CSS_TEMPLATE
+    """Generate CSS using system fonts (no embedded fonts)."""
+    # Use system fonts - no embedded fonts needed
+    # The CSS font-family already includes platform-specific monospace fonts
+    return CSS_TEMPLATE
 
 
 def convert_log_to_html(input_file, output_file):

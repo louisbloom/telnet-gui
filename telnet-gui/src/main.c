@@ -208,6 +208,78 @@ static void calculate_terminal_size(int window_width, int window_height, int cel
         *rows = 1; /* Minimum: 1 scrolling row */
 }
 
+/* Find the best system monospace font for the current platform */
+static const char *find_system_monospace_font(const char **font_name_out) {
+#ifdef _WIN32
+    /* Windows: Try Consolas first (best monospace), then Courier New */
+    const char *fonts[] = {"C:/Windows/Fonts/consola.ttf",    /* Consolas */
+                           "C:\\Windows\\Fonts\\consola.ttf", /* Consolas (backslash) */
+                           "C:/Windows/Fonts/cour.ttf",       /* Courier New */
+                           "C:\\Windows\\Fonts\\cour.ttf",    /* Courier New (backslash) */
+                           NULL};
+    const char *names[] = {"Consolas", "Consolas", "Courier New", "Courier New", NULL};
+
+    for (int i = 0; fonts[i] != NULL; i++) {
+        FILE *test = fopen(fonts[i], "rb");
+        if (test) {
+            fclose(test);
+            if (font_name_out) {
+                *font_name_out = names[i];
+            }
+            return fonts[i];
+        }
+    }
+#elif defined(__APPLE__)
+    /* macOS: Try Menlo first, then Monaco, then Courier New */
+    const char *fonts[] = {"/Library/Fonts/Menlo.ttc",
+                           "/System/Library/Fonts/Menlo.ttc",
+                           "/Library/Fonts/Monaco.dfont",
+                           "/System/Library/Fonts/Monaco.dfont",
+                           "/Library/Fonts/Courier New.ttf",
+                           "/System/Library/Fonts/Courier New.ttf",
+                           NULL};
+    const char *names[] = {"Menlo", "Menlo", "Monaco", "Monaco", "Courier New", "Courier New", NULL};
+
+    for (int i = 0; fonts[i] != NULL; i++) {
+        FILE *test = fopen(fonts[i], "rb");
+        if (test) {
+            fclose(test);
+            if (font_name_out) {
+                *font_name_out = names[i];
+            }
+            return fonts[i];
+        }
+    }
+#else
+    /* Linux: Try common monospace fonts */
+    const char *fonts[] = {"/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+                           "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
+                           "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+                           "/usr/share/fonts/TTF/LiberationMono-Regular.ttf",
+                           "/usr/share/fonts/truetype/liberation-mono/LiberationMono-Regular.ttf",
+                           "/usr/share/fonts/truetype/courier/Courier New.ttf",
+                           "/usr/share/fonts/TTF/Courier New.ttf",
+                           NULL};
+    const char *names[] = {"DejaVu Sans Mono", "DejaVu Sans Mono", "Liberation Mono", "Liberation Mono",
+                           "Liberation Mono",  "Courier New",      "Courier New",     NULL};
+
+    for (int i = 0; fonts[i] != NULL; i++) {
+        FILE *test = fopen(fonts[i], "rb");
+        if (test) {
+            fclose(test);
+            if (font_name_out) {
+                *font_name_out = names[i];
+            }
+            return fonts[i];
+        }
+    }
+#endif
+    if (font_name_out) {
+        *font_name_out = NULL;
+    }
+    return NULL;
+}
+
 static void print_help(const char *program_name) {
     printf("Usage: %s [OPTIONS] [hostname] [port]\n", program_name);
     printf("\n");
@@ -216,11 +288,12 @@ static void print_help(const char *program_name) {
     printf("\n");
     printf("  Font Options:\n");
     printf("    -f, --font-size SIZE   Set font size in points (default: 12)\n");
-    printf("    -F<letter>             Select font (default: d):\n");
+    printf("    -F<letter>             Select font (default: s = system font):\n");
+    printf("                             s = System monospace font (best for platform),\n");
     printf("                             m = Cascadia Mono, i = Inconsolata, p = IBM Plex Mono,\n");
     printf("                             d = DejaVu Sans Mono, c = Courier Prime\n");
     printf("    --font <name>          Select font by name:\n");
-    printf("                             cascadia, inconsolata, plex, dejavu, courier\n");
+    printf("                             system, cascadia, inconsolata, plex, dejavu, courier\n");
     printf("    -H, --hinting MODE     Set font hinting mode (default: none)\n");
     printf("                            MODE can be: none, light, normal, mono\n");
     printf("    -a, --antialiasing MODE Set anti-aliasing mode (default: linear)\n");
@@ -256,8 +329,8 @@ static void print_help(const char *program_name) {
     printf("      Connect using Inconsolata font\n");
     printf("  %s -Fp telnet-server 4449\n", program_name);
     printf("      Connect using IBM Plex Mono font\n");
-    printf("  %s --font dejavu telnet-server 4449\n", program_name);
-    printf("      Connect using DejaVu Sans Mono font (long form)\n");
+    printf("  %s --font system telnet-server 4449\n", program_name);
+    printf("      Connect using system monospace font (default)\n");
     printf("  %s -g 100x40 telnet-server 4449\n", program_name);
     printf("      Connect with 100x40 terminal size\n");
     printf("  %s -l completion.lisp telnet-server 4449\n", program_name);
@@ -278,7 +351,7 @@ int main(int argc, char **argv) {
     int lisp_file_count = 0;
     const char *test_file = NULL; /* Test file for headless mode */
     char font_choice =
-        'd'; /* Font selection: d=DejaVu Sans Mono (default), m=Cascadia Mono, i=Inconsolata, p=Plex, c=Courier */
+        's'; /* Font selection: s=System font (default), m=Cascadia Mono, i=Inconsolata, p=Plex, d=DejaVu, c=Courier */
     int font_size = 12;     /* Default font size */
     int terminal_cols = 80; /* Default terminal columns */
     int terminal_rows = 40; /* Default terminal rows */
@@ -335,9 +408,9 @@ int main(int argc, char **argv) {
             }
         } else if (strncmp(argv[arg_idx], "-F", 2) == 0 && strlen(argv[arg_idx]) == 3) {
             font_choice = argv[arg_idx][2];
-            if (font_choice != 'm' && font_choice != 'i' && font_choice != 'p' && font_choice != 'd' &&
-                font_choice != 'c') {
-                fprintf(stderr, "Error: Invalid font flag -F%c. Use: m, i, p, d, or c\n", font_choice);
+            if (font_choice != 's' && font_choice != 'm' && font_choice != 'i' && font_choice != 'p' &&
+                font_choice != 'd' && font_choice != 'c') {
+                fprintf(stderr, "Error: Invalid font flag -F%c. Use: s, m, i, p, d, or c\n", font_choice);
                 return 1;
             }
         } else if (strcmp(argv[arg_idx], "--font") == 0) {
@@ -346,7 +419,9 @@ int main(int argc, char **argv) {
                 return 1;
             }
             arg_idx++;
-            if (strcmp(argv[arg_idx], "cascadia") == 0)
+            if (strcmp(argv[arg_idx], "system") == 0)
+                font_choice = 's';
+            else if (strcmp(argv[arg_idx], "cascadia") == 0)
                 font_choice = 'm';
             else if (strcmp(argv[arg_idx], "inconsolata") == 0)
                 font_choice = 'i';
@@ -503,49 +578,73 @@ int main(int argc, char **argv) {
     fprintf(stderr, "SDL_ttf DPI support not available - font sizes may not match system expectations\n");
 #endif
 
-    /* Determine font filename based on user preference */
-    const char *font_filename;
-    const char *font_name;
-    switch (font_choice) {
-    case 'm':
-        font_filename = "CascadiaMono-Regular.ttf";
-        font_name = "Cascadia Mono";
-        break;
-    case 'i':
-        font_filename = "Inconsolata-Regular.ttf";
-        font_name = "Inconsolata";
-        break;
-    case 'p':
-        font_filename = "IBMPlexMono-Regular.ttf";
-        font_name = "IBM Plex Mono";
-        break;
-    case 'd':
-        font_filename = "DejaVuSansMono.ttf";
-        font_name = "DejaVu Sans Mono";
-        break;
-    case 'c':
-        font_filename = "CourierPrime-Regular.ttf";
-        font_name = "Courier Prime";
-        break;
-    default:
-        fprintf(stderr, "Internal error: Invalid font_choice '%c'\n", font_choice);
-        return 1;
+    /* Determine font based on user preference */
+    const char *font_filename = NULL;
+    const char *font_name = NULL;
+    const char *system_font_path = NULL;
+    const char *system_font_name = NULL;
+
+    /* If system font is requested, find it first */
+    if (font_choice == 's') {
+        system_font_path = find_system_monospace_font(&system_font_name);
+        if (system_font_path) {
+            fprintf(stderr, "Font resolution: Found system font: %s at %s\n", system_font_name, system_font_path);
+        } else {
+            fprintf(stderr, "Font resolution: No system font found, falling back to DejaVu Sans Mono\n");
+            font_choice = 'd'; /* Fall back to DejaVu if system font not found */
+        }
     }
 
-    fprintf(stderr, "Font resolution: Using %s font (filename: %s)\n", font_name, font_filename);
+    /* If not using system font, determine embedded font filename */
+    if (font_choice != 's') {
+        switch (font_choice) {
+        case 'm':
+            font_filename = "CascadiaMono-Regular.ttf";
+            font_name = "Cascadia Mono";
+            break;
+        case 'i':
+            font_filename = "Inconsolata-Regular.ttf";
+            font_name = "Inconsolata";
+            break;
+        case 'p':
+            font_filename = "IBMPlexMono-Regular.ttf";
+            font_name = "IBM Plex Mono";
+            break;
+        case 'd':
+            font_filename = "DejaVuSansMono.ttf";
+            font_name = "DejaVu Sans Mono";
+            break;
+        case 'c':
+            font_filename = "CourierPrime-Regular.ttf";
+            font_name = "Courier Prime";
+            break;
+        default:
+            fprintf(stderr, "Internal error: Invalid font_choice '%c'\n", font_choice);
+            return 1;
+        }
+        fprintf(stderr, "Font resolution: Using %s font (filename: %s)\n", font_name, font_filename);
+    }
 
     /* Create glyph cache with selected font */
     /* Get executable base path using SDL */
     char *base_path = SDL_GetBasePath();
     char font_path[1024] = {0};
-    const char *font_paths[10];
-    const char *font_path_labels[10];
+    const char *font_paths[15];
+    const char *font_path_labels[15];
     int font_path_count = 0;
 
     fprintf(stderr, "Font resolution: Starting font search...\n");
 
-    /* Try font relative to executable first (installation path) */
-    if (base_path) {
+    /* If using system font, try it first */
+    if (font_choice == 's' && system_font_path) {
+        font_paths[font_path_count] = system_font_path;
+        font_path_labels[font_path_count++] = "system font";
+        font_name = system_font_name;
+        fprintf(stderr, "Font resolution: Using system font: %s\n", font_name);
+    }
+
+    /* If using embedded font, try font relative to executable first (installation path) */
+    if (font_choice != 's' && base_path) {
         /* SDL_GetBasePath() should return a path with trailing separator, but be safe */
         size_t base_len = strlen(base_path);
         const char *sep =
@@ -572,39 +671,66 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Font resolution: Executable base path: %s\n", base_path);
         fprintf(stderr, "Font resolution: Constructed font path: %s\n", font_path);
         SDL_free(base_path);
-    } else {
+    } else if (font_choice != 's') {
+        SDL_free(base_path);
         fprintf(stderr, "Font resolution: Warning - SDL_GetBasePath() returned NULL\n");
+    } else {
+        SDL_free(base_path);
     }
 
-    /* Add fallback paths - try source tree paths first since we know the font exists there */
-    static char fallback_path1[256];
-    snprintf(fallback_path1, sizeof(fallback_path1), "telnet-gui/assets/fonts/%s", font_filename);
-    font_paths[font_path_count] = fallback_path1;
-    font_path_labels[font_path_count++] = "source tree path (from build root)";
+    /* Add fallback paths for embedded fonts - try source tree paths */
+    if (font_choice != 's') {
+        static char fallback_path1[256];
+        snprintf(fallback_path1, sizeof(fallback_path1), "telnet-gui/assets/fonts/%s", font_filename);
+        font_paths[font_path_count] = fallback_path1;
+        font_path_labels[font_path_count++] = "source tree path (from build root)";
 
-    static char fallback_path2[256];
-    snprintf(fallback_path2, sizeof(fallback_path2), "../../telnet-gui/assets/fonts/%s", font_filename);
-    font_paths[font_path_count] = fallback_path2;
-    font_path_labels[font_path_count++] = "source tree path (nested build dir)";
+        static char fallback_path2[256];
+        snprintf(fallback_path2, sizeof(fallback_path2), "../../telnet-gui/assets/fonts/%s", font_filename);
+        font_paths[font_path_count] = fallback_path2;
+        font_path_labels[font_path_count++] = "source tree path (nested build dir)";
 
-    static char fallback_path3[256];
-    snprintf(fallback_path3, sizeof(fallback_path3), "../telnet-gui/assets/fonts/%s", font_filename);
-    font_paths[font_path_count] = fallback_path3;
-    font_path_labels[font_path_count++] = "source tree path (parent dir)";
+        static char fallback_path3[256];
+        snprintf(fallback_path3, sizeof(fallback_path3), "../telnet-gui/assets/fonts/%s", font_filename);
+        font_paths[font_path_count] = fallback_path3;
+        font_path_labels[font_path_count++] = "source tree path (parent dir)";
 
-    static char fallback_path4[256];
-    snprintf(fallback_path4, sizeof(fallback_path4), "assets/fonts/%s", font_filename);
-    font_paths[font_path_count] = fallback_path4;
-    font_path_labels[font_path_count++] = "current directory relative (build/development)";
+        static char fallback_path4[256];
+        snprintf(fallback_path4, sizeof(fallback_path4), "assets/fonts/%s", font_filename);
+        font_paths[font_path_count] = fallback_path4;
+        font_path_labels[font_path_count++] = "current directory relative (build/development)";
 
-    static char fallback_path5[256];
-    snprintf(fallback_path5, sizeof(fallback_path5), "../assets/fonts/%s", font_filename);
-    font_paths[font_path_count] = fallback_path5;
-    font_path_labels[font_path_count++] = "parent directory relative";
+        static char fallback_path5[256];
+        snprintf(fallback_path5, sizeof(fallback_path5), "../assets/fonts/%s", font_filename);
+        font_paths[font_path_count] = fallback_path5;
+        font_path_labels[font_path_count++] = "parent directory relative";
+    }
 
-    /* Last resort fallbacks */
-    font_paths[font_path_count] = "C:/Windows/Fonts/consola.ttf";
-    font_path_labels[font_path_count++] = "Windows system fallback (Consola)";
+    /* Last resort: try system font if embedded font failed, or try DejaVu if system font failed */
+    if (font_choice == 's') {
+        /* If system font failed, try DejaVu as fallback */
+        static char fallback_dejavu1[256];
+        snprintf(fallback_dejavu1, sizeof(fallback_dejavu1), "telnet-gui/assets/fonts/DejaVuSansMono.ttf");
+        font_paths[font_path_count] = fallback_dejavu1;
+        font_path_labels[font_path_count++] = "fallback: DejaVu Sans Mono (source tree)";
+
+        static char fallback_dejavu2[256];
+        snprintf(fallback_dejavu2, sizeof(fallback_dejavu2), "assets/fonts/DejaVuSansMono.ttf");
+        font_paths[font_path_count] = fallback_dejavu2;
+        font_path_labels[font_path_count++] = "fallback: DejaVu Sans Mono (current dir)";
+
+        if (!font_name) {
+            font_name = "DejaVu Sans Mono";
+        }
+    } else {
+        /* If embedded font failed, try system font as fallback */
+        const char *fallback_system_path = find_system_monospace_font(NULL);
+        if (fallback_system_path) {
+            font_paths[font_path_count] = fallback_system_path;
+            font_path_labels[font_path_count++] = "fallback: system monospace font";
+        }
+    }
+
     font_paths[font_path_count] = NULL;
 
     /* Create a minimal hidden window to get a renderer for font loading */
