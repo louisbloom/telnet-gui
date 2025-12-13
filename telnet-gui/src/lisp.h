@@ -5,6 +5,7 @@
 
 #include <stddef.h>
 #include "terminal.h"
+#include "dynamic_buffer.h"
 
 /* Initialize Lisp interpreter, environment, and load bootstrap file */
 int lisp_x_init(void);
@@ -91,6 +92,13 @@ void lisp_x_register_window(struct Window *w);
 
 /* Get lisp environment (for accessing Lisp variables from C) */
 void *lisp_x_get_environment(void);
+
+/* Evaluate Lisp code and build echo buffer (eval-mode style)
+ * Uses preallocated DynamicBuffer
+ * Output format: "> code\r\n" + (result or "; Error: ...\r\n")
+ * Returns: 0 on success, -1 on failure
+ */
+int lisp_x_eval_and_echo(const char *code, DynamicBuffer *buf);
 
 /* Future: More functions to expose telnet-gui primitives */
 /* - Input/output hooks */

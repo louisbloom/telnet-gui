@@ -30,6 +30,7 @@
 #include "commands.h"
 #include "lisp.h"
 #include "ansi_sequences.h"
+#include "dynamic_buffer.h"
 #include "../../telnet-lisp/include/lisp.h"
 
 /* Padding around terminal area (including input area) - must match renderer.c */
@@ -1262,6 +1263,13 @@ int main(int argc, char **argv) {
                         const char *text = input_area_get_text(&input_area);
                         int cursor_pos = input_area_get_cursor_pos(&input_area);
 
+                        /* Echo raw input FIRST for non-eval mode (eval mode has its own echo with >) */
+                        if (input_area_get_mode(&input_area) != INPUT_AREA_MODE_EVAL) {
+                            char echo_buf[INPUT_AREA_MAX_LENGTH + 10];
+                            int echo_len = snprintf(echo_buf, sizeof(echo_buf), "%s\r\n", text);
+                            terminal_feed_data(term, echo_buf, echo_len);
+                        }
+
                         /* Check if this is a special command starting with ':' */
                         if (text[0] == ':') {
                             /* Process command */
@@ -1276,28 +1284,16 @@ int main(int argc, char **argv) {
                             input_area_history_add(&input_area);
                             input_area_clear(&input_area);
                         } else if (input_area_get_mode(&input_area) == INPUT_AREA_MODE_EVAL) {
-                            /* Eval mode - evaluate Lisp expression */
-                            Environment *env = (Environment *)lisp_x_get_environment();
-                            LispObject *result = lisp_eval_string(text, env);
-
-                            /* Build echo: prompt + result or error */
-                            char echo_buf[INPUT_AREA_MAX_LENGTH * 2];
-                            int echo_len = snprintf(echo_buf, sizeof(echo_buf), "> %s\r\n", text);
-
-                            if (result && result->type == LISP_ERROR) {
-                                echo_len += snprintf(echo_buf + echo_len, sizeof(echo_buf) - echo_len,
-                                                     "; Error: %s\r\n", result->value.error_with_stack.message);
-                            } else if (result) {
-                                char *result_str = lisp_print(result);
-                                echo_len +=
-                                    snprintf(echo_buf + echo_len, sizeof(echo_buf) - echo_len, "%s\r\n", result_str);
-                            } else {
-                                echo_len += snprintf(echo_buf + echo_len, sizeof(echo_buf) - echo_len,
-                                                     "; Error: Evaluation returned NULL\r\n");
+                            /* Eval mode - evaluate Lisp expression using shared eval logic */
+                            /* Use static preallocated buffer for eval output */
+                            static DynamicBuffer *eval_buf = NULL;
+                            if (!eval_buf) {
+                                eval_buf = dynamic_buffer_create(4096);
                             }
 
-                            /* Send echo to terminal */
-                            terminal_feed_data(term, echo_buf, echo_len);
+                            if (eval_buf && lisp_x_eval_and_echo(text, eval_buf) == 0) {
+                                terminal_feed_data(term, dynamic_buffer_data(eval_buf), dynamic_buffer_len(eval_buf));
+                            }
 
                             /* Scroll to bottom */
                             if (lisp_x_get_scroll_to_bottom_on_user_input()) {
@@ -1317,13 +1313,7 @@ int main(int argc, char **argv) {
                             /* If hook returns empty string, it means hook handled echo/send - don't send again */
 
                             if (transformed_length > 0) {
-                                /* Echo transformed text to terminal (vterm_feed_data will normalize LF to CRLF) */
-                                char echo_buf[INPUT_AREA_MAX_LENGTH + 2];
-                                int echo_len = transformed_length;
-                                memcpy(echo_buf, transformed_text, transformed_length);
-                                echo_buf[echo_len++] = '\n'; /* Add newline - vterm_feed_data will add \r if needed */
-                                terminal_feed_data(term, echo_buf, echo_len);
-
+                                /* DON'T echo again - raw input was already echoed above */
                                 /* Scroll to bottom on user input if configured */
                                 if (lisp_x_get_scroll_to_bottom_on_user_input()) {
                                     terminal_scroll_to_bottom(term);
@@ -1509,6 +1499,13 @@ int main(int argc, char **argv) {
                                 SDL_SetClipboardText(text);
                             }
                         }
+                    }
+                    break;
+                }
+                case SDL_SCANCODE_D: {
+                    if (mod & KMOD_CTRL) {
+                        /* Ctrl+D: Delete character forward (like Emacs) */
+                        input_area_delete_char(&input_area);
                     }
                     break;
                 }

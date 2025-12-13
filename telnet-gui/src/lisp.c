@@ -6,6 +6,7 @@
 #include "telnet.h"
 #include "glyph_cache.h"
 #include "window.h"
+#include "dynamic_buffer.h"
 #include "../../telnet-lisp/include/lisp.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -1836,6 +1837,48 @@ void lisp_x_register_glyph_cache(GlyphCache *cache) {
 
 void lisp_x_register_window(Window *w) {
     registered_window = w;
+}
+
+/* Evaluate Lisp code and build echo buffer (eval-mode style)
+ * Uses preallocated DynamicBuffer
+ * Output format: "> code\r\n" + (result or "; Error: ...\r\n")
+ * Returns: 0 on success, -1 on failure
+ */
+int lisp_x_eval_and_echo(const char *code, DynamicBuffer *buf) {
+    if (!code || !buf || !lisp_env) {
+        return -1;
+    }
+
+    /* Clear buffer for new output */
+    dynamic_buffer_clear(buf);
+
+    /* Echo the code with > prefix */
+    if (dynamic_buffer_append_printf(buf, "> %s\r\n", code) < 0) {
+        return -1;
+    }
+
+    /* Evaluate the code */
+    LispObject *result = lisp_eval_string(code, lisp_env);
+
+    /* Append result or error to buffer */
+    if (result && result->type == LISP_ERROR) {
+        if (dynamic_buffer_append_printf(buf, "; Error: %s\r\n", result->value.error_with_stack.message) < 0) {
+            return -1;
+        }
+    } else if (result) {
+        char *result_str = lisp_print(result);
+        if (result_str) {
+            if (dynamic_buffer_append_printf(buf, "%s\r\n", result_str) < 0) {
+                return -1;
+            }
+        }
+    } else {
+        if (dynamic_buffer_append_str(buf, "; Error: Evaluation returned NULL\r\n") < 0) {
+            return -1;
+        }
+    }
+
+    return 0;
 }
 
 /* Get lisp environment (for accessing Lisp variables from C) */

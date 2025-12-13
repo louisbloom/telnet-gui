@@ -2,6 +2,7 @@
 
 #include "commands.h"
 #include "lisp.h"
+#include "dynamic_buffer.h"
 #include "../../telnet-lisp/include/lisp.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -131,54 +132,25 @@ int process_command(const char *text, Telnet *telnet, Terminal *term, int *conne
             return 1;
         }
 
-        /* Get the Lisp environment */
-        Environment *env = (Environment *)lisp_x_get_environment();
-        if (!env) {
-            const char *msg = "\r\n*** Error: Lisp environment not initialized ***\r\n";
+        /* Use static preallocated buffer for eval output */
+        static DynamicBuffer *eval_buf = NULL;
+        if (!eval_buf) {
+            eval_buf = dynamic_buffer_create(4096);
+            if (!eval_buf) {
+                const char *msg = "\r\n*** Error: Buffer allocation failed ***\r\n";
+                terminal_feed_data(term, msg, strlen(msg));
+                return 1;
+            }
+        }
+
+        /* Delegate to eval mode logic */
+        if (lisp_x_eval_and_echo(code, eval_buf) < 0) {
+            const char *msg = "\r\n*** Error: Buffer operation failed ***\r\n";
             terminal_feed_data(term, msg, strlen(msg));
             return 1;
         }
 
-        /* Evaluate the code */
-        LispObject *result = lisp_eval_string(code, env);
-
-        /* Check for errors */
-        if (!result) {
-            const char *msg = "\r\n*** Error: Evaluation returned NULL ***\r\n";
-            terminal_feed_data(term, msg, strlen(msg));
-            return 1;
-        }
-
-        if (result->type == LISP_ERROR) {
-            char *err_str = lisp_print(result);
-            if (err_str) {
-                /* Format error message */
-                size_t err_len = strlen(err_str);
-                size_t msg_size = err_len + 50;
-                char *error_msg = malloc(msg_size);
-                if (error_msg) {
-                    snprintf(error_msg, msg_size, "\r\n*** Error: %s ***\r\n", err_str);
-                    terminal_feed_data(term, error_msg, strlen(error_msg));
-                    free(error_msg);
-                }
-            }
-            return 1;
-        }
-
-        /* Echo result to terminal */
-        char *result_str = lisp_print(result);
-        if (result_str) {
-            /* Format output message */
-            size_t result_len = strlen(result_str);
-            size_t msg_size = result_len + 10;
-            char *output_msg = malloc(msg_size);
-            if (output_msg) {
-                snprintf(output_msg, msg_size, "\r\n> %s\r\n", result_str);
-                terminal_feed_data(term, output_msg, strlen(output_msg));
-                free(output_msg);
-            }
-        }
-
+        terminal_feed_data(term, dynamic_buffer_data(eval_buf), dynamic_buffer_len(eval_buf));
         return 1;
     }
 

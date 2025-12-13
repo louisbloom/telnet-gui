@@ -3269,9 +3269,7 @@
   (if (not *tintin-enabled*)
     text
     (progn
-      ;; Echo original input FIRST (unless it's a # command)
-      (if (not (tintin-is-command? text))
-        (tintin-echo (concat text "\r\n")))
+      ;; Note: main.c already echoes the original input, so we don't echo it here
       (let ((processed (tintin-process-input text))
              (commands nil))
         ;; Split processed output by semicolons
