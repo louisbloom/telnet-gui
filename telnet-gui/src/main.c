@@ -26,6 +26,7 @@
 #include "input_area.h"
 #include "commands.h"
 #include "lisp.h"
+#include "../../telnet-lisp/include/lisp.h"
 
 static int running = 1;
 
@@ -1047,6 +1048,38 @@ int main(int argc, char **argv) {
                             /* Add to history and clear input area */
                             input_area_history_add(&input_area);
                             input_area_clear(&input_area);
+                        } else if (input_area_get_mode(&input_area) == INPUT_AREA_MODE_EVAL) {
+                            /* Eval mode - evaluate Lisp expression */
+                            Environment *env = (Environment *)lisp_x_get_environment();
+                            LispObject *result = lisp_eval_string(text, env);
+
+                            /* Build echo: prompt + result or error */
+                            char echo_buf[INPUT_AREA_MAX_LENGTH * 2];
+                            int echo_len = snprintf(echo_buf, sizeof(echo_buf), "> %s\r\n", text);
+
+                            if (result && result->type == LISP_ERROR) {
+                                echo_len += snprintf(echo_buf + echo_len, sizeof(echo_buf) - echo_len,
+                                                     "; Error: %s\r\n", result->value.error_with_stack.message);
+                            } else if (result) {
+                                char *result_str = lisp_print(result);
+                                echo_len +=
+                                    snprintf(echo_buf + echo_len, sizeof(echo_buf) - echo_len, "%s\r\n", result_str);
+                            } else {
+                                echo_len += snprintf(echo_buf + echo_len, sizeof(echo_buf) - echo_len,
+                                                     "; Error: Evaluation returned NULL\r\n");
+                            }
+
+                            /* Send echo to terminal */
+                            terminal_feed_data(term, echo_buf, echo_len);
+
+                            /* Scroll to bottom */
+                            if (lisp_x_get_scroll_to_bottom_on_user_input()) {
+                                terminal_scroll_to_bottom(term);
+                            }
+
+                            /* Add to history and clear input area */
+                            input_area_history_add(&input_area);
+                            input_area_clear(&input_area);
                         } else {
                             /* Normal text - call user-input-hook to transform text before sending */
                             const char *transformed_text = lisp_x_call_user_input_hook(text, cursor_pos);
@@ -1097,8 +1130,8 @@ int main(int argc, char **argv) {
                                             fprintf(stderr, "Failed to send data via telnet\n");
                                             /* Connection lost - switch to unconnected mode */
                                             connected_mode = 0;
-                                            terminal_feed_data(term, "\r\n*** Connection lost ***\r\n",
-                                                               strlen("\r\n*** Connection lost ***\r\n"));
+                                            const char *msg = "\r\n*** Connection lost ***\r\n";
+                                            terminal_feed_data(term, msg, strlen(msg));
                                         }
                                     }
                                 } else {
@@ -1353,6 +1386,20 @@ int main(int argc, char **argv) {
                     break;
                 }
                 case SDL_SCANCODE_TAB: {
+                    /* Shift+Tab: Toggle input mode */
+                    if (mod & KMOD_SHIFT) {
+                        InputAreaMode current = input_area_get_mode(&input_area);
+                        InputAreaMode new_mode =
+                            (current == INPUT_AREA_MODE_NORMAL) ? INPUT_AREA_MODE_EVAL : INPUT_AREA_MODE_NORMAL;
+                        input_area_set_mode(&input_area, new_mode);
+                        break;
+                    }
+
+                    /* Tab in eval mode: do nothing */
+                    if (input_area_get_mode(&input_area) == INPUT_AREA_MODE_EVAL) {
+                        break;
+                    }
+
                     /* Handle TAB completion via Lisp bridge */
                     /* Note: lisp_handle_tab modifies buffer directly */
                     int cursor_pos = input_area_get_cursor_pos(&input_area);

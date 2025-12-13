@@ -598,6 +598,114 @@ else()
     target_compile_definitions(telnet-gui PRIVATE LIBVTERM_VERSION="unknown")
 endif()
 
+# Collect dependency versions using pkg-config
+execute_process(
+    COMMAND ${PKG_CONFIG_EXECUTABLE} --modversion sdl2
+    OUTPUT_VARIABLE SDL2_PKG_VERSION
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+execute_process(
+    COMMAND ${PKG_CONFIG_EXECUTABLE} --modversion SDL2_ttf
+    OUTPUT_VARIABLE SDL2_TTF_PKG_VERSION
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+execute_process(
+    COMMAND ${PKG_CONFIG_EXECUTABLE} --modversion bdw-gc
+    OUTPUT_VARIABLE GC_PKG_VERSION
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+execute_process(
+    COMMAND ${PKG_CONFIG_EXECUTABLE} --modversion libpcre2-8
+    OUTPUT_VARIABLE PCRE2_PKG_VERSION
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+# Pass all versions to C code as macros
+if(SDL2_PKG_VERSION)
+    target_compile_definitions(telnet-gui PRIVATE SDL2_VERSION="${SDL2_PKG_VERSION}")
+else()
+    target_compile_definitions(telnet-gui PRIVATE SDL2_VERSION="unknown")
+endif()
+
+if(SDL2_TTF_PKG_VERSION)
+    target_compile_definitions(telnet-gui PRIVATE SDL2_TTF_VERSION="${SDL2_TTF_PKG_VERSION}")
+else()
+    target_compile_definitions(telnet-gui PRIVATE SDL2_TTF_VERSION="unknown")
+endif()
+
+if(GC_PKG_VERSION)
+    target_compile_definitions(telnet-gui PRIVATE GC_VERSION="${GC_PKG_VERSION}")
+else()
+    target_compile_definitions(telnet-gui PRIVATE GC_VERSION="unknown")
+endif()
+
+if(PCRE2_PKG_VERSION)
+    target_compile_definitions(telnet-gui PRIVATE PCRE2_VERSION="${PCRE2_PKG_VERSION}")
+else()
+    target_compile_definitions(telnet-gui PRIVATE PCRE2_VERSION="unknown")
+endif()
+
+# Project version from root CMakeLists.txt
+target_compile_definitions(telnet-gui PRIVATE PROJECT_VERSION="${CMAKE_PROJECT_VERSION}")
+
+# System information
+target_compile_definitions(telnet-gui PRIVATE
+    CMAKE_VERSION="${CMAKE_VERSION}"
+    SYSTEM_NAME="${CMAKE_SYSTEM_NAME}"
+    SYSTEM_PROCESSOR="${CMAKE_SYSTEM_PROCESSOR}"
+)
+
+# Toolchain detection - detailed information about compiler and environment
+# Get compiler target triple (e.g., x86_64-w64-mingw32-ucrt)
+execute_process(
+    COMMAND ${CMAKE_C_COMPILER} -dumpmachine
+    OUTPUT_VARIABLE COMPILER_TARGET_TRIPLE
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+# On Windows, detect MSYS2 environment from compiler path
+if(WIN32)
+    set(MSYS2_ENV "")
+    string(TOLOWER "${CMAKE_C_COMPILER}" COMPILER_PATH_LOWER)
+    if(COMPILER_PATH_LOWER MATCHES "/ucrt64/")
+        set(MSYS2_ENV "UCRT64")
+    elseif(COMPILER_PATH_LOWER MATCHES "/mingw64/")
+        set(MSYS2_ENV "MINGW64")
+    elseif(COMPILER_PATH_LOWER MATCHES "/mingw32/")
+        set(MSYS2_ENV "MINGW32")
+    elseif(COMPILER_PATH_LOWER MATCHES "/clang64/")
+        set(MSYS2_ENV "CLANG64")
+    elseif(COMPILER_PATH_LOWER MATCHES "/clang32/")
+        set(MSYS2_ENV "CLANG32")
+    elseif(COMPILER_PATH_LOWER MATCHES "/clangarm64/")
+        set(MSYS2_ENV "CLANGARM64")
+    elseif(COMPILER_PATH_LOWER MATCHES "/msys/")
+        set(MSYS2_ENV "MSYS")
+    endif()
+
+    # Build detailed toolchain string
+    if(MSYS2_ENV)
+        # MSYS2: "UCRT64 (GCC 13.2.0, x86_64-w64-mingw32-ucrt)"
+        set(TOOLCHAIN_STRING "${MSYS2_ENV} (${CMAKE_C_COMPILER_ID} ${CMAKE_C_COMPILER_VERSION}, ${COMPILER_TARGET_TRIPLE})")
+    else()
+        # Native Windows: "MSVC 19.30 (x86_64-pc-windows-msvc)" or similar
+        set(TOOLCHAIN_STRING "${CMAKE_C_COMPILER_ID} ${CMAKE_C_COMPILER_VERSION} (${COMPILER_TARGET_TRIPLE})")
+    endif()
+else()
+    # Unix/Linux/macOS: "GCC 11.4.0 (x86_64-linux-gnu)" or "AppleClang 14.0 (arm64-apple-darwin22)"
+    set(TOOLCHAIN_STRING "${CMAKE_C_COMPILER_ID} ${CMAKE_C_COMPILER_VERSION} (${COMPILER_TARGET_TRIPLE})")
+endif()
+
+target_compile_definitions(telnet-gui PRIVATE TOOLCHAIN="${TOOLCHAIN_STRING}")
+
 # Test for vterm_screen_enable_reflow
 check_c_source_compiles("
     #include <vterm.h>

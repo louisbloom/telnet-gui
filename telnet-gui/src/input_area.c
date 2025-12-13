@@ -690,7 +690,10 @@ void input_area_set_mode(InputArea *area, InputAreaMode mode) {
     if (!area)
         return;
 
-    area->mode = mode;
+    if (area->mode != mode) {
+        area->mode = mode;
+        area->needs_redraw = 1;
+    }
 }
 
 InputAreaMode input_area_get_mode(InputArea *area) {

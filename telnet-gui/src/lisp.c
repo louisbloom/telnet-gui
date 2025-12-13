@@ -12,6 +12,47 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Version information - fallbacks if not defined by CMake */
+#ifndef PROJECT_VERSION
+#define PROJECT_VERSION "unknown"
+#endif
+
+#ifndef LIBVTERM_VERSION
+#define LIBVTERM_VERSION "unknown"
+#endif
+
+#ifndef SDL2_VERSION
+#define SDL2_VERSION "unknown"
+#endif
+
+#ifndef SDL2_TTF_VERSION
+#define SDL2_TTF_VERSION "unknown"
+#endif
+
+#ifndef GC_VERSION
+#define GC_VERSION "unknown"
+#endif
+
+#ifndef PCRE2_VERSION
+#define PCRE2_VERSION "unknown"
+#endif
+
+#ifndef CMAKE_VERSION
+#define CMAKE_VERSION "unknown"
+#endif
+
+#ifndef SYSTEM_NAME
+#define SYSTEM_NAME "unknown"
+#endif
+
+#ifndef SYSTEM_PROCESSOR
+#define SYSTEM_PROCESSOR "unknown"
+#endif
+
+#ifndef TOOLCHAIN
+#define TOOLCHAIN "unknown"
+#endif
+
 /* Lisp environment for completion hooks and future primitives */
 static Environment *lisp_env = NULL;
 
@@ -426,9 +467,6 @@ static LispObject *builtin_terminal_info(LispObject *args, Environment *env) {
     const char *font_path = glyph_cache_get_font_path(registered_glyph_cache);
     const char *font_name = glyph_cache_get_font_name(registered_glyph_cache);
 
-    /* Get libvterm version */
-    const char *libvterm_version = terminal_get_libvterm_version();
-
     /* Build association list using tail-pointer pattern for efficiency */
     LispObject *result = NIL;
     LispObject *tail = NULL;
@@ -461,7 +499,58 @@ static LispObject *builtin_terminal_info(LispObject *args, Environment *env) {
     ADD_PAIR("max-scrollback", lisp_make_integer(max_scrollback));
     ADD_PAIR("font-path", lisp_make_string(font_path ? font_path : ""));
     ADD_PAIR("font-name", lisp_make_string(font_name ? font_name : ""));
-    ADD_PAIR("libvterm-version", lisp_make_string(libvterm_version));
+
+#undef ADD_PAIR
+
+    return result;
+}
+
+/* Built-in: version
+ * Returns association list with version information for all dependencies and system.
+ */
+static LispObject *builtin_version(LispObject *args, Environment *env) {
+    (void)args; /* No arguments expected */
+    (void)env;  /* Environment not needed */
+
+    /* Build association list using tail-pointer pattern */
+    LispObject *result = NIL;
+    LispObject *tail = NULL;
+
+    /* Helper macro to add key-value pairs */
+#define ADD_PAIR(key_name, value_expr)                                                                                 \
+    do {                                                                                                               \
+        LispObject *key = lisp_make_symbol(key_name);                                                                  \
+        LispObject *value = (value_expr);                                                                              \
+        LispObject *pair = lisp_make_cons(key, value);                                                                 \
+        LispObject *new_cons = lisp_make_cons(pair, NIL);                                                              \
+        if (result == NIL) {                                                                                           \
+            result = new_cons;                                                                                         \
+            tail = new_cons;                                                                                           \
+        } else {                                                                                                       \
+            tail->value.cons.cdr = new_cons;                                                                           \
+            tail = new_cons;                                                                                           \
+        }                                                                                                              \
+    } while (0)
+
+    /* Add version pairs in logical groups */
+
+    /* Project version */
+    ADD_PAIR("project", lisp_make_string(PROJECT_VERSION));
+
+    /* Core dependencies */
+    ADD_PAIR("libvterm", lisp_make_string(LIBVTERM_VERSION));
+    ADD_PAIR("sdl2", lisp_make_string(SDL2_VERSION));
+    ADD_PAIR("sdl2-ttf", lisp_make_string(SDL2_TTF_VERSION));
+    ADD_PAIR("bdw-gc", lisp_make_string(GC_VERSION));
+    ADD_PAIR("pcre2", lisp_make_string(PCRE2_VERSION));
+
+    /* Build system */
+    ADD_PAIR("cmake", lisp_make_string(CMAKE_VERSION));
+
+    /* System information */
+    ADD_PAIR("system", lisp_make_string(SYSTEM_NAME));
+    ADD_PAIR("architecture", lisp_make_string(SYSTEM_PROCESSOR));
+    ADD_PAIR("toolchain", lisp_make_string(TOOLCHAIN));
 
 #undef ADD_PAIR
 
@@ -752,6 +841,37 @@ int lisp_x_init(void) {
         "- `tintin-print-table` - Uses this for responsive table formatting";
     LispObject *terminal_info_builtin = lisp_make_builtin(builtin_terminal_info, "terminal-info", terminal_info_doc);
     env_define(lisp_env, "terminal-info", terminal_info_builtin);
+
+    /* version: Return version information for all dependencies */
+    const char *version_doc =
+        "Return version information for all dependencies and system.\n"
+        "\n"
+        "Returns an association list with the following keys:\n"
+        "  - project: TelnetLisp version\n"
+        "  - libvterm: libvterm version (with feature flags)\n"
+        "  - sdl2: SDL2 version\n"
+        "  - sdl2-ttf: SDL2_ttf version\n"
+        "  - bdw-gc: Boehm GC version\n"
+        "  - pcre2: PCRE2 version\n"
+        "  - cmake: CMake version used for build\n"
+        "  - system: Operating system name\n"
+        "  - architecture: System processor architecture\n"
+        "  - toolchain: Full toolchain details (e.g., \"UCRT64 (GCC 13.2.0, x86_64-w64-mingw32-ucrt)\")\n"
+        "\n"
+        "## Returns\n"
+        "Association list: ((key . \"version\") ...)\n"
+        "\n"
+        "## Examples\n"
+        "```lisp\n"
+        "(version)\n"
+        "; => ((project . \"1.0.0\") (libvterm . \"0.3.3+pushline4\") ...)\n"
+        "\n"
+        "; Get specific version:\n"
+        "(cdr (assoc 'libvterm (version)))\n"
+        "; => \"0.3.3+pushline4\"\n"
+        "```\n";
+    LispObject *version_builtin = lisp_make_builtin(builtin_version, "version", version_doc);
+    env_define(lisp_env, "version", version_builtin);
 
     return 0;
 }
