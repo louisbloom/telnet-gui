@@ -293,6 +293,25 @@ static int load_bootstrap_file(void) {
 
     fprintf(stderr, "Bootstrap file resolution: Starting search...\n");
 
+#ifdef TELNET_GUI_DATA_DIR
+    /* Priority path for installed builds (POSIX-compliant) */
+    static char installed_bootstrap_path[1024];
+    snprintf(installed_bootstrap_path, sizeof(installed_bootstrap_path), TELNET_GUI_DATA_DIR "/lisp/bootstrap.lisp");
+
+#ifdef _WIN32
+    /* Normalize path separators for Windows */
+    for (char *p = installed_bootstrap_path; *p; p++) {
+        if (*p == '/')
+            *p = '\\';
+    }
+#endif
+
+    bootstrap_paths[bootstrap_path_count] = installed_bootstrap_path;
+    bootstrap_path_labels[bootstrap_path_count] = "installed data directory (POSIX)";
+    bootstrap_path_count++;
+    fprintf(stderr, "Bootstrap file resolution: Trying installed path: %s\n", installed_bootstrap_path);
+#endif
+
     /* Try bootstrap.lisp relative to executable first (installation path) */
     if (base_path) {
         size_t base_len = strlen(base_path);
@@ -954,7 +973,26 @@ int lisp_x_load_file(const char *filepath) {
     search_labels[search_count] = "source tree (nested build dir)";
     search_count++;
 
-    /* Path 5: Executable-relative (installation fallback) */
+#ifdef TELNET_GUI_DATA_DIR
+    /* Path 5: Installed lisp directory (POSIX-compliant) - for common files like tintin.lisp */
+    static char installed_lisp_path[1024];
+    snprintf(installed_lisp_path, sizeof(installed_lisp_path), TELNET_GUI_DATA_DIR "/lisp/%s", filepath);
+
+#ifdef _WIN32
+    /* Normalize path separators for Windows */
+    for (char *p = installed_lisp_path; *p; p++) {
+        if (*p == '/')
+            *p = '\\';
+    }
+#endif
+
+    search_paths[search_count] = installed_lisp_path;
+    search_labels[search_count] = "installed lisp directory (POSIX)";
+    search_count++;
+    fprintf(stderr, "Lisp file resolution: Trying installed path: %s\n", installed_lisp_path);
+#endif
+
+    /* Path 6: Executable-relative (installation fallback) */
     if (base_path) {
         size_t base_len = strlen(base_path);
         const char *sep =

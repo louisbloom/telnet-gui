@@ -644,6 +644,26 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Font resolution: Using system font: %s\n", font_name);
     }
 
+#ifdef TELNET_GUI_DATA_DIR
+    /* Priority path for installed builds (POSIX-compliant) */
+    if (font_choice != 's') {
+        static char installed_font_path[1024];
+        snprintf(installed_font_path, sizeof(installed_font_path), TELNET_GUI_DATA_DIR "/fonts/%s", font_filename);
+
+#ifdef _WIN32
+        /* Normalize path separators for Windows */
+        for (char *p = installed_font_path; *p; p++) {
+            if (*p == '/')
+                *p = '\\';
+        }
+#endif
+
+        font_paths[font_path_count] = installed_font_path;
+        font_path_labels[font_path_count++] = "installed data directory (POSIX)";
+        fprintf(stderr, "Font resolution: Trying installed path: %s\n", installed_font_path);
+    }
+#endif
+
     /* If using embedded font, try font relative to executable first (installation path) */
     if (font_choice != 's' && base_path) {
         /* SDL_GetBasePath() should return a path with trailing separator, but be safe */

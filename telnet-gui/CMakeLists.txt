@@ -22,6 +22,18 @@ set(GUI_SOURCES
 # Create telnet-gui executable
 add_executable(telnet-gui ${GUI_SOURCES})
 
+# Define data directory for installed builds (POSIX-compliant)
+# This allows the application to find fonts and Lisp files in the installed location
+if(CMAKE_INSTALL_PREFIX)
+    set(TELNET_GUI_DATA_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui")
+else()
+    set(TELNET_GUI_DATA_DIR "${CMAKE_INSTALL_FULL_DATAROOTDIR}/telnet-gui")
+endif()
+
+target_compile_definitions(telnet-gui PRIVATE
+    TELNET_GUI_DATA_DIR="${TELNET_GUI_DATA_DIR}"
+)
+
 # Copy font files to build directory
 set(FONT_INCONSOLATA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Inconsolata-Regular.ttf")
 set(FONT_INCONSOLATA_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/Inconsolata-Regular.ttf")
@@ -54,14 +66,9 @@ set(TEST_HELPERS_DST "${CMAKE_CURRENT_BINARY_DIR}/test-helpers.lisp")
 set(LOG2HTML_SRC "${CMAKE_CURRENT_SOURCE_DIR}/scripts/telnet-gui-log2html.py")
 set(LOG2HTML_DST "${CMAKE_CURRENT_BINARY_DIR}/telnet-gui-log2html.py")
 
-# Copy DejaVu Sans Mono fonts for telnet-gui-log2html.py
-set(DEJAVU_FONTS_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/fonts")
-set(DEJAVU_FONTS_DST_DIR "${CMAKE_CURRENT_BINARY_DIR}/fonts")
-
 # Create assets/fonts directory in build directory
 add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${DEJAVU_FONTS_DST_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_INCONSOLATA_SRC}" "${FONT_INCONSOLATA_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_PLEX_SRC}" "${FONT_PLEX_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_DEJAVU_SRC}" "${FONT_DEJAVU_DST}"
@@ -74,8 +81,7 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${COMPLETION_TEST_SRC}" "${COMPLETION_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TEST_HELPERS_SRC}" "${TEST_HELPERS_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LOG2HTML_SRC}" "${LOG2HTML_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${DEJAVU_FONTS_SRC_DIR}" "${DEJAVU_FONTS_DST_DIR}"
-    COMMENT "Copying fonts, bootstrap.lisp, test files, telnet-gui-log2html.py, DejaVu fonts, and runtime DLLs to build directory"
+    COMMENT "Copying resources to build directory"
 )
 
 # On Windows, copy required UCRT64 runtime DLLs to telnet-gui build directory
@@ -97,57 +103,32 @@ if(WIN32 AND DEFINED UCRT64_ROOT)
     endforeach()
 endif()
 
-# Install font files with executable (in bin directory so it's relative to the executable)
-install(FILES "${FONT_INCONSOLATA_SRC}"
-    DESTINATION "bin/assets/fonts"
-    COMPONENT Runtime
-)
-install(FILES "${FONT_PLEX_SRC}"
-    DESTINATION "bin/assets/fonts"
-    COMPONENT Runtime
-)
-install(FILES "${FONT_DEJAVU_SRC}"
-    DESTINATION "bin/assets/fonts"
-    COMPONENT Runtime
-)
-install(FILES "${FONT_DEJAVU_BOLD_SRC}"
-    DESTINATION "bin/assets/fonts"
-    COMPONENT Runtime
-)
-install(FILES "${FONT_COURIER_SRC}"
-    DESTINATION "bin/assets/fonts"
-    COMPONENT Runtime
-)
-install(FILES "${FONT_CASCADIA_SRC}"
-    DESTINATION "bin/assets/fonts"
+# Install font files to share directory (POSIX-compliant)
+install(FILES
+    "${FONT_INCONSOLATA_SRC}"
+    "${FONT_PLEX_SRC}"
+    "${FONT_DEJAVU_SRC}"
+    "${FONT_DEJAVU_BOLD_SRC}"
+    "${FONT_COURIER_SRC}"
+    "${FONT_CASCADIA_SRC}"
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/fonts"
     COMPONENT Runtime
 )
 
-# Install bootstrap Lisp file with executable (in bin directory so it's relative to the executable)
+# Install Lisp files to share directory (POSIX-compliant)
 # Always installs from source directory, so changes are picked up on next install
-install(FILES "${BOOTSTRAP_SRC}"
-    DESTINATION "bin"
-    COMPONENT Runtime
-)
-
-# Install tintin.lisp with executable (in bin directory so it's relative to the executable)
-install(FILES "${TINTIN_SRC}"
-    DESTINATION "bin"
+install(FILES
+    "${BOOTSTRAP_SRC}"
+    "${TINTIN_SRC}"
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/lisp"
     COMPONENT Runtime
 )
 
 # Install telnet-gui-log2html.py as telnet-gui-log2html (without .py extension)
 install(PROGRAMS "${LOG2HTML_SRC}"
-    DESTINATION "bin"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME "telnet-gui-log2html"
     COMPONENT Runtime
-)
-
-# Install DejaVu fonts for log2html (in bin/fonts directory)
-install(DIRECTORY "${DEJAVU_FONTS_SRC_DIR}/"
-    DESTINATION "bin/fonts"
-    COMPONENT Runtime
-    FILES_MATCHING PATTERN "*.ttf"
 )
 
 # Find required packages

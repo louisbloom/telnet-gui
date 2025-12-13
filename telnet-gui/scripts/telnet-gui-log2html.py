@@ -11,7 +11,7 @@ Features:
     - Terminal-styled dark theme
     - Color-coded SEND (green) vs RECV (cyan) labels
     - Supports 16 colors, bold, underline, italic, dim
-    - Self-contained HTML (no external dependencies)
+    - Uses system monospace fonts (no external dependencies)
     - Automatically generates HTML files (input.log -> input.html)
 """
 
@@ -19,26 +19,7 @@ Features:
 import sys
 import os
 import re
-import base64
 from html import escape
-
-
-# Load and encode fonts for embedding
-def get_font_base64(font_name):
-    """Load a font file and return base64-encoded data."""
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    font_path = os.path.join(script_dir, "fonts", font_name)
-
-    if not os.path.exists(font_path):
-        # Font file not found, return empty string (will fall back to system fonts)
-        return ""
-
-    try:
-        with open(font_path, "rb") as f:
-            font_data = f.read()
-            return base64.b64encode(font_data).decode("ascii")
-    except Exception:
-        return ""
 
 
 # Telnet protocol bytes (RFC 854 and extensions)
@@ -556,13 +537,6 @@ def format_log_entry(entry, parser):
     return f'<div class="log-line">{escape(entry["text"])}</div>'
 
 
-def generate_css_with_fonts():
-    """Generate CSS using system fonts (no embedded fonts)."""
-    # Use system fonts - no embedded fonts needed
-    # The CSS font-family already includes platform-specific monospace fonts
-    return CSS_TEMPLATE
-
-
 def convert_log_to_html(input_file, output_file):
     """Convert a telnet log file to HTML."""
     try:
@@ -618,7 +592,7 @@ def convert_log_to_html(input_file, output_file):
     html = HTML_TEMPLATE.format(
         title=os.path.basename(input_file),
         filename=os.path.basename(input_file),
-        css=generate_css_with_fonts(),
+        css=CSS_TEMPLATE,
         content=content,
     )
 
@@ -634,19 +608,22 @@ def convert_log_to_html(input_file, output_file):
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python telnet-gui-log2html.py input1.log [input2.log ...]")
+    # Check for help flags
+    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+        print("Usage: telnet-gui-log2html [OPTIONS] INPUT_FILE [INPUT_FILE ...]")
         print(
             "\nConverts telnet log files to terminal-styled HTML pages with ANSI rendering."
         )
         print(
             "Automatically generates HTML files with the same base name as input files."
         )
+        print("\nOptions:")
+        print("  -h, --help    Show this help message and exit")
         print("\nExamples:")
-        print("  python telnet-gui-log2html.py session.log")
-        print("  python telnet-gui-log2html.py session1.log session2.log session3.log")
-        print("  python telnet-gui-log2html.py *.log")
-        sys.exit(1)
+        print("  telnet-gui-log2html session.log")
+        print("  telnet-gui-log2html session1.log session2.log session3.log")
+        print("  telnet-gui-log2html *.log")
+        sys.exit(0 if len(sys.argv) > 1 else 1)
 
     input_files = sys.argv[1:]
 

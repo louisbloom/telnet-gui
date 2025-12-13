@@ -67,6 +67,9 @@ endif()
 
 project(TelnetLisp VERSION 1.0.0 LANGUAGES C)
 
+# Use GNUInstallDirs for POSIX-compliant installation paths
+include(GNUInstallDirs)
+
 # Default to user install directory (no admin privileges required)
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     if(WIN32)
@@ -329,24 +332,24 @@ endif()
 
 # Installation
 install(TARGETS lisp-repl lisp
-    RUNTIME DESTINATION bin
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
 # Install telnet-gui with Runtime component (includes bootstrap.lisp and assets)
 install(TARGETS telnet-gui
-    RUNTIME DESTINATION bin
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     COMPONENT Runtime
 )
 
 install(FILES telnet-lisp/include/lisp.h
-    DESTINATION include
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 # Install telnet-gui-clean-small-logs.sh script
 install(PROGRAMS telnet-gui/scripts/telnet-gui-clean-small-logs.sh
-    DESTINATION bin
+    DESTINATION ${CMAKE_INSTALL_BINDIR}
     RENAME "telnet-gui-clean-small-logs.sh"
 )
 
