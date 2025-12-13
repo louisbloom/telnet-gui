@@ -283,16 +283,14 @@
 (set! *terminal-echo-log* '())
 
 ;; Test: Each command echoed to terminal with CRLF
-;; Note: After Test 19, original input is also echoed, so we expect 3 echoes total
+;; Note: main.c now handles echoing the original input, so the hook only echoes the commands
 (tintin-user-input-hook "n;s" 0)
-(assert-equal (list-length *terminal-echo-log*) 3
-  "Should echo 3 items (original + 2 commands) for 'n;s'")
-(assert-equal (list-ref *terminal-echo-log* 2) "n;s\r\n"
-  "First echo should be original input")
+(assert-equal (list-length *terminal-echo-log*) 2
+  "Should echo 2 items (2 commands) for 'n;s'")
 (assert-equal (list-ref *terminal-echo-log* 1) "n\r\n"
-  "Second echo should be 'n\\r\\n'")
+  "First echo should be 'n\\r\\n'")
 (assert-equal (list-ref *terminal-echo-log* 0) "s\r\n"
-  "Third echo should be 's\\r\\n'")
+  "Second echo should be 's\\r\\n'")
 
 ;; Clear logs
 (set! *telnet-send-log* '())
@@ -462,8 +460,9 @@
 ;; Test 19: Echo Original Commands (Regression - Bug Fix)
 ;; ============================================================================
 
-;; Bug: Aliased commands were not echoing the original input
-;; For example: typing "bag sack" (aliased to "#var {bag} {%0}") didn't echo "bag sack"
+;; Note: main.c now handles echoing the original input before calling the hook,
+;; so the hook no longer needs to echo it. This test verifies the hook processes
+;; commands correctly without echoing the original input.
 
 ;; Clear logs
 (set! *telnet-send-log* '())
@@ -476,34 +475,36 @@
 (set! *telnet-send-log* '())
 (set! *terminal-echo-log* '())
 
-;; Test that original command is echoed before processing
+;; Test that command is processed correctly (main.c handles original echo)
 (tintin-user-input-hook "testcmd" 0)
-;; Should echo "testcmd\r\n" (original input)
-;; Note: Logs are in reverse order (most recent first), so original input is at the end
-(assert-true (> (list-length *terminal-echo-log*) 0)
-  "Original command should be echoed")
-(assert-true (string-prefix? "testcmd" (list-ref *terminal-echo-log* (- (list-length *terminal-echo-log*) 1)))
-  "Echo should contain the command 'testcmd'")
+;; The hook should process the alias and send the expanded command
+;; Note: main.c echoes the original input, so the hook doesn't need to
+(assert-equal (list-length *telnet-send-log*) 1
+  "Should send 1 command for alias")
+(assert-equal (list-ref *telnet-send-log* 0) "north\r\n"
+  "Should send expanded alias command")
 
 ;; Clear logs
 (set! *telnet-send-log* '())
 (set! *terminal-echo-log* '())
 
-;; Test # commands are still echoed (existing behavior)
+;; Test # commands are processed correctly (main.c handles original echo)
 (tintin-user-input-hook "#alias {x} {test}" 0)
-(assert-true (> (list-length *terminal-echo-log*) 0)
-  "# commands should be echoed")
-(assert-true (string-prefix? "#alias" (list-ref *terminal-echo-log* 1))
-  "Echo should contain '#alias'")
+;; The hook should process the # command
+;; Note: main.c echoes the original input, so the hook doesn't echo it
+;; But the command handler may echo confirmation messages (e.g., "Alias 'x' created...")
+;; Verify the alias was created (the confirmation echo is expected behavior)
+(assert-true (hash-ref *tintin-aliases* "x")
+  "Alias should be created")
 
 ;; ============================================================================
 ;; Test 20: Combined Regression Test (All Three Bugs)
 ;; ============================================================================
 
-;; Test all three fixes work together:
+;; Test all fixes work together:
 ;; 1. Brace-aware splitting
 ;; 2. Variable expansion in aliases
-;; 3. Original command echo
+;; Note: Original command echo is now handled by main.c, not the hook
 
 ;; Clear logs
 (set! *telnet-send-log* '())
@@ -530,12 +531,14 @@
 (assert-equal (list-ref *telnet-send-log* 0) "eat bread\r\n"
   "Second command should have expanded variable")
 
-;; Verify original command was echoed
-;; Note: Logs are in reverse order (most recent first), so original input is at the end
-(assert-true (> (list-length *terminal-echo-log*) 0)
-  "Original command should be echoed")
-(assert-true (string-prefix? "ef" (list-ref *terminal-echo-log* (- (list-length *terminal-echo-log*) 1)))
-  "Echo should contain 'ef'")
+;; Verify expanded commands were echoed (hook echoes when commands differ from original)
+;; Note: main.c handles echoing the original input "ef", so the hook only echoes the expanded commands
+(assert-equal (list-length *terminal-echo-log*) 2
+  "Hook should echo 2 expanded commands")
+(assert-equal (list-ref *terminal-echo-log* 1) "get bread\r\n"
+  "First echo should be expanded command")
+(assert-equal (list-ref *terminal-echo-log* 0) "eat bread\r\n"
+  "Second echo should be expanded command")
 
 ;; ============================================================================
 ;; Test 21: #load Command WITHOUT Braces (Braces Optional for Single Words)
@@ -679,14 +682,14 @@
 (assert-equal (hash-ref *tintin-aliases* "complex") '("get {item}; put {item} in bag" 5)
   "Nested braces should be preserved")
 
-;; Test that echo preserves braces in original input
+;; Test that command processing works correctly
+;; Note: main.c handles echoing when commands come through the hook,
+;; so tintin-process-command no longer echoes directly
 (set! *terminal-echo-log* '())
 (tintin-process-command "#alias bag {#var bag %0}")
-(assert-true (>= (list-length *terminal-echo-log*) 1)
-  "Echo should be present")
-;; Echo should preserve braces from original input
-(assert-true (string-prefix? "#alias bag {#var bag %0}" (list-ref *terminal-echo-log* 1))
-  "Echo should preserve braces from original input")
+;; Verify the alias was created correctly (echo is handled by main.c in hook path)
+(assert-true (hash-ref *tintin-aliases* "bag")
+  "Alias should be created")
 
 ;; ============================================================================
 ;; Test 24: Error Handling - File I/O
