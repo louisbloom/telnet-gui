@@ -932,6 +932,14 @@ int lisp_x_load_file(const char *filepath) {
             return -1;
         }
         fprintf(stderr, "Loaded Lisp file: %s\n", filepath);
+
+        /* Echo loaded filename to terminal */
+        if (registered_terminal) {
+            char message[1024];
+            snprintf(message, sizeof(message), "Loaded: %s\r\n", filepath);
+            terminal_feed_data(registered_terminal, message, strlen(message));
+        }
+
         return 0;
     }
 
@@ -1032,6 +1040,14 @@ int lisp_x_load_file(const char *filepath) {
 
             fprintf(stderr, "Lisp file resolution: SUCCESS! Loaded from [%d] %s\n", i + 1, search_labels[i]);
             fprintf(stderr, "Lisp file resolution: File path: %s\n", search_paths[i]);
+
+            /* Echo loaded filename to terminal */
+            if (registered_terminal) {
+                char message[1024];
+                snprintf(message, sizeof(message), "Loaded: %s\r\n", filepath);
+                terminal_feed_data(registered_terminal, message, strlen(message));
+            }
+
             return 0;
         } else {
             fprintf(stderr, "Lisp file resolution: File does not exist, skipping...\n");
