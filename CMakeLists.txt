@@ -210,6 +210,12 @@ install(FILES telnet-lisp/include/lisp.h
     DESTINATION include
 )
 
+# Install telnet-gui-clean-small-logs.sh script
+install(PROGRAMS telnet-gui/scripts/telnet-gui-clean-small-logs.sh
+    DESTINATION bin
+    RENAME "telnet-gui-clean-small-logs.sh"
+)
+
 # Testing
 enable_testing()
 

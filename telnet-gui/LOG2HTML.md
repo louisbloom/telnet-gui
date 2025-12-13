@@ -1,4 +1,4 @@
-# log2html.py - Telnet Log to HTML Converter
+# telnet-gui-log2html.py - Telnet Log to HTML Converter
 
 Convert telnet session logs into beautiful, terminal-styled HTML pages with full ANSI color rendering.
 
@@ -17,13 +17,13 @@ Convert telnet session logs into beautiful, terminal-styled HTML pages with full
 
 ```bash
 # Basic usage - creates sample.html
-python log2html.py sample.log
+python telnet-gui-log2html.py sample.log
 
 # Specify output filename
-python log2html.py session.log output.html
+python telnet-gui-log2html.py session.log output.html
 
 # Show help
-python log2html.py
+python telnet-gui-log2html.py
 ```
 
 ## Example
@@ -159,7 +159,7 @@ File size: Typically ~2-5x the original log file size due to HTML markup and CSS
 ### Convert a single log file
 
 ```bash
-python log2html.py ~/telnet-logs/telnet-localhost-4000-2025-01-15T14-30-25.log
+python telnet-gui-log2html.py ~/telnet-logs/telnet-localhost-4000-2025-01-15T14-30-25.log
 ```
 
 ### Batch convert all logs in a directory
@@ -167,12 +167,12 @@ python log2html.py ~/telnet-logs/telnet-localhost-4000-2025-01-15T14-30-25.log
 ```bash
 # Bash/Linux
 for log in ~/telnet-logs/*.log; do
-    python log2html.py "$log"
+    python telnet-gui-log2html.py "$log"
 done
 
 # PowerShell
 Get-ChildItem ~/telnet-logs/*.log | ForEach-Object {
-    python log2html.py $_.FullName
+    python telnet-gui-log2html.py $_.FullName
 }
 ```
 
@@ -180,18 +180,18 @@ Get-ChildItem ~/telnet-logs/*.log | ForEach-Object {
 
 ```bash
 # Bash/Linux
-python log2html.py session.log && xdg-open session.html
+python telnet-gui-log2html.py session.log && xdg-open session.html
 
 # macOS
-python log2html.py session.log && open session.html
+python telnet-gui-log2html.py session.log && open session.html
 
 # Windows
-python log2html.py session.log && start session.html
+python telnet-gui-log2html.py session.log && start session.html
 ```
 
 ## Customization
 
-To customize colors, edit the `CSS_TEMPLATE` variable in `log2html.py`:
+To customize colors, edit the `CSS_TEMPLATE` variable in `telnet-gui-log2html.py`:
 
 ```python
 CSS_TEMPLATE = """

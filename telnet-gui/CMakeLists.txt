@@ -50,11 +50,11 @@ set(COMPLETION_TEST_DST "${CMAKE_CURRENT_BINARY_DIR}/completion-test.lisp")
 set(TEST_HELPERS_SRC "${CMAKE_CURRENT_SOURCE_DIR}/test-helpers.lisp")
 set(TEST_HELPERS_DST "${CMAKE_CURRENT_BINARY_DIR}/test-helpers.lisp")
 
-# Copy log2html.py script to build directory
-set(LOG2HTML_SRC "${CMAKE_CURRENT_SOURCE_DIR}/scripts/log2html.py")
-set(LOG2HTML_DST "${CMAKE_CURRENT_BINARY_DIR}/log2html.py")
+# Copy telnet-gui-log2html.py script to build directory
+set(LOG2HTML_SRC "${CMAKE_CURRENT_SOURCE_DIR}/scripts/telnet-gui-log2html.py")
+set(LOG2HTML_DST "${CMAKE_CURRENT_BINARY_DIR}/telnet-gui-log2html.py")
 
-# Copy DejaVu Sans Mono fonts for log2html.py
+# Copy DejaVu Sans Mono fonts for telnet-gui-log2html.py
 set(DEJAVU_FONTS_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/fonts")
 set(DEJAVU_FONTS_DST_DIR "${CMAKE_CURRENT_BINARY_DIR}/fonts")
 
@@ -75,7 +75,7 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TEST_HELPERS_SRC}" "${TEST_HELPERS_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LOG2HTML_SRC}" "${LOG2HTML_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${DEJAVU_FONTS_SRC_DIR}" "${DEJAVU_FONTS_DST_DIR}"
-    COMMENT "Copying fonts, bootstrap.lisp, test files, log2html.py, and DejaVu fonts to build directory"
+    COMMENT "Copying fonts, bootstrap.lisp, test files, telnet-gui-log2html.py, and DejaVu fonts to build directory"
 )
 
 # Install font files with executable (in bin directory so it's relative to the executable)
@@ -117,10 +117,10 @@ install(FILES "${TINTIN_SRC}"
     COMPONENT Runtime
 )
 
-# Install log2html.py as log2html (without .py extension)
+# Install telnet-gui-log2html.py as telnet-gui-log2html (without .py extension)
 install(PROGRAMS "${LOG2HTML_SRC}"
     DESTINATION "bin"
-    RENAME "log2html"
+    RENAME "telnet-gui-log2html"
     COMPONENT Runtime
 )
 
