@@ -268,52 +268,41 @@
 (print "TESTING pretty-print-alist FUNCTION")
 (print "====================================================================")
 
-(print "Test: Basic alist pretty printing...")
+;; Note: pretty-print-alist now outputs directly to terminal via terminal-echo
+;; and returns nil. We test that it returns nil and doesn't error.
+
+(print "Test: Basic alist pretty printing returns nil...")
 (define basic-alist '((name . "John") (age . 30) (active . #t)))
 (define basic-result (pretty-print-alist basic-alist))
-(assert-true (string? basic-result) "Should return a string")
-(assert-true (string-contains? basic-result "name:") "Should contain 'name:'")
-(assert-true (string-contains? basic-result "John") "Should contain 'John'")
-(assert-true (string-contains? basic-result "age:") "Should contain 'age:'")
-(assert-true (string-contains? basic-result "30") "Should contain '30'")
+(assert-equal basic-result nil "Should return nil (outputs to terminal)")
 
-(print "Test: Nested alist pretty printing...")
+(print "Test: Nested alist pretty printing returns nil...")
 (define nested-alist '((user . ((name . "Alice") (id . 123))) (status . "online")))
 (define nested-result (pretty-print-alist nested-alist))
-(assert-true (string? nested-result) "Should return a string")
-(assert-true (string-contains? nested-result "user:") "Should contain 'user:'")
-(assert-true (string-contains? nested-result "name:") "Should contain nested 'name:'")
-(assert-true (string-contains? nested-result "Alice") "Should contain 'Alice'")
+(assert-equal nested-result nil "Should return nil for nested alist")
 
-(print "Test: Empty alist...")
+(print "Test: Empty alist returns nil...")
 (define empty-result (pretty-print-alist '()))
-(assert-true (string? empty-result) "Should return a string")
-(assert-true (string-contains? empty-result "empty alist") "Should indicate empty alist")
+(assert-equal empty-result nil "Should return nil for empty alist")
 
-(print "Test: Alist with list values...")
+(print "Test: Alist with list values returns nil...")
 (define list-alist '((colors . (red green blue)) (count . 3)))
 (define list-result (pretty-print-alist list-alist))
-(assert-true (string? list-result) "Should return a string")
-(assert-true (string-contains? list-result "colors:") "Should contain 'colors:'")
+(assert-equal list-result nil "Should return nil for alist with list values")
 
-(print "Test: Invalid input (not a list)...")
+(print "Test: Invalid input (not a list) returns nil...")
 (define invalid-result (pretty-print-alist "not a list"))
-(assert-true (string? invalid-result) "Should return a string")
-(assert-true (string-contains? invalid-result "Error") "Should contain error message")
+(assert-equal invalid-result nil "Should return nil for invalid input")
 
-(print "Test: String values...")
+(print "Test: String values return nil...")
 (define string-alist '((message . "Hello, world!") (title . "Test")))
 (define string-result (pretty-print-alist string-alist))
-(assert-true (string? string-result) "Should return a string")
-(assert-true (string-contains? string-result "message:") "Should contain 'message:'")
-(assert-true (string-contains? string-result "Hello, world!") "Should contain string value")
+(assert-equal string-result nil "Should return nil for string values")
 
-(print "Test: Boolean values...")
+(print "Test: Boolean values return nil...")
 (define bool-alist '((enabled . #t) (disabled . #f)))
 (define bool-result (pretty-print-alist bool-alist))
-(assert-true (string? bool-result) "Should return a string")
-(assert-true (string-contains? bool-result "#t") "Should contain '#t'")
-(assert-true (string-contains? bool-result "#f") "Should contain '#f'")
+(assert-equal bool-result nil "Should return nil for boolean values")
 
 ;; ============================================================================
 ;; TEST: completion-hook function

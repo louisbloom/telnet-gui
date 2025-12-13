@@ -1257,20 +1257,38 @@
   "Format a non-string value."
   (concat (obj-to-string value) "\n"))
 
+;; ANSI true color escape sequence helpers
+(defun ansi-fg-rgb (r g b)
+  "Generate ANSI true color foreground escape sequence."
+  (concat "\033[38;2;" (number->string r) ";" (number->string g) ";" (number->string b) "m"))
+
+(defun ansi-bold-fg-rgb (r g b)
+  "Generate ANSI bold + true color foreground escape sequence."
+  (concat "\033[1;38;2;" (number->string r) ";" (number->string g) ";" (number->string b) "m"))
+
+(define *ansi-reset* "\033[0m")
+
 (defun pretty-print-alist (alist)
-  "Pretty-print an association list in a readable format.
+  "Pretty-print an association list to the terminal with ANSI true color formatting.
 
   ## Parameters
   - `alist` - Association list to print (list of (key . value) pairs)
 
   ## Returns
-  String representation of the alist in a human-readable format.
+  `nil` (output is echoed directly to terminal)
 
   ## Description
-  Formats an association list (alist) as a human-readable string.
-  Each key-value pair is printed on its own line with proper indentation.
-  Handles various value types including strings, numbers, booleans, lists, and
-  nested alists.
+  Formats and displays an association list (alist) directly to the terminal
+  with ANSI true color formatting. Each key-value pair is printed on its own
+  line with proper indentation and color coding.
+
+  **Color scheme:**
+  - Keys: Bold cyan
+  - Colon separator: Gray
+  - String values: Green
+  - Numeric/boolean values: Yellow
+  - List values: Magenta
+  - Errors: Bold red
 
   **Format:**
   - Key-value pairs printed as: `key: value`
@@ -1282,62 +1300,68 @@
   ## Examples
   ```lisp
   (pretty-print-alist '((name . \"John\") (age . 30) (active . #t)))
-  ; => \"name: \\\"John\\\"\\nage: 30\\nactive: #t\\n\"
+  ; Outputs to terminal with colors:
+  ; name: \"John\"
+  ; age: 30
+  ; active: #t
 
-  (pretty-print-alist '((user . ((name . \"Alice\") (id . 123)))
-                         (status . \"online\")))
-  ; => \"user:\\n  name: \\\"Alice\\\"\\n  id: 123\\nstatus: \\\"online\\\"\\n\"
-
-  (pretty-print-alist '((colors . (red green blue))
-                         (count . 3)))
-  ; => \"colors: (red green blue)\\ncount: 3\\n\"
+  (pretty-print-alist '((user . ((name . \"Alice\") (id . 123)))))
+  ; Outputs nested structure with indentation
   ```
 
   ## Notes
-  - Returns a string (does not print to console)
+  - Outputs directly to terminal (returns nil)
+  - Uses ANSI true color (24-bit) escape sequences
   - Handles nested alists with indentation
   - Works with any alist structure
-  - Useful for debugging and inspection
 
   ## See Also
-  - `hash-keys` - Get keys from hash table
-  - `hash-ref` - Look up values in hash table"
-  (if (not (list? alist))
-    "Error: pretty-print-alist expects a list\n"
-    (let* ((result "")
-            (append-result!
-              (lambda (str)
-                (set! result (concat result str))))
-            (format-nested-alist
-              (lambda (nested-alist indent indent-str)
-                (append-result! "\n")
-                (do ((remaining nested-alist (cdr remaining)))
-                  ((null? remaining))
-                  (let ((pair (car remaining)))
-                    (if (pair? pair)
-                      (print-pair (car pair) (cdr pair) (+ indent 1))
-                      (progn
-                        (append-result! indent-str)
-                        (append-result! "  ")
-                        (append-result! (obj-to-string pair))
-                        (append-result! "\n")))))))
-            (print-pair
-              (lambda (key value indent)
-                (let ((indent-str (build-indent indent)))
-                  (append-result! indent-str)
-                  (append-result! (obj-to-string key))
-                  (append-result! ": ")
-                  (cond
-                    ((list? value)
-                      (if (is-nested-alist? value)
-                        (format-nested-alist value indent indent-str)
-                        (append-result! (format-regular-value value))))
-                    ((string? value)
-                      (append-result! (format-string-value value)))
-                    (#t
-                      (append-result! (format-regular-value value))))))))
+  - `terminal-echo` - Echo text to terminal
+  - `hash-keys` - Get keys from hash table"
+  ;; Color definitions using true color RGB
+  (let* ((key-color (ansi-bold-fg-rgb 100 200 255))      ; Bold cyan for keys
+          (colon-color (ansi-fg-rgb 150 150 150))          ; Gray for separator
+          (string-color (ansi-fg-rgb 150 255 150))         ; Green for strings
+          (value-color (ansi-fg-rgb 255 255 150))          ; Yellow for numbers/bools
+          (list-color (ansi-fg-rgb 255 150 255))           ; Magenta for lists
+          (error-color (ansi-bold-fg-rgb 255 100 100))     ; Bold red for errors
+          (reset *ansi-reset*)
+          (format-nested-alist
+            (lambda (nested-alist indent indent-str)
+              (terminal-echo "\r\n")
+              (do ((remaining nested-alist (cdr remaining)))
+		((null? remaining))
+		(let ((pair (car remaining)))
+                  (if (pair? pair)
+                    (print-pair (car pair) (cdr pair) (+ indent 1))
+                    (progn
+                      (terminal-echo indent-str)
+                      (terminal-echo "  ")
+                      (terminal-echo (concat value-color (obj-to-string pair) reset))
+                      (terminal-echo "\r\n")))))))
+          (print-pair
+            (lambda (key value indent)
+              (let ((indent-str (build-indent indent)))
+		(terminal-echo indent-str)
+		(terminal-echo (concat key-color (obj-to-string key) reset))
+		(terminal-echo (concat colon-color ": " reset))
+		(cond
+                  ((list? value)
+                    (if (is-nested-alist? value)
+                      (format-nested-alist value indent indent-str)
+                      (terminal-echo (concat list-color (obj-to-string value) reset "\r\n"))))
+                  ((string? value)
+                    (terminal-echo (concat string-color "\"" value "\"" reset "\r\n")))
+                  (#t
+                    (terminal-echo (concat value-color (obj-to-string value) reset "\r\n"))))))))
+    (if (not (list? alist))
+      (progn
+        (terminal-echo (concat error-color "Error: pretty-print-alist expects a list" reset "\r\n"))
+        nil)
       (if (null? alist)
-        "(empty alist)\n"
+        (progn
+          (terminal-echo (concat value-color "(empty alist)" reset "\r\n"))
+          nil)
         (progn
           (do ((remaining alist (cdr remaining)))
             ((null? remaining))
@@ -1345,10 +1369,8 @@
               (if (pair? pair)
                 (print-pair (car pair) (cdr pair) 0)
                 (progn
-                  (append-result! "Invalid pair: ")
-                  (append-result! (obj-to-string pair))
-                  (append-result! "\n")))))
-          result)))))
+                  (terminal-echo (concat error-color "Invalid pair: " (obj-to-string pair) reset "\r\n"))))))
+          nil)))))
 
 ;; ============================================================================
 ;; COLOR CONFIGURATION
