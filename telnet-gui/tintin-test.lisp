@@ -1294,8 +1294,9 @@
 (print "ALL ACTION TESTS PASSED!")
 (print "====================================================================")
 
-;; Clean up temporary test file
+;; Clean up temporary test files
 (delete-file "tintin-load-test.lisp")
+(delete-file "tintin-test-save.lisp")
 
 (print "")
 (print "====================================================================")

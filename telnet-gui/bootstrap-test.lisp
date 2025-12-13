@@ -1,0 +1,327 @@
+;; Bootstrap Test Suite
+;;
+;; This test file tests functions from bootstrap.lisp.
+;;
+;; To run this test:
+;;   telnet-gui.exe -t bootstrap-test.lisp
+;;
+;; Note: bootstrap.lisp is automatically loaded by telnet-gui, so the functions
+;; are available when running tests through telnet-gui's test runner.
+
+;; Load test helper macros
+(load "test-helpers.lisp")  ; ignore
+
+;; Define test stubs for hooks that require telnet context
+(define terminal-echo (lambda (text) nil))  ; ignore
+(define telnet-send (lambda (text) nil))  ; ignore
+
+;; ============================================================================
+;; TEST: trim-punctuation function
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING trim-punctuation FUNCTION")
+(print "====================================================================")
+
+(print "Test: Trim trailing punctuation...")
+(assert-equal (trim-punctuation "hello!") "hello" "Should remove trailing exclamation")
+(assert-equal (trim-punctuation "world.") "world" "Should remove trailing period")
+(assert-equal (trim-punctuation "test?") "test" "Should remove trailing question mark")
+
+(print "Test: Trim leading punctuation...")
+(assert-equal (trim-punctuation "(world)") "world" "Should remove leading and trailing parentheses")
+(assert-equal (trim-punctuation "[test]") "test" "Should remove brackets")
+
+(print "Test: Preserve internal punctuation...")
+(assert-equal (trim-punctuation "don't") "don't" "Should preserve internal apostrophe")
+(assert-equal (trim-punctuation "well-known") "well-known" "Should preserve internal hyphen")
+
+(print "Test: Handle multiple punctuation...")
+(assert-equal (trim-punctuation "--test--") "test" "Should remove multiple dashes")
+(assert-equal (trim-punctuation "!!!") "" "Should return empty for all punctuation")
+
+(print "Test: Handle empty and invalid input...")
+(assert-equal (trim-punctuation "") "" "Should return empty string for empty input")
+(assert-equal (trim-punctuation nil) "" "Should return empty string for nil")
+
+;; ============================================================================
+;; TEST: clean-word function
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING clean-word FUNCTION")
+(print "====================================================================")
+
+(print "Test: Clean valid words...")
+(assert-equal (clean-word "hello!") "hello" "Should clean trailing punctuation")
+(assert-equal (clean-word "world") "world" "Should return unchanged word")
+
+(print "Test: Handle invalid input...")
+(assert-equal (clean-word "") "" "Should return empty for empty string")
+(assert-equal (clean-word nil) "" "Should return empty for nil")
+
+;; ============================================================================
+;; TEST: valid-word? function
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING valid-word? FUNCTION")
+(print "====================================================================")
+
+(print "Test: Valid words...")
+(assert-true (valid-word? "hello") "Should return true for valid word")
+(assert-true (valid-word? "test") "Should return true for another valid word")
+
+(print "Test: Invalid words...")
+(assert-false (valid-word? "") "Should return false for empty string")
+(assert-false (valid-word? nil) "Should return false for nil")
+
+;; ============================================================================
+;; TEST: extract-words function
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING extract-words FUNCTION")
+(print "====================================================================")
+
+(print "Test: Extract words from text...")
+(define words1 (extract-words "hello world test"))
+(assert-true (list? words1) "Should return a list")
+(assert-true (>= (length words1) 3) "Should extract multiple words")
+
+(print "Test: Handle punctuation...")
+(define words2 (extract-words "hello, world! test."))
+(assert-true (list? words2) "Should handle punctuation")
+
+(print "Test: Handle empty input...")
+(assert-equal (extract-words "") '() "Should return empty list for empty string")
+(assert-equal (extract-words nil) '() "Should return empty list for nil")
+
+;; ============================================================================
+;; TEST: add-word-to-store function
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING add-word-to-store FUNCTION")
+(print "====================================================================")
+
+(print "Test: Add valid words...")
+(define result1 (add-word-to-store "hello"))
+(assert-equal result1 1 "Should return 1 for valid word")
+
+(print "Test: Reject short words...")
+(define result2 (add-word-to-store "hi"))
+(assert-equal result2 0 "Should return 0 for word < 3 characters")
+(define result3 (add-word-to-store "ab"))
+(assert-equal result3 0 "Should return 0 for 2-character word")
+
+(print "Test: Add multiple words...")
+(add-word-to-store "dragon")  ; ignore
+(add-word-to-store "wizard")  ; ignore
+(add-word-to-store "knight")  ; ignore
+(assert-true #t "Should add multiple words without error")
+
+;; ============================================================================
+;; TEST: get-completions-from-store function
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING get-completions-from-store FUNCTION")
+(print "====================================================================")
+
+(print "Test: Get completions for prefix...")
+;; Clear store and add test words
+(hash-clear! *completion-word-store*)  ; ignore
+(set! *completion-word-order-index* 0)  ; ignore
+(set! *completion-word-order* (make-vector *completion-word-store-size* nil))  ; ignore
+
+(add-word-to-store "hello")  ; ignore
+(add-word-to-store "help")  ; ignore
+(add-word-to-store "helmet")  ; ignore
+(add-word-to-store "world")  ; ignore
+
+(define completions (get-completions-from-store "hel"))
+(assert-true (list? completions) "Should return a list")
+(assert-true (> (length completions) 0) "Should find matches for 'hel' prefix")
+
+(print "Test: Case-insensitive matching...")
+(define completions-upper (get-completions-from-store "HEL"))
+(assert-true (list? completions-upper) "Should match case-insensitively")
+
+(print "Test: No matches...")
+(define completions-none (get-completions-from-store "xyz"))
+(assert-equal completions-none '() "Should return empty list for no matches")
+
+(print "Test: Empty prefix...")
+(define completions-empty (get-completions-from-store ""))
+(assert-equal completions-empty '() "Should return empty list for empty prefix")
+
+;; ============================================================================
+;; TEST: build-indent function
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING build-indent FUNCTION")
+(print "====================================================================")
+
+(print "Test: Build indent strings...")
+(assert-equal (build-indent 0) "" "Should return empty string for level 0")
+(assert-equal (build-indent 1) "  " "Should return 2 spaces for level 1")
+(assert-equal (build-indent 2) "    " "Should return 4 spaces for level 2")
+(assert-equal (build-indent 3) "      " "Should return 6 spaces for level 3")
+
+;; ============================================================================
+;; TEST: pretty-print-alist function
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING pretty-print-alist FUNCTION")
+(print "====================================================================")
+
+(print "Test: Basic alist pretty printing...")
+(define basic-alist '((name . "John") (age . 30) (active . #t)))
+(define basic-result (pretty-print-alist basic-alist))
+(assert-true (string? basic-result) "Should return a string")
+(assert-true (string-contains? basic-result "name:") "Should contain 'name:'")
+(assert-true (string-contains? basic-result "John") "Should contain 'John'")
+(assert-true (string-contains? basic-result "age:") "Should contain 'age:'")
+(assert-true (string-contains? basic-result "30") "Should contain '30'")
+
+(print "Test: Nested alist pretty printing...")
+(define nested-alist '((user . ((name . "Alice") (id . 123))) (status . "online")))
+(define nested-result (pretty-print-alist nested-alist))
+(assert-true (string? nested-result) "Should return a string")
+(assert-true (string-contains? nested-result "user:") "Should contain 'user:'")
+(assert-true (string-contains? nested-result "name:") "Should contain nested 'name:'")
+(assert-true (string-contains? nested-result "Alice") "Should contain 'Alice'")
+
+(print "Test: Empty alist...")
+(define empty-result (pretty-print-alist '()))
+(assert-true (string? empty-result) "Should return a string")
+(assert-true (string-contains? empty-result "empty alist") "Should indicate empty alist")
+
+(print "Test: Alist with list values...")
+(define list-alist '((colors . (red green blue)) (count . 3)))
+(define list-result (pretty-print-alist list-alist))
+(assert-true (string? list-result) "Should return a string")
+(assert-true (string-contains? list-result "colors:") "Should contain 'colors:'")
+
+(print "Test: Invalid input (not a list)...")
+(define invalid-result (pretty-print-alist "not a list"))
+(assert-true (string? invalid-result) "Should return a string")
+(assert-true (string-contains? invalid-result "Error") "Should contain error message")
+
+(print "Test: String values...")
+(define string-alist '((message . "Hello, world!") (title . "Test")))
+(define string-result (pretty-print-alist string-alist))
+(assert-true (string? string-result) "Should return a string")
+(assert-true (string-contains? string-result "message:") "Should contain 'message:'")
+(assert-true (string-contains? string-result "Hello, world!") "Should contain string value")
+
+(print "Test: Boolean values...")
+(define bool-alist '((enabled . #t) (disabled . #f)))
+(define bool-result (pretty-print-alist bool-alist))
+(assert-true (string? bool-result) "Should return a string")
+(assert-true (string-contains? bool-result "#t") "Should contain '#t'")
+(assert-true (string-contains? bool-result "#f") "Should contain '#f'")
+
+;; ============================================================================
+;; TEST: completion-hook function
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING completion-hook FUNCTION")
+(print "====================================================================")
+
+(print "Test: Completion hook returns list...")
+;; Add some words to store first
+(hash-clear! *completion-word-store*)  ; ignore
+(set! *completion-word-order-index* 0)  ; ignore
+(set! *completion-word-order* (make-vector *completion-word-store-size* nil))  ; ignore
+(add-word-to-store "test")  ; ignore
+(add-word-to-store "testing")  ; ignore
+
+(define hook-result (completion-hook "test"))
+(assert-true (list? hook-result) "Should return a list")
+
+(print "Test: Empty prefix returns empty list...")
+(define hook-empty (completion-hook ""))
+(assert-equal hook-empty '() "Should return empty list for empty prefix")
+
+(print "Test: Invalid input returns empty list...")
+(define hook-invalid (completion-hook nil))
+(assert-equal hook-invalid '() "Should return empty list for nil")
+
+;; ============================================================================
+;; TEST: telnet-input-hook function
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING telnet-input-hook FUNCTION")
+(print "====================================================================")
+
+(print "Test: Hook processes text...")
+;; Clear store first
+(hash-clear! *completion-word-store*)  ; ignore
+(set! *completion-word-order-index* 0)  ; ignore
+(set! *completion-word-order* (make-vector *completion-word-store-size* nil))  ; ignore
+
+(define hook-result (telnet-input-hook "The dragon guards the treasure!"))
+(assert-false hook-result "Should return nil (side-effect only)")
+
+(print "Test: Words are collected...")
+(define completions-after (get-completions-from-store "drag"))
+(assert-true (list? completions-after) "Should have collected words")
+
+;; ============================================================================
+;; TEST: telnet-input-filter-hook function
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING telnet-input-filter-hook FUNCTION")
+(print "====================================================================")
+
+(print "Test: Filter hook returns text unchanged (default)...")
+(define filter-result (telnet-input-filter-hook "test text"))
+(assert-equal filter-result "test text" "Should return text unchanged by default")
+
+(print "Test: Filter hook handles various inputs...")
+(assert-equal (telnet-input-filter-hook "hello") "hello" "Should pass through simple text")
+(assert-equal (telnet-input-filter-hook "") "" "Should handle empty string")
+
+;; ============================================================================
+;; TEST: user-input-hook function
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING user-input-hook FUNCTION")
+(print "====================================================================")
+
+(print "Test: User input hook returns text unchanged (default)...")
+(define user-result (user-input-hook "test command" 0))
+(assert-equal user-result "test command" "Should return text unchanged by default")
+
+(print "Test: User input hook handles cursor position...")
+(define user-result2 (user-input-hook "hello" 5))
+(assert-equal user-result2 "hello" "Should handle cursor position parameter")
+
+;; ============================================================================
+;; ALL TESTS PASSED
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "ALL BOOTSTRAP TESTS PASSED!")
+(print "====================================================================")

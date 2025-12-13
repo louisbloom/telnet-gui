@@ -59,6 +59,8 @@ set(TINTIN_TEST_SRC "${CMAKE_CURRENT_SOURCE_DIR}/tintin-test.lisp")
 set(TINTIN_TEST_DST "${CMAKE_CURRENT_BINARY_DIR}/tintin-test.lisp")
 set(COMPLETION_TEST_SRC "${CMAKE_CURRENT_SOURCE_DIR}/completion-test.lisp")
 set(COMPLETION_TEST_DST "${CMAKE_CURRENT_BINARY_DIR}/completion-test.lisp")
+set(BOOTSTRAP_TEST_SRC "${CMAKE_CURRENT_SOURCE_DIR}/bootstrap-test.lisp")
+set(BOOTSTRAP_TEST_DST "${CMAKE_CURRENT_BINARY_DIR}/bootstrap-test.lisp")
 set(TEST_HELPERS_SRC "${CMAKE_CURRENT_SOURCE_DIR}/test-helpers.lisp")
 set(TEST_HELPERS_DST "${CMAKE_CURRENT_BINARY_DIR}/test-helpers.lisp")
 
@@ -79,6 +81,7 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_SRC}" "${TINTIN_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_TEST_SRC}" "${TINTIN_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${COMPLETION_TEST_SRC}" "${COMPLETION_TEST_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${BOOTSTRAP_TEST_SRC}" "${BOOTSTRAP_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TEST_HELPERS_SRC}" "${TEST_HELPERS_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LOG2HTML_SRC}" "${LOG2HTML_DST}"
     COMMENT "Copying resources to build directory"

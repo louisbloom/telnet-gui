@@ -384,6 +384,11 @@ add_test(NAME gui_completion-test
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/telnet-gui
 )
 
+add_test(NAME gui_bootstrap-test
+    COMMAND ${CMAKE_BINARY_DIR}/lisp-repl.exe bootstrap-test.lisp
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/telnet-gui
+)
+
 # Package configuration
 set(CPACK_PACKAGE_NAME "TelnetLisp")
 set(CPACK_PACKAGE_VERSION "1.0.0")
