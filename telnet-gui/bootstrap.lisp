@@ -1219,6 +1219,121 @@
 (define *input-history-size* 100)
 
 ;; ============================================================================
+;; UTILITY FUNCTIONS
+;; ============================================================================
+
+(defun pretty-print-alist (alist)
+  "Pretty-print an association list in a readable format.
+
+  ## Parameters
+  - `alist` - Association list to print (list of (key . value) pairs)
+
+  ## Returns
+  `nil` - This function is side-effect only (prints to terminal).
+
+  ## Description
+  Formats and prints an association list (alist) in a human-readable format.
+  Each key-value pair is printed on its own line with proper indentation.
+  Handles various value types including strings, numbers, booleans, lists, and
+  nested alists.
+
+  **Format:**
+  - Key-value pairs printed as: `key: value`
+  - Nested alists are indented
+  - Lists are printed in readable format
+  - Strings are printed with quotes
+  - Booleans printed as `#t` or `#f`
+
+  ## Examples
+  ```lisp
+  (pretty-print-alist '((name . \"John\") (age . 30) (active . #t)))
+  ; Prints:
+  ; name: \"John\"
+  ; age: 30
+  ; active: #t
+
+  (pretty-print-alist '((user . ((name . \"Alice\") (id . 123)))
+                         (status . \"online\")))
+  ; Prints:
+  ; user:
+  ;   name: \"Alice\"
+  ;   id: 123
+  ; status: \"online\"
+
+  (pretty-print-alist '((colors . (red green blue))
+                         (count . 3)))
+  ; Prints:
+  ; colors: (red green blue)
+  ; count: 3
+  ```
+
+  ## Notes
+  - Side-effect only: prints to terminal, returns `nil`
+  - Handles nested alists with indentation
+  - Works with any alist structure
+  - Useful for debugging and inspection
+
+  ## See Also
+  - `hash-keys` - Get keys from hash table
+  - `hash-ref` - Look up values in hash table"
+  (if (not (list? alist))
+    (progn
+      (princ "Error: pretty-print-alist expects a list\n")
+      ())
+    (let ((build-indent
+            (lambda (level)
+              (let ((result ""))
+                (do ((i 0 (+ i 1)))
+                  ((>= i level) result)
+                  (set! result (concat result "  "))))))
+           (print-pair
+             (lambda (key value indent)
+               (let ((indent-str (build-indent indent)))
+                 (princ indent-str)
+                 (princ key)
+                 (princ ": ")
+                 (cond
+                   ((list? value)
+                     (if (and (not (null? value))
+                           (pair? (car value))
+                           (not (list? (car (car value)))))
+                       ;; Nested alist
+                       (progn
+			 (princ "\n")
+			 (do ((remaining value (cdr remaining)))
+                           ((null? remaining))
+                           (let ((pair (car remaining)))
+                             (if (pair? pair)
+                               (print-pair (car pair) (cdr pair) (+ indent 1))
+                               (progn
+				 (princ indent-str)
+				 (princ "  ")
+				 (princ pair)
+				 (princ "\n"))))))
+                       ;; Regular list
+                       (progn
+			 (princ value)
+			 (princ "\n"))))
+                   ((string? value)
+                     (princ "\"")
+                     (princ value)
+                     (princ "\"\n"))
+                   (#t
+                     (princ value)
+                     (princ "\n")))))))
+      (if (null? alist)
+        (princ "(empty alist)\n")
+        (do ((remaining alist (cdr remaining)))
+          ((null? remaining))
+          (let ((pair (car remaining)))
+            (if (pair? pair)
+              (print-pair (car pair) (cdr pair) 0)
+              (progn
+                (princ "Invalid pair: ")
+                (princ pair)
+                (princ "\n")))))))))
+
+;; ============================================================================
 ;; COLOR CONFIGURATION
 ;; ============================================================================
 ;; All colors are specified as RGB lists (r g b) where each component is 0-255
