@@ -598,16 +598,6 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    /* Hide console window when running in GUI mode (not test/help mode) */
-#ifdef _WIN32
-    /* Hide the console window for normal GUI operation
-       Test mode (-t) and help (-h) already exited above, so this only affects GUI mode */
-    HWND console = GetConsoleWindow();
-    if (console != NULL) {
-        ShowWindow(console, SW_HIDE);
-    }
-#endif
-
     /* Initialize SDL2 */
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) < 0) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
