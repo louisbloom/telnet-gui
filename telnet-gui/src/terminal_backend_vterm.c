@@ -970,9 +970,9 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
     /* Calculate divider colors based on connection status */
     int divider_r, divider_g, divider_b;
     if (connected) {
-        divider_r = 120;
-        divider_g = 140;
-        divider_b = 120; /* Muted green-gray when connected */
+        divider_r = 80;
+        divider_g = 160;
+        divider_b = 80; /* Green when connected */
     } else {
         divider_r = 100;
         divider_g = 100;
