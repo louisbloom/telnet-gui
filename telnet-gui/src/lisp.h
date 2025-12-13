@@ -45,6 +45,12 @@ int lisp_x_get_scroll_to_bottom_on_telnet_input(void);
 /* Get input history size from Lisp config (default: 100) */
 int lisp_x_get_input_history_size(void);
 
+/* Get terminal line height multiplier from Lisp config (default: 1.0) */
+float lisp_x_get_terminal_line_height(void);
+
+/* Set terminal line height multiplier (overrides Lisp config) */
+void lisp_x_set_terminal_line_height(float line_height);
+
 /* Call telnet-input-hook with telnet data (stripped of ANSI codes) */
 void lisp_x_call_telnet_input_hook(const char *text, size_t len);
 

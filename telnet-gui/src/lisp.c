@@ -473,6 +473,9 @@ static LispObject *builtin_terminal_info(LispObject *args, Environment *env) {
     int cell_w, cell_h;
     glyph_cache_get_cell_size(registered_glyph_cache, &cell_w, &cell_h);
 
+    /* Get line height multiplier */
+    float line_height = lisp_x_get_terminal_line_height();
+
     /* Collect window dimensions */
     int window_w, window_h;
     window_get_size(registered_window, &window_w, &window_h);
@@ -511,6 +514,7 @@ static LispObject *builtin_terminal_info(LispObject *args, Environment *env) {
     ADD_PAIR("rows", lisp_make_integer(rows));
     ADD_PAIR("cell-width", lisp_make_integer(cell_w));
     ADD_PAIR("cell-height", lisp_make_integer(cell_h));
+    ADD_PAIR("line-height", lisp_make_number((double)line_height));
     ADD_PAIR("window-width", lisp_make_integer(window_w));
     ADD_PAIR("window-height", lisp_make_integer(window_h));
     ADD_PAIR("viewport-offset", lisp_make_integer(viewport_offset));
@@ -809,6 +813,7 @@ int lisp_x_init(void) {
         "**Cell Metrics:**\n"
         "- `cell-width` - Character cell width in pixels (integer)\n"
         "- `cell-height` - Character cell height in pixels (integer)\n"
+        "- `line-height` - Line height multiplier (number, default: 1.0)\n"
         "\n"
         "**Window Dimensions:**\n"
         "- `window-width` - Window width in pixels (integer)\n"
@@ -838,6 +843,10 @@ int lisp_x_init(void) {
         "\n"
         "(define rows (cdr (assoc 'rows info)))\n"
         "; => 24\n"
+        "\n"
+        "; Get line height multiplier\n"
+        "(define line-height (cdr (assoc 'line-height info)))\n"
+        "; => 1.0  (normal spacing, or 1.5 if set to 1.5x)\n"
         "\n"
         "; Check scrollback position\n"
         "(define offset (cdr (assoc 'viewport-offset info)))\n"
@@ -1435,6 +1444,56 @@ int lisp_x_get_input_history_size(void) {
 
     /* Invalid type, return default */
     return 100;
+}
+
+float lisp_x_get_terminal_line_height(void) {
+    if (!lisp_env) {
+        return 1.2f; /* Default: 1.2 (20% more spacing for readability) */
+    }
+
+    LispObject *value = env_lookup(lisp_env, "*terminal-line-height*");
+    if (!value || value == NIL) {
+        return 1.2f; /* Default: 1.2 (20% more spacing for readability) */
+    }
+
+    /* Check if it's an integer */
+    if (value->type == LISP_INTEGER) {
+        float height = (float)value->value.integer;
+        /* Clamp to reasonable range (0.5 to 3.0) */
+        if (height < 0.5f)
+            height = 0.5f;
+        if (height > 3.0f)
+            height = 3.0f;
+        return height;
+    }
+
+    /* Check if it's a number (float) */
+    if (value->type == LISP_NUMBER) {
+        float height = (float)value->value.number;
+        /* Clamp to reasonable range (0.5 to 3.0) */
+        if (height < 0.5f)
+            height = 0.5f;
+        if (height > 3.0f)
+            height = 3.0f;
+        return height;
+    }
+
+    /* Invalid type, return default */
+    return 1.2f;
+}
+
+void lisp_x_set_terminal_line_height(float line_height) {
+    if (!lisp_env) {
+        return;
+    }
+    /* Clamp to reasonable range */
+    if (line_height < 0.5f)
+        line_height = 0.5f;
+    if (line_height > 3.0f)
+        line_height = 3.0f;
+    /* Set the variable using env_define (creates or updates) */
+    LispObject *line_height_obj = lisp_make_number((double)line_height);
+    env_define(lisp_env, "*terminal-line-height*", line_height_obj);
 }
 
 void lisp_x_call_telnet_input_hook(const char *text, size_t len) {

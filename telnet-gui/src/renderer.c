@@ -3,6 +3,7 @@
 #include "renderer.h"
 #include "renderer_backend.h"
 #include "terminal.h"
+#include "lisp.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <SDL2/SDL.h>
@@ -63,8 +64,13 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
     }
 
     int total_rows = scrolling_rows + 2 + input_rows;
+
+    /* Get line height multiplier and calculate effective cell height */
+    float line_height = lisp_x_get_terminal_line_height();
+    int effective_cell_h = (int)(r->cell_h * line_height);
+
     int window_width = cols * r->cell_w + 2 * PADDING_X;
-    int window_height = total_rows * r->cell_h + 2 * PADDING_Y;
+    int window_height = total_rows * effective_cell_h + 2 * PADDING_Y;
 
     /* Begin frame - clear screen */
     if (r->backend && r->backend->begin_frame)
@@ -122,7 +128,8 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
 
             /* Delegate cell rendering to backend */
             if (r->backend && r->backend->render_cell) {
-                r->backend->render_cell(r->backend_state, term, row, col, &cell, in_selection, r->cell_w, r->cell_h);
+                r->backend->render_cell(r->backend_state, term, row, col, &cell, in_selection, r->cell_w,
+                                        effective_cell_h);
             }
         }
     }
@@ -141,7 +148,7 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
         int input_text_first_row = scrolling_rows + 1; /* First row of input text */
         int screen_row = input_text_first_row + visible_cursor_row;
 
-        r->backend->render_cursor(r->backend_state, screen_row, cursor_visual_col, r->cell_w, r->cell_h);
+        r->backend->render_cursor(r->backend_state, screen_row, cursor_visual_col, r->cell_w, effective_cell_h);
     }
 
     /* End frame */

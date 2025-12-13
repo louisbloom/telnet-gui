@@ -1236,3 +1236,31 @@
 
 ;; Separator line between terminal and input area
 (define *input-separator-color* '(100 100 100))  ; Gray separator line
+
+;; ============================================================================
+;; TERMINAL LINE HEIGHT CONFIGURATION
+;; ============================================================================
+;; *terminal-line-height*: Multiplier for terminal line spacing
+;;
+;; This controls the vertical spacing between terminal lines. The value is a
+;; multiplier applied to the base cell height calculated from the font metrics.
+;;
+;; Values:
+;;   1.2  - Default spacing (20% more than font metrics, better readability)
+;;   1.0  - Normal spacing (matches font metrics)
+;;   1.5  - 50% more spacing between lines
+;;   2.0  - Double spacing
+;;   0.5  - Half spacing (tighter, minimum recommended)
+;;
+;; Examples:
+;;   1.2  - Default, comfortable spacing for readability
+;;   1.0  - Compact terminal appearance (matches font metrics)
+;;   1.25 - Slightly more spacing for readability
+;;   1.5  - Comfortable spacing for long reading sessions
+;;   2.0  - Very loose spacing, maximum recommended
+;;
+;; Note: Values are clamped to 0.5-3.0 range for safety. The multiplier affects
+;;       vertical spacing between rows, window height calculations, and mouse
+;;       coordinate conversion, but does not stretch glyphs (they maintain their
+;;       original size from the font).
+(define *terminal-line-height* 1.2)

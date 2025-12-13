@@ -203,6 +203,10 @@ static void calculate_terminal_size(int window_width, int window_height, int cel
     int available_width = window_width - 2 * PADDING_X;
     int available_height = window_height - 2 * PADDING_Y;
 
+    /* Get line height multiplier and calculate effective cell height */
+    float line_height = lisp_x_get_terminal_line_height();
+    int effective_cell_h = (int)(cell_h * line_height);
+
     /* Calculate columns from available width */
     *cols = available_width / cell_w;
     if (*cols < 10)
@@ -212,7 +216,7 @@ static void calculate_terminal_size(int window_width, int window_height, int cel
     /* Subtract rows for top divider, bottom divider, and dynamic input area height */
     int input_height_rows =
         2 + input_area_get_visible_rows(input_area); /* Top divider + bottom divider + visible input rows */
-    *rows = (available_height / cell_h) - input_height_rows;
+    *rows = (available_height / effective_cell_h) - input_height_rows;
     if (*rows < 1)
         *rows = 1; /* Minimum: 1 scrolling row */
 }
@@ -317,6 +321,8 @@ static void print_help(const char *program_name) {
     printf("    -l, --lisp-file FILE   Load and evaluate Lisp file on startup\n");
     printf("                            Can be specified multiple times (loads in order)\n");
     printf("                            Used to customize completion hooks and scroll settings\n");
+    printf("    -L, --line-height HEIGHT Set line height multiplier (default: 1.2)\n");
+    printf("                            HEIGHT can be 0.5 to 3.0 (e.g., 1.5 for 50%% more spacing)\n");
     printf("    -t, --test FILE        Run a Lisp test file in headless mode and exit\n");
     printf("                            Returns 0 on success, non-zero on failure\n");
     printf("    --debug-exit           Exit after initialization (for debug output)\n");
@@ -344,6 +350,8 @@ static void print_help(const char *program_name) {
     printf("      Connect with 100x40 terminal size\n");
     printf("  %s -l completion.lisp telnet-server 4449\n", program_name);
     printf("      Connect and load Lisp configuration file\n");
+    printf("  %s --line-height 1.5 telnet-server 4449\n", program_name);
+    printf("      Connect with 1.5x line height (50%% more spacing)\n");
     printf("  %s -l tintin.lisp -l myconfig.lisp server 4449\n", program_name);
     printf("      Load multiple Lisp files in order\n");
     printf("  %s -t tintin_test_final.lisp\n", program_name);
@@ -361,10 +369,11 @@ int main(int argc, char **argv) {
     const char *test_file = NULL; /* Test file for headless mode */
     char font_choice =
         's'; /* Font selection: s=System font (default), m=Cascadia Mono, i=Inconsolata, p=Plex, d=DejaVu, c=Courier */
-    int font_size = 12;     /* Default font size */
-    int terminal_cols = 80; /* Default terminal columns */
-    int terminal_rows = 40; /* Default terminal rows */
-    int debug_exit = 0;     /* Exit after initialization for debug output */
+    int font_size = 12;           /* Default font size */
+    int terminal_cols = 80;       /* Default terminal columns */
+    int terminal_rows = 40;       /* Default terminal rows */
+    int debug_exit = 0;           /* Exit after initialization for debug output */
+    float cli_line_height = 0.0f; /* CLI line height (0.0 means not set, use default) */
 
     /* Parse command-line arguments */
     int arg_idx = 1;
@@ -483,6 +492,17 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Error: Too many -l flags (maximum 16)\n");
                 return 1;
             }
+        } else if (strcmp(argv[arg_idx], "-L") == 0 || strcmp(argv[arg_idx], "--line-height") == 0) {
+            if (arg_idx + 1 >= argc) {
+                fprintf(stderr, "Error: --line-height requires a value (0.5 to 3.0)\n");
+                return 1;
+            }
+            arg_idx++;
+            cli_line_height = (float)atof(argv[arg_idx]);
+            if (cli_line_height < 0.5f || cli_line_height > 3.0f) {
+                fprintf(stderr, "Error: Invalid line height '%s'. Must be between 0.5 and 3.0\n", argv[arg_idx]);
+                return 1;
+            }
         } else if (strcmp(argv[arg_idx], "-t") == 0 || strcmp(argv[arg_idx], "--test") == 0) {
             if (arg_idx + 1 >= argc) {
                 fprintf(stderr, "Error: --test requires a file path\n");
@@ -540,6 +560,11 @@ int main(int argc, char **argv) {
     if (lisp_x_init() < 0) {
         fprintf(stderr, "Failed to initialize Lisp bridge\n");
         return 1;
+    }
+
+    /* Override line height from CLI if provided (before window creation) */
+    if (cli_line_height > 0.0f) {
+        lisp_x_set_terminal_line_height(cli_line_height);
     }
 
     /* If test mode, run test and exit (headless mode) */
@@ -825,10 +850,14 @@ int main(int argc, char **argv) {
     int cell_w, cell_h;
     glyph_cache_get_cell_size(glyph_cache, &cell_w, &cell_h);
 
-    /* Calculate exact window size for terminal geometry using actual glyph metrics */
-    int separator_and_input_height = 3 * cell_h; /* Top divider + bottom divider + input row */
+    /* Get line height multiplier and calculate effective cell height */
+    float line_height = lisp_x_get_terminal_line_height();
+    int effective_cell_h = (int)(cell_h * line_height);
+
+    /* Calculate exact window size for terminal geometry using effective cell height */
+    int separator_and_input_height = 3 * effective_cell_h; /* Top divider + bottom divider + input row */
     int precise_width = terminal_cols * cell_w + 2 * PADDING_X;
-    int precise_height = terminal_rows * cell_h + separator_and_input_height + 2 * PADDING_Y;
+    int precise_height = terminal_rows * effective_cell_h + separator_and_input_height + 2 * PADDING_Y;
 
     /* Clean up hidden window and temporary renderer */
     SDL_DestroyRenderer(temp_renderer);
@@ -940,6 +969,11 @@ int main(int argc, char **argv) {
         }
     }
 
+    /* Re-apply CLI line height override after user files (CLI takes final precedence) */
+    if (cli_line_height > 0.0f) {
+        lisp_x_set_terminal_line_height(cli_line_height);
+    }
+
     /* Connect if in connected mode */
     if (connected_mode) {
         fprintf(stderr, "Connecting to %s:%d...\n", hostname, port);
@@ -1025,8 +1059,12 @@ int main(int argc, char **argv) {
                 int window_width, window_height;
                 window_get_size(win, &window_width, &window_height);
 
+                /* Get line height multiplier and calculate effective cell height */
+                float line_height = lisp_x_get_terminal_line_height();
+                int effective_cell_h = (int)(cell_h * line_height);
+
                 /* Calculate input area height: top divider + bottom divider + visible input rows */
-                int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * cell_h;
+                int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * effective_cell_h;
 
                 /* Handle clicks in terminal area (not in input area or padding) */
                 /* Check if click is within terminal area (excluding padding) */
@@ -1037,7 +1075,7 @@ int main(int argc, char **argv) {
                         /* Start selection only if no selection was cleared */
                         if (event.button.button == SDL_BUTTON_LEFT && !had_selection) {
                             /* Convert mouse coordinates to terminal cell coordinates, subtracting padding */
-                            int term_row = (mouse_y - PADDING_Y) / cell_h;
+                            int term_row = (mouse_y - PADDING_Y) / effective_cell_h;
                             int term_col = (mouse_x - PADDING_X) / cell_w;
                             /* Start selection and freeze viewport */
                             start_terminal_selection(term, term_row, term_col);
@@ -1490,7 +1528,9 @@ int main(int argc, char **argv) {
                 /* Only handle mouse events for terminal if not in input area or padding */
                 int win_width, win_height;
                 window_get_size(win, &win_width, &win_height);
-                int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * cell_h;
+                float line_height = lisp_x_get_terminal_line_height();
+                int effective_cell_h = (int)(cell_h * line_height);
+                int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * effective_cell_h;
                 /* Check if click is within terminal area (excluding padding) and not in input area */
                 if (event.button.x >= PADDING_X && event.button.x < win_width - PADDING_X &&
                     event.button.y >= PADDING_Y && event.button.y < win_height - PADDING_Y &&
@@ -1505,13 +1545,15 @@ int main(int argc, char **argv) {
                 if (terminal_selection.active && (event.motion.state & SDL_BUTTON(SDL_BUTTON_LEFT))) {
                     int motion_win_width, motion_win_height;
                     window_get_size(win, &motion_win_width, &motion_win_height);
-                    int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * cell_h;
+                    float line_height = lisp_x_get_terminal_line_height();
+                    int effective_cell_h = (int)(cell_h * line_height);
+                    int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * effective_cell_h;
                     /* Check if motion is within terminal area (excluding padding) and not in input area */
                     if (event.motion.x >= PADDING_X && event.motion.x < motion_win_width - PADDING_X &&
                         event.motion.y >= PADDING_Y && event.motion.y < motion_win_height - PADDING_Y &&
                         event.motion.y < motion_win_height - input_area_height - PADDING_Y) {
                         /* Convert mouse coordinates to terminal cell coordinates, subtracting padding */
-                        int term_row = (event.motion.y - PADDING_Y) / cell_h;
+                        int term_row = (event.motion.y - PADDING_Y) / effective_cell_h;
                         int term_col = (event.motion.x - PADDING_X) / cell_w;
                         /* Update selection end position */
                         update_terminal_selection(term, term_row, term_col);
@@ -1520,7 +1562,9 @@ int main(int argc, char **argv) {
                 /* Only handle mouse events for terminal if not in input area or padding */
                 int motion_win_width, motion_win_height;
                 window_get_size(win, &motion_win_width, &motion_win_height);
-                int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * cell_h;
+                float line_height = lisp_x_get_terminal_line_height();
+                int effective_cell_h = (int)(cell_h * line_height);
+                int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * effective_cell_h;
                 /* Check if motion is within terminal area (excluding padding) and not in input area */
                 if (event.motion.x >= PADDING_X && event.motion.x < motion_win_width - PADDING_X &&
                     event.motion.y >= PADDING_Y && event.motion.y < motion_win_height - PADDING_Y &&
@@ -1537,7 +1581,9 @@ int main(int argc, char **argv) {
                 /* Check if mouse is over terminal area (not input area or padding) */
                 int wheel_win_width, wheel_win_height;
                 window_get_size(win, &wheel_win_width, &wheel_win_height);
-                int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * cell_h;
+                float line_height = lisp_x_get_terminal_line_height();
+                int effective_cell_h = (int)(cell_h * line_height);
+                int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * effective_cell_h;
                 /* Check if mouse is within terminal area (excluding padding) and not in input area */
                 if (mouse_x >= PADDING_X && mouse_x < wheel_win_width - PADDING_X && mouse_y >= PADDING_Y &&
                     mouse_y < wheel_win_height - PADDING_Y &&
