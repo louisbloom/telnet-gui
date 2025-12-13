@@ -1330,8 +1330,8 @@
             (lambda (nested-alist indent indent-str)
               (terminal-echo "\r\n")
               (do ((remaining nested-alist (cdr remaining)))
-		((null? remaining))
-		(let ((pair (car remaining)))
+                ((null? remaining))
+                (let ((pair (car remaining)))
                   (if (pair? pair)
                     (print-pair (car pair) (cdr pair) (+ indent 1))
                     (progn
@@ -1342,10 +1342,10 @@
           (print-pair
             (lambda (key value indent)
               (let ((indent-str (build-indent indent)))
-		(terminal-echo indent-str)
-		(terminal-echo (concat key-color (obj-to-string key) reset))
-		(terminal-echo (concat colon-color ": " reset))
-		(cond
+                (terminal-echo indent-str)
+                (terminal-echo (concat key-color (obj-to-string key) reset))
+                (terminal-echo (concat colon-color ": " reset))
+                (cond
                   ((list? value)
                     (if (is-nested-alist? value)
                       (format-nested-alist value indent indent-str)

@@ -29,6 +29,7 @@
 #include "input_area.h"
 #include "commands.h"
 #include "lisp.h"
+#include "ansi_sequences.h"
 #include "../../telnet-lisp/include/lisp.h"
 
 /* Padding around terminal area (including input area) - must match renderer.c */
@@ -1078,10 +1079,21 @@ int main(int argc, char **argv) {
 
                     /* Step 4: Resize terminal and update */
                     int input_visible_rows = input_area_get_visible_rows(&input_area);
+
+                    /* Save cursor position before resize corrupts it */
+                    int saved_cursor_row, saved_cursor_col, saved_cursor_visible;
+                    terminal_get_cursor_info(term, &saved_cursor_row, &saved_cursor_col, &saved_cursor_visible);
+
                     terminal_resize(term, new_rows, new_cols, input_visible_rows);
 
-                    /* Re-render input area immediately to update divider position and restore cursor */
+                    /* Re-render input area immediately to update divider position */
                     terminal_render_input_area(term, &input_area, new_cols);
+
+                    /* Restore cursor position using explicit CUP (avoids DECSC/DECRC nesting issue) */
+                    char cursor_pos_seq[16];
+                    ansi_format_cursor_pos(cursor_pos_seq, sizeof(cursor_pos_seq), saved_cursor_row + 1,
+                                           saved_cursor_col + 1);
+                    terminal_feed_data(term, cursor_pos_seq, strlen(cursor_pos_seq));
 
                     /* Send NAWS to telnet server */
                     telnet_set_terminal_size(telnet, new_cols, new_rows);
