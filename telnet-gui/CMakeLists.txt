@@ -75,8 +75,27 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TEST_HELPERS_SRC}" "${TEST_HELPERS_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LOG2HTML_SRC}" "${LOG2HTML_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${DEJAVU_FONTS_SRC_DIR}" "${DEJAVU_FONTS_DST_DIR}"
-    COMMENT "Copying fonts, bootstrap.lisp, test files, telnet-gui-log2html.py, and DejaVu fonts to build directory"
+    COMMENT "Copying fonts, bootstrap.lisp, test files, telnet-gui-log2html.py, DejaVu fonts, and runtime DLLs to build directory"
 )
+
+# On Windows, copy required UCRT64 runtime DLLs to telnet-gui build directory
+if(WIN32 AND DEFINED UCRT64_ROOT)
+    set(REQUIRED_DLLS
+        "${UCRT64_ROOT}/bin/libpcre2-8-0.dll"
+        "${UCRT64_ROOT}/bin/libwinpthread-1.dll"
+    )
+    foreach(DLL_FILE ${REQUIRED_DLLS})
+        if(EXISTS "${DLL_FILE}")
+            get_filename_component(DLL_NAME "${DLL_FILE}" NAME)
+            add_custom_command(TARGET telnet-gui POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${DLL_FILE}"
+                    "${CMAKE_CURRENT_BINARY_DIR}/${DLL_NAME}"
+                COMMENT "Copying ${DLL_NAME} to telnet-gui build directory"
+            )
+        endif()
+    endforeach()
+endif()
 
 # Install font files with executable (in bin directory so it's relative to the executable)
 install(FILES "${FONT_INCONSOLATA_SRC}"
@@ -281,11 +300,24 @@ if(WIN32)
             endif()
 
             # Add C++ standard library for harfbuzz and graphite2 (they contain C++ code)
-            list(APPEND SDL2_TTF_LIBRARIES -lstdc++)
+            # Find the static libstdc++.a to ensure static linking
+            execute_process(
+                COMMAND ${CMAKE_C_COMPILER} -print-file-name=libstdc++.a
+                OUTPUT_VARIABLE LIBSTDCPP_STATIC
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+            )
+            if(EXISTS "${LIBSTDCPP_STATIC}")
+                normalize_path(LIBSTDCPP_STATIC_NORM "${LIBSTDCPP_STATIC}")
+                list(APPEND SDL2_TTF_LIBRARIES "${LIBSTDCPP_STATIC_NORM}")
+                message(STATUS "Using explicit static libstdc++: ${LIBSTDCPP_STATIC_NORM}")
+            else()
+                # Fallback to -lstdc++ and rely on -static-libstdc++ flag
+                list(APPEND SDL2_TTF_LIBRARIES -lstdc++)
+                message(WARNING "Could not find libstdc++.a, using -lstdc++ (may link dynamically)")
+            endif()
 
             message(STATUS "Using explicit static SDL libraries with dependencies from pkg-config")
             message(STATUS "  Statically linking SDL_ttf dependencies: freetype, bz2, png16, z, harfbuzz, glib-2.0, intl, pcre2-8, graphite2, brotlidec, brotlicommon")
-            message(STATUS "  Adding C++ standard library for harfbuzz and graphite2")
         else()
             # Fallback: use explicit paths with static libraries for dependencies
             # Build list of static dependency libraries
@@ -302,6 +334,21 @@ if(WIN32)
                 endif()
             endforeach()
 
+            # Find static libstdc++.a for fallback path too
+            execute_process(
+                COMMAND ${CMAKE_C_COMPILER} -print-file-name=libstdc++.a
+                OUTPUT_VARIABLE LIBSTDCPP_STATIC
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+            )
+            if(EXISTS "${LIBSTDCPP_STATIC}")
+                normalize_path(LIBSTDCPP_STATIC_NORM "${LIBSTDCPP_STATIC}")
+                set(STDCPP_LIB "${LIBSTDCPP_STATIC_NORM}")
+                message(STATUS "Using explicit static libstdc++: ${LIBSTDCPP_STATIC_NORM}")
+            else()
+                set(STDCPP_LIB "-lstdc++")
+                message(WARNING "Could not find libstdc++.a, using -lstdc++ (may link dynamically)")
+            endif()
+
             set(SDL2_TTF_LIBRARIES
                 -lmingw32 -mwindows -lSDL2main
                 "${SDL2_STATIC_LIB}"
@@ -311,10 +358,9 @@ if(WIN32)
                 ${STATIC_DEPS}
                 -lusp10 -ldwrite
                 -lws2_32 -lshlwapi -latomic
-                -lstdc++
+                ${STDCPP_LIB}
             )
             message(STATUS "Using explicit static SDL libraries (with fallback dependencies)")
-            message(STATUS "  Adding C++ standard library for harfbuzz and graphite2")
         endif()
     else()
         message(WARNING "Static SDL libraries not found")
@@ -763,8 +809,7 @@ else()
     target_compile_definitions(telnet-gui PRIVATE HAVE_SDL_TTF_DPI=0)
 endif()
 
-pkg_check_modules(GC REQUIRED bdw-gc)
-pkg_check_modules(PCRE2 REQUIRED libpcre2-8)
+# GC and PCRE2 configured by parent CMakeLists.txt with static linking support
 
 # Link directories first
 target_link_directories(telnet-gui PRIVATE ${SDL2_LIBDIR} ${SDL2_TTF_LIBDIR} ${VTERM_LIBDIR})

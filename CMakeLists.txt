@@ -92,7 +92,7 @@ set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
 
 # For Windows UCRT64, prefer static linking to avoid msys-2.0.dll
 if(WIN32)
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
 
     # UCRT64_ROOT was already set before project() if needed
     # This section handles cases where we're already in UCRT64 environment
@@ -161,6 +161,102 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(GC REQUIRED bdw-gc)
 pkg_check_modules(PCRE2 REQUIRED libpcre2-8)
 
+# On Windows, prefer static linking for GC and PCRE2 to avoid DLL dependencies
+if(WIN32)
+    message(STATUS "Windows detected: attempting static linking for libgc and libpcre2")
+
+    # Get library directory from pkg-config
+    execute_process(
+        COMMAND ${PKG_CONFIG_EXECUTABLE} --variable=libdir bdw-gc
+        OUTPUT_VARIABLE GC_LIBDIR_RAW
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+
+    # Normalize path (convert backslashes to forward slashes)
+    string(REPLACE "\\" "/" GC_LIBDIR "${GC_LIBDIR_RAW}")
+
+    # Check if static libraries exist
+    set(GC_STATIC_LIB "${GC_LIBDIR}/libgc.a")
+    set(PCRE2_STATIC_LIB "${GC_LIBDIR}/libpcre2-8.a")
+
+    # Search for static libraries
+    set(GC_STATIC_LIB_FOUND "")
+    set(PCRE2_STATIC_LIB_FOUND "")
+
+    # Helper function to normalize paths (prevents CMake from interpreting backslashes as escapes)
+    function(normalize_path VAR PATH)
+        string(REPLACE "\\" "/" NORMALIZED "${PATH}")
+        set(${VAR} "${NORMALIZED}" PARENT_SCOPE)
+    endfunction()
+
+    # First try the pkg-config libdir
+    if(GC_LIBDIR AND EXISTS "${GC_STATIC_LIB}" AND EXISTS "${PCRE2_STATIC_LIB}")
+        normalize_path(GC_STATIC_LIB_FOUND "${GC_STATIC_LIB}")
+        normalize_path(PCRE2_STATIC_LIB_FOUND "${PCRE2_STATIC_LIB}")
+    else()
+        # Try to find UCRT64_ROOT and check there
+        if(DEFINED UCRT64_ROOT)
+            set(UCRT64_LIBDIR "${UCRT64_ROOT}/lib")
+            set(UCRT64_GC_STATIC "${UCRT64_LIBDIR}/libgc.a")
+            set(UCRT64_PCRE2_STATIC "${UCRT64_LIBDIR}/libpcre2-8.a")
+            if(EXISTS "${UCRT64_GC_STATIC}" AND EXISTS "${UCRT64_PCRE2_STATIC}")
+                normalize_path(GC_STATIC_LIB_FOUND "${UCRT64_GC_STATIC}")
+                normalize_path(PCRE2_STATIC_LIB_FOUND "${UCRT64_PCRE2_STATIC}")
+            endif()
+        endif()
+
+        # If still not found, try common MSYS2 locations
+        if(NOT GC_STATIC_LIB_FOUND)
+            set(MSYS2_PATHS
+                "C:/msys64/ucrt64/lib"
+                "C:/tools/msys64/ucrt64/lib"
+                "$ENV{USERPROFILE}/scoop/apps/msys2/current/ucrt64/lib"
+                "$ENV{ProgramFiles}/msys64/ucrt64/lib"
+            )
+            # Also check for versioned Scoop installations
+            if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
+                file(GLOB SCOOP_UCRT64_LIBS "$ENV{USERPROFILE}/scoop/apps/msys2/*/ucrt64/lib")
+                list(APPEND MSYS2_PATHS ${SCOOP_UCRT64_LIBS})
+            endif()
+
+            foreach(LIBDIR IN LISTS MSYS2_PATHS)
+                set(TEST_GC_STATIC "${LIBDIR}/libgc.a")
+                set(TEST_PCRE2_STATIC "${LIBDIR}/libpcre2-8.a")
+                if(EXISTS "${TEST_GC_STATIC}" AND EXISTS "${TEST_PCRE2_STATIC}")
+                    normalize_path(GC_STATIC_LIB_FOUND "${TEST_GC_STATIC}")
+                    normalize_path(PCRE2_STATIC_LIB_FOUND "${TEST_PCRE2_STATIC}")
+                    break()
+                endif()
+            endforeach()
+        endif()
+    endif()
+
+    if(GC_STATIC_LIB_FOUND)
+        message(STATUS "Found static GC library:")
+        message(STATUS "  GC: ${GC_STATIC_LIB_FOUND}")
+
+        # Override pkg-config variables with explicit static library path
+        # Note: GC needs -lpthread (from bdw-gc.pc Libs field)
+        set(GC_LIBRARIES "${GC_STATIC_LIB_FOUND}" -lpthread)
+
+        message(STATUS "Using explicit static GC library (avoiding .dll.a import library)")
+
+        # Note: Explicit path to libpcre2-8.a causes "ld returned 5 exit status" (access violation)
+        # This appears to be a compatibility issue with PCRE2's static library on Windows
+        # Keeping PCRE2 dynamically linked
+        message(STATUS "Keeping PCRE2 dynamically linked (libpcre2-8.a causes linker errors)")
+        # PCRE2_LIBRARIES already set by pkg_check_modules, no override needed
+    else()
+        message(WARNING "Static GC library not found")
+        message(WARNING "  Checked GC: ${GC_STATIC_LIB}")
+        if(GC_LIBDIR)
+            message(WARNING "  pkg-config libdir: ${GC_LIBDIR}")
+        endif()
+        message(WARNING "Falling back to dynamic linking - DLLs will be required at runtime")
+    endif()
+endif()
+
 # Add library subdirectory
 add_subdirectory(telnet-lisp)
 
@@ -170,6 +266,44 @@ add_subdirectory(telnet-gui)
 # REPL executable (default application)
 add_executable(lisp-repl telnet-lisp/repl/main.c)
 target_link_libraries(lisp-repl lisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
+
+# On Windows, copy required UCRT64 runtime DLLs to build directory and include in distribution
+if(WIN32 AND UCRT64_ROOT)
+    set(REQUIRED_DLLS
+        "${UCRT64_ROOT}/bin/libpcre2-8-0.dll"
+        "${UCRT64_ROOT}/bin/libwinpthread-1.dll"
+    )
+
+    # Copy DLLs to build directory for testing
+    foreach(DLL_FILE ${REQUIRED_DLLS})
+        if(EXISTS "${DLL_FILE}")
+            get_filename_component(DLL_NAME "${DLL_FILE}" NAME)
+            # Copy to root build directory for lisp-repl.exe
+            add_custom_command(TARGET lisp-repl POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${DLL_FILE}"
+                    "${CMAKE_BINARY_DIR}/${DLL_NAME}"
+                COMMENT "Copying ${DLL_NAME} to build directory"
+            )
+            message(STATUS "Will bundle runtime DLL: ${DLL_NAME}")
+        endif()
+    endforeach()
+
+    # Install DLLs alongside executables
+    # Normalize paths for install() command to avoid escape character issues
+    set(NORMALIZED_DLLS "")
+    foreach(DLL_FILE ${REQUIRED_DLLS})
+        if(EXISTS "${DLL_FILE}")
+            string(REPLACE "\\" "/" NORMALIZED_DLL "${DLL_FILE}")
+            list(APPEND NORMALIZED_DLLS "${NORMALIZED_DLL}")
+        endif()
+    endforeach()
+
+    install(FILES ${NORMALIZED_DLLS}
+        DESTINATION bin
+        COMPONENT Runtime
+    )
+endif()
 
 # Add include directories for REPL
 target_include_directories(lisp-repl PRIVATE telnet-lisp/include)
