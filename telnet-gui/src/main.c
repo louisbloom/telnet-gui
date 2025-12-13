@@ -296,28 +296,11 @@ static const char *find_system_monospace_font(const char **font_name_out) {
     return NULL;
 }
 
-#ifdef _WIN32
-/* Attach to console for help output on Windows (when built as Windows subsystem) */
-static void attach_console_for_help(void) {
-    /* Try to attach to parent console (e.g., PowerShell) */
-    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
-        /* Reopen stdout and stderr to point to the console */
-        freopen("CONOUT$", "w", stdout);
-        freopen("CONOUT$", "w", stderr);
-    } else {
-        /* If no parent console, allocate a new one */
-        if (AllocConsole()) {
-            freopen("CONOUT$", "w", stdout);
-            freopen("CONOUT$", "w", stderr);
-        }
-    }
-}
-#endif
-
 static void print_help(const char *program_name) {
 #ifdef _WIN32
-    /* Attach to console so help is visible when run from PowerShell */
-    attach_console_for_help();
+    /* Disable buffering for immediate output (console subsystem already has stdout/stderr) */
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
 #endif
     printf("Usage: %s [OPTIONS] [hostname] [port]\n", program_name);
     printf("\n");
@@ -334,7 +317,7 @@ static void print_help(const char *program_name) {
     printf("                             system, cascadia, inconsolata, plex, dejavu, courier\n");
     printf("    -H, --hinting MODE     Set font hinting mode (default: none)\n");
     printf("                            MODE can be: none, light, normal, mono\n");
-    printf("    -a, --antialiasing MODE Set anti-aliasing mode (default: linear)\n");
+    printf("    -a, --antialiasing MODE Set anti-aliasing mode (default: nearest)\n");
     printf("                            MODE can be: nearest, linear\n");
     printf("\n");
     printf("  Terminal Options:\n");
@@ -596,16 +579,33 @@ int main(int argc, char **argv) {
 
     /* If test mode, run test and exit (headless mode) */
     if (test_file) {
+#ifdef _WIN32
+        /* Disable buffering for immediate output (console subsystem already has stdout/stderr) */
+        setvbuf(stdout, NULL, _IONBF, 0);
+        setvbuf(stderr, NULL, _IONBF, 0);
+#endif
         printf("Running test: %s\n", test_file);
         int result = lisp_x_load_file(test_file);
         lisp_x_cleanup();
         if (result < 0) {
             fprintf(stderr, "Test failed: %s\n", test_file);
+            fflush(stderr);
             return 1;
         }
         printf("Test completed successfully: %s\n", test_file);
+        fflush(stdout);
         return 0;
     }
+
+    /* Hide console window when running in GUI mode (not test/help mode) */
+#ifdef _WIN32
+    /* Hide the console window for normal GUI operation
+       Test mode (-t) and help (-h) already exited above, so this only affects GUI mode */
+    HWND console = GetConsoleWindow();
+    if (console != NULL) {
+        ShowWindow(console, SW_HIDE);
+    }
+#endif
 
     /* Initialize SDL2 */
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) < 0) {

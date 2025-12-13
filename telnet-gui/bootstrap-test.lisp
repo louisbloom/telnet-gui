@@ -91,7 +91,7 @@
 (print "Test: Extract words from text...")
 (define words1 (extract-words "hello world test"))
 (assert-true (list? words1) "Should return a list")
-(assert-true (>= (length words1) 3) "Should extract multiple words")
+(assert-true (>= (list-length words1) 3) "Should extract multiple words")
 
 (print "Test: Handle punctuation...")
 (define words2 (extract-words "hello, world! test."))
@@ -148,7 +148,7 @@
 
 (define completions (get-completions-from-store "hel"))
 (assert-true (list? completions) "Should return a list")
-(assert-true (> (length completions) 0) "Should find matches for 'hel' prefix")
+(assert-true (> (list-length completions) 0) "Should find matches for 'hel' prefix")
 
 (print "Test: Case-insensitive matching...")
 (define completions-upper (get-completions-from-store "HEL"))
@@ -176,6 +176,88 @@
 (assert-equal (build-indent 1) "  " "Should return 2 spaces for level 1")
 (assert-equal (build-indent 2) "    " "Should return 4 spaces for level 2")
 (assert-equal (build-indent 3) "      " "Should return 6 spaces for level 3")
+
+;; ============================================================================
+;; TEST: obj-to-string function
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING obj-to-string FUNCTION")
+(print "====================================================================")
+
+(print "Test: Convert symbols to strings...")
+(assert-equal (obj-to-string 'hello) "hello" "Should convert symbol to string")
+(assert-equal (obj-to-string 'test-symbol) "test-symbol" "Should convert hyphenated symbol")
+
+(print "Test: Handle string inputs...")
+(assert-equal (obj-to-string "already-a-string") "already-a-string" "Should return string as-is")
+(assert-equal (obj-to-string "") "" "Should handle empty string")
+
+(print "Test: Convert booleans...")
+(assert-equal (obj-to-string #t) "#t" "Should convert true to '#t'")
+(assert-equal (obj-to-string #f) "#f" "Should convert false to '#f'")
+
+(print "Test: Convert numbers...")
+(assert-true (string-contains? (obj-to-string 42) "42") "Should convert integer to string")
+(assert-true (string-contains? (obj-to-string 0) "0") "Should convert zero to string")
+
+;; ============================================================================
+;; TEST: is-nested-alist? function
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING is-nested-alist? FUNCTION")
+(print "====================================================================")
+
+(print "Test: Detect nested alists...")
+(define nested-alist '((name . "Alice") (age . 30)))
+(assert-true (is-nested-alist? nested-alist) "Should detect nested alist")
+
+(print "Test: Reject non-alists...")
+(assert-false (is-nested-alist? '()) "Should return false for empty list")
+(assert-false (is-nested-alist? '(1 2 3)) "Should return false for regular list")
+(assert-false (is-nested-alist? "not-a-list") "Should return false for string")
+(assert-false (is-nested-alist? 42) "Should return false for number")
+
+(print "Test: Handle edge cases...")
+(assert-false (is-nested-alist? nil) "Should return false for nil")
+
+;; ============================================================================
+;; TEST: format-string-value function
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING format-string-value FUNCTION")
+(print "====================================================================")
+
+(print "Test: Format string values with quotes...")
+(assert-equal (format-string-value "hello") "\"hello\"\n" "Should wrap string in quotes")
+(assert-equal (format-string-value "test") "\"test\"\n" "Should add quotes and newline")
+
+(print "Test: Handle empty strings...")
+(assert-equal (format-string-value "") "\"\"\n" "Should handle empty string")
+
+(print "Test: Handle strings with special characters...")
+(assert-equal (format-string-value "hello world") "\"hello world\"\n" "Should handle spaces")
+
+;; ============================================================================
+;; TEST: format-regular-value function
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING format-regular-value FUNCTION")
+(print "====================================================================")
+
+(print "Test: Format regular values...")
+(assert-true (string-contains? (format-regular-value 42) "42") "Should format number")
+(assert-true (string-contains? (format-regular-value 'symbol) "symbol") "Should format symbol")
+
+(print "Test: Add newline...")
+(assert-true (string-contains? (format-regular-value #t) "\n") "Should add newline")
 
 ;; ============================================================================
 ;; TEST: pretty-print-alist function

@@ -385,7 +385,7 @@ add_test(NAME gui_completion-test
 )
 
 add_test(NAME gui_bootstrap-test
-    COMMAND ${CMAKE_BINARY_DIR}/lisp-repl.exe bootstrap-test.lisp
+    COMMAND ${CMAKE_BINARY_DIR}/telnet-gui/telnet-gui.exe -t bootstrap-test.lisp
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/telnet-gui
 )
 

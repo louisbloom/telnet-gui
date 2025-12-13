@@ -1229,6 +1229,34 @@
       ((>= i level) result)
       (set! result (concat result "  ")))))
 
+;; Helper function to convert objects to strings
+(defun obj-to-string (obj)
+  "Convert an object to its string representation."
+  (cond
+    ((symbol? obj) (symbol->string obj))
+    ((string? obj) obj)
+    ((eq? obj #t) "#t")
+    ((eq? obj #f) "#f")
+    (#t (format nil "~A" obj))))
+
+;; Helper function to check if a value is a nested alist
+(defun is-nested-alist? (value)
+  "Check if a value is a nested association list."
+  (and (list? value)
+    (not (null? value))
+    (pair? (car value))
+    (not (list? (car (car value))))))
+
+;; Helper function to format a string value with quotes
+(defun format-string-value (str)
+  "Format a string value by wrapping it in quotes."
+  (concat "\"" str "\"\n"))
+
+;; Helper function to format a regular (non-string) value
+(defun format-regular-value (value)
+  "Format a non-string value."
+  (concat (obj-to-string value) "\n"))
+
 (defun pretty-print-alist (alist)
   "Pretty-print an association list in a readable format.
 
@@ -1276,107 +1304,95 @@
   - `hash-ref` - Look up values in hash table"
   (if (not (list? alist))
     "Error: pretty-print-alist expects a list\n"
-    (let ((result "")
-           (obj-to-str
-             (lambda (obj)
-               (if (symbol? obj)
-                 (symbol->string obj)
-                 (if (string? obj)
-                   obj
-                   (format nil "~A" obj)))))
-           (print-pair
-             (lambda (key value indent)
-               ;; Build indent string inline
-               (let ((indent-str ""))
-                 (do ((i 0 (+ i 1)))
-                   ((>= i indent))
-                   (set! indent-str (concat indent-str "  ")))
-                 (set! result (concat result indent-str))
-                 (set! result (concat result (obj-to-str key)))
-                 (set! result (concat result ": "))
-                 (cond
-                   ((list? value)
-                     (if (and (not (null? value))
-                           (pair? (car value))
-                           (not (list? (car (car value)))))
-                       ;; Nested alist
-                       (progn
-                         (set! result (concat result "\n"))
-                         (do ((remaining value (cdr remaining)))
-                           ((null? remaining))
-                           (let ((pair (car remaining)))
-                             (if (pair? pair)
-                               (print-pair (car pair) (cdr pair) (+ indent 1))
-                               (progn
-                                 (set! result (concat result indent-str))
-                                 (set! result (concat result "  "))
-                                 (set! result (concat result (obj-to-str pair)))
-                                 (set! result (concat result "\n")))))))
-                       ;; Regular list
-                       (progn
-                         (set! result (concat result (obj-to-str value)))
-                         (set! result (concat result "\n")))))
-                   ((string? value)
-                     (set! result (concat result "\""))
-                     (set! result (concat result value))
-                     (set! result (concat result "\"\n")))
-                   (#t
-                     (set! result (concat result (obj-to-str value)))
-                     (set! result (concat result "\n")))))))
-	   (if (null? alist)
-             "(empty alist)\n"
-             (progn
-               (do ((remaining alist (cdr remaining)))
-		 ((null? remaining))
-		 (let ((pair (car remaining)))
-		   (if (pair? pair)
-                     (print-pair (car pair) (cdr pair) 0)
-                     (set! result (concat result "Invalid pair: " (obj-to-str pair) "\n")))))
-               result)))))
+    (let* ((result "")
+            (append-result!
+              (lambda (str)
+		(set! result (concat result str))))
+            (format-nested-alist
+              (lambda (nested-alist indent indent-str)
+		(append-result! "\n")
+		(do ((remaining nested-alist (cdr remaining)))
+                  ((null? remaining))
+                  (let ((pair (car remaining)))
+                    (if (pair? pair)
+                      (print-pair (car pair) (cdr pair) (+ indent 1))
+                      (progn
+			(append-result! indent-str)
+			(append-result! "  ")
+			(append-result! (obj-to-string pair))
+			(append-result! "\n")))))))
+            (print-pair
+              (lambda (key value indent)
+		(let ((indent-str (build-indent indent)))
+                  (append-result! indent-str)
+                  (append-result! (obj-to-string key))
+                  (append-result! ": ")
+                  (cond
+                    ((list? value)
+                      (if (is-nested-alist? value)
+			(format-nested-alist value indent indent-str)
+			(append-result! (format-regular-value value))))
+                    ((string? value)
+                      (append-result! (format-string-value value)))
+                    (#t
+                      (append-result! (format-regular-value value))))))))
+      (if (null? alist)
+        "(empty alist)\n"
+        (progn
+          (do ((remaining alist (cdr remaining)))
+            ((null? remaining))
+            (let ((pair (car remaining)))
+              (if (pair? pair)
+                (print-pair (car pair) (cdr pair) 0)
+                (progn
+                  (append-result! "Invalid pair: ")
+                  (append-result! (obj-to-string pair))
+                  (append-result! "\n")))))
+          result)))))
 
-  ;; ============================================================================
-  ;; COLOR CONFIGURATION
-  ;; ============================================================================
-  ;; All colors are specified as RGB lists (r g b) where each component is 0-255
+;; ============================================================================
+;; COLOR CONFIGURATION
+;; ============================================================================
+;; All colors are specified as RGB lists (r g b) where each component is 0-255
 
-  ;; Terminal default colors (used when no ANSI color codes are present)
-  (define *terminal-fg-color* '(255 255 255))  ; White text
-  (define *terminal-bg-color* '(0 0 0))        ; Black background
+;; Terminal default colors (used when no ANSI color codes are present)
+(define *terminal-fg-color* '(255 255 255))  ; White text
+(define *terminal-bg-color* '(0 0 0))        ; Black background
 
-  ;; Text selection colors
-  (define *selection-fg-color* '(0 0 0))       ; Black text on selection
-  (define *selection-bg-color* '(255 140 0))   ; Orange selection background
+;; Text selection colors
+(define *selection-fg-color* '(0 0 0))       ; Black text on selection
+(define *selection-bg-color* '(255 140 0))   ; Orange selection background
 
-  ;; Cursor/caret color
-  (define *cursor-color* '(200 200 200))       ; Light gray vertical line
+;; Cursor/caret color
+(define *cursor-color* '(200 200 200))       ; Light gray vertical line
 
-  ;; Separator line between terminal and input area
-  (define *input-separator-color* '(100 100 100))  ; Gray separator line
+;; Separator line between terminal and input area
+(define *input-separator-color* '(100 100 100))  ; Gray separator line
 
-  ;; ============================================================================
-  ;; TERMINAL LINE HEIGHT CONFIGURATION
-  ;; ============================================================================
-  ;; *terminal-line-height*: Multiplier for terminal line spacing
-  ;;
-  ;; This controls the vertical spacing between terminal lines. The value is a
-  ;; multiplier applied to the base cell height calculated from the font metrics.
-  ;;
-  ;; Values:
-  ;;   1.2  - Default spacing (20% more than font metrics, better readability)
-  ;;   1.0  - Normal spacing (matches font metrics)
-  ;;   1.5  - 50% more spacing between lines
-  ;;   2.0  - Double spacing
-  ;;   0.5  - Half spacing (tighter, minimum recommended)
-  ;;
-  ;; Examples:
-  ;;   1.2  - Default, comfortable spacing for readability
-  ;;   1.0  - Compact terminal appearance (matches font metrics)
-  ;;   1.25 - Slightly more spacing for readability
-  ;;   1.5  - Comfortable spacing for long reading sessions
-  ;;   2.0  - Very loose spacing, maximum recommended
-  ;;
-  ;; Note: Values are clamped to 0.5-3.0 range for safety. The multiplier affects
-  ;;       vertical spacing between rows, window height calculations, and mouse
-  ;;       coordinate conversion, but does not stretch glyphs (they maintain their
-  ;;       original size from the font).
-  (define *terminal-line-height* 1.2)
+;; ============================================================================
+;; TERMINAL LINE HEIGHT CONFIGURATION
+;; ============================================================================
+;; *terminal-line-height*: Multiplier for terminal line spacing
+;;
+;; This controls the vertical spacing between terminal lines. The value is a
+;; multiplier applied to the base cell height calculated from the font metrics.
+;;
+;; Values:
+;;   1.2  - Default spacing (20% more than font metrics, better readability)
+;;   1.0  - Normal spacing (matches font metrics)
+;;   1.5  - 50% more spacing between lines
+;;   2.0  - Double spacing
+;;   0.5  - Half spacing (tighter, minimum recommended)
+;;
+;; Examples:
+;;   1.2  - Default, comfortable spacing for readability
+;;   1.0  - Compact terminal appearance (matches font metrics)
+;;   1.25 - Slightly more spacing for readability
+;;   1.5  - Comfortable spacing for long reading sessions
+;;   2.0  - Very loose spacing, maximum recommended
+;;
+;; Note: Values are clamped to 0.5-3.0 range for safety. The multiplier affects
+;;       vertical spacing between rows, window height calculations, and mouse
+;;       coordinate conversion, but does not stretch glyphs (they maintain their
+;;       original size from the font).
+(define *terminal-line-height* 1.2)

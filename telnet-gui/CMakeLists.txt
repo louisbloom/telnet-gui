@@ -899,15 +899,10 @@ target_link_libraries(telnet-gui PRIVATE
     m
 )
 
-# On Windows, conditionally add -mwindows only for Release builds
-# -lSDL2main is always needed for SDL2 entry point, but -mwindows controls console attachment
-# This keeps Debug builds attached to console for easier debugging
-if(WIN32)
-    # Only detach from console in Release builds
-    target_link_options(telnet-gui PRIVATE
-        $<$<CONFIG:Release>:-mwindows>
-    )
-endif()
+# On Windows, keep console subsystem (no -mwindows) for proper console I/O with -t and -h flags.
+# The console window is hidden programmatically in main.c for normal GUI operation using ShowWindow().
+# This approach works better than -mwindows + AttachConsole() which has issues with PowerShell redirection.
+# Note: -lSDL2main is still linked to provide the proper SDL2 entry point.
 
 # Include directories
 target_include_directories(telnet-gui PRIVATE
