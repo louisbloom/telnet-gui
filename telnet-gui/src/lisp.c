@@ -278,6 +278,53 @@ static LispObject *call_completion_hook(const char *partial_text) {
     return result ? result : NIL;
 }
 
+/* Check if path is in an installed bin directory (e.g., ends with /bin/ or \bin\) */
+static int is_installed_bin_directory(const char *path) {
+    if (!path)
+        return 0;
+    size_t len = strlen(path);
+    if (len < 4)
+        return 0;
+
+    const char *end = path + len;
+    /* Check if ends with /bin/ or \bin\ */
+    if (len >= 5 && (end[-1] == '/' || end[-1] == '\\')) {
+        if ((end[-5] == '/' || end[-5] == '\\') && end[-4] == 'b' && end[-3] == 'i' && end[-2] == 'n') {
+            return 1;
+        }
+    }
+    /* Check if ends with /bin or \bin (no trailing separator) */
+    if ((end[-4] == '/' || end[-4] == '\\') && end[-3] == 'b' && end[-2] == 'i' && end[-1] == 'n') {
+        return 1;
+    }
+    return 0;
+}
+
+/* Construct executable-relative path for a file.
+ * Returns 1 if path should be used (not in bin directory), 0 otherwise.
+ * If returning 1, fills out_path with the constructed path.
+ */
+static int construct_exe_relative_path(const char *base_path, const char *filename, char *out_path,
+                                       size_t out_path_size) {
+    if (!base_path || is_installed_bin_directory(base_path)) {
+        return 0;
+    }
+
+    size_t base_len = strlen(base_path);
+    const char *sep = (base_len > 0 && (base_path[base_len - 1] == '/' || base_path[base_len - 1] == '\\')) ? "" : "/";
+
+    snprintf(out_path, out_path_size, "%s%s%s", base_path, sep, filename);
+
+#ifdef _WIN32
+    for (char *p = out_path; *p; p++) {
+        if (*p == '/')
+            *p = '\\';
+    }
+#endif
+
+    return 1;
+}
+
 /* Load bootstrap Lisp file */
 static int load_bootstrap_file(void) {
     if (!lisp_env) {
@@ -295,31 +342,18 @@ static int load_bootstrap_file(void) {
 
     /* PRIORITY 1: Build/development paths (checked first for development workflow) */
     /* Try bootstrap.lisp relative to executable (build directory during development) */
+    /* Skip if executable is in a bin directory (installed location) - .lisp files aren't in bin */
     if (base_path) {
-        size_t base_len = strlen(base_path);
-        const char *sep =
-            (base_len > 0 && (base_path[base_len - 1] == '/' || base_path[base_len - 1] == '\\')) ? "" : "/";
-
-        /* Normalize path separators - use backslashes on Windows for consistency */
-        char normalized_path[1024];
-        snprintf(normalized_path, sizeof(normalized_path), "%s%sbootstrap.lisp", base_path, sep);
-
-/* Convert forward slashes to backslashes on Windows for file access compatibility */
-#ifdef _WIN32
-        for (char *p = normalized_path; *p; p++) {
-            if (*p == '/')
-                *p = '\\';
+        if (construct_exe_relative_path(base_path, "bootstrap.lisp", bootstrap_path, sizeof(bootstrap_path))) {
+            bootstrap_paths[bootstrap_path_count] = bootstrap_path;
+            bootstrap_path_labels[bootstrap_path_count] = "executable-relative (build/development)";
+            bootstrap_path_count++;
+            fprintf(stderr, "Bootstrap file resolution: Executable base path: %s\n", base_path);
+            fprintf(stderr, "Bootstrap file resolution: Constructed bootstrap path: %s\n", bootstrap_path);
+        } else {
+            fprintf(stderr,
+                    "Bootstrap file resolution: Executable in bin directory (installed), skipping bin path check\n");
         }
-#endif
-
-        strncpy(bootstrap_path, normalized_path, sizeof(bootstrap_path) - 1);
-        bootstrap_path[sizeof(bootstrap_path) - 1] = '\0';
-
-        bootstrap_paths[bootstrap_path_count] = bootstrap_path;
-        bootstrap_path_labels[bootstrap_path_count] = "executable-relative (build/development)";
-        bootstrap_path_count++;
-        fprintf(stderr, "Bootstrap file resolution: Executable base path: %s\n", base_path);
-        fprintf(stderr, "Bootstrap file resolution: Constructed bootstrap path: %s\n", bootstrap_path);
         SDL_free(base_path);
     } else {
         fprintf(stderr, "Bootstrap file resolution: Warning - SDL_GetBasePath() returned NULL\n");
@@ -961,34 +995,24 @@ int lisp_x_load_file(const char *filepath) {
     char *base_path = SDL_GetBasePath();
 
     /* Build search paths array */
-    char path_buffer[1024];
     const char *search_paths[10];
     const char *search_labels[10];
     int search_count = 0;
 
     /* PRIORITY 1: Build/development paths (checked first for development workflow) */
     /* Path 1: Executable-relative (build directory during development) */
+    /* Skip if executable is in a bin directory (installed location) - .lisp files aren't in bin */
     if (base_path) {
-        size_t base_len = strlen(base_path);
-        const char *sep =
-            (base_len > 0 && (base_path[base_len - 1] == '/' || base_path[base_len - 1] == '\\')) ? "" : "/";
-
-        snprintf(path_buffer, sizeof(path_buffer), "%s%s%s", base_path, sep, filepath);
-#ifdef _WIN32
-        for (char *p = path_buffer; *p; p++) {
-            if (*p == '/')
-                *p = '\\';
-        }
-#endif
         static char exe_rel_path[1024];
-        strncpy(exe_rel_path, path_buffer, sizeof(exe_rel_path) - 1);
-        exe_rel_path[sizeof(exe_rel_path) - 1] = '\0';
-        search_paths[search_count] = exe_rel_path;
-        search_labels[search_count] = "executable-relative (build/development)";
-        search_count++;
-
-        fprintf(stderr, "Lisp file resolution: Executable base path: %s\n", base_path);
-        fprintf(stderr, "Lisp file resolution: Constructed path: %s\n", exe_rel_path);
+        if (construct_exe_relative_path(base_path, filepath, exe_rel_path, sizeof(exe_rel_path))) {
+            search_paths[search_count] = exe_rel_path;
+            search_labels[search_count] = "executable-relative (build/development)";
+            search_count++;
+            fprintf(stderr, "Lisp file resolution: Executable base path: %s\n", base_path);
+            fprintf(stderr, "Lisp file resolution: Constructed path: %s\n", exe_rel_path);
+        } else {
+            fprintf(stderr, "Lisp file resolution: Executable in bin directory (installed), skipping bin path check\n");
+        }
         SDL_free(base_path);
     } else {
         fprintf(stderr, "Lisp file resolution: Warning - SDL_GetBasePath() returned NULL\n");
