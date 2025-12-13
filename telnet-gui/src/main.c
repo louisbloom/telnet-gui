@@ -1027,14 +1027,29 @@ int main(int argc, char **argv) {
                     int new_width = event.window.data1;
                     int new_height = event.window.data2;
 
-                    /* Calculate new terminal size based on window size */
-                    int new_rows, new_cols;
-                    calculate_terminal_size(new_width, new_height, cell_w, cell_h, &input_area, &new_rows, &new_cols);
+                    /* Step 1: Calculate new columns from width */
+                    int available_width = new_width - 2 * PADDING_X;
+                    int new_cols = available_width / cell_w;
+                    if (new_cols < 10)
+                        new_cols = 10; /* Minimum width */
 
-                    /* Recalculate input area layout with new width */
+                    /* Step 2: Force recalculation of input area layout with new columns */
+                    /* This updates visible_rows based on new width */
+                    input_area.needs_layout_recalc = 1;
                     input_area_recalculate_layout(&input_area, new_cols);
 
-                    /* Update terminal size */
+                    /* Step 3: Calculate terminal rows using updated input area height */
+                    int available_height = new_height - 2 * PADDING_Y;
+                    float line_height = lisp_x_get_terminal_line_height();
+                    int effective_cell_h = (int)(cell_h * line_height);
+                    int input_height_rows =
+                        2 + input_area_get_visible_rows(
+                                &input_area); /* Top divider + bottom divider + visible input rows */
+                    int new_rows = (available_height / effective_cell_h) - input_height_rows;
+                    if (new_rows < 1)
+                        new_rows = 1; /* Minimum: 1 scrolling row */
+
+                    /* Step 4: Resize terminal and update */
                     int input_visible_rows = input_area_get_visible_rows(&input_area);
                     terminal_resize(term, new_rows, new_cols, input_visible_rows);
 
@@ -1043,6 +1058,51 @@ int main(int argc, char **argv) {
 
                     /* Send NAWS to telnet server */
                     telnet_set_terminal_size(telnet, new_cols, new_rows);
+
+                    /* Force a full redraw to clear any artifacts from the resize */
+                    /* Get actual window size to ensure we clear the entire window */
+                    int actual_win_width, actual_win_height;
+                    SDL_GetWindowSize(sdl_window, &actual_win_width, &actual_win_height);
+
+                    /* Clear entire renderer to terminal background color */
+                    int bg_r, bg_g, bg_b;
+                    lisp_x_get_terminal_bg_color(&bg_r, &bg_g, &bg_b);
+                    SDL_SetRenderDrawColor(renderer, bg_r, bg_g, bg_b, 255);
+                    SDL_RenderClear(renderer);
+
+                    /* Calculate terminal area bounds and fill any area beyond with background color */
+                    int terminal_width = new_cols * cell_w + 2 * PADDING_X;
+                    int terminal_height = (new_rows + 2 + input_visible_rows) * effective_cell_h + 2 * PADDING_Y;
+
+                    /* Fill any area beyond the terminal content with background color */
+                    /* This handles cases where window is larger than terminal area */
+                    if (actual_win_width > terminal_width) {
+                        SDL_Rect right_fill = {terminal_width, 0, actual_win_width - terminal_width, actual_win_height};
+                        SDL_RenderFillRect(renderer, &right_fill);
+                    }
+                    if (actual_win_height > terminal_height) {
+                        SDL_Rect bottom_fill = {0, terminal_height, actual_win_width,
+                                                actual_win_height - terminal_height};
+                        SDL_RenderFillRect(renderer, &bottom_fill);
+                    }
+
+                    /* Force terminal to redraw */
+                    terminal_request_redraw(term);
+                    input_area_request_redraw(&input_area);
+
+                    /* Render immediately to clear artifacts */
+                    char title[256];
+                    snprintf(title, sizeof(title), "Telnet: %s:%d", hostname ? hostname : "", port);
+                    renderer_render(rend, term, title, terminal_selection.active, terminal_selection.start_row,
+                                    terminal_selection.start_col, terminal_selection.start_viewport_offset,
+                                    terminal_selection.start_scrollback_size, terminal_selection.end_row,
+                                    terminal_selection.end_col, terminal_selection.end_viewport_offset,
+                                    terminal_selection.end_scrollback_size, &input_area, new_cols);
+                    terminal_mark_drawn(term);
+                    input_area_mark_drawn(&input_area);
+
+                    /* Present the frame */
+                    SDL_RenderPresent(renderer);
                 }
                 break;
 

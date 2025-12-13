@@ -57,9 +57,10 @@ static void sdl_begin_frame(void *vstate, int window_width, int window_height) {
     int actual_width, actual_height;
     SDL_GetRendererOutputSize(state->sdl_renderer, &actual_width, &actual_height);
 
-    /* Clear screen to black - matches original renderer.c behavior */
-    /* This happens AFTER main.c clears with terminal bg color, but that's how the original worked */
-    SDL_SetRenderDrawColor(state->sdl_renderer, 0, 0, 0, 255);
+    /* Clear screen to terminal background color */
+    int bg_r, bg_g, bg_b;
+    lisp_x_get_terminal_bg_color(&bg_r, &bg_g, &bg_b);
+    SDL_SetRenderDrawColor(state->sdl_renderer, bg_r, bg_g, bg_b, 255);
     SDL_Rect terminal_area = {0, 0, actual_width, actual_height};
     SDL_RenderFillRect(state->sdl_renderer, &terminal_area);
 }

@@ -610,7 +610,30 @@ static void vterm_resize(void *vstate, int rows, int cols, int input_visible_row
         return;
 
     int old_scrolling_rows = state->scrolling_rows;
+    int old_cols = state->cols;
+    int old_input_row = state->input_row;
+    int old_total_rows = state->rows;
     int total_rows = rows + 2 + input_visible_rows; /* top divider + bottom divider + variable input rows */
+
+    /* If columns decreased, clear entire old input area (all divider and input rows) BEFORE resizing */
+    /* This prevents old divider/content from being pushed into scroll area during resize */
+    if (cols < old_cols) {
+        char pos_seq[32];
+        /* Clear entire old input area (divider + input rows) to remove all old divider content */
+        /* Old input area starts at old_input_row + 1 (top divider) and goes to old_total_rows */
+        for (int row = old_input_row + 1; row <= old_total_rows; row++) {
+            /* Clear entire row from column 1 to end */
+            ansi_format_cursor_pos(pos_seq, sizeof(pos_seq), row, 1);
+            vterm_input_write(state->vterm, pos_seq, strlen(pos_seq));
+            vterm_input_write(state->vterm, ANSI_ERASE_TO_EOL, strlen(ANSI_ERASE_TO_EOL));
+        }
+        /* Also clear all scroll area rows beyond new column count to remove any old content */
+        for (int row = 1; row <= old_scrolling_rows; row++) {
+            ansi_format_cursor_pos(pos_seq, sizeof(pos_seq), row, cols + 1);
+            vterm_input_write(state->vterm, pos_seq, strlen(pos_seq));
+            vterm_input_write(state->vterm, ANSI_ERASE_TO_EOL, strlen(ANSI_ERASE_TO_EOL));
+        }
+    }
 
     /* If scrolling region is shrinking (input area growing), scroll content up first */
     if (rows < old_scrolling_rows) {
@@ -631,6 +654,17 @@ static void vterm_resize(void *vstate, int rows, int cols, int input_visible_row
     state->input_row = rows;
 
     vterm_set_size(state->vterm, total_rows, cols);
+
+    /* After resize, clear any remaining cells beyond new column count on all rows */
+    if (cols < old_cols) {
+        char pos_seq[32];
+        /* Clear from column (cols+1) to end of line for all rows (scroll area + input area) */
+        for (int row = 1; row <= total_rows; row++) {
+            ansi_format_cursor_pos(pos_seq, sizeof(pos_seq), row, cols + 1);
+            vterm_input_write(state->vterm, pos_seq, strlen(pos_seq));
+            vterm_input_write(state->vterm, ANSI_ERASE_TO_EOL, strlen(ANSI_ERASE_TO_EOL));
+        }
+    }
 
     /* Clear old input area if terminal grew (input area shrank) */
     if (rows > old_scrolling_rows) {
@@ -962,14 +996,30 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
     int input_text_start_row = input_row + 2;
     int bottom_divider_row = input_text_start_row + visible_rows;
 
-    /* Position cursor at top divider row and clear from here to end of screen */
-    /* This removes old separator/input content when resizing */
+    /* Clear all divider and input rows completely before redrawing */
+    /* This is critical when columns decrease - old divider cells beyond new column count must be cleared */
     char cursor_buf[16];
-    ansi_format_cursor_pos(cursor_buf, sizeof(cursor_buf), top_divider_row, 1);
-    dynamic_buffer_append_str(buf, cursor_buf);
-    dynamic_buffer_append_str(buf, ANSI_ERASE_TO_EOS);
+
+    /* Clear all divider and input rows completely */
+    for (int row = top_divider_row; row <= bottom_divider_row; row++) {
+        /* Clear entire row from column 1 to end of line */
+        ansi_format_cursor_pos(cursor_buf, sizeof(cursor_buf), row, 1);
+        dynamic_buffer_append_str(buf, cursor_buf);
+        dynamic_buffer_append_str(buf, ANSI_ERASE_TO_EOL);
+    }
+
+    /* Also clear from bottom divider to end of screen to remove any old content below */
+    if (bottom_divider_row < state->rows) {
+        ansi_format_cursor_pos(cursor_buf, sizeof(cursor_buf), bottom_divider_row + 1, 1);
+        dynamic_buffer_append_str(buf, cursor_buf);
+        dynamic_buffer_append_str(buf, ANSI_ERASE_TO_EOS);
+    }
 
     /* Draw top divider - colored box drawing character */
+    /* Position cursor at top divider row, column 1 */
+    ansi_format_cursor_pos(cursor_buf, sizeof(cursor_buf), top_divider_row, 1);
+    dynamic_buffer_append_str(buf, cursor_buf);
+
     char color_buf[32];
     ansi_format_fg_color_rgb(color_buf, sizeof(color_buf), divider_r, divider_g, divider_b);
     dynamic_buffer_append_str(buf, color_buf);
