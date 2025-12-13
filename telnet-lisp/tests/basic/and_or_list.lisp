@@ -49,6 +49,21 @@
 (assert-nil (list? #t) "boolean true is not a list")
 (assert-true (list? #f) "boolean false (#f = nil) is a list (the empty list)")
 
+;;; pair? predicate tests
+(assert-true (pair? '(1 . 2)) "dotted pair is a pair")
+(assert-true (pair? (cons 1 2)) "cons cell is a pair")
+(assert-true (pair? '(a b c)) "proper list is a pair (cons cell)")
+(assert-true (pair? '(1 2)) "list with elements is a pair")
+(assert-nil (pair? nil) "nil is not a pair")
+(assert-nil (pair? '()) "empty list is not a pair")
+(assert-nil (pair? 42) "integer is not a pair")
+(assert-nil (pair? "string") "string is not a pair")
+(assert-nil (pair? #(1 2 3)) "vector is not a pair")
+(assert-nil (pair? #t) "boolean true is not a pair")
+(assert-nil (pair? #f) "boolean false is not a pair")
+(assert-true (pair? (cons 'a 'b)) "cons of symbols is a pair")
+(assert-true (pair? (cons 1 nil)) "cons with nil cdr is a pair")
+
 ;;; Nested and/or
 (assert-equal (and (or #f 1) (or 2 #f)) 2 "nested and/or evaluates correctly")
 (assert-equal (or (and #f 1) (and 2 3)) 3 "nested or/and evaluates correctly")

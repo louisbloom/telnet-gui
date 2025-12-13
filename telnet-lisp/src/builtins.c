@@ -55,6 +55,7 @@ static LispObject *builtin_append(LispObject *args, Environment *env);
 /* Predicates */
 static LispObject *builtin_null_question(LispObject *args, Environment *env);
 static LispObject *builtin_atom_question(LispObject *args, Environment *env);
+static LispObject *builtin_pair_question(LispObject *args, Environment *env);
 
 /* Regex operations docstrings */
 static const char *doc_regex_match = "Test if regex pattern matches string.\n"
@@ -1112,6 +1113,33 @@ static const char *doc_not = "Logical negation.\n"
                              "\n"
                              "## Notes\n"
                              "Only `nil` (and `#f`) are falsy in telnet-lisp";
+
+static const char *doc_pair_question =
+    "Test if object is a cons cell (pair).\n"
+    "\n"
+    "## Parameters\n"
+    "- `obj` - Object to test\n"
+    "\n"
+    "## Returns\n"
+    "`#t` if object is a cons cell (pair), `#f` otherwise.\n"
+    "\n"
+    "## Examples\n"
+    "```lisp\n"
+    "(pair? '(1 . 2))        ; => #t\n"
+    "(pair? '(a b c))        ; => #t\n"
+    "(pair? nil)             ; => #f (nil is not a pair)\n"
+    "(pair? 42)              ; => #f\n"
+    "(pair? \"string\")       ; => #f\n"
+    "```\n"
+    "\n"
+    "## Notes\n"
+    "- A pair is a cons cell (`LISP_CONS` type)\n"
+    "- `nil` is NOT a pair (unlike `list?` which returns true for both `nil` and cons cells)\n"
+    "- Useful for checking if an alist element is a key-value pair\n"
+    "\n"
+    "## See Also\n"
+    "- `list?` - Test if object is a list (nil or cons cell)\n"
+    "- `cons` - Create a cons cell";
 
 /* Vector operations */
 static const char *doc_make_vector =
@@ -2575,6 +2603,8 @@ void register_builtins(Environment *env) {
 
     env_define(env, "null?", lisp_make_builtin(builtin_null_question, "null?", doc_null_question));
     env_define(env, "atom?", lisp_make_builtin(builtin_atom_question, "atom?", doc_atom_question));
+    env_define(env, "pair?", lisp_make_builtin(builtin_pair_question, "pair?", doc_pair_question));
+    env_define(env, "pair?", lisp_make_builtin(builtin_pair_question, "pair?", doc_pair_question));
 
     env_define(env, "regex-match", lisp_make_builtin(builtin_regex_match, "regex-match", doc_regex_match));
     env_define(env, "regex-find", lisp_make_builtin(builtin_regex_find, "regex-find", doc_regex_find));
@@ -5277,6 +5307,16 @@ static LispObject *builtin_list_question(LispObject *args, Environment *env) {
     LispObject *arg = lisp_car(args);
     /* A list is either NIL or a cons cell */
     return (arg == NIL || arg->type == LISP_CONS) ? lisp_make_number(1) : NIL;
+}
+
+static LispObject *builtin_pair_question(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("pair? requires 1 argument");
+    }
+    LispObject *arg = lisp_car(args);
+    /* A pair is a cons cell (nil is NOT a pair) */
+    return (arg->type == LISP_CONS) ? lisp_make_number(1) : NIL;
 }
 
 /* Symbol operations */

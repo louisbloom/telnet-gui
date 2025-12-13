@@ -1299,21 +1299,21 @@
                            (not (list? (car (car value)))))
                        ;; Nested alist
                        (progn
-			 (princ "\n")
-			 (do ((remaining value (cdr remaining)))
+                         (princ "\n")
+                         (do ((remaining value (cdr remaining)))
                            ((null? remaining))
                            (let ((pair (car remaining)))
                              (if (pair? pair)
                                (print-pair (car pair) (cdr pair) (+ indent 1))
                                (progn
-				 (princ indent-str)
-				 (princ "  ")
-				 (princ pair)
-				 (princ "\n"))))))
+                                 (princ indent-str)
+                                 (princ "  ")
+                                 (princ pair)
+                                 (princ "\n"))))))
                        ;; Regular list
                        (progn
-			 (princ value)
-			 (princ "\n"))))
+                         (princ value)
+                         (princ "\n"))))
                    ((string? value)
                      (princ "\"")
                      (princ value)
