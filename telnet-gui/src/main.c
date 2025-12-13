@@ -852,6 +852,9 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    /* Initialize input area (needed for terminal size calculation) */
+    input_area_init(&input_area);
+
     /* Create terminal with specified geometry */
     Terminal *term = terminal_create(terminal_rows, terminal_cols);
     if (!term) {
@@ -892,6 +895,15 @@ int main(int argc, char **argv) {
     /* Wire telnet to terminal for output buffering */
     terminal_set_telnet(term, telnet);
 
+    /* Get actual window size and resize terminal to match (before loading Lisp files) */
+    int actual_width, actual_height;
+    SDL_GetWindowSize(sdl_window, &actual_width, &actual_height);
+    int initial_rows, initial_cols;
+    calculate_terminal_size(actual_width, actual_height, cell_w, cell_h, &input_area, &initial_rows, &initial_cols);
+    int input_visible_rows = input_area_get_visible_rows(&input_area);
+    terminal_resize(term, initial_rows, initial_cols, input_visible_rows);
+    telnet_set_terminal_size(telnet, initial_cols, initial_rows);
+
     /* Load user-provided Lisp files in order after terminal and telnet are registered */
     for (int i = 0; i < lisp_file_count; i++) {
         if (lisp_x_load_file(lisp_files[i]) < 0) {
@@ -917,19 +929,6 @@ int main(int argc, char **argv) {
         const char *msg = "\r\n*** Starting in unconnected mode ***\r\n";
         terminal_feed_data(term, msg, strlen(msg));
     }
-
-    /* Initialize input area */
-    input_area_init(&input_area);
-
-    /* Get actual window size after resize and resize terminal to match */
-    int input_area_height = 3 * cell_h; /* Top divider + bottom divider + input row */
-    int actual_width, actual_height;
-    SDL_GetWindowSize(sdl_window, &actual_width, &actual_height);
-    int initial_rows, initial_cols;
-    calculate_terminal_size(actual_width, actual_height, cell_w, cell_h, &input_area, &initial_rows, &initial_cols);
-    int input_visible_rows = input_area_get_visible_rows(&input_area);
-    terminal_resize(term, initial_rows, initial_cols, input_visible_rows);
-    telnet_set_terminal_size(telnet, initial_cols, initial_rows);
 
     /* Perform initial render to eliminate white border artifact */
     /* Clear renderer to terminal background color */
@@ -997,6 +996,9 @@ int main(int argc, char **argv) {
                 /* Get window size to check if mouse is in input area */
                 int window_width, window_height;
                 window_get_size(win, &window_width, &window_height);
+
+                /* Calculate input area height: top divider + bottom divider + visible input rows */
+                int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * cell_h;
 
                 /* Handle clicks in terminal area (not in input area) */
                 if (mouse_y < window_height - input_area_height) {
@@ -1455,6 +1457,7 @@ int main(int argc, char **argv) {
                 /* Only handle mouse events for terminal if not in input area */
                 int win_width, win_height;
                 window_get_size(win, &win_width, &win_height);
+                int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * cell_h;
                 if (event.button.y < win_height - input_area_height) {
                     input_handle_mouse(&event.button, NULL, terminal_get_vterm(term), cell_w, cell_h, 0);
                 }
@@ -1466,6 +1469,7 @@ int main(int argc, char **argv) {
                 if (terminal_selection.active && (event.motion.state & SDL_BUTTON(SDL_BUTTON_LEFT))) {
                     int motion_win_width, motion_win_height;
                     window_get_size(win, &motion_win_width, &motion_win_height);
+                    int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * cell_h;
                     if (event.motion.y < motion_win_height - input_area_height) {
                         /* Convert mouse coordinates to terminal cell coordinates */
                         int term_row = event.motion.y / cell_h;
@@ -1477,6 +1481,7 @@ int main(int argc, char **argv) {
                 /* Only handle mouse events for terminal if not in input area */
                 int motion_win_width, motion_win_height;
                 window_get_size(win, &motion_win_width, &motion_win_height);
+                int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * cell_h;
                 if (event.motion.y < motion_win_height - input_area_height) {
                     input_handle_mouse(NULL, &event.motion, terminal_get_vterm(term), cell_w, cell_h, 0);
                 }
@@ -1490,6 +1495,7 @@ int main(int argc, char **argv) {
                 /* Check if mouse is over terminal area (not input area) */
                 int wheel_win_width, wheel_win_height;
                 window_get_size(win, &wheel_win_width, &wheel_win_height);
+                int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * cell_h;
                 if (mouse_y < wheel_win_height - input_area_height) {
                     /* Get scroll configuration from Lisp bridge */
                     int lines_per_click = lisp_x_get_scroll_lines_per_click();
