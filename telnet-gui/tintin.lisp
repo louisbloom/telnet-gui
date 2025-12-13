@@ -3091,21 +3091,22 @@
     ""
     ;; Check if it's a # command
     (if (tintin-is-command? cmd)
-      ;; Note: main.c already echoes the raw user input, so we don't echo it here
-      ;; Extract and dispatch
-      (let ((cmd-name (tintin-extract-command-name cmd)))
-        (if (not cmd-name)
-          (progn
-            (tintin-echo (concat "Invalid TinTin++ command format: " cmd "\r\n"))
-            "")
-          (let ((matched (tintin-find-command cmd-name)))
-            (if (not matched)
-              (progn
-                (tintin-echo (concat "Unknown TinTin++ command: #" cmd-name "\r\n"))
-                "")
-              (tintin-dispatch-command matched cmd))))))
-    ;; Regular command - expand aliases
-    (tintin-expand-alias cmd depth)))
+      ;; TinTin++ command - echo it and dispatch
+      (progn
+        (tintin-echo (concat cmd "\r\n"))
+        (let ((cmd-name (tintin-extract-command-name cmd)))
+          (if (not cmd-name)
+            (progn
+              (tintin-echo (concat "Invalid TinTin++ command format: " cmd "\r\n"))
+              "")
+            (let ((matched (tintin-find-command cmd-name)))
+              (if (not matched)
+                (progn
+                  (tintin-echo (concat "Unknown TinTin++ command: #" cmd-name "\r\n"))
+                  "")
+                (tintin-dispatch-command matched cmd))))))
+      ;; Regular command - expand aliases
+      (tintin-expand-alias cmd depth))))
 
 (defun tintin-process-command (cmd)
   "Process a single TinTin++ command or server command.

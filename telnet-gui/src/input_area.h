@@ -49,6 +49,9 @@ typedef struct InputArea {
 
     /* Echo buffer for user input */
     DynamicBuffer *echo_buf;
+
+    /* Eval buffer for Lisp expression output */
+    DynamicBuffer *eval_buf;
 } InputArea;
 
 /* Initialize input area */

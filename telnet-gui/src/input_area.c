@@ -50,6 +50,9 @@ void input_area_init(InputArea *area) {
     /* Initialize echo buffer */
     area->echo_buf = dynamic_buffer_create(INPUT_AREA_MAX_LENGTH + 10);
 
+    /* Initialize eval buffer */
+    area->eval_buf = dynamic_buffer_create(4096);
+
     /* Initialize multi-line fields */
     area->line_break_count = 0;
     area->visual_rows = 1;         /* Start with one row */

@@ -1264,7 +1264,7 @@ int main(int argc, char **argv) {
                         int cursor_pos = input_area_get_cursor_pos(&input_area);
 
                         /* Echo raw input FIRST for non-eval mode (eval mode has its own echo with >) */
-                        if (input_area_get_mode(&input_area) != INPUT_AREA_MODE_EVAL) {
+                        if (input_area_get_mode(&input_area) != INPUT_AREA_MODE_EVAL && input_area.echo_buf) {
                             char color_buf[32];
                             dynamic_buffer_clear(input_area.echo_buf);
                             /* Use light yellow/gold true color for user input (RGB 255, 220, 100) */
@@ -1293,14 +1293,9 @@ int main(int argc, char **argv) {
                             input_area_clear(&input_area);
                         } else if (input_area_get_mode(&input_area) == INPUT_AREA_MODE_EVAL) {
                             /* Eval mode - evaluate Lisp expression using shared eval logic */
-                            /* Use static preallocated buffer for eval output */
-                            static DynamicBuffer *eval_buf = NULL;
-                            if (!eval_buf) {
-                                eval_buf = dynamic_buffer_create(4096);
-                            }
-
-                            if (eval_buf && lisp_x_eval_and_echo(text, eval_buf) == 0) {
-                                terminal_feed_data(term, dynamic_buffer_data(eval_buf), dynamic_buffer_len(eval_buf));
+                            if (input_area.eval_buf && lisp_x_eval_and_echo(text, input_area.eval_buf) == 0) {
+                                terminal_feed_data(term, dynamic_buffer_data(input_area.eval_buf),
+                                                   dynamic_buffer_len(input_area.eval_buf));
                             }
 
                             /* Scroll to bottom */
