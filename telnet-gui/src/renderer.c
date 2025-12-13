@@ -7,6 +7,10 @@
 #include <stdio.h>
 #include <SDL2/SDL.h>
 
+/* Padding around terminal area (including input area) */
+#define PADDING_X 8
+#define PADDING_Y 8
+
 struct Renderer {
     const RendererBackend *backend; /* Backend vtable */
     void *backend_state;            /* Opaque backend state */
@@ -59,8 +63,8 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
     }
 
     int total_rows = scrolling_rows + 2 + input_rows;
-    int window_width = cols * r->cell_w;
-    int window_height = total_rows * r->cell_h;
+    int window_width = cols * r->cell_w + 2 * PADDING_X;
+    int window_height = total_rows * r->cell_h + 2 * PADDING_Y;
 
     /* Begin frame - clear screen */
     if (r->backend && r->backend->begin_frame)

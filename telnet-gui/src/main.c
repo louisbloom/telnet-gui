@@ -28,6 +28,10 @@
 #include "lisp.h"
 #include "../../telnet-lisp/include/lisp.h"
 
+/* Padding around terminal area (including input area) - must match renderer.c */
+#define PADDING_X 8
+#define PADDING_Y 8
+
 static int running = 1;
 
 /* Input area */
@@ -195,16 +199,20 @@ static void cleanup(void) {
 /* Calculate terminal size (rows, cols) based on window dimensions */
 static void calculate_terminal_size(int window_width, int window_height, int cell_w, int cell_h, InputArea *input_area,
                                     int *rows, int *cols) {
-    /* Calculate columns from window width */
-    *cols = window_width / cell_w;
+    /* Subtract padding from window dimensions before calculating terminal size */
+    int available_width = window_width - 2 * PADDING_X;
+    int available_height = window_height - 2 * PADDING_Y;
+
+    /* Calculate columns from available width */
+    *cols = available_width / cell_w;
     if (*cols < 10)
         *cols = 10; /* Minimum width */
 
-    /* Calculate number of rows that fit in window height */
+    /* Calculate number of rows that fit in available height */
     /* Subtract rows for top divider, bottom divider, and dynamic input area height */
     int input_height_rows =
         2 + input_area_get_visible_rows(input_area); /* Top divider + bottom divider + visible input rows */
-    *rows = (window_height / cell_h) - input_height_rows;
+    *rows = (available_height / cell_h) - input_height_rows;
     if (*rows < 1)
         *rows = 1; /* Minimum: 1 scrolling row */
 }
@@ -819,8 +827,8 @@ int main(int argc, char **argv) {
 
     /* Calculate exact window size for terminal geometry using actual glyph metrics */
     int separator_and_input_height = 3 * cell_h; /* Top divider + bottom divider + input row */
-    int precise_width = terminal_cols * cell_w;
-    int precise_height = terminal_rows * cell_h + separator_and_input_height;
+    int precise_width = terminal_cols * cell_w + 2 * PADDING_X;
+    int precise_height = terminal_rows * cell_h + separator_and_input_height + 2 * PADDING_Y;
 
     /* Clean up hidden window and temporary renderer */
     SDL_DestroyRenderer(temp_renderer);
@@ -1020,15 +1028,20 @@ int main(int argc, char **argv) {
                 /* Calculate input area height: top divider + bottom divider + visible input rows */
                 int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * cell_h;
 
-                /* Handle clicks in terminal area (not in input area) */
-                if (mouse_y < window_height - input_area_height) {
-                    /* Start selection only if no selection was cleared */
-                    if (event.button.button == SDL_BUTTON_LEFT && !had_selection) {
-                        /* Convert mouse coordinates to terminal cell coordinates */
-                        int term_row = mouse_y / cell_h;
-                        int term_col = mouse_x / cell_w;
-                        /* Start selection and freeze viewport */
-                        start_terminal_selection(term, term_row, term_col);
+                /* Handle clicks in terminal area (not in input area or padding) */
+                /* Check if click is within terminal area (excluding padding) */
+                if (mouse_x >= PADDING_X && mouse_x < window_width - PADDING_X && mouse_y >= PADDING_Y &&
+                    mouse_y < window_height - PADDING_Y) {
+                    /* Check if click is in terminal scrolling area (not input area) */
+                    if (mouse_y < window_height - input_area_height - PADDING_Y) {
+                        /* Start selection only if no selection was cleared */
+                        if (event.button.button == SDL_BUTTON_LEFT && !had_selection) {
+                            /* Convert mouse coordinates to terminal cell coordinates, subtracting padding */
+                            int term_row = (mouse_y - PADDING_Y) / cell_h;
+                            int term_col = (mouse_x - PADDING_X) / cell_w;
+                            /* Start selection and freeze viewport */
+                            start_terminal_selection(term, term_row, term_col);
+                        }
                     }
                 }
                 /* Mouse clicks in input area are ignored (input area is always active) */
@@ -1474,11 +1487,14 @@ int main(int argc, char **argv) {
 
             case SDL_MOUSEBUTTONUP: {
                 /* Selection remains active after mouse button up - user can copy with Ctrl+C */
-                /* Only handle mouse events for terminal if not in input area */
+                /* Only handle mouse events for terminal if not in input area or padding */
                 int win_width, win_height;
                 window_get_size(win, &win_width, &win_height);
                 int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * cell_h;
-                if (event.button.y < win_height - input_area_height) {
+                /* Check if click is within terminal area (excluding padding) and not in input area */
+                if (event.button.x >= PADDING_X && event.button.x < win_width - PADDING_X &&
+                    event.button.y >= PADDING_Y && event.button.y < win_height - PADDING_Y &&
+                    event.button.y < win_height - input_area_height - PADDING_Y) {
                     input_handle_mouse(&event.button, NULL, terminal_get_vterm(term), cell_w, cell_h, 0);
                 }
                 break;
@@ -1490,19 +1506,25 @@ int main(int argc, char **argv) {
                     int motion_win_width, motion_win_height;
                     window_get_size(win, &motion_win_width, &motion_win_height);
                     int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * cell_h;
-                    if (event.motion.y < motion_win_height - input_area_height) {
-                        /* Convert mouse coordinates to terminal cell coordinates */
-                        int term_row = event.motion.y / cell_h;
-                        int term_col = event.motion.x / cell_w;
+                    /* Check if motion is within terminal area (excluding padding) and not in input area */
+                    if (event.motion.x >= PADDING_X && event.motion.x < motion_win_width - PADDING_X &&
+                        event.motion.y >= PADDING_Y && event.motion.y < motion_win_height - PADDING_Y &&
+                        event.motion.y < motion_win_height - input_area_height - PADDING_Y) {
+                        /* Convert mouse coordinates to terminal cell coordinates, subtracting padding */
+                        int term_row = (event.motion.y - PADDING_Y) / cell_h;
+                        int term_col = (event.motion.x - PADDING_X) / cell_w;
                         /* Update selection end position */
                         update_terminal_selection(term, term_row, term_col);
                     }
                 }
-                /* Only handle mouse events for terminal if not in input area */
+                /* Only handle mouse events for terminal if not in input area or padding */
                 int motion_win_width, motion_win_height;
                 window_get_size(win, &motion_win_width, &motion_win_height);
                 int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * cell_h;
-                if (event.motion.y < motion_win_height - input_area_height) {
+                /* Check if motion is within terminal area (excluding padding) and not in input area */
+                if (event.motion.x >= PADDING_X && event.motion.x < motion_win_width - PADDING_X &&
+                    event.motion.y >= PADDING_Y && event.motion.y < motion_win_height - PADDING_Y &&
+                    event.motion.y < motion_win_height - input_area_height - PADDING_Y) {
                     input_handle_mouse(NULL, &event.motion, terminal_get_vterm(term), cell_w, cell_h, 0);
                 }
                 break;
@@ -1512,11 +1534,14 @@ int main(int argc, char **argv) {
                 int mouse_x, mouse_y;
                 SDL_GetMouseState(&mouse_x, &mouse_y);
 
-                /* Check if mouse is over terminal area (not input area) */
+                /* Check if mouse is over terminal area (not input area or padding) */
                 int wheel_win_width, wheel_win_height;
                 window_get_size(win, &wheel_win_width, &wheel_win_height);
                 int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * cell_h;
-                if (mouse_y < wheel_win_height - input_area_height) {
+                /* Check if mouse is within terminal area (excluding padding) and not in input area */
+                if (mouse_x >= PADDING_X && mouse_x < wheel_win_width - PADDING_X && mouse_y >= PADDING_Y &&
+                    mouse_y < wheel_win_height - PADDING_Y &&
+                    mouse_y < wheel_win_height - input_area_height - PADDING_Y) {
                     /* Get scroll configuration from Lisp bridge */
                     int lines_per_click = lisp_x_get_scroll_lines_per_click();
                     int smooth_scrolling = lisp_x_get_smooth_scrolling_enabled();

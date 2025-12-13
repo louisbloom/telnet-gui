@@ -9,6 +9,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+/* Padding around terminal area (including input area) - must match renderer.c */
+#define PADDING_X 8
+#define PADDING_Y 8
+
 /* SDL backend state - all SDL-specific data */
 typedef struct {
     SDL_Renderer *sdl_renderer;
@@ -87,7 +91,7 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
         int sel_bg_r, sel_bg_g, sel_bg_b;
         lisp_x_get_selection_bg_color(&sel_bg_r, &sel_bg_g, &sel_bg_b);
         SDL_SetRenderDrawColor(state->sdl_renderer, sel_bg_r, sel_bg_g, sel_bg_b, 255);
-        SDL_Rect bg_rect = {col * cell_w, row * cell_h, cell_w, cell_h};
+        SDL_Rect bg_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y, cell_w, cell_h};
         SDL_RenderFillRect(state->sdl_renderer, &bg_rect);
     } else if (cell->bg.type != TERM_COLOR_DEFAULT) {
         /* Draw non-default background color */
@@ -117,7 +121,7 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
         }
 
         SDL_SetRenderDrawColor(state->sdl_renderer, bg_r, bg_g, bg_b, 255);
-        SDL_Rect bg_rect = {col * cell_w, row * cell_h, cell_w, cell_h};
+        SDL_Rect bg_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y, cell_w, cell_h};
         SDL_RenderFillRect(state->sdl_renderer, &bg_rect);
     }
 
@@ -209,8 +213,8 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
 
         /* Handle box drawing characters manually for pixel-perfect alignment */
         if (is_box_drawing_char(cell->chars[0])) {
-            int dst_x = col * cell_w;
-            int dst_y = row * cell_h;
+            int dst_x = col * cell_w + PADDING_X;
+            int dst_y = row * cell_h + PADDING_Y;
             render_box_drawing_char(state->sdl_renderer, cell->chars[0], dst_x, dst_y, cell_w, cell_h, fg_color);
         } else {
             SDL_Texture *glyph = glyph_cache_get(state->glyph_cache, cell->chars[0], fg_color, bg_color,
@@ -221,8 +225,8 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
                 SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);
 
                 /* Position glyph at cell boundary - no minx adjustment for monospace alignment */
-                int dst_x = col * cell_w;
-                int dst_y = row * cell_h;
+                int dst_x = col * cell_w + PADDING_X;
+                int dst_y = row * cell_h + PADDING_Y;
                 SDL_Rect dst = {dst_x, dst_y, tex_w, tex_h};
 
                 SDL_RenderCopy(state->sdl_renderer, glyph, NULL, &dst);
@@ -242,7 +246,7 @@ static void sdl_render_cursor(void *vstate, int row, int col, int cell_w, int ce
 
     /* Render cursor as filled block */
     SDL_SetRenderDrawColor(state->sdl_renderer, cursor_r, cursor_g, cursor_b, 255);
-    SDL_Rect cursor_rect = {col * cell_w, row * cell_h, cell_w, cell_h};
+    SDL_Rect cursor_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y, cell_w, cell_h};
     SDL_RenderFillRect(state->sdl_renderer, &cursor_rect);
 }
 
