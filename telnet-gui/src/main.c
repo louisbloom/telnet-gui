@@ -9,6 +9,9 @@
 
 #ifdef _WIN32
 #include <winsock2.h>
+#include <windows.h>
+#include <io.h>
+#include <fcntl.h>
 #else
 #include <sys/select.h>
 #include <sys/time.h>
@@ -293,7 +296,29 @@ static const char *find_system_monospace_font(const char **font_name_out) {
     return NULL;
 }
 
+#ifdef _WIN32
+/* Attach to console for help output on Windows (when built as Windows subsystem) */
+static void attach_console_for_help(void) {
+    /* Try to attach to parent console (e.g., PowerShell) */
+    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+        /* Reopen stdout and stderr to point to the console */
+        freopen("CONOUT$", "w", stdout);
+        freopen("CONOUT$", "w", stderr);
+    } else {
+        /* If no parent console, allocate a new one */
+        if (AllocConsole()) {
+            freopen("CONOUT$", "w", stdout);
+            freopen("CONOUT$", "w", stderr);
+        }
+    }
+}
+#endif
+
 static void print_help(const char *program_name) {
+#ifdef _WIN32
+    /* Attach to console so help is visible when run from PowerShell */
+    attach_console_for_help();
+#endif
     printf("Usage: %s [OPTIONS] [hostname] [port]\n", program_name);
     printf("\n");
     printf("Options:\n");
@@ -356,6 +381,8 @@ static void print_help(const char *program_name) {
     printf("      Load multiple Lisp files in order\n");
     printf("  %s -t tintin_test_final.lisp\n", program_name);
     printf("      Run a test file in headless mode\n");
+    printf("\n");
+    fflush(stdout);
 }
 
 int main(int argc, char **argv) {
