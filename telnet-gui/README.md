@@ -65,13 +65,128 @@ If CMake detects v0.3.3 or older, it will suggest building from upstream source.
 
 ## Build
 
-From the project root:
+### Debug Build (Default)
+
+Debug builds stay attached to the console, making it easier to see debug output and error messages:
 
 ```bash
+# Configure for Debug build (default)
+cmake -B build -G Ninja
+
+# Build telnet-gui
 cmake --build build --target telnet-gui
 ```
 
 The executable will be created at `build/telnet-gui/telnet-gui.exe`.
+
+**Debug Build Behavior:**
+
+- Console window remains visible
+- Debug output and error messages appear in console
+- Compiled with `-O0 -g` flags (no optimization, debug symbols included)
+- Useful for development and troubleshooting
+
+### Release Build
+
+Release builds detach from the console, running as a pure GUI application:
+
+```bash
+# Configure for Release build
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+# Build telnet-gui
+cmake --build build --target telnet-gui
+```
+
+**Release Build Behavior:**
+
+- No console window (pure GUI application)
+- Optimized for performance (`-O2`)
+- Suitable for end-user distribution
+
+### Switching Between Build Types
+
+To switch between Debug and Release builds, reconfigure CMake:
+
+```bash
+# Switch to Release
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target telnet-gui
+
+# Switch back to Debug
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target telnet-gui
+```
+
+## Installation
+
+### User Directory Installation
+
+The project installs to your user directory by default (no administrator privileges required):
+
+**Windows:**
+
+- Default install location: `%USERPROFILE%\telnet-lisp\`
+- Example: `C:\Users\YourName\telnet-lisp\`
+
+**Unix/Linux/macOS:**
+
+- Default install location: `~/telnet-lisp/`
+- Example: `/home/yourname/telnet-lisp/`
+
+### Installing the Application
+
+From the project root:
+
+```bash
+# Build first (Debug or Release)
+cmake -B build -G Ninja
+cmake --build build --target telnet-gui
+
+# Install to user directory
+cmake --install build
+```
+
+This installs:
+
+- **Executable**: `bin/telnet-gui.exe` (Windows) or `bin/telnet-gui` (Unix)
+- **Lisp files**: `share/telnet-gui/lisp/` (bootstrap.lisp, tintin.lisp)
+- **Fonts**: `share/telnet-gui/fonts/` (all bundled fonts)
+- **Runtime DLLs**: `bin/` (Windows only: libpcre2-8-0.dll, libwinpthread-1.dll)
+
+### Custom Install Location
+
+To install to a different location:
+
+```bash
+# Configure with custom install prefix (CMake 3.21+)
+cmake -B build -G Ninja --install-prefix /path/to/install
+
+# Or use the traditional -D option (all CMake versions)
+# cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX=/path/to/install
+
+# Build and install
+cmake --build build --target telnet-gui
+cmake --install build
+```
+
+### Running Installed Application
+
+After installation, you can run telnet-gui from the install directory:
+
+**Windows:**
+
+```cmd
+%USERPROFILE%\telnet-lisp\bin\telnet-gui.exe <hostname> <port>
+```
+
+**Unix/Linux/macOS:**
+
+```bash
+~/telnet-lisp/bin/telnet-gui <hostname> <port>
+```
+
+Or add the `bin` directory to your PATH for system-wide access.
 
 ## Usage
 
@@ -95,20 +210,22 @@ Example:
 
 **Font Options:**
 
-- `-f, --font-size SIZE` - Set font size in points (default: 16)
-- `-F<letter>` - Select font (default: d for DejaVu Sans Mono):
-  - `m` = Cascadia Mono, `i` = Inconsolata, `p` = IBM Plex Mono, `d` = DejaVu Sans Mono, `c` = Courier Prime
-- `--font <name>` - Select font by name (cascadia, inconsolata, plex, dejavu, courier)
+- `-f, --font-size SIZE` - Set font size in points (default: 12)
+- `-F<letter>` - Select font (default: s for System monospace font):
+  - `s` = System monospace font (best for platform), `m` = Cascadia Mono, `i` = Inconsolata, `p` = IBM Plex Mono, `d` = DejaVu Sans Mono, `c` = Courier Prime
+- `--font <name>` - Select font by name (system, cascadia, inconsolata, plex, dejavu, courier)
 - `-H, --hinting MODE` - Font hinting mode: none (default), light, normal, mono
 - `-a, --antialiasing MODE` - Anti-aliasing mode: linear (default), nearest
 
 **Terminal Options:**
 
 - `-g, --geometry COLSxROWS` - Set terminal size (default: 80x40)
+- `-L, --line-height HEIGHT` - Set line height multiplier (default: 1.2, range: 0.5 to 3.0)
 
 **Other Options:**
 
-- `-l, --lisp-file FILE` - Load Lisp configuration file on startup
+- `-l, --lisp-file FILE` - Load Lisp configuration file on startup (can be specified multiple times)
+- `-t, --test FILE` - Run a Lisp test file in headless mode and exit (returns 0 on success)
 - `--debug-exit` - Exit after initialization (for capturing debug output)
 - `-h, --help` - Show help message
 
@@ -118,7 +235,7 @@ Example:
 # Start in unconnected mode
 ./build/telnet-gui/telnet-gui.exe
 
-# Connect with larger font (uses default DejaVu Sans Mono)
+# Connect with larger font (uses default System monospace font)
 ./build/telnet-gui/telnet-gui.exe -f 20 telnet-server 4449
 
 # Use Inconsolata font
@@ -130,6 +247,9 @@ Example:
 # Use DejaVu Sans Mono font with long form
 ./build/telnet-gui/telnet-gui.exe --font dejavu telnet-server 4449
 
+# Use System font with custom line height
+./build/telnet-gui/telnet-gui.exe --font system -L 1.5 telnet-server 4449
+
 # Load custom Lisp configuration (word completion is built-in via bootstrap.lisp)
 ./build/telnet-gui/telnet-gui.exe -l custom-config.lisp telnet-server 4449
 
@@ -139,9 +259,10 @@ Example:
 
 ### Bundled Fonts
 
-The application includes five monospace fonts optimized for terminal use:
+The application includes five monospace fonts optimized for terminal use, plus uses the system monospace font by default:
 
-- **DejaVu Sans Mono** (default) - Bitstream Vera derivative with excellent Unicode coverage. [Bitstream Vera License]
+- **System Monospace Font** (default) - Uses the platform's native monospace font (best compatibility and rendering)
+- **DejaVu Sans Mono** - Bitstream Vera derivative with excellent Unicode coverage. [Bitstream Vera License]
 - **Cascadia Mono** - Microsoft's programming font designed specifically for terminal applications. Clean rendering without ligatures. [SIL OFL 1.1]
 - **Inconsolata** - Compact monospace font with excellent readability. [SIL OFL 1.1]
 - **IBM Plex Mono** - IBM's corporate font family, part of the Plex typeface system. [SIL OFL 1.1]
@@ -202,14 +323,17 @@ echo '(defun telnet-input-hook (text) ())' >> disable-completion.lisp
 - **Normal mode** - Input sent directly to telnet server (press Ctrl+E to toggle)
 - **Eval mode** - Input evaluated as Lisp code (press Ctrl+E to toggle)
 
-### Slash Commands
+### Colon Commands
 
-Available in Normal mode:
+Available in Normal mode (commands start with `:`):
 
-- `/help` - Show available commands
-- `/connect <server> <port>` - Connect to server
-- `/disconnect` - Disconnect from server
-- `/test <filepath>` - Run Lisp test file
+- `:help` - Show available commands
+- `:connect <server> <port>` or `:connect <server>:<port>` - Connect to server
+- `:disconnect` - Disconnect from server
+- `:load <filepath>` - Load and execute a Lisp file
+- `:test <filepath>` - Run a Lisp test file
+- `:repl <code>` - Evaluate Lisp code and show result
+- `:quit` - Exit application
 
 ### TinTin++ Scripting
 
@@ -328,32 +452,30 @@ Or manually with lisp-repl:
 ./build/lisp-repl my-test.lisp
 ```
 
-## libvterm 0.3.3 Integration
+## libvterm Integration
 
-### ⚠️ Critical Requirements
+### Initialization
 
-When working with libvterm 0.3.3, follow these requirements **exactly** to avoid segmentation faults:
+When working with libvterm 0.3.x or later, follow this initialization order:
 
-#### Initialization Order (MUST Follow Exactly)
+#### Initialization Order
 
 1. Create VTerm: `vterm_new(rows, cols)`
 2. **Set UTF-8 mode**: `vterm_set_utf8(vterm, 1)` **BEFORE getting screen**
-3. Get screen: `vterm_obtain_screen(vterm)` (this creates state internally)
-4. Set screen callbacks: `vterm_screen_set_callbacks(screen, &callbacks, user_data)`
-5. Reset screen: `vterm_screen_reset(screen, 1)` (this resets state internally and initializes encoding arrays)
+3. (Optional) Set output callback: `vterm_output_set_callback(vterm, callback, user_data)` - for capturing terminal output
+4. Get screen: `vterm_obtain_screen(vterm)` (this creates state internally)
+5. Initialize callbacks structure (stored in persistent struct, see below)
+6. Set screen callbacks: `vterm_screen_set_callbacks(screen, &callbacks, user_data)`
+7. (Optional) For text reflow support: `vterm_screen_callbacks_has_pushline4(screen)` and `vterm_screen_enable_reflow(screen, 1)`
+8. Reset screen: `vterm_screen_reset(screen, 1)` (this resets state internally and initializes encoding arrays)
 
-**Do NOT:**
+**Note:** The code follows this order, but some steps are optional (output callback, text reflow features). The order ensures proper initialization of internal state.
 
-- Set state callbacks manually when using screen layer (screen handles this internally)
-- Reset state directly (screen reset handles it)
-- Get state before screen (screen creates it)
-- Set UTF-8 mode after getting screen (reset uses UTF-8 mode to initialize encoding)
+#### Callback Structure Lifetime
 
-#### Callback Structure Lifetime (CRITICAL - Prevents Segfaults)
+**Best Practice:** Store `VTermScreenCallbacks` in a persistent struct (e.g., Terminal struct), not as a local variable.
 
-**ALWAYS** store `VTermScreenCallbacks` in a persistent struct (e.g., Terminal struct), **NOT** as a local variable.
-
-**Why?** libvterm stores a **pointer** to the callbacks structure, not a copy. If callbacks go out of scope, function pointers become corrupted → segmentation fault.
+This ensures the callbacks structure remains valid for the lifetime of the VTerm instance. While libvterm may copy the structure internally, storing it in your state struct is a safe practice that avoids potential lifetime issues.
 
 **Correct Pattern:**
 
@@ -369,6 +491,29 @@ struct Terminal {
 
 Terminal *terminal_create(int rows, int cols) {
     Terminal *term = malloc(sizeof(Terminal));
+    if (!term)
+        return NULL;
+
+    // Create VTerm instance
+    term->vterm = vterm_new(rows, cols);
+    if (!term->vterm) {
+        free(term);
+        return NULL;
+    }
+
+    // Set UTF-8 mode BEFORE getting screen
+    vterm_set_utf8(term->vterm, 1);
+
+    // (Optional) Set output callback for capturing terminal output
+    // vterm_output_set_callback(term->vterm, output_callback, term);
+
+    // Get screen (creates state internally)
+    term->screen = vterm_obtain_screen(term->vterm);
+    if (!term->screen) {
+        vterm_free(term->vterm);
+        free(term);
+        return NULL;
+    }
 
     // Initialize callbacks to zero first
     memset(&term->callbacks, 0, sizeof(term->callbacks));
@@ -379,15 +524,19 @@ Terminal *terminal_create(int rows, int cols) {
     term->callbacks.settermprop = settermprop_callback;
     term->callbacks.bell = bell_callback;
     term->callbacks.resize = resize_callback;
-
-    // Set UTF-8 mode BEFORE getting screen
-    vterm_set_utf8(term->vterm, 1);
-
-    // Get screen (creates state internally)
-    term->screen = vterm_obtain_screen(term->vterm);
+    // Scrollback callbacks (required for scrollback support)
+    term->callbacks.sb_pushline = sb_pushline_callback;
+    term->callbacks.sb_popline = sb_popline_callback;
+    term->callbacks.sb_clear = sb_clear_callback;
+    // Optional: sb_pushline4 for text reflow (if available)
+    // term->callbacks.sb_pushline4 = sb_pushline4_callback;
 
     // Set callbacks (callbacks struct stays in scope as long as Terminal exists)
     vterm_screen_set_callbacks(term->screen, &term->callbacks, term);
+
+    // (Optional) Enable text reflow if pushline4 is available
+    // vterm_screen_callbacks_has_pushline4(term->screen);
+    // vterm_screen_enable_reflow(term->screen, 1);
 
     // Reset screen (initializes encoding arrays)
     vterm_screen_reset(term->screen, 1);
@@ -396,94 +545,69 @@ Terminal *terminal_create(int rows, int cols) {
 }
 ```
 
-**Incorrect Pattern (WILL CRASH):**
+**Alternative Pattern (may work, but not recommended):**
 
 ```c
 Terminal *terminal_create(int rows, int cols) {
     Terminal *term = malloc(sizeof(Terminal));
 
-    // ❌ BAD: Local variable goes out of scope!
+    // ⚠️ Local variable - may work if libvterm copies the structure
+    // but storing in struct is safer and clearer
     VTermScreenCallbacks callbacks = {0};
     callbacks.damage = damage_callback;
     // ...
 
     vterm_screen_set_callbacks(term->screen, &callbacks, term);
-    // callbacks struct destroyed here → function pointers corrupted → segfault!
+    // If libvterm stores a pointer, this would cause issues
+    // If libvterm copies, this works but is less clear
 
     return term;
 }
 ```
 
-#### Color Handling (libvterm 0.3.3 API)
+#### Color Handling
 
-**NEVER** directly check `cell.bg.type == VTERM_COLOR_RGB`
-
-**ALWAYS** use the new macros:
+Use the `VTERM_COLOR_IS_*` macros to check color types:
 
 - `VTERM_COLOR_IS_RGB(&cell.bg)` - check if RGB color
 - `VTERM_COLOR_IS_INDEXED(&cell.bg)` - check if indexed color
 - `VTERM_COLOR_IS_DEFAULT_FG(&cell.fg)` - check if default foreground
 - `VTERM_COLOR_IS_DEFAULT_BG(&cell.bg)` - check if default background
 
-**Example:**
+**Example from actual implementation:**
 
 ```c
-VTermColor fg, bg;
-vterm_screen_get_cell(term->screen, pos, &cell);
-
-// Get foreground color
-if (VTERM_COLOR_IS_DEFAULT_FG(&cell.fg)) {
-    // Use default foreground
-    vterm_state_get_default_colors(state, &fg, NULL);
-} else if (VTERM_COLOR_IS_INDEXED(&cell.fg)) {
-    // Convert indexed color to RGB
-    vterm_screen_convert_color_to_rgb(term->screen, &cell.fg);
-    fg = cell.fg;
-} else {
-    // Already RGB
-    fg = cell.fg;
-}
-
-// Similar for background...
-```
-
-**Important:** Always initialize default colors to safe fallback values before getting from state:
-
-```c
-// Safe fallback values
-VTermColor default_fg = {.type = VTERM_COLOR_RGB, .rgb = {192, 192, 192}};
-VTermColor default_bg = {.type = VTERM_COLOR_RGB, .rgb = {0, 0, 0}};
-
-VTermState *state = vterm_obtain_state(vterm);
-if (state) {
-    vterm_state_get_default_colors(state, &default_fg, &default_bg);
+static void vterm_color_to_term_color(const VTermColor *vcolor, GenericColor *tcolor) {
+    if (VTERM_COLOR_IS_DEFAULT_FG(vcolor) || VTERM_COLOR_IS_DEFAULT_BG(vcolor)) {
+        tcolor->type = TERM_COLOR_DEFAULT;
+    } else if (VTERM_COLOR_IS_INDEXED(vcolor)) {
+        tcolor->type = TERM_COLOR_INDEXED;
+        tcolor->color.idx = vcolor->indexed.idx;
+    } else if (VTERM_COLOR_IS_RGB(vcolor)) {
+        tcolor->type = TERM_COLOR_RGB;
+        tcolor->color.rgb.r = vcolor->rgb.red;
+        tcolor->color.rgb.g = vcolor->rgb.green;
+        tcolor->color.rgb.b = vcolor->rgb.blue;
+    } else {
+        tcolor->type = TERM_COLOR_DEFAULT;
+    }
 }
 ```
 
-#### State and Screen Relationship
-
-When using the **screen layer** (recommended):
-
-- Screen automatically manages state callbacks internally
-- Screen creates state via `vterm_obtain_state()` when needed
-- Screen sets its own state callbacks in `screen_new()` (internal to libvterm)
-- **Do NOT** set state callbacks manually when using screen layer
-- Screen reset calls `vterm_state_reset()` internally, which initializes encoding arrays
-- Encoding arrays (`state->encoding[i].enc`) are initialized in `vterm_state_reset()`, not `vterm_state_new()`
+**Note:** The implementation uses the screen layer and doesn't access state directly. The screen layer handles color conversion automatically.
 
 #### Version Checking
 
-Always check libvterm version for compatibility:
+The implementation requires libvterm 0.3.x or later:
 
 ```c
 #include <vterm.h>
 
-// Check for 0.3.x
-if (!vterm_check_version(0, 3)) {
-    fprintf(stderr, "libvterm 0.3.x required\n");
-    return NULL;
-}
+// Check for 0.3.x (returns 1 if version >= 0.3.0, 0 otherwise)
+vterm_check_version(0, 3);
 ```
+
+**Note:** The actual implementation calls `vterm_check_version(0, 3)` but doesn't check the return value. For production code, you should check the return value and handle version mismatches appropriately.
 
 ### References
 
@@ -520,8 +644,9 @@ The application uses a pluggable backend architecture that separates terminal em
 **Terminal Backend (terminal_backend.h, terminal_backend_vterm.c):**
 
 - Abstracts terminal emulation layer using function pointer vtables
-- Current implementation: libvterm backend (permanent for GUI mode)
+- Current implementation: libvterm backend (only backend currently available)
 - Provides: cell access, scrollback, viewport management, data feeding
+- Runtime backend selection via `terminal_create_with_backend()` (currently only "vterm" supported)
 - Enables future alternative terminal emulators without breaking existing code
 
 **ANSI Sequences (ansi_sequences.h, ansi_sequences.c):**
@@ -535,14 +660,15 @@ The application uses a pluggable backend architecture that separates terminal em
 **Renderer Backend (renderer_backend.h, renderer_backend_sdl.c):**
 
 - Abstracts rendering layer using function pointer vtables
-- Current implementation: SDL2 backend (graphical, permanent)
+- Current implementation: SDL2 backend (only backend currently available)
 - Provides: frame lifecycle, cell rendering, color handling
+- Backend is selected at compile-time (hardcoded to SDL2 in `renderer_create()`)
 - **Future work**: Custom TUI renderer backend for terminal-based output
-  - Will be an _additional_ backend alongside SDL2 (not a replacement)
-  - Will use ANSI escape sequences from ansi_sequences.h for rendering
+  - Would require adding `renderer_create_with_backend()` function
+  - Would use ANSI escape sequences from ansi_sequences.h for rendering
   - Custom implementation (no termios/ncurses/Windows Console API)
-  - Enable dual-mode operation: GUI (SDL2) or TUI (custom ANSI renderer)
-  - Will reuse existing terminal backend (libvterm) for VT100 parsing
+  - Would enable dual-mode operation: GUI (SDL2) or TUI (custom ANSI renderer)
+  - Would reuse existing terminal backend (libvterm) for VT100 parsing
 
 **Generic Types (term_cell.h):**
 
@@ -552,11 +678,10 @@ The application uses a pluggable backend architecture that separates terminal em
 
 This architecture enables:
 
-- Runtime backend selection (GUI vs future TUI mode)
 - Clean separation of concerns
 - Easy testing and mocking
 - Code reusability between backends
-- Future dual-mode operation without architectural rewrites
+- Future dual-mode operation (when renderer backend selection is implemented)
 
 ### Terminal Emulation Flow
 

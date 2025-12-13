@@ -39,6 +39,7 @@ None of these approaches fully resolved the issue, as the white bar appears befo
 ### Workaround
 
 The artifact is cosmetic only and does not affect functionality. Users can:
+
 - Ignore the brief white bar (it disappears immediately)
 - Resize the window smaller then larger again to avoid the artifact
 - The artifact only appears once per direction per session
@@ -46,6 +47,7 @@ The artifact is cosmetic only and does not affect functionality. Users can:
 ### Future Considerations
 
 Potential solutions that were not attempted:
+
 - Using a different SDL2 renderer backend (software vs. accelerated)
 - Setting a custom window background color via Windows API
 - Using SDL2's window flags to control resize behavior

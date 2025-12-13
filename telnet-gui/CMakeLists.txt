@@ -330,8 +330,10 @@ if(WIN32)
                 message(WARNING "Could not find libstdc++.a, using -lstdc++ (may link dynamically)")
             endif()
 
+            # Build base library list without -mwindows (we'll add it conditionally based on build type)
+            # -lSDL2main is always needed for SDL2 entry point
             set(SDL2_TTF_LIBRARIES
-                -lmingw32 -mwindows -lSDL2main
+                -lmingw32 -lSDL2main
                 "${SDL2_STATIC_LIB}"
                 "${SDL2_TTF_STATIC_LIB}"
                 -lm -lkernel32 -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lversion -luuid
@@ -353,6 +355,11 @@ if(WIN32)
         message(WARNING "Falling back to dynamic linking - DLLs will be required at runtime")
         # Don't override SDL2_TTF_LIBRARIES here - let pkg_check_modules set it
     endif()
+
+    # Remove -mwindows from SDL2_TTF_LIBRARIES if present (we'll add it conditionally based on build type)
+    # Keep -lSDL2main as it's needed for SDL2 entry point, but only use -mwindows for Release builds
+    # This ensures non-Release builds stay attached to console
+    list(REMOVE_ITEM SDL2_TTF_LIBRARIES "-mwindows")
 endif()
 # Try pkg-config with /ucrt64/lib/pkgconfig (MSYS2 package) or /usr/local/lib/pkgconfig (source build)
 # Find the pkg-config file location first
@@ -888,6 +895,16 @@ target_link_libraries(telnet-gui PRIVATE
     ws2_32
     m
 )
+
+# On Windows, conditionally add -mwindows only for Release builds
+# -lSDL2main is always needed for SDL2 entry point, but -mwindows controls console attachment
+# This keeps Debug builds attached to console for easier debugging
+if(WIN32)
+    # Only detach from console in Release builds
+    target_link_options(telnet-gui PRIVATE
+        $<$<CONFIG:Release>:-mwindows>
+    )
+endif()
 
 # Include directories
 target_include_directories(telnet-gui PRIVATE
