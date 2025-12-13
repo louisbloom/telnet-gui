@@ -1265,8 +1265,14 @@ int main(int argc, char **argv) {
 
                         /* Echo raw input FIRST for non-eval mode (eval mode has its own echo with >) */
                         if (input_area_get_mode(&input_area) != INPUT_AREA_MODE_EVAL) {
+                            char color_buf[32];
                             dynamic_buffer_clear(input_area.echo_buf);
+                            /* Use light yellow/gold true color for user input (RGB 255, 220, 100) */
+                            ansi_format_fg_color_rgb(color_buf, sizeof(color_buf), 255, 220, 100);
+                            dynamic_buffer_append_str(input_area.echo_buf, color_buf);
                             if (dynamic_buffer_append_printf(input_area.echo_buf, "%s\r\n", text) == 0) {
+                                /* Reset color after text */
+                                dynamic_buffer_append_str(input_area.echo_buf, ANSI_SGR_RESET);
                                 terminal_feed_data(term, dynamic_buffer_data(input_area.echo_buf),
                                                    dynamic_buffer_len(input_area.echo_buf));
                             }
