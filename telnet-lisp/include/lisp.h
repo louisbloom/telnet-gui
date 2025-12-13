@@ -130,6 +130,9 @@ struct Environment {
 /* Global NIL object */
 extern LispObject *NIL;
 
+/* Global boolean objects */
+extern LispObject *LISP_TRUE; /* #t */
+
 /* Simple API */
 int lisp_init(void);
 LispObject *lisp_eval_string(const char *code, Environment *env);

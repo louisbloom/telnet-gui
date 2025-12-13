@@ -87,3 +87,14 @@
 (define list2 '(1 2 3))
 (assert-nil (eq? list1 list2) "eq? fails on different list instances")
 (assert-true (equal? list1 list2) "equal? succeeds on structurally same lists")
+
+;; Boolean internment tests - #t should be interned (same object)
+(assert-true (eq? #t #t) "eq? with #t returns true (interned)")
+(define t1 #t)
+(define t2 #t)
+(assert-true (eq? t1 t2) "eq? with interned #t variables")
+(assert-true (eq? t1 #t) "eq? with variable and literal #t")
+(assert-true (eq? t2 #t) "eq? with another variable and literal #t")
+;; Test that #t from different sources is the same object
+(assert-true (eq? (if #t #t #f) #t) "eq? with #t from if expression")
+(assert-true (eq? (and #t #t) #t) "eq? with #t from and expression")

@@ -7,6 +7,10 @@
 LispObject nil_obj = {.type = LISP_NIL};
 LispObject *NIL = &nil_obj;
 
+/* Global boolean objects */
+LispObject true_obj = {.type = LISP_BOOLEAN, .value = {.boolean = 1}};
+LispObject *LISP_TRUE = &true_obj;
+
 /* Global symbol intern table */
 LispObject *symbol_table = NULL;
 
@@ -51,10 +55,12 @@ LispObject *lisp_make_integer(long long value) {
 }
 
 LispObject *lisp_make_boolean(int value) {
-    LispObject *obj = GC_malloc(sizeof(LispObject));
-    obj->type = LISP_BOOLEAN;
-    obj->value.boolean = value;
-    return obj;
+    /* Return interned boolean objects */
+    if (value) {
+        return LISP_TRUE;
+    } else {
+        return NIL; /* #f is NIL */
+    }
 }
 
 LispObject *lisp_make_string(const char *value) {

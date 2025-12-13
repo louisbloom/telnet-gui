@@ -155,7 +155,7 @@ static LispObject *read_atom(const char **input) {
     } else if (strcmp(token, "nil") == 0 || strcmp(token, "#f") == 0) {
         obj = NIL;
     } else if (strcmp(token, "#t") == 0) {
-        obj = lisp_make_boolean(1);
+        obj = LISP_TRUE;
     } else {
         obj = lisp_make_symbol(token);
     }
