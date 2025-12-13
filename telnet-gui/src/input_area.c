@@ -2,6 +2,7 @@
 
 #include "input_area.h"
 #include "lisp.h"
+#include "dynamic_buffer.h"
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -45,6 +46,9 @@ void input_area_init(InputArea *area) {
 
     area->history_index = -1; /* Start with new entry */
     area->mode = INPUT_AREA_MODE_NORMAL;
+
+    /* Initialize echo buffer */
+    area->echo_buf = dynamic_buffer_create(INPUT_AREA_MAX_LENGTH + 10);
 
     /* Initialize multi-line fields */
     area->line_break_count = 0;

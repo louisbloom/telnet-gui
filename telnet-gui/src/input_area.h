@@ -3,6 +3,8 @@
 #ifndef INPUT_AREA_H
 #define INPUT_AREA_H
 
+#include "dynamic_buffer.h"
+
 #define INPUT_AREA_MAX_LENGTH 4096
 #define INPUT_AREA_HISTORY_SIZE 100 /* Default, can be overridden by Lisp config */
 
@@ -44,6 +46,9 @@ typedef struct InputArea {
     int scroll_offset;       /* First visible row (0 = showing top) */
     int max_visible_rows;    /* Config: max rows before scrolling (default: 5) */
     int needs_layout_recalc; /* Flag: recalculate visual rows */
+
+    /* Echo buffer for user input */
+    DynamicBuffer *echo_buf;
 } InputArea;
 
 /* Initialize input area */

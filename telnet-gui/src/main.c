@@ -1265,9 +1265,11 @@ int main(int argc, char **argv) {
 
                         /* Echo raw input FIRST for non-eval mode (eval mode has its own echo with >) */
                         if (input_area_get_mode(&input_area) != INPUT_AREA_MODE_EVAL) {
-                            char echo_buf[INPUT_AREA_MAX_LENGTH + 10];
-                            int echo_len = snprintf(echo_buf, sizeof(echo_buf), "%s\r\n", text);
-                            terminal_feed_data(term, echo_buf, echo_len);
+                            dynamic_buffer_clear(input_area.echo_buf);
+                            if (dynamic_buffer_append_printf(input_area.echo_buf, "%s\r\n", text) == 0) {
+                                terminal_feed_data(term, dynamic_buffer_data(input_area.echo_buf),
+                                                   dynamic_buffer_len(input_area.echo_buf));
+                            }
                         }
 
                         /* Check if this is a special command starting with ':' */
