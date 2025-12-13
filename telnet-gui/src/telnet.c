@@ -62,10 +62,11 @@ struct Telnet {
     int socket;
     TelnetState state;
     int rows, cols;
-    FILE *log_file;             /* Log file handle for I/O logging */
-    char log_filename[1024];    /* Path to current log file */
-    DynamicBuffer *send_buffer; /* Buffer for IAC escaping (reused across calls) */
-    DynamicBuffer *crlf_buffer; /* Buffer for adding CRLF to Lisp sends (reused across calls) */
+    FILE *log_file;                   /* Log file handle for I/O logging */
+    char log_filename[1024];          /* Path to current log file */
+    DynamicBuffer *send_buffer;       /* Buffer for IAC escaping (reused across calls) */
+    DynamicBuffer *crlf_buffer;       /* Buffer for adding CRLF to Lisp sends (reused across calls) */
+    DynamicBuffer *user_input_buffer; /* Buffer for user input LF->CRLF conversion */
 };
 
 /* Send Telnet command */
@@ -223,11 +224,14 @@ Telnet *telnet_create(void) {
     /* Create reusable buffers for send operations */
     t->send_buffer = dynamic_buffer_create(4096);
     t->crlf_buffer = dynamic_buffer_create(4096);
-    if (!t->send_buffer || !t->crlf_buffer) {
+    t->user_input_buffer = dynamic_buffer_create(8192); /* Enough for max input with LF->CRLF expansion */
+    if (!t->send_buffer || !t->crlf_buffer || !t->user_input_buffer) {
         if (t->send_buffer)
             dynamic_buffer_destroy(t->send_buffer);
         if (t->crlf_buffer)
             dynamic_buffer_destroy(t->crlf_buffer);
+        if (t->user_input_buffer)
+            dynamic_buffer_destroy(t->user_input_buffer);
         free(t);
         return NULL;
     }
@@ -372,6 +376,11 @@ int telnet_send_with_crlf(Telnet *t, const char *data, size_t len) {
     return telnet_send(t, dynamic_buffer_data(buf), dynamic_buffer_len(buf));
 }
 
+/* Get user input buffer for LF->CRLF conversion (used by main.c) */
+DynamicBuffer *telnet_get_user_input_buffer(Telnet *t) {
+    return t ? t->user_input_buffer : NULL;
+}
+
 int telnet_receive(Telnet *t, char *buffer, size_t bufsize) {
     if (!t || t->socket < 0)
         return -1;
@@ -498,5 +507,7 @@ void telnet_destroy(Telnet *t) {
         dynamic_buffer_destroy(t->send_buffer);
     if (t->crlf_buffer)
         dynamic_buffer_destroy(t->crlf_buffer);
+    if (t->user_input_buffer)
+        dynamic_buffer_destroy(t->user_input_buffer);
     free(t);
 }

@@ -12,6 +12,8 @@
 #include <arpa/inet.h>
 #endif
 
+#include "dynamic_buffer.h"
+
 typedef struct Telnet Telnet;
 
 typedef enum {
@@ -34,6 +36,9 @@ int telnet_send(Telnet *t, const char *data, size_t len);
 
 /* Send data to server with CRLF appended (for line-based protocols) */
 int telnet_send_with_crlf(Telnet *t, const char *data, size_t len);
+
+/* Get user input buffer for LF->CRLF conversion */
+DynamicBuffer *telnet_get_user_input_buffer(Telnet *t);
 
 /* Receive data from server */
 int telnet_receive(Telnet *t, char *buffer, size_t bufsize);

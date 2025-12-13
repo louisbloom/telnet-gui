@@ -200,6 +200,71 @@ static void cleanup(void) {
     SDL_Quit();
 }
 
+/* Unified function to send data to telnet with error handling
+ * Handles LF->CRLF conversion, CRLF appending, connection failure detection,
+ * state updates, and UI redraws
+ * Returns 0 on success, -1 on failure
+ */
+static int send_to_telnet(Telnet *telnet, Terminal *term, InputArea *input_area, int *connected_mode, const char *data,
+                          size_t len, int append_crlf) {
+    if (!telnet || !term || !input_area || !connected_mode) {
+        return -1;
+    }
+
+    DynamicBuffer *send_buffer = telnet_get_user_input_buffer(telnet);
+    if (!send_buffer) {
+        return -1;
+    }
+
+    if (!*connected_mode) {
+        /* Not connected - echo message to terminal */
+        const char *not_conn = "\r\n*** Not connected ***\r\n";
+        terminal_feed_data(term, not_conn, strlen(not_conn));
+        return -1;
+    }
+
+    /* Clear any accidentally buffered output before sending */
+    terminal_clear_output_buffer(term);
+
+    /* Clear and reuse send buffer */
+    dynamic_buffer_clear(send_buffer);
+
+    /* Convert LF to CRLF in the data and append to buffer */
+    for (size_t i = 0; i < len; i++) {
+        char c = data[i];
+        if (c == '\n') {
+            if (dynamic_buffer_append(send_buffer, "\r\n", 2) < 0) {
+                return -1; /* Buffer allocation failed */
+            }
+        } else {
+            if (dynamic_buffer_append(send_buffer, &c, 1) < 0) {
+                return -1; /* Buffer allocation failed */
+            }
+        }
+    }
+
+    /* Append CRLF at end if requested */
+    if (append_crlf) {
+        if (dynamic_buffer_append(send_buffer, "\r\n", 2) < 0) {
+            return -1; /* Buffer allocation failed */
+        }
+    }
+
+    int sent = telnet_send(telnet, dynamic_buffer_data(send_buffer), dynamic_buffer_len(send_buffer));
+    if (sent < 0) {
+        fprintf(stderr, "Failed to send data via telnet\n");
+        /* Connection lost - update telnet state and switch to unconnected mode */
+        telnet_disconnect(telnet); /* Update state (cleanup function) */
+        *connected_mode = 0;
+        const char *msg = "\r\n*** Connection lost ***\r\n";
+        terminal_feed_data(term, msg, strlen(msg));
+        input_area_request_redraw(input_area); /* Trigger color update */
+        return -1;
+    }
+
+    return 0;
+}
+
 /* Calculate terminal size (rows, cols) based on window dimensions */
 static void calculate_terminal_size(int window_width, int window_height, int cell_w, int cell_h, InputArea *input_area,
                                     int *rows, int *cols) {
@@ -1264,43 +1329,10 @@ int main(int argc, char **argv) {
                                     terminal_scroll_to_bottom(term);
                                 }
 
-                                /* Send transformed text to telnet with CRLF (if connected) */
-                                if (connected_mode) {
-                                    /* Clear any accidentally buffered output before sending */
-                                    /* This prevents echoed text from being sent twice */
-                                    terminal_clear_output_buffer(term);
-
-                                    char telnet_buf[INPUT_AREA_MAX_LENGTH * 2 + 2];
-                                    int telnet_len = 0;
-                                    for (int i = 0;
-                                         i < transformed_length && telnet_len < (int)(sizeof(telnet_buf) - 2); i++) {
-                                        char c = transformed_text[i];
-                                        if (c == '\n') {
-                                            if (telnet_len < (int)(sizeof(telnet_buf) - 2)) {
-                                                telnet_buf[telnet_len++] = '\r';
-                                                telnet_buf[telnet_len++] = '\n';
-                                            }
-                                        } else {
-                                            telnet_buf[telnet_len++] = c;
-                                        }
-                                    }
-                                    if (telnet_len < (int)(sizeof(telnet_buf) - 2)) {
-                                        telnet_buf[telnet_len++] = '\r';
-                                        telnet_buf[telnet_len++] = '\n';
-                                        int sent = telnet_send(telnet, telnet_buf, telnet_len);
-                                        if (sent < 0) {
-                                            fprintf(stderr, "Failed to send data via telnet\n");
-                                            /* Connection lost - switch to unconnected mode */
-                                            connected_mode = 0;
-                                            const char *msg = "\r\n*** Connection lost ***\r\n";
-                                            terminal_feed_data(term, msg, strlen(msg));
-                                        }
-                                    }
-                                } else {
-                                    /* Not connected - echo message to terminal */
-                                    const char *not_conn = "\r\n*** Not connected ***\r\n";
-                                    terminal_feed_data(term, not_conn, strlen(not_conn));
-                                }
+                                /* Send transformed text to telnet (unified function handles LF->CRLF, CRLF appending,
+                                 * and errors) */
+                                send_to_telnet(telnet, term, &input_area, &connected_mode, transformed_text,
+                                               transformed_length, 1); /* append_crlf = 1 */
                             } else {
                                 /* Empty string from hook - scroll to bottom only */
                                 if (lisp_x_get_scroll_to_bottom_on_user_input()) {
@@ -1313,21 +1345,8 @@ int main(int argc, char **argv) {
                             input_area_clear(&input_area);
                         }
                     } else {
-                        /* Even if input is empty, send CRLF for newline (if connected) */
-                        if (connected_mode) {
-                            /* Clear any accidentally buffered output before sending */
-                            terminal_clear_output_buffer(term);
-
-                            char crlf[] = "\r\n";
-                            int sent = telnet_send(telnet, crlf, 2);
-                            if (sent < 0) {
-                                fprintf(stderr, "Failed to send CRLF via telnet\n");
-                                /* Connection lost - switch to unconnected mode */
-                                connected_mode = 0;
-                                terminal_feed_data(term, "\r\n*** Connection lost ***\r\n",
-                                                   strlen("\r\n*** Connection lost ***\r\n"));
-                            }
-                        }
+                        /* Even if input is empty, send CRLF for newline (unified function handles errors) */
+                        send_to_telnet(telnet, term, &input_area, &connected_mode, "", 0, 1); /* append_crlf = 1 */
                         /* Echo newline to terminal (vterm_feed_data will normalize LF to CRLF) */
                         terminal_feed_data(term, "\n", 1);
 
@@ -1764,9 +1783,11 @@ int main(int argc, char **argv) {
                         }
                     } else if (received < 0) {
                         /* Connection closed or error (telnet_receive returns -1 for both) */
+                        /* Note: telnet_receive() already called telnet_disconnect() internally */
                         connected_mode = 0;
                         terminal_feed_data(term, "\r\n*** Connection closed ***\r\n",
                                            strlen("\r\n*** Connection closed ***\r\n"));
+                        input_area_request_redraw(&input_area); /* Trigger color update */
                     }
                 }
             }
