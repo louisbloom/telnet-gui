@@ -3091,20 +3091,18 @@
     ""
     ;; Check if it's a # command
     (if (tintin-is-command? cmd)
-      ;; TinTin++ command - echo it and dispatch
-      (progn
-        (tintin-echo (concat cmd "\r\n"))
-        (let ((cmd-name (tintin-extract-command-name cmd)))
-          (if (not cmd-name)
-            (progn
-              (tintin-echo (concat "Invalid TinTin++ command format: " cmd "\r\n"))
-              "")
-            (let ((matched (tintin-find-command cmd-name)))
-              (if (not matched)
-                (progn
-                  (tintin-echo (concat "Unknown TinTin++ command: #" cmd-name "\r\n"))
-                  "")
-                (tintin-dispatch-command matched cmd))))))
+      ;; TinTin++ command - dispatch (main.c handles echoing)
+      (let ((cmd-name (tintin-extract-command-name cmd)))
+        (if (not cmd-name)
+          (progn
+            (tintin-echo (concat "Invalid TinTin++ command format: " cmd "\r\n"))
+            "")
+          (let ((matched (tintin-find-command cmd-name)))
+            (if (not matched)
+              (progn
+                (tintin-echo (concat "Unknown TinTin++ command: #" cmd-name "\r\n"))
+                "")
+              (tintin-dispatch-command matched cmd)))))
       ;; Regular command - expand aliases
       (tintin-expand-alias cmd depth))))
 

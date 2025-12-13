@@ -338,12 +338,10 @@
 ;; Unknown command shows error (not sent to telnet)
 (assert-equal (tintin-process-command "#foo bar") ""
   "Unknown command should return empty string")
-(assert-equal (list-length *terminal-echo-log*) 2
-  "Unknown command should echo 2 messages")
-(assert-true (string-prefix? "#foo bar" (list-ref *terminal-echo-log* 1))
-  "First echo should be the command")
+(assert-equal (list-length *terminal-echo-log*) 1
+  "Unknown command should echo error message")
 (assert-true (string-prefix? "Unknown TinTin++" (list-ref *terminal-echo-log* 0))
-  "Second echo should be unknown command error")
+  "Echo should be unknown command error")
 
 ;; Clear echo log
 (set! *terminal-echo-log* '())
@@ -351,12 +349,10 @@
 ;; Invalid format (just # with space)
 (assert-equal (tintin-process-command "# ") ""
   "Invalid format should return empty string")
-(assert-equal (list-length *terminal-echo-log*) 2
-  "Invalid format should echo 2 messages")
-(assert-true (string-prefix? "# " (list-ref *terminal-echo-log* 1))
-  "First echo should be the command")
+(assert-equal (list-length *terminal-echo-log*) 1
+  "Invalid format should echo error message")
 (assert-true (string-prefix? "Invalid TinTin++" (list-ref *terminal-echo-log* 0))
-  "Second echo should be invalid format error")
+  "Echo should be invalid format error")
 
 ;; Clear echo log
 (set! *terminal-echo-log* '())
@@ -364,12 +360,10 @@
 ;; Query non-existent alias (unbraced argument is valid)
 (assert-equal (tintin-process-command "#alias missing") ""
   "Query command should return empty string")
-(assert-equal (list-length *terminal-echo-log*) 2
-  "Query command should echo 2 messages")
-(assert-true (string-prefix? "#alias missing" (list-ref *terminal-echo-log* 1))
-  "First echo should be the command")
+(assert-equal (list-length *terminal-echo-log*) 1
+  "Query command should echo not found message")
 (assert-true (string-prefix? "Alias 'missing' not found" (list-ref *terminal-echo-log* 0))
-  "Second echo should be not found message")
+  "Echo should be not found message")
 
 ;; ============================================================================
 ;; Test 16: Case Insensitive Matching
@@ -557,9 +551,9 @@
 (tintin-process-command "#load tintin-load-test.lisp")
 
 ;; Check what was echoed
-(assert-true (>= (list-length *terminal-echo-log*) 2)
+(assert-true (>= (list-length *terminal-echo-log*) 1)
   "#load without braces should echo")
-;; First echo (most recent) should be success message, second should be command
+;; Most recent echo should be success message
 (assert-true (string-prefix? "State loaded from" (list-ref *terminal-echo-log* 0))
   "Echo should show success message")
 
@@ -571,9 +565,9 @@
 (tintin-process-command "#load {tintin-load-test.lisp}")
 
 ;; Check what was echoed
-(assert-true (>= (list-length *terminal-echo-log*) 2)
+(assert-true (>= (list-length *terminal-echo-log*) 1)
   "#load with braces should echo")
-;; First echo (most recent) should be success message
+;; Most recent echo should be success message
 (assert-true (string-prefix? "State loaded from" (list-ref *terminal-echo-log* 0))
   "Echo should show success message")
 
