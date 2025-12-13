@@ -293,26 +293,8 @@ static int load_bootstrap_file(void) {
 
     fprintf(stderr, "Bootstrap file resolution: Starting search...\n");
 
-#ifdef TELNET_GUI_DATA_DIR
-    /* Priority path for installed builds (POSIX-compliant) */
-    static char installed_bootstrap_path[1024];
-    snprintf(installed_bootstrap_path, sizeof(installed_bootstrap_path), TELNET_GUI_DATA_DIR "/lisp/bootstrap.lisp");
-
-#ifdef _WIN32
-    /* Normalize path separators for Windows */
-    for (char *p = installed_bootstrap_path; *p; p++) {
-        if (*p == '/')
-            *p = '\\';
-    }
-#endif
-
-    bootstrap_paths[bootstrap_path_count] = installed_bootstrap_path;
-    bootstrap_path_labels[bootstrap_path_count] = "installed data directory (POSIX)";
-    bootstrap_path_count++;
-    fprintf(stderr, "Bootstrap file resolution: Trying installed path: %s\n", installed_bootstrap_path);
-#endif
-
-    /* Try bootstrap.lisp relative to executable first (installation path) */
+    /* PRIORITY 1: Build/development paths (checked first for development workflow) */
+    /* Try bootstrap.lisp relative to executable (build directory during development) */
     if (base_path) {
         size_t base_len = strlen(base_path);
         const char *sep =
@@ -334,7 +316,7 @@ static int load_bootstrap_file(void) {
         bootstrap_path[sizeof(bootstrap_path) - 1] = '\0';
 
         bootstrap_paths[bootstrap_path_count] = bootstrap_path;
-        bootstrap_path_labels[bootstrap_path_count] = "executable-relative (installation path)";
+        bootstrap_path_labels[bootstrap_path_count] = "executable-relative (build/development)";
         bootstrap_path_count++;
         fprintf(stderr, "Bootstrap file resolution: Executable base path: %s\n", base_path);
         fprintf(stderr, "Bootstrap file resolution: Constructed bootstrap path: %s\n", bootstrap_path);
@@ -343,17 +325,37 @@ static int load_bootstrap_file(void) {
         fprintf(stderr, "Bootstrap file resolution: Warning - SDL_GetBasePath() returned NULL\n");
     }
 
-    /* Add fallback paths - try source tree paths */
-    bootstrap_paths[bootstrap_path_count] = "telnet-gui/bootstrap.lisp";
-    bootstrap_path_labels[bootstrap_path_count++] = "source tree path (from build root)";
-    bootstrap_paths[bootstrap_path_count] = "../../telnet-gui/bootstrap.lisp";
-    bootstrap_path_labels[bootstrap_path_count++] = "source tree path (nested build dir)";
-    bootstrap_paths[bootstrap_path_count] = "../telnet-gui/bootstrap.lisp";
-    bootstrap_path_labels[bootstrap_path_count++] = "source tree path (parent dir)";
+    /* Add source tree paths for development */
     bootstrap_paths[bootstrap_path_count] = "bootstrap.lisp";
     bootstrap_path_labels[bootstrap_path_count++] = "current directory relative (build/development)";
+    bootstrap_paths[bootstrap_path_count] = "telnet-gui/bootstrap.lisp";
+    bootstrap_path_labels[bootstrap_path_count++] = "source tree path (from build root)";
+    bootstrap_paths[bootstrap_path_count] = "../telnet-gui/bootstrap.lisp";
+    bootstrap_path_labels[bootstrap_path_count++] = "source tree path (parent dir)";
+    bootstrap_paths[bootstrap_path_count] = "../../telnet-gui/bootstrap.lisp";
+    bootstrap_path_labels[bootstrap_path_count++] = "source tree path (nested build dir)";
     bootstrap_paths[bootstrap_path_count] = "../bootstrap.lisp";
     bootstrap_path_labels[bootstrap_path_count++] = "parent directory relative";
+
+    /* PRIORITY 2: Installed path (fallback for installed builds) */
+#ifdef TELNET_GUI_DATA_DIR
+    static char installed_bootstrap_path[1024];
+    snprintf(installed_bootstrap_path, sizeof(installed_bootstrap_path), TELNET_GUI_DATA_DIR "/lisp/bootstrap.lisp");
+
+#ifdef _WIN32
+    /* Normalize path separators for Windows */
+    for (char *p = installed_bootstrap_path; *p; p++) {
+        if (*p == '/')
+            *p = '\\';
+    }
+#endif
+
+    bootstrap_paths[bootstrap_path_count] = installed_bootstrap_path;
+    bootstrap_path_labels[bootstrap_path_count] = "installed data directory (POSIX)";
+    bootstrap_path_count++;
+    fprintf(stderr, "Bootstrap file resolution: Installed path available: %s\n", installed_bootstrap_path);
+#endif
+
     bootstrap_paths[bootstrap_path_count] = NULL;
 
     const char *loaded_bootstrap_path = NULL;
@@ -964,52 +966,8 @@ int lisp_x_load_file(const char *filepath) {
     const char *search_labels[10];
     int search_count = 0;
 
-    /* Path 1: Current directory - HIGHEST PRIORITY */
-    search_paths[search_count] = filepath;
-    search_labels[search_count] = "current directory";
-    search_count++;
-
-    /* Path 2: Parent directory */
-    static char parent_path[256];
-    snprintf(parent_path, sizeof(parent_path), "../%s", filepath);
-    search_paths[search_count] = parent_path;
-    search_labels[search_count] = "parent directory";
-    search_count++;
-
-    /* Path 3: Source tree from build root */
-    static char src_path1[256];
-    snprintf(src_path1, sizeof(src_path1), "telnet-gui/%s", filepath);
-    search_paths[search_count] = src_path1;
-    search_labels[search_count] = "source tree (from build root)";
-    search_count++;
-
-    /* Path 4: Source tree from nested build dir */
-    static char src_path2[256];
-    snprintf(src_path2, sizeof(src_path2), "../../telnet-gui/%s", filepath);
-    search_paths[search_count] = src_path2;
-    search_labels[search_count] = "source tree (nested build dir)";
-    search_count++;
-
-#ifdef TELNET_GUI_DATA_DIR
-    /* Path 5: Installed lisp directory (POSIX-compliant) - for common files like tintin.lisp */
-    static char installed_lisp_path[1024];
-    snprintf(installed_lisp_path, sizeof(installed_lisp_path), TELNET_GUI_DATA_DIR "/lisp/%s", filepath);
-
-#ifdef _WIN32
-    /* Normalize path separators for Windows */
-    for (char *p = installed_lisp_path; *p; p++) {
-        if (*p == '/')
-            *p = '\\';
-    }
-#endif
-
-    search_paths[search_count] = installed_lisp_path;
-    search_labels[search_count] = "installed lisp directory (POSIX)";
-    search_count++;
-    fprintf(stderr, "Lisp file resolution: Trying installed path: %s\n", installed_lisp_path);
-#endif
-
-    /* Path 6: Executable-relative (installation fallback) */
+    /* PRIORITY 1: Build/development paths (checked first for development workflow) */
+    /* Path 1: Executable-relative (build directory during development) */
     if (base_path) {
         size_t base_len = strlen(base_path);
         const char *sep =
@@ -1024,14 +982,62 @@ int lisp_x_load_file(const char *filepath) {
 #endif
         static char exe_rel_path[1024];
         strncpy(exe_rel_path, path_buffer, sizeof(exe_rel_path) - 1);
+        exe_rel_path[sizeof(exe_rel_path) - 1] = '\0';
         search_paths[search_count] = exe_rel_path;
-        search_labels[search_count] = "executable-relative (installation fallback)";
+        search_labels[search_count] = "executable-relative (build/development)";
         search_count++;
 
         fprintf(stderr, "Lisp file resolution: Executable base path: %s\n", base_path);
         fprintf(stderr, "Lisp file resolution: Constructed path: %s\n", exe_rel_path);
         SDL_free(base_path);
+    } else {
+        fprintf(stderr, "Lisp file resolution: Warning - SDL_GetBasePath() returned NULL\n");
     }
+
+    /* Path 2: Current directory */
+    search_paths[search_count] = filepath;
+    search_labels[search_count] = "current directory";
+    search_count++;
+
+    /* Path 3: Source tree from build root */
+    static char src_path1[256];
+    snprintf(src_path1, sizeof(src_path1), "telnet-gui/%s", filepath);
+    search_paths[search_count] = src_path1;
+    search_labels[search_count] = "source tree (from build root)";
+    search_count++;
+
+    /* Path 4: Parent directory */
+    static char parent_path[256];
+    snprintf(parent_path, sizeof(parent_path), "../%s", filepath);
+    search_paths[search_count] = parent_path;
+    search_labels[search_count] = "parent directory";
+    search_count++;
+
+    /* Path 5: Source tree from nested build dir */
+    static char src_path2[256];
+    snprintf(src_path2, sizeof(src_path2), "../../telnet-gui/%s", filepath);
+    search_paths[search_count] = src_path2;
+    search_labels[search_count] = "source tree (nested build dir)";
+    search_count++;
+
+    /* PRIORITY 2: Installed path (fallback for installed builds) */
+#ifdef TELNET_GUI_DATA_DIR
+    static char installed_lisp_path[1024];
+    snprintf(installed_lisp_path, sizeof(installed_lisp_path), TELNET_GUI_DATA_DIR "/lisp/%s", filepath);
+
+#ifdef _WIN32
+    /* Normalize path separators for Windows */
+    for (char *p = installed_lisp_path; *p; p++) {
+        if (*p == '/')
+            *p = '\\';
+    }
+#endif
+
+    search_paths[search_count] = installed_lisp_path;
+    search_labels[search_count] = "installed lisp directory (POSIX)";
+    search_count++;
+    fprintf(stderr, "Lisp file resolution: Installed path available: %s\n", installed_lisp_path);
+#endif
 
     /* Try each path in order */
     for (int i = 0; i < search_count; i++) {

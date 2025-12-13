@@ -17,13 +17,15 @@
 typedef struct {
     SDL_Renderer *sdl_renderer;
     GlyphCache *glyph_cache;
+    int actual_cell_h;           /* Actual font cell height (before line_height multiplier) */
+    int cached_effective_cell_h; /* Cached effective cell height for current frame */
+    int cached_vertical_offset;  /* Cached vertical offset for current frame */
 } SDLBackendState;
 
 /* Backend interface implementation */
 
 static void *sdl_create(void *platform_context, int cell_w, int cell_h) {
-    (void)cell_w; /* Cell dimensions managed by renderer wrapper */
-    (void)cell_h;
+    (void)cell_w; /* Cell width managed by renderer wrapper */
 
     SDLBackendState *state = (SDLBackendState *)malloc(sizeof(SDLBackendState));
     if (!state)
@@ -34,6 +36,9 @@ static void *sdl_create(void *platform_context, int cell_w, int cell_h) {
 
     state->sdl_renderer = (SDL_Renderer *)ctx[0];
     state->glyph_cache = (GlyphCache *)ctx[1];
+    state->actual_cell_h = cell_h;       /* Store actual font cell height for vertical centering */
+    state->cached_effective_cell_h = -1; /* Initialize to invalid value to force first calculation */
+    state->cached_vertical_offset = 0;
 
     return state;
 }
@@ -63,6 +68,9 @@ static void sdl_begin_frame(void *vstate, int window_width, int window_height) {
     SDL_SetRenderDrawColor(state->sdl_renderer, bg_r, bg_g, bg_b, 255);
     SDL_Rect terminal_area = {0, 0, actual_width, actual_height};
     SDL_RenderFillRect(state->sdl_renderer, &terminal_area);
+
+    /* Reset cached values at start of frame - will be recalculated on first cell render */
+    state->cached_effective_cell_h = -1;
 }
 
 static void sdl_end_frame(void *vstate) {
@@ -85,6 +93,14 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
     VTermScreen *screen = terminal_get_screen(term);
     if (!screen)
         return;
+
+    /* Calculate vertical offset once per frame (cell_h is constant for all cells in a frame) */
+    /* cell_h parameter is effective_cell_h (line_height-adjusted), state->actual_cell_h is the actual font height */
+    if (state->cached_effective_cell_h != cell_h) {
+        state->cached_effective_cell_h = cell_h;
+        state->cached_vertical_offset = (cell_h - state->actual_cell_h) / 2;
+    }
+    int vertical_offset = state->cached_vertical_offset;
 
     /* Draw background - use selection color if in selection, otherwise cell bg */
     if (in_selection) {
@@ -215,8 +231,9 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
         /* Handle box drawing characters manually for pixel-perfect alignment */
         if (is_box_drawing_char(cell->chars[0])) {
             int dst_x = col * cell_w + PADDING_X;
-            int dst_y = row * cell_h + PADDING_Y;
-            render_box_drawing_char(state->sdl_renderer, cell->chars[0], dst_x, dst_y, cell_w, cell_h, fg_color);
+            int dst_y = row * cell_h + PADDING_Y + vertical_offset;
+            render_box_drawing_char(state->sdl_renderer, cell->chars[0], dst_x, dst_y, cell_w, state->actual_cell_h,
+                                    fg_color);
         } else {
             SDL_Texture *glyph = glyph_cache_get(state->glyph_cache, cell->chars[0], fg_color, bg_color,
                                                  cell->attrs.bold, cell->attrs.italic);
@@ -225,9 +242,9 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
                 int tex_w, tex_h;
                 SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);
 
-                /* Position glyph at cell boundary - no minx adjustment for monospace alignment */
+                /* Position glyph vertically centered within line height */
                 int dst_x = col * cell_w + PADDING_X;
-                int dst_y = row * cell_h + PADDING_Y;
+                int dst_y = row * cell_h + PADDING_Y + vertical_offset;
                 SDL_Rect dst = {dst_x, dst_y, tex_w, tex_h};
 
                 SDL_RenderCopy(state->sdl_renderer, glyph, NULL, &dst);
@@ -241,13 +258,23 @@ static void sdl_render_cursor(void *vstate, int row, int col, int cell_w, int ce
     if (!state)
         return;
 
+    /* Use cached vertical offset (calculated once per frame in render_cell) */
+    /* If cache is invalid, calculate it now (shouldn't happen, but be safe) */
+    int vertical_offset;
+    if (state->cached_effective_cell_h != cell_h) {
+        state->cached_effective_cell_h = cell_h;
+        state->cached_vertical_offset = (cell_h - state->actual_cell_h) / 2;
+    }
+    vertical_offset = state->cached_vertical_offset;
+
     /* Get cursor color from Lisp config */
     int cursor_r, cursor_g, cursor_b;
     lisp_x_get_cursor_color(&cursor_r, &cursor_g, &cursor_b);
 
-    /* Render cursor as filled block */
+    /* Render cursor as filled block, vertically centered within line height */
     SDL_SetRenderDrawColor(state->sdl_renderer, cursor_r, cursor_g, cursor_b, 255);
-    SDL_Rect cursor_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y, cell_w, cell_h};
+    SDL_Rect cursor_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y + vertical_offset, cell_w,
+                            state->actual_cell_h};
     SDL_RenderFillRect(state->sdl_renderer, &cursor_rect);
 }
 
