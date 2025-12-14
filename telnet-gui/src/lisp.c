@@ -326,6 +326,54 @@ static int construct_exe_relative_path(const char *base_path, const char *filena
     return 1;
 }
 
+/* Construct POSIX-compliant data directory from executable path.
+ * If exe is in .../bin/, returns .../share/telnet-gui/
+ * Returns 1 if successful and fills out_path, 0 otherwise.
+ */
+static int construct_data_directory_path(const char *base_path, char *out_path, size_t out_path_size) {
+    if (!base_path || !is_installed_bin_directory(base_path)) {
+        return 0;
+    }
+
+    // Copy base path and strip trailing separator
+    size_t len = strlen(base_path);
+    char temp_path[1024];
+    strncpy(temp_path, base_path, sizeof(temp_path) - 1);
+    temp_path[sizeof(temp_path) - 1] = '\0';
+
+    // Remove trailing separator if present
+    if (len > 0 && (temp_path[len - 1] == '/' || temp_path[len - 1] == '\\')) {
+        temp_path[len - 1] = '\0';
+        len--;
+    }
+
+    // Find and remove the "bin" part (should be last 3 chars)
+    if (len >= 3 && temp_path[len - 3] == 'b' && temp_path[len - 2] == 'i' && temp_path[len - 1] == 'n') {
+        // Remove "bin"
+        temp_path[len - 3] = '\0';
+        // Remove separator before "bin" if present
+        len -= 3;
+        if (len > 0 && (temp_path[len - 1] == '/' || temp_path[len - 1] == '\\')) {
+            temp_path[len - 1] = '\0';
+        }
+    } else {
+        return 0; // Unexpected format
+    }
+
+    // Append share/telnet-gui
+    snprintf(out_path, out_path_size, "%s/share/telnet-gui", temp_path);
+
+#ifdef _WIN32
+    // Normalize to Windows backslashes
+    for (char *p = out_path; *p; p++) {
+        if (*p == '/')
+            *p = '\\';
+    }
+#endif
+
+    return 1;
+}
+
 /* Load bootstrap Lisp file */
 static int load_bootstrap_file(void) {
     if (!lisp_env) {
@@ -373,23 +421,31 @@ static int load_bootstrap_file(void) {
     bootstrap_path_labels[bootstrap_path_count++] = "parent directory relative";
 
     /* PRIORITY 2: Installed path (fallback for installed builds) */
-#ifdef TELNET_GUI_DATA_DIR
-    static char installed_bootstrap_path[1024];
-    snprintf(installed_bootstrap_path, sizeof(installed_bootstrap_path), TELNET_GUI_DATA_DIR "/lisp/bootstrap.lisp");
+    /* Compute POSIX data directory from executable path at runtime */
+    base_path = SDL_GetBasePath();
+    if (base_path) {
+        static char data_dir_path[1024];
+        if (construct_data_directory_path(base_path, data_dir_path, sizeof(data_dir_path))) {
+            static char installed_bootstrap_path[1024];
+            snprintf(installed_bootstrap_path, sizeof(installed_bootstrap_path), "%s/lisp/bootstrap.lisp",
+                     data_dir_path);
 
 #ifdef _WIN32
-    /* Normalize path separators for Windows */
-    for (char *p = installed_bootstrap_path; *p; p++) {
-        if (*p == '/')
-            *p = '\\';
-    }
+            /* Normalize path separators for Windows */
+            for (char *p = installed_bootstrap_path; *p; p++) {
+                if (*p == '/')
+                    *p = '\\';
+            }
 #endif
 
-    bootstrap_paths[bootstrap_path_count] = installed_bootstrap_path;
-    bootstrap_path_labels[bootstrap_path_count] = "installed data directory (POSIX)";
-    bootstrap_path_count++;
-    fprintf(stderr, "Bootstrap file resolution: Installed path available: %s\n", installed_bootstrap_path);
-#endif
+            bootstrap_paths[bootstrap_path_count] = installed_bootstrap_path;
+            bootstrap_path_labels[bootstrap_path_count] = "installed data directory (POSIX, runtime-resolved)";
+            bootstrap_path_count++;
+            fprintf(stderr, "Bootstrap file resolution: Computed data directory: %s\n", data_dir_path);
+            fprintf(stderr, "Bootstrap file resolution: Installed path available: %s\n", installed_bootstrap_path);
+        }
+        SDL_free(base_path);
+    }
 
     bootstrap_paths[bootstrap_path_count] = NULL;
 
@@ -1046,23 +1102,30 @@ int lisp_x_load_file(const char *filepath) {
     search_count++;
 
     /* PRIORITY 2: Installed path (fallback for installed builds) */
-#ifdef TELNET_GUI_DATA_DIR
-    static char installed_lisp_path[1024];
-    snprintf(installed_lisp_path, sizeof(installed_lisp_path), TELNET_GUI_DATA_DIR "/lisp/%s", filepath);
+    /* Compute POSIX data directory from executable path at runtime */
+    base_path = SDL_GetBasePath();
+    if (base_path) {
+        static char data_dir_path[1024];
+        if (construct_data_directory_path(base_path, data_dir_path, sizeof(data_dir_path))) {
+            static char installed_lisp_path[1024];
+            snprintf(installed_lisp_path, sizeof(installed_lisp_path), "%s/lisp/%s", data_dir_path, filepath);
 
 #ifdef _WIN32
-    /* Normalize path separators for Windows */
-    for (char *p = installed_lisp_path; *p; p++) {
-        if (*p == '/')
-            *p = '\\';
-    }
+            /* Normalize path separators for Windows */
+            for (char *p = installed_lisp_path; *p; p++) {
+                if (*p == '/')
+                    *p = '\\';
+            }
 #endif
 
-    search_paths[search_count] = installed_lisp_path;
-    search_labels[search_count] = "installed lisp directory (POSIX)";
-    search_count++;
-    fprintf(stderr, "Lisp file resolution: Installed path available: %s\n", installed_lisp_path);
-#endif
+            search_paths[search_count] = installed_lisp_path;
+            search_labels[search_count] = "installed lisp directory (POSIX, runtime-resolved)";
+            search_count++;
+            fprintf(stderr, "Lisp file resolution: Computed data directory: %s\n", data_dir_path);
+            fprintf(stderr, "Lisp file resolution: Installed path available: %s\n", installed_lisp_path);
+        }
+        SDL_free(base_path);
+    }
 
     /* Try each path in order */
     for (int i = 0; i < search_count; i++) {

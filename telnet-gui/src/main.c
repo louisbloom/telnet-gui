@@ -291,6 +291,76 @@ static void calculate_terminal_size(int window_width, int window_height, int cel
         *rows = 1; /* Minimum: 1 scrolling row */
 }
 
+/* Check if path ends with /bin/ or \bin\ - indicates installed location */
+static int is_installed_bin_directory(const char *path) {
+    if (!path)
+        return 0;
+    size_t len = strlen(path);
+    if (len < 4)
+        return 0;
+
+    const char *end = path + len;
+    /* Check if ends with /bin/ or \bin\ */
+    if (len >= 5 && (end[-1] == '/' || end[-1] == '\\')) {
+        if ((end[-5] == '/' || end[-5] == '\\') && end[-4] == 'b' && end[-3] == 'i' && end[-2] == 'n') {
+            return 1;
+        }
+    }
+    /* Check if ends with /bin or \bin (no trailing separator) */
+    if ((end[-4] == '/' || end[-4] == '\\') && end[-3] == 'b' && end[-2] == 'i' && end[-1] == 'n') {
+        return 1;
+    }
+    return 0;
+}
+
+/* Construct POSIX-compliant data directory from executable path.
+ * If exe is in .../bin/, returns .../share/telnet-gui/
+ * Returns 1 if successful and fills out_path, 0 otherwise.
+ */
+static int construct_data_directory_path(const char *base_path, char *out_path, size_t out_path_size) {
+    if (!base_path || !is_installed_bin_directory(base_path)) {
+        return 0;
+    }
+
+    // Copy base path and strip trailing separator
+    size_t len = strlen(base_path);
+    char temp_path[1024];
+    strncpy(temp_path, base_path, sizeof(temp_path) - 1);
+    temp_path[sizeof(temp_path) - 1] = '\0';
+
+    // Remove trailing separator if present
+    if (len > 0 && (temp_path[len - 1] == '/' || temp_path[len - 1] == '\\')) {
+        temp_path[len - 1] = '\0';
+        len--;
+    }
+
+    // Find and remove the "bin" part (should be last 3 chars)
+    if (len >= 3 && temp_path[len - 3] == 'b' && temp_path[len - 2] == 'i' && temp_path[len - 1] == 'n') {
+        // Remove "bin"
+        temp_path[len - 3] = '\0';
+        // Remove separator before "bin" if present
+        len -= 3;
+        if (len > 0 && (temp_path[len - 1] == '/' || temp_path[len - 1] == '\\')) {
+            temp_path[len - 1] = '\0';
+        }
+    } else {
+        return 0; // Unexpected format
+    }
+
+    // Append share/telnet-gui
+    snprintf(out_path, out_path_size, "%s/share/telnet-gui", temp_path);
+
+#ifdef _WIN32
+    // Normalize to Windows backslashes
+    for (char *p = out_path; *p; p++) {
+        if (*p == '/')
+            *p = '\\';
+    }
+#endif
+
+    return 1;
+}
+
 /* Find the best system monospace font for the current platform */
 static const char *find_system_monospace_font(const char **font_name_out) {
 #ifdef _WIN32
@@ -761,25 +831,27 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Font resolution: Using system font: %s\n", font_name);
     }
 
-#ifdef TELNET_GUI_DATA_DIR
-    /* Priority path for installed builds (POSIX-compliant) */
-    if (font_choice != 's') {
-        static char installed_font_path[1024];
-        snprintf(installed_font_path, sizeof(installed_font_path), TELNET_GUI_DATA_DIR "/fonts/%s", font_filename);
+    /* Priority path for installed builds (POSIX-compliant, runtime-resolved) */
+    if (font_choice != 's' && base_path) {
+        static char data_dir_path[1024];
+        if (construct_data_directory_path(base_path, data_dir_path, sizeof(data_dir_path))) {
+            static char installed_font_path[1024];
+            snprintf(installed_font_path, sizeof(installed_font_path), "%s/fonts/%s", data_dir_path, font_filename);
 
 #ifdef _WIN32
-        /* Normalize path separators for Windows */
-        for (char *p = installed_font_path; *p; p++) {
-            if (*p == '/')
-                *p = '\\';
-        }
+            /* Normalize path separators for Windows */
+            for (char *p = installed_font_path; *p; p++) {
+                if (*p == '/')
+                    *p = '\\';
+            }
 #endif
 
-        font_paths[font_path_count] = installed_font_path;
-        font_path_labels[font_path_count++] = "installed data directory (POSIX)";
-        fprintf(stderr, "Font resolution: Trying installed path: %s\n", installed_font_path);
+            font_paths[font_path_count] = installed_font_path;
+            font_path_labels[font_path_count++] = "installed data directory (POSIX, runtime-resolved)";
+            fprintf(stderr, "Font resolution: Computed data directory: %s\n", data_dir_path);
+            fprintf(stderr, "Font resolution: Trying installed path: %s\n", installed_font_path);
+        }
     }
-#endif
 
     /* If using embedded font, try font relative to executable first (installation path) */
     if (font_choice != 's' && base_path) {

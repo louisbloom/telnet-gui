@@ -27,18 +27,6 @@ endif()
 # Create telnet-gui executable
 add_executable(telnet-gui ${GUI_SOURCES})
 
-# Define data directory for installed builds (POSIX-compliant)
-# This allows the application to find fonts and Lisp files in the installed location
-if(CMAKE_INSTALL_PREFIX)
-    set(TELNET_GUI_DATA_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui")
-else()
-    set(TELNET_GUI_DATA_DIR "${CMAKE_INSTALL_FULL_DATAROOTDIR}/telnet-gui")
-endif()
-
-target_compile_definitions(telnet-gui PRIVATE
-    TELNET_GUI_DATA_DIR="${TELNET_GUI_DATA_DIR}"
-)
-
 # Copy font files to build directory
 set(FONT_INCONSOLATA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/fonts/Inconsolata-Regular.ttf")
 set(FONT_INCONSOLATA_DST "${CMAKE_CURRENT_BINARY_DIR}/fonts/Inconsolata-Regular.ttf")
