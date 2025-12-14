@@ -15,6 +15,7 @@ set(GUI_SOURCES
     src/input.c
     src/input_area.c
     src/lisp.c
+    src/path_utils.c
     src/dynamic_buffer.c
     src/ansi_sequences.c
 )

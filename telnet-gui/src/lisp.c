@@ -7,6 +7,7 @@
 #include "glyph_cache.h"
 #include "window.h"
 #include "dynamic_buffer.h"
+#include "path_utils.h"
 #include "../../telnet-lisp/include/lisp.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -279,101 +280,6 @@ static LispObject *call_completion_hook(const char *partial_text) {
     return result ? result : NIL;
 }
 
-/* Check if path is in an installed bin directory (e.g., ends with /bin/ or \bin\) */
-static int is_installed_bin_directory(const char *path) {
-    if (!path)
-        return 0;
-    size_t len = strlen(path);
-    if (len < 4)
-        return 0;
-
-    const char *end = path + len;
-    /* Check if ends with /bin/ or \bin\ */
-    if (len >= 5 && (end[-1] == '/' || end[-1] == '\\')) {
-        if ((end[-5] == '/' || end[-5] == '\\') && end[-4] == 'b' && end[-3] == 'i' && end[-2] == 'n') {
-            return 1;
-        }
-    }
-    /* Check if ends with /bin or \bin (no trailing separator) */
-    if ((end[-4] == '/' || end[-4] == '\\') && end[-3] == 'b' && end[-2] == 'i' && end[-1] == 'n') {
-        return 1;
-    }
-    return 0;
-}
-
-/* Construct executable-relative path for a file.
- * Returns 1 if path should be used (not in bin directory), 0 otherwise.
- * If returning 1, fills out_path with the constructed path.
- */
-static int construct_exe_relative_path(const char *base_path, const char *filename, char *out_path,
-                                       size_t out_path_size) {
-    if (!base_path || is_installed_bin_directory(base_path)) {
-        return 0;
-    }
-
-    size_t base_len = strlen(base_path);
-    const char *sep = (base_len > 0 && (base_path[base_len - 1] == '/' || base_path[base_len - 1] == '\\')) ? "" : "/";
-
-    snprintf(out_path, out_path_size, "%s%s%s", base_path, sep, filename);
-
-#ifdef _WIN32
-    for (char *p = out_path; *p; p++) {
-        if (*p == '/')
-            *p = '\\';
-    }
-#endif
-
-    return 1;
-}
-
-/* Construct POSIX-compliant data directory from executable path.
- * If exe is in .../bin/, returns .../share/telnet-gui/
- * Returns 1 if successful and fills out_path, 0 otherwise.
- */
-static int construct_data_directory_path(const char *base_path, char *out_path, size_t out_path_size) {
-    if (!base_path || !is_installed_bin_directory(base_path)) {
-        return 0;
-    }
-
-    // Copy base path and strip trailing separator
-    size_t len = strlen(base_path);
-    char temp_path[1024];
-    strncpy(temp_path, base_path, sizeof(temp_path) - 1);
-    temp_path[sizeof(temp_path) - 1] = '\0';
-
-    // Remove trailing separator if present
-    if (len > 0 && (temp_path[len - 1] == '/' || temp_path[len - 1] == '\\')) {
-        temp_path[len - 1] = '\0';
-        len--;
-    }
-
-    // Find and remove the "bin" part (should be last 3 chars)
-    if (len >= 3 && temp_path[len - 3] == 'b' && temp_path[len - 2] == 'i' && temp_path[len - 1] == 'n') {
-        // Remove "bin"
-        temp_path[len - 3] = '\0';
-        // Remove separator before "bin" if present
-        len -= 3;
-        if (len > 0 && (temp_path[len - 1] == '/' || temp_path[len - 1] == '\\')) {
-            temp_path[len - 1] = '\0';
-        }
-    } else {
-        return 0; // Unexpected format
-    }
-
-    // Append share/telnet-gui
-    snprintf(out_path, out_path_size, "%s/share/telnet-gui", temp_path);
-
-#ifdef _WIN32
-    // Normalize to Windows backslashes
-    for (char *p = out_path; *p; p++) {
-        if (*p == '/')
-            *p = '\\';
-    }
-#endif
-
-    return 1;
-}
-
 /* Load bootstrap Lisp file */
 static int load_bootstrap_file(void) {
     if (!lisp_env) {
@@ -393,7 +299,7 @@ static int load_bootstrap_file(void) {
     /* Try bootstrap.lisp relative to executable (build directory during development) */
     /* Skip if executable is in a bin directory (installed location) - .lisp files aren't in bin */
     if (base_path) {
-        if (construct_exe_relative_path(base_path, "bootstrap.lisp", bootstrap_path, sizeof(bootstrap_path))) {
+        if (path_construct_exe_relative(base_path, "bootstrap.lisp", bootstrap_path, sizeof(bootstrap_path))) {
             bootstrap_paths[bootstrap_path_count] = bootstrap_path;
             bootstrap_path_labels[bootstrap_path_count] = "executable-relative (build/development)";
             bootstrap_path_count++;
@@ -425,18 +331,11 @@ static int load_bootstrap_file(void) {
     base_path = SDL_GetBasePath();
     if (base_path) {
         static char data_dir_path[1024];
-        if (construct_data_directory_path(base_path, data_dir_path, sizeof(data_dir_path))) {
+        if (path_construct_data_directory(base_path, data_dir_path, sizeof(data_dir_path))) {
             static char installed_bootstrap_path[1024];
             snprintf(installed_bootstrap_path, sizeof(installed_bootstrap_path), "%s/lisp/bootstrap.lisp",
                      data_dir_path);
-
-#ifdef _WIN32
-            /* Normalize path separators for Windows */
-            for (char *p = installed_bootstrap_path; *p; p++) {
-                if (*p == '/')
-                    *p = '\\';
-            }
-#endif
+            path_normalize_for_platform(installed_bootstrap_path);
 
             bootstrap_paths[bootstrap_path_count] = installed_bootstrap_path;
             bootstrap_path_labels[bootstrap_path_count] = "installed data directory (POSIX, runtime-resolved)";
@@ -1061,7 +960,7 @@ int lisp_x_load_file(const char *filepath) {
     /* Skip if executable is in a bin directory (installed location) - .lisp files aren't in bin */
     if (base_path) {
         static char exe_rel_path[1024];
-        if (construct_exe_relative_path(base_path, filepath, exe_rel_path, sizeof(exe_rel_path))) {
+        if (path_construct_exe_relative(base_path, filepath, exe_rel_path, sizeof(exe_rel_path))) {
             search_paths[search_count] = exe_rel_path;
             search_labels[search_count] = "executable-relative (build/development)";
             search_count++;
@@ -1106,17 +1005,10 @@ int lisp_x_load_file(const char *filepath) {
     base_path = SDL_GetBasePath();
     if (base_path) {
         static char data_dir_path[1024];
-        if (construct_data_directory_path(base_path, data_dir_path, sizeof(data_dir_path))) {
+        if (path_construct_data_directory(base_path, data_dir_path, sizeof(data_dir_path))) {
             static char installed_lisp_path[1024];
             snprintf(installed_lisp_path, sizeof(installed_lisp_path), "%s/lisp/%s", data_dir_path, filepath);
-
-#ifdef _WIN32
-            /* Normalize path separators for Windows */
-            for (char *p = installed_lisp_path; *p; p++) {
-                if (*p == '/')
-                    *p = '\\';
-            }
-#endif
+            path_normalize_for_platform(installed_lisp_path);
 
             search_paths[search_count] = installed_lisp_path;
             search_labels[search_count] = "installed lisp directory (POSIX, runtime-resolved)";
