@@ -1,0 +1,4 @@
+// Telnet GUI Windows Resources
+
+// Application icon - use a numeric ID for better compatibility
+1 ICON "icons/telnet-gui.ico"

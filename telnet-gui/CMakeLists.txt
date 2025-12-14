@@ -19,6 +19,11 @@ set(GUI_SOURCES
     src/ansi_sequences.c
 )
 
+# Add Windows resource file for icon
+if(WIN32)
+    list(APPEND GUI_SOURCES telnet-gui.rc)
+endif()
+
 # Create telnet-gui executable
 add_executable(telnet-gui ${GUI_SOURCES})
 
@@ -116,6 +121,15 @@ install(FILES
     "${FONT_CASCADIA_SRC}"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/fonts"
     COMPONENT Runtime
+)
+
+# Install icon files to share directory
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/icons/"
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/icons"
+    COMPONENT Runtime
+    FILES_MATCHING
+    PATTERN "*.png"
+    PATTERN "*.ico"
 )
 
 # Install Lisp files to share directory (POSIX-compliant)
