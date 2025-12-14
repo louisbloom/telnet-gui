@@ -750,6 +750,7 @@ Functions for transforming lists by applying a function to each element.
 - `hash-table?` - Check if hash table
 - `symbol?` - Check if symbol
 - `list?` - Check if value is a list (nil or cons cell)
+- `pair?` - Check if value is a cons cell (pair), returns `#t` for cons cells, `#f` otherwise (note: `nil` is NOT a pair)
 - `error?` - Check if value is an error object
 
 ### Symbol Operations
@@ -1495,6 +1496,13 @@ Convert to tail recursion by:
 (list? '(1 2 3))                     ; => 1
 (list? nil)                          ; => 1
 (list? 42)                           ; => nil
+
+; pair? - check if value is a cons cell
+(pair? '(1 . 2))                     ; => 1 (dotted pair)
+(pair? '(1 2 3))                     ; => 1 (lists are chains of pairs)
+(pair? (cons 1 2))                   ; => 1
+(pair? nil)                          ; => nil (nil is NOT a pair)
+(pair? 42)                           ; => nil
 ```
 
 ### Number Comparisons

@@ -2605,7 +2605,6 @@ void register_builtins(Environment *env) {
     env_define(env, "null?", lisp_make_builtin(builtin_null_question, "null?", doc_null_question));
     env_define(env, "atom?", lisp_make_builtin(builtin_atom_question, "atom?", doc_atom_question));
     env_define(env, "pair?", lisp_make_builtin(builtin_pair_question, "pair?", doc_pair_question));
-    env_define(env, "pair?", lisp_make_builtin(builtin_pair_question, "pair?", doc_pair_question));
 
     env_define(env, "regex-match", lisp_make_builtin(builtin_regex_match, "regex-match", doc_regex_match));
     env_define(env, "regex-find", lisp_make_builtin(builtin_regex_find, "regex-find", doc_regex_find));
