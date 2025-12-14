@@ -8,7 +8,7 @@
 
 /* Maximum path length for all path buffers */
 #ifdef _WIN32
-#define TELNET_MAX_PATH 32768  /* Windows extended-length path support */
+#define TELNET_MAX_PATH 32768  /* Windows: UNICODE_STRING max (32767 chars + null) */
 #else
 #define TELNET_MAX_PATH PATH_MAX  /* Unix/Linux/macOS system maximum */
 #endif
