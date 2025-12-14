@@ -1291,11 +1291,156 @@
 (print "ALL ACTION TESTS PASSED!")
 (print "====================================================================")
 
+;; ============================================================================
+;; TEST 31: Table Column Width Calculation
+;; ============================================================================
+
+(print "")
+(print "====================================================================")
+(print "TESTING TABLE COLUMN WIDTH CALCULATION")
+(print "====================================================================")
+
+;; Test helper to verify column widths
+(define (test-column-widths natural-widths terminal-width expected desc)
+  (define num-cols (list-length natural-widths))
+  (define col-maxes (make-vector num-cols 0))
+
+  ;; Fill vector with natural widths
+  (do ((i 0 (+ i 1)))
+    ((>= i num-cols))
+    (vector-set! col-maxes i (list-ref natural-widths i)))
+
+  ;; Call the width calculation function
+  (define result (tintin-calculate-optimal-widths col-maxes terminal-width))
+
+  ;; Verify result
+  (assert-equal (list-length result) num-cols (string-append desc " - column count"))
+  (do ((i 0 (+ i 1)))
+    ((>= i num-cols))
+    (assert-equal (list-ref result i) (list-ref expected i)
+      (string-append desc " - column " (number->string (+ i 1))))))
+
+;; Test Case 1: Scale UP when table fits naturally
+;; Natural: [5, 2, 6] = 13 content, terminal: 80
+;; Border: 4, Separators: (3-1)*3 = 6, Total box: 10
+;; Available: 80 - 10 = 70
+;; Scaled: 5*70/13=26, 2*70/13=10, 6*70/13=32
+(print "Test: Scale up when table fits naturally...")
+(test-column-widths '(5 2 6) 80 '(26 10 32)
+  "Scale up: [5,2,6] on 80-char terminal")
+
+;; Test Case 2: One large column, small columns keep natural
+;; Natural: [100, 1, 2] = 103 content, terminal: 40
+;; Available: 40 - 4 - 6 = 30
+;; Small cols (1,2): keep natural = 3 total
+;; Large cols (100): 30 - 3 = 27 available
+;; Result: [27, 1, 2]
+(print "Test: One large column with small columns...")
+(test-column-widths '(100 1 2) 40 '(27 1 2)
+  "One large: [100,1,2] on 40-char terminal")
+
+;; Test Case 3: Multiple large columns, small keep natural
+;; Natural: [50, 40, 1, 2] = 93 content, terminal: 40
+;; Available: 40 - 4 - 9 = 27 (4 columns → 3*3=9 separators)
+;; Small cols (1,2): keep natural = 3 total
+;; Large cols (50,40): 27 - 3 = 24 available, 90 total
+;; 50*24/90=13, 40*24/90=10
+;; Result: [13, 10, 1, 2]
+(print "Test: Multiple large columns...")
+(test-column-widths '(50 40 1 2) 40 '(13 10 1 2)
+  "Multiple large: [50,40,1,2] on 40-char terminal")
+
+;; Test Case 4: All large columns scale proportionally
+;; Natural: [20, 20, 20] = 60 content, terminal: 40
+;; Available: 40 - 4 - 6 = 30
+;; All large, no small cols
+;; 20*30/60=10 for each
+;; Result: [10, 10, 10] (proportional, above min=8)
+(print "Test: All large columns scale proportionally...")
+(test-column-widths '(20 20 20) 40 '(10 10 10)
+  "All large proportional: [20,20,20] on 40-char terminal")
+
+;; Test Case 5: All small columns scale up
+;; Natural: [1, 2, 3] = 6 content, terminal: 20
+;; Available: 20 - 4 - 6 = 10
+;; All fit naturally (6 + 10 = 16 < 20), so scale UP
+;; 1*10/6=1, 2*10/6=3, 3*10/6=5
+;; Result: [1, 3, 5]
+(print "Test: All small columns scale up...")
+(test-column-widths '(1 2 3) 20 '(1 3 5)
+  "All small scale up: [1,2,3] on 20-char terminal")
+
+;; Test Case 6: Large columns hit floor of 8
+;; Natural: [10, 10, 10] = 30 content, terminal: 30
+;; Available: 30 - 4 - 6 = 20
+;; All large, no small cols
+;; 10*20/30=6 < 8, so use floor of 8
+;; Result: [8, 8, 8] (note: total 24 + 10 box = 34 > 30, slight overflow)
+(print "Test: Large columns hit floor of 8...")
+(test-column-widths '(10 10 10) 30 '(8 8 8)
+  "Hit floor: [10,10,10] on 30-char terminal")
+
+;; Test Case 7: Mixed sizes with scale down
+;; Natural: [15, 3, 4] = 22 content, terminal: 25
+;; Available: 25 - 4 - 6 = 15
+;; Small cols (3,4): keep natural = 7 total
+;; Large cols (15): 15 - 7 = 8 available
+;; 15*8/15=8
+;; Result: [8, 3, 4]
+(print "Test: Mixed sizes with scale down...")
+(test-column-widths '(15 3 4) 25 '(8 3 4)
+  "Mixed scale down: [15,3,4] on 25-char terminal")
+
+;; Test Case 8: Two large columns with different sizes
+;; Natural: [30, 20] = 50 content, terminal: 30
+;; Available: 30 - 4 - 3 = 23 (2 columns → 1*3=3 separators)
+;; All large, no small
+;; 30*23/50=13, 20*23/50=9
+;; Result: [13, 9]
+(print "Test: Two large columns proportional...")
+(test-column-widths '(30 20) 30 '(13 9)
+  "Two large: [30,20] on 30-char terminal")
+
+;; Test Case 9: Very small terminal forces all to minimum
+;; Natural: [8, 8, 8] = 24 content, terminal: 20
+;; Available: 20 - 4 - 6 = 10
+;; All large, no small
+;; 8*10/24=3 < 8, so use floor
+;; Result: [8, 8, 8] (overflow to 34 chars)
+(print "Test: Very narrow terminal forces minimum...")
+(test-column-widths '(8 8 8) 20 '(8 8 8)
+  "Very narrow: [8,8,8] on 20-char terminal")
+
+;; Test Case 10: Single column scales up
+;; Natural: [10] = 10 content, terminal: 50
+;; Available: 50 - 4 - 0 = 46 (1 column → 0 separators)
+;; Scale up: 10*46/10=46
+;; Result: [46]
+(print "Test: Single column scales up...")
+(test-column-widths '(10) 50 '(46)
+  "Single column: [10] on 50-char terminal")
+
+;; Test Case 11: Edge case - column with natural width exactly 8
+;; Natural: [8, 3] = 11 content, terminal: 20
+;; Available: 20 - 4 - 3 = 13
+;; Small cols (3): keep natural = 3
+;; Large cols (8): 13 - 3 = 10 available
+;; 8*10/8=10
+;; Result: [10, 3]
+(print "Test: Column with natural width = 8...")
+(test-column-widths '(8 3) 20 '(10 3)
+  "Natural=8: [8,3] on 20-char terminal")
+
+(print "")
+(print "====================================================================")
+(print "ALL TABLE WIDTH TESTS PASSED!")
+(print "====================================================================")
+
 ;; Clean up temporary test files
 (delete-file "tintin-load-test.lisp")
 (delete-file "tintin-test-save.lisp")
 
 (print "")
 (print "====================================================================")
-(print "ALL TINTIN++ TESTS PASSED (color parsing fixed)!")
+(print "ALL TINTIN++ TESTS PASSED!")
 (print "====================================================================")
