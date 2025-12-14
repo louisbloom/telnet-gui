@@ -330,9 +330,9 @@ static int load_bootstrap_file(void) {
     /* Compute POSIX data directory from executable path at runtime */
     base_path = SDL_GetBasePath();
     if (base_path) {
-        static char data_dir_path[1024];
+        static char data_dir_path[TELNET_MAX_PATH];
         if (path_construct_data_directory(base_path, data_dir_path, sizeof(data_dir_path))) {
-            static char installed_bootstrap_path[1024];
+            static char installed_bootstrap_path[TELNET_MAX_PATH];
             snprintf(installed_bootstrap_path, sizeof(installed_bootstrap_path), "%s/lisp/bootstrap.lisp",
                      data_dir_path);
             path_normalize_for_platform(installed_bootstrap_path);
@@ -1004,9 +1004,9 @@ int lisp_x_load_file(const char *filepath) {
     /* Compute POSIX data directory from executable path at runtime */
     base_path = SDL_GetBasePath();
     if (base_path) {
-        static char data_dir_path[1024];
+        static char data_dir_path[TELNET_MAX_PATH];
         if (path_construct_data_directory(base_path, data_dir_path, sizeof(data_dir_path))) {
-            static char installed_lisp_path[1024];
+            static char installed_lisp_path[TELNET_MAX_PATH];
             snprintf(installed_lisp_path, sizeof(installed_lisp_path), "%s/lisp/%s", data_dir_path, filepath);
             path_normalize_for_platform(installed_lisp_path);
 

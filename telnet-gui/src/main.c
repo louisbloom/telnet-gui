@@ -764,9 +764,9 @@ int main(int argc, char **argv) {
 
     /* Priority path for installed builds (POSIX-compliant, runtime-resolved) */
     if (font_choice != 's' && base_path) {
-        static char data_dir_path[1024];
+        static char data_dir_path[TELNET_MAX_PATH];
         if (path_construct_data_directory(base_path, data_dir_path, sizeof(data_dir_path))) {
-            static char installed_font_path[1024];
+            static char installed_font_path[TELNET_MAX_PATH];
             snprintf(installed_font_path, sizeof(installed_font_path), "%s/fonts/%s", data_dir_path, font_filename);
             path_normalize_for_platform(installed_font_path);
 

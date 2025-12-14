@@ -4,6 +4,14 @@
 #define PATH_UTILS_H
 
 #include <stddef.h>
+#include <limits.h>
+
+/* Maximum path length for all path buffers */
+#ifdef _WIN32
+#define TELNET_MAX_PATH 32768  /* Windows extended-length path support */
+#else
+#define TELNET_MAX_PATH PATH_MAX  /* Unix/Linux/macOS system maximum */
+#endif
 
 /* Convert Unix path to platform-native path (in-place).
  * On Windows: converts / to \

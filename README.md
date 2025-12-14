@@ -94,11 +94,10 @@ brew install clang-format
 
 Build all projects from the repository root:
 
-**Using CMake Presets (recommended):**
+**From UCRT64 shell (Windows):**
 
 ```bash
-# Configure and build
-cmake --preset default
+cmake -B build -G Ninja
 cmake --build build
 
 # Or build specific targets
@@ -107,26 +106,30 @@ cmake --build build --target lisp-repl    # REPL application
 cmake --build build --target telnet-gui   # GUI application (requires GUI deps)
 ```
 
-**Using Ninja directly:**
+**Using wrapper scripts (Windows - any shell):**
 
 ```bash
-# Configure with Ninja generator
-cmake -B build -G Ninja
+# PowerShell:
+.\build.ps1              # Build all targets
+.\build.ps1 format       # Build specific target
+.\build.ps1 -Clean       # Clean and rebuild
 
-# Build everything
-cmake --build build
+# CMD:
+build.bat                # Build all targets
+build.bat format         # Build specific target
 
-# Or build specific targets
-cmake --build build --target liblisp      # Core library only
-cmake --build build --target lisp-repl    # REPL application
-cmake --build build --target telnet-gui   # GUI application (requires GUI deps)
+# Git Bash/MINGW64:
+./build.sh               # Build all targets
+./build.sh format        # Build specific target
+./build.sh --clean       # Clean and rebuild
 ```
 
 **Notes for Windows:**
 
-- CMake automatically detects and uses UCRT64 toolchain when available (Scoop or MSYS2 installation)
-- Works from PowerShell, cmd, or MSYS2 shells without manual environment configuration
-- If CMake defaults to NMake Makefiles, use `-G Ninja` or the CMake preset
+- UCRT64 toolchain required (not MINGW64/MSYS/MSVC)
+- Either build from UCRT64 shell OR use provided wrapper scripts
+- Wrapper scripts automatically invoke UCRT64 shell with correct environment
+- Ninja generator recommended for faster builds
 
 ### Running the REPL
 
