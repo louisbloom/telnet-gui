@@ -38,36 +38,44 @@ telnet-lisp/
 **Windows (MSYS2 UCRT64):**
 
 ```bash
-# Core library dependencies (required for all projects)
-pacman -S mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake
-pacman -S mingw-w64-ucrt-x86_64-bdw-gc mingw-w64-ucrt-x86_64-pcre2
+# Core build dependencies (required for all projects)
+pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,gc,pcre2}
 
 # GUI project dependencies (optional, only for telnet-gui)
-pacman -S mingw-w64-ucrt-x86_64-SDL2
-pacman -S mingw-w64-ucrt-x86_64-SDL2_ttf
-pacman -S mingw-w64-ucrt-x86_64-libvterm
+pacman -S mingw-w64-ucrt-x86_64-{SDL2,SDL2_ttf,libvterm}
+
+# Development dependencies (optional, for code formatting)
+pacman -S mingw-w64-ucrt-x86_64-clang-tools-extra  # Provides clang-format
 ```
+
+**Note:** MSYS2 upgrades may remove installed packages. If packages are missing after an upgrade, reinstall them using the commands above.
 
 **Linux:**
 
 ```bash
-# Core library dependencies
-sudo apt install build-essential cmake pkg-config libgc-dev libpcre2-dev
+# Core build dependencies
+sudo apt install build-essential cmake ninja-build pkg-config libgc-dev libpcre2-dev
 
 # GUI project dependencies (optional)
 sudo apt install libsdl2-dev libsdl2-ttf-dev
 # libvterm: package may not be available, install from source (see telnet-gui/README.md)
+
+# Development dependencies (optional, for code formatting)
+sudo apt install clang-format
 ```
 
 **macOS:**
 
 ```bash
-# Core library dependencies
-brew install cmake pkg-config bdw-gc pcre2
+# Core build dependencies
+brew install cmake ninja pkg-config bdw-gc pcre2
 
 # GUI project dependencies (optional)
 brew install sdl2 sdl2_ttf
 # libvterm: package may not be available, install from source (see telnet-gui/README.md)
+
+# Development dependencies (optional, for code formatting)
+brew install clang-format
 ```
 
 ### Building
@@ -129,6 +137,52 @@ Try some Lisp:
 25
 >>> :quit
 ```
+
+### Installing
+
+Install to system directories or custom location:
+
+**Default installation (user-local, no admin privileges):**
+
+```bash
+# Install to ~/telnet-lisp (Windows) or ~/telnet-lisp (Linux/macOS)
+cmake --build build
+cmake --install build
+```
+
+**Custom installation prefix:**
+
+```bash
+# Install to ~/.local
+cmake --install build --prefix ~/.local
+
+# Or install to /usr/local (may require sudo on Linux/macOS)
+cmake --install build --prefix /usr/local
+
+# Or any custom location
+cmake --install build --prefix /opt/telnet
+```
+
+**Installation structure (POSIX-compliant):**
+
+```
+$PREFIX/
+├── bin/                     # Executables
+│   ├── telnet-gui
+│   ├── lisp-repl
+│   └── telnet-gui-log2html
+├── lib/                     # Libraries
+│   └── liblisp.a
+├── include/                 # Headers
+│   ├── lisp.h
+│   └── utf8.h
+└── share/telnet-gui/        # Application data
+    ├── fonts/               # Embedded fonts
+    ├── lisp/                # Lisp scripts
+    └── icons/               # Application icons
+```
+
+The application automatically finds resources in installed locations using runtime path resolution.
 
 ## Core Library: telnet-lisp
 
@@ -238,17 +292,35 @@ cmake --build build --target help
 
 ## Formatting Code
 
-Format all sources (library, REPL, and GUI):
-
-```bash
-cd build
-cmake --build . --target format
-```
-
-Or from the project root:
+**IMPORTANT:** Always format code before committing:
 
 ```bash
 cmake --build build --target format
+```
+
+This formats all sources (C, shell scripts, Lisp files, Markdown, Python) using:
+- `clang-format` for C code
+- `shfmt` for shell scripts
+- `emacs` for Lisp files
+- `prettier` for Markdown files
+- `black` for Python files
+
+**Troubleshooting:**
+
+If the format target fails with "unknown target 'format'", install clang-format:
+
+```bash
+# Windows (MSYS2 UCRT64)
+pacman -S mingw-w64-ucrt-x86_64-clang-tools-extra
+
+# Linux
+sudo apt install clang-format
+
+# macOS
+brew install clang-format
+
+# Then reconfigure CMake
+cmake -B build -G Ninja
 ```
 
 ## Platform Support
