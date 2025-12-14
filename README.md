@@ -311,6 +311,7 @@ cmake --build build --target format
 ```
 
 This formats all sources (C, shell scripts, Lisp files, Markdown, Python) using:
+
 - `clang-format` for C code
 - `shfmt` for shell scripts
 - `emacs` for Lisp files
