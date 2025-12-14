@@ -40,18 +40,18 @@ target_compile_definitions(telnet-gui PRIVATE
 )
 
 # Copy font files to build directory
-set(FONT_INCONSOLATA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Inconsolata-Regular.ttf")
-set(FONT_INCONSOLATA_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/Inconsolata-Regular.ttf")
-set(FONT_PLEX_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/IBMPlexMono-Regular.ttf")
-set(FONT_PLEX_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/IBMPlexMono-Regular.ttf")
-set(FONT_DEJAVU_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/DejaVuSansMono.ttf")
-set(FONT_DEJAVU_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/DejaVuSansMono.ttf")
-set(FONT_DEJAVU_BOLD_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/DejaVuSansMono-Bold.ttf")
-set(FONT_DEJAVU_BOLD_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/DejaVuSansMono-Bold.ttf")
-set(FONT_COURIER_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/CourierPrime-Regular.ttf")
-set(FONT_COURIER_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/CourierPrime-Regular.ttf")
-set(FONT_CASCADIA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/CascadiaMono-Regular.ttf")
-set(FONT_CASCADIA_DST "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts/CascadiaMono-Regular.ttf")
+set(FONT_INCONSOLATA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/fonts/Inconsolata-Regular.ttf")
+set(FONT_INCONSOLATA_DST "${CMAKE_CURRENT_BINARY_DIR}/fonts/Inconsolata-Regular.ttf")
+set(FONT_PLEX_SRC "${CMAKE_CURRENT_SOURCE_DIR}/fonts/IBMPlexMono-Regular.ttf")
+set(FONT_PLEX_DST "${CMAKE_CURRENT_BINARY_DIR}/fonts/IBMPlexMono-Regular.ttf")
+set(FONT_DEJAVU_SRC "${CMAKE_CURRENT_SOURCE_DIR}/fonts/DejaVuSansMono.ttf")
+set(FONT_DEJAVU_DST "${CMAKE_CURRENT_BINARY_DIR}/fonts/DejaVuSansMono.ttf")
+set(FONT_DEJAVU_BOLD_SRC "${CMAKE_CURRENT_SOURCE_DIR}/fonts/DejaVuSansMono-Bold.ttf")
+set(FONT_DEJAVU_BOLD_DST "${CMAKE_CURRENT_BINARY_DIR}/fonts/DejaVuSansMono-Bold.ttf")
+set(FONT_COURIER_SRC "${CMAKE_CURRENT_SOURCE_DIR}/fonts/CourierPrime-Regular.ttf")
+set(FONT_COURIER_DST "${CMAKE_CURRENT_BINARY_DIR}/fonts/CourierPrime-Regular.ttf")
+set(FONT_CASCADIA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/fonts/CascadiaMono-Regular.ttf")
+set(FONT_CASCADIA_DST "${CMAKE_CURRENT_BINARY_DIR}/fonts/CascadiaMono-Regular.ttf")
 
 # Copy bootstrap Lisp file to build directory
 set(BOOTSTRAP_SRC "${CMAKE_CURRENT_SOURCE_DIR}/bootstrap.lisp")
@@ -73,9 +73,9 @@ set(TEST_HELPERS_DST "${CMAKE_CURRENT_BINARY_DIR}/test-helpers.lisp")
 set(LOG2HTML_SRC "${CMAKE_CURRENT_SOURCE_DIR}/scripts/telnet-gui-log2html.py")
 set(LOG2HTML_DST "${CMAKE_CURRENT_BINARY_DIR}/telnet-gui-log2html.py")
 
-# Create assets/fonts directory in build directory
+# Create fonts directory in build directory
 add_custom_command(TARGET telnet-gui POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets/fonts"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/fonts"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_INCONSOLATA_SRC}" "${FONT_INCONSOLATA_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_PLEX_SRC}" "${FONT_PLEX_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_DEJAVU_SRC}" "${FONT_DEJAVU_DST}"

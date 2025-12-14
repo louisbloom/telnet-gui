@@ -790,7 +790,7 @@ int main(int argc, char **argv) {
 
         /* Normalize path separators - use backslashes on Windows for consistency */
         char normalized_path[1024];
-        snprintf(normalized_path, sizeof(normalized_path), "%s%sassets/fonts/%s", base_path, sep, font_filename);
+        snprintf(normalized_path, sizeof(normalized_path), "%s%sfonts/%s", base_path, sep, font_filename);
 
 /* Convert forward slashes to backslashes on Windows for SDL_ttf compatibility */
 #ifdef _WIN32
@@ -819,27 +819,27 @@ int main(int argc, char **argv) {
     /* Add fallback paths for embedded fonts - try source tree paths */
     if (font_choice != 's') {
         static char fallback_path1[256];
-        snprintf(fallback_path1, sizeof(fallback_path1), "telnet-gui/assets/fonts/%s", font_filename);
+        snprintf(fallback_path1, sizeof(fallback_path1), "telnet-gui/fonts/%s", font_filename);
         font_paths[font_path_count] = fallback_path1;
         font_path_labels[font_path_count++] = "source tree path (from build root)";
 
         static char fallback_path2[256];
-        snprintf(fallback_path2, sizeof(fallback_path2), "../../telnet-gui/assets/fonts/%s", font_filename);
+        snprintf(fallback_path2, sizeof(fallback_path2), "../../telnet-gui/fonts/%s", font_filename);
         font_paths[font_path_count] = fallback_path2;
         font_path_labels[font_path_count++] = "source tree path (nested build dir)";
 
         static char fallback_path3[256];
-        snprintf(fallback_path3, sizeof(fallback_path3), "../telnet-gui/assets/fonts/%s", font_filename);
+        snprintf(fallback_path3, sizeof(fallback_path3), "../telnet-gui/fonts/%s", font_filename);
         font_paths[font_path_count] = fallback_path3;
         font_path_labels[font_path_count++] = "source tree path (parent dir)";
 
         static char fallback_path4[256];
-        snprintf(fallback_path4, sizeof(fallback_path4), "assets/fonts/%s", font_filename);
+        snprintf(fallback_path4, sizeof(fallback_path4), "fonts/%s", font_filename);
         font_paths[font_path_count] = fallback_path4;
         font_path_labels[font_path_count++] = "current directory relative (build/development)";
 
         static char fallback_path5[256];
-        snprintf(fallback_path5, sizeof(fallback_path5), "../assets/fonts/%s", font_filename);
+        snprintf(fallback_path5, sizeof(fallback_path5), "../fonts/%s", font_filename);
         font_paths[font_path_count] = fallback_path5;
         font_path_labels[font_path_count++] = "parent directory relative";
     }
@@ -848,12 +848,12 @@ int main(int argc, char **argv) {
     if (font_choice == 's') {
         /* If system font failed, try DejaVu as fallback */
         static char fallback_dejavu1[256];
-        snprintf(fallback_dejavu1, sizeof(fallback_dejavu1), "telnet-gui/assets/fonts/DejaVuSansMono.ttf");
+        snprintf(fallback_dejavu1, sizeof(fallback_dejavu1), "telnet-gui/fonts/DejaVuSansMono.ttf");
         font_paths[font_path_count] = fallback_dejavu1;
         font_path_labels[font_path_count++] = "fallback: DejaVu Sans Mono (source tree)";
 
         static char fallback_dejavu2[256];
-        snprintf(fallback_dejavu2, sizeof(fallback_dejavu2), "assets/fonts/DejaVuSansMono.ttf");
+        snprintf(fallback_dejavu2, sizeof(fallback_dejavu2), "fonts/DejaVuSansMono.ttf");
         font_paths[font_path_count] = fallback_dejavu2;
         font_path_labels[font_path_count++] = "fallback: DejaVu Sans Mono (current dir)";
 
