@@ -2979,7 +2979,7 @@ static LispObject *builtin_gt(LispObject *args, Environment *env) {
         return lisp_make_error("> requires numbers");
     }
 
-    return (a_val > b_val) ? lisp_make_number(1) : NIL;
+    return (a_val > b_val) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_lt(LispObject *args, Environment *env) {
@@ -3001,7 +3001,7 @@ static LispObject *builtin_lt(LispObject *args, Environment *env) {
         return lisp_make_error("< requires numbers");
     }
 
-    return (a_val < b_val) ? lisp_make_number(1) : NIL;
+    return (a_val < b_val) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_eq(LispObject *args, Environment *env) {
@@ -3023,7 +3023,7 @@ static LispObject *builtin_eq(LispObject *args, Environment *env) {
         return lisp_make_error("= requires numbers");
     }
 
-    return (a_val == b_val) ? lisp_make_number(1) : NIL;
+    return (a_val == b_val) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_gte(LispObject *args, Environment *env) {
@@ -3045,7 +3045,7 @@ static LispObject *builtin_gte(LispObject *args, Environment *env) {
         return lisp_make_error(">= requires numbers");
     }
 
-    return (a_val >= b_val) ? lisp_make_number(1) : NIL;
+    return (a_val >= b_val) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_lte(LispObject *args, Environment *env) {
@@ -3067,7 +3067,7 @@ static LispObject *builtin_lte(LispObject *args, Environment *env) {
         return lisp_make_error("<= requires numbers");
     }
 
-    return (a_val <= b_val) ? lisp_make_number(1) : NIL;
+    return (a_val <= b_val) ? LISP_TRUE : NIL;
 }
 
 /* String operations */
@@ -3442,7 +3442,7 @@ static LispObject *builtin_string_lt(LispObject *args, Environment *env) {
         return lisp_make_error("string<? requires strings");
     }
 
-    return (strcmp(a->value.string, b->value.string) < 0) ? lisp_make_number(1) : NIL;
+    return (strcmp(a->value.string, b->value.string) < 0) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_string_gt(LispObject *args, Environment *env) {
@@ -3458,7 +3458,7 @@ static LispObject *builtin_string_gt(LispObject *args, Environment *env) {
         return lisp_make_error("string>? requires strings");
     }
 
-    return (strcmp(a->value.string, b->value.string) > 0) ? lisp_make_number(1) : NIL;
+    return (strcmp(a->value.string, b->value.string) > 0) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_string_lte(LispObject *args, Environment *env) {
@@ -3474,7 +3474,7 @@ static LispObject *builtin_string_lte(LispObject *args, Environment *env) {
         return lisp_make_error("string<=? requires strings");
     }
 
-    return (strcmp(a->value.string, b->value.string) <= 0) ? lisp_make_number(1) : NIL;
+    return (strcmp(a->value.string, b->value.string) <= 0) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_string_gte(LispObject *args, Environment *env) {
@@ -3490,7 +3490,7 @@ static LispObject *builtin_string_gte(LispObject *args, Environment *env) {
         return lisp_make_error("string>=? requires strings");
     }
 
-    return (strcmp(a->value.string, b->value.string) >= 0) ? lisp_make_number(1) : NIL;
+    return (strcmp(a->value.string, b->value.string) >= 0) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_string_contains(LispObject *args, Environment *env) {
@@ -3506,7 +3506,7 @@ static LispObject *builtin_string_contains(LispObject *args, Environment *env) {
         return lisp_make_error("string-contains? requires strings");
     }
 
-    return (strstr(haystack->value.string, needle->value.string) != NULL) ? lisp_make_number(1) : NIL;
+    return (strstr(haystack->value.string, needle->value.string) != NULL) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_string_index(LispObject *args, Environment *env) {
@@ -3555,7 +3555,7 @@ static LispObject *builtin_string_match(LispObject *args, Environment *env) {
         return lisp_make_error("string-match? requires strings");
     }
 
-    return wildcard_match(pattern->value.string, str->value.string) ? lisp_make_number(1) : NIL;
+    return wildcard_match(pattern->value.string, str->value.string) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_string_prefix_question(LispObject *args, Environment *env) {
@@ -3580,7 +3580,7 @@ static LispObject *builtin_string_prefix_question(LispObject *args, Environment 
     }
 
     /* Use strncmp to check if prefix matches the beginning of str */
-    return (strncmp(prefix->value.string, str->value.string, prefix_len) == 0) ? lisp_make_number(1) : NIL;
+    return (strncmp(prefix->value.string, str->value.string, prefix_len) == 0) ? LISP_TRUE : NIL;
 }
 
 /* UTF-8 String operations */
@@ -3834,7 +3834,7 @@ static LispObject *builtin_not(LispObject *args, Environment *env) {
     }
 
     LispObject *arg = lisp_car(args);
-    return lisp_is_truthy(arg) ? NIL : lisp_make_number(1);
+    return lisp_is_truthy(arg) ? NIL : LISP_TRUE;
 }
 
 /* List operations */
@@ -4031,7 +4031,7 @@ static LispObject *builtin_null_question(LispObject *args, Environment *env) {
     }
 
     LispObject *arg = lisp_car(args);
-    return (arg == NIL || arg == NULL) ? lisp_make_number(1) : NIL;
+    return (arg == NIL || arg == NULL) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_atom_question(LispObject *args, Environment *env) {
@@ -4041,7 +4041,7 @@ static LispObject *builtin_atom_question(LispObject *args, Environment *env) {
     }
 
     LispObject *arg = lisp_car(args);
-    return (arg->type != LISP_CONS) ? lisp_make_number(1) : NIL;
+    return (arg->type != LISP_CONS) ? LISP_TRUE : NIL;
 }
 
 /* Regex functions */
@@ -4072,7 +4072,7 @@ static LispObject *builtin_regex_match(LispObject *args, Environment *env) {
 
     free_regex_resources(re, match_data);
 
-    return result ? lisp_make_number(1) : NIL;
+    return result ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_regex_find(LispObject *args, Environment *env) {
@@ -4428,7 +4428,7 @@ static LispObject *builtin_regex_valid(LispObject *args, Environment *env) {
     }
 
     pcre2_code_free(re);
-    return lisp_make_number(1);
+    return LISP_TRUE;
 }
 
 /* File I/O operations */
@@ -5242,7 +5242,7 @@ static LispObject *builtin_integer_question(LispObject *args, Environment *env) 
         return lisp_make_error("integer? requires 1 argument");
     }
     LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_INTEGER) ? lisp_make_number(1) : NIL;
+    return (arg->type == LISP_INTEGER) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_boolean_question(LispObject *args, Environment *env) {
@@ -5251,7 +5251,7 @@ static LispObject *builtin_boolean_question(LispObject *args, Environment *env) 
         return lisp_make_error("boolean? requires 1 argument");
     }
     LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_BOOLEAN) ? lisp_make_number(1) : NIL;
+    return (arg->type == LISP_BOOLEAN) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_number_question(LispObject *args, Environment *env) {
@@ -5260,7 +5260,7 @@ static LispObject *builtin_number_question(LispObject *args, Environment *env) {
         return lisp_make_error("number? requires 1 argument");
     }
     LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_NUMBER || arg->type == LISP_INTEGER) ? lisp_make_number(1) : NIL;
+    return (arg->type == LISP_NUMBER || arg->type == LISP_INTEGER) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_vector_question(LispObject *args, Environment *env) {
@@ -5269,7 +5269,7 @@ static LispObject *builtin_vector_question(LispObject *args, Environment *env) {
         return lisp_make_error("vector? requires 1 argument");
     }
     LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_VECTOR) ? lisp_make_number(1) : NIL;
+    return (arg->type == LISP_VECTOR) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_hash_table_question(LispObject *args, Environment *env) {
@@ -5278,7 +5278,7 @@ static LispObject *builtin_hash_table_question(LispObject *args, Environment *en
         return lisp_make_error("hash-table? requires 1 argument");
     }
     LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_HASH_TABLE) ? lisp_make_number(1) : NIL;
+    return (arg->type == LISP_HASH_TABLE) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_string_question(LispObject *args, Environment *env) {
@@ -5287,7 +5287,7 @@ static LispObject *builtin_string_question(LispObject *args, Environment *env) {
         return lisp_make_error("string? requires 1 argument");
     }
     LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_STRING) ? lisp_make_number(1) : NIL;
+    return (arg->type == LISP_STRING) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_symbol_question(LispObject *args, Environment *env) {
@@ -5296,7 +5296,7 @@ static LispObject *builtin_symbol_question(LispObject *args, Environment *env) {
         return lisp_make_error("symbol? requires 1 argument");
     }
     LispObject *arg = lisp_car(args);
-    return (arg->type == LISP_SYMBOL) ? lisp_make_number(1) : NIL;
+    return (arg->type == LISP_SYMBOL) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_list_question(LispObject *args, Environment *env) {
@@ -5306,7 +5306,7 @@ static LispObject *builtin_list_question(LispObject *args, Environment *env) {
     }
     LispObject *arg = lisp_car(args);
     /* A list is either NIL or a cons cell */
-    return (arg == NIL || arg->type == LISP_CONS) ? lisp_make_number(1) : NIL;
+    return (arg == NIL || arg->type == LISP_CONS) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_pair_question(LispObject *args, Environment *env) {
@@ -5316,7 +5316,7 @@ static LispObject *builtin_pair_question(LispObject *args, Environment *env) {
     }
     LispObject *arg = lisp_car(args);
     /* A pair is a cons cell (nil is NOT a pair) */
-    return (arg->type == LISP_CONS) ? lisp_make_number(1) : NIL;
+    return (arg->type == LISP_CONS) ? LISP_TRUE : NIL;
 }
 
 /* Symbol operations */
@@ -5549,7 +5549,7 @@ static LispObject *builtin_hash_remove_bang(LispObject *args, Environment *env) 
     const char *key = (key_obj->type == LISP_STRING) ? key_obj->value.string : key_obj->value.symbol;
     int removed = hash_table_remove_entry(table, key);
 
-    return removed ? lisp_make_number(1) : NIL;
+    return removed ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_hash_clear_bang(LispObject *args, Environment *env) {
@@ -5915,7 +5915,7 @@ static LispObject *builtin_eq_predicate(LispObject *args, Environment *env) {
     LispObject *b = args->value.cons.cdr->value.cons.car;
 
     /* Pointer equality - same object in memory */
-    return (a == b) ? lisp_make_number(1) : NIL;
+    return (a == b) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_equal_predicate(LispObject *args, Environment *env) {
@@ -5929,7 +5929,7 @@ static LispObject *builtin_equal_predicate(LispObject *args, Environment *env) {
     LispObject *b = args->value.cons.cdr->value.cons.car;
 
     /* Use recursive structural equality */
-    return objects_equal_recursive(a, b) ? lisp_make_number(1) : NIL;
+    return objects_equal_recursive(a, b) ? LISP_TRUE : NIL;
 }
 
 static LispObject *builtin_string_eq_predicate(LispObject *args, Environment *env) {
@@ -5951,7 +5951,7 @@ static LispObject *builtin_string_eq_predicate(LispObject *args, Environment *en
     }
 
     /* String comparison */
-    return (strcmp(a->value.string, b->value.string) == 0) ? lisp_make_number(1) : NIL;
+    return (strcmp(a->value.string, b->value.string) == 0) ? LISP_TRUE : NIL;
 }
 
 /* Mapping operations */

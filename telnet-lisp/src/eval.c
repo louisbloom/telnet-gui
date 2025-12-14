@@ -1054,7 +1054,7 @@ static LispObject *eval_case(LispObject *args, Environment *env, int in_tail_pos
 static LispObject *eval_and(LispObject *args, Environment *env, int in_tail_position) {
     /* (and) => #t */
     if (args == NIL) {
-        return lisp_make_number(1);
+        return LISP_TRUE;
     }
 
     /* Evaluate arguments one by one until we find a falsy value */
@@ -1084,7 +1084,7 @@ static LispObject *eval_and(LispObject *args, Environment *env, int in_tail_posi
     }
 
     /* Should never reach here, but return #t for safety */
-    return lisp_make_number(1);
+    return LISP_TRUE;
 }
 
 static LispObject *eval_or(LispObject *args, Environment *env, int in_tail_position) {
