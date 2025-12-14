@@ -1441,13 +1441,12 @@
 
 ;; Test Case 11: Edge case - column with natural width exactly 8
 ;; Natural: [8, 3] = 11 content, terminal: 20
+;; Total need: 11 + 4 + 3 = 18 < 20 (FITS - Case A applies)
 ;; Available: 20 - 4 - 3 = 13
-;; Small cols (3): keep natural = 3
-;; Large cols (8): 13 - 3 = 10 available
-;; 8*10/8=10
-;; Result: [10, 3]
+;; Scale UP proportionally: 8*13/11=9, 3*13/11=3
+;; Result: [9, 3] (total 19 ≤ 20)
 (print "Test: Column with natural width = 8...")
-(test-column-widths '(8 3) 20 '(10 3)
+(test-column-widths '(8 3) 20 '(9 3)
   "Natural=8: [8,3] on 20-char terminal")
 
 (print "")
