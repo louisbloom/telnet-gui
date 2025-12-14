@@ -1,4 +1,5 @@
 #include "../include/lisp.h"
+#include "../include/file_utils.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -366,7 +367,7 @@ void lisp_cleanup(void) {
 
 /* Load file */
 LispObject *lisp_load_file(const char *filename, Environment *env) {
-    FILE *file = fopen(filename, "r");
+    FILE *file = file_open(filename, "r");
     if (file == NULL) {
         return lisp_make_error("Cannot open file");
     }

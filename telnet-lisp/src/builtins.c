@@ -1,4 +1,5 @@
 #include "../include/lisp.h"
+#include "../include/file_utils.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -4462,7 +4463,7 @@ static LispObject *builtin_open(LispObject *args, Environment *env) {
         mode = mode_obj->value.string;
     }
 
-    FILE *file = fopen(filename_obj->value.string, mode);
+    FILE *file = file_open(filename_obj->value.string, mode);
     if (file == NULL) {
         char error[512];
         snprintf(error, sizeof(error), "open: cannot open file '%s'", filename_obj->value.string);
@@ -4601,7 +4602,7 @@ static LispObject *builtin_read_sexp(LispObject *args, Environment *env) {
         }
     } else if (arg->type == LISP_STRING) {
         /* Open file */
-        file = fopen(arg->value.string, "r");
+        file = file_open(arg->value.string, "r");
         if (file == NULL) {
             char error[512];
             snprintf(error, sizeof(error), "read-sexp: cannot open file '%s'", arg->value.string);
@@ -4701,7 +4702,7 @@ static LispObject *builtin_read_json(LispObject *args, Environment *env) {
         }
     } else if (arg->type == LISP_STRING) {
         /* Open file */
-        file = fopen(arg->value.string, "r");
+        file = file_open(arg->value.string, "r");
         if (file == NULL) {
             char error[512];
             snprintf(error, sizeof(error), "read-json: cannot open file '%s'", arg->value.string);
@@ -4949,7 +4950,7 @@ static LispObject *builtin_delete_file(LispObject *args, Environment *env) {
     }
 
     /* Attempt to delete the file */
-    if (remove(filename_obj->value.string) == 0) {
+    if (file_remove(filename_obj->value.string) == 0) {
         /* Success */
         return NIL;
     } else {

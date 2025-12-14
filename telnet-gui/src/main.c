@@ -33,6 +33,7 @@
 #include "dynamic_buffer.h"
 #include "path_utils.h"
 #include "../../telnet-lisp/include/lisp.h"
+#include "../../telnet-lisp/include/file_utils.h"
 
 /* Padding around terminal area (including input area) - must match renderer.c */
 #define PADDING_X 8
@@ -304,7 +305,7 @@ static const char *find_system_monospace_font(const char **font_name_out) {
     const char *names[] = {"Consolas", "Consolas", "Courier New", "Courier New", NULL};
 
     for (int i = 0; fonts[i] != NULL; i++) {
-        FILE *test = fopen(fonts[i], "rb");
+        FILE *test = file_open(fonts[i], "rb");
         if (test) {
             fclose(test);
             if (font_name_out) {
@@ -325,7 +326,7 @@ static const char *find_system_monospace_font(const char **font_name_out) {
     const char *names[] = {"Menlo", "Menlo", "Monaco", "Monaco", "Courier New", "Courier New", NULL};
 
     for (int i = 0; fonts[i] != NULL; i++) {
-        FILE *test = fopen(fonts[i], "rb");
+        FILE *test = file_open(fonts[i], "rb");
         if (test) {
             fclose(test);
             if (font_name_out) {
@@ -348,7 +349,7 @@ static const char *find_system_monospace_font(const char **font_name_out) {
                            "Liberation Mono",  "Courier New",      "Courier New",     NULL};
 
     for (int i = 0; fonts[i] != NULL; i++) {
-        FILE *test = fopen(fonts[i], "rb");
+        FILE *test = file_open(fonts[i], "rb");
         if (test) {
             fclose(test);
             if (font_name_out) {
@@ -887,7 +888,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Font resolution: Trying [%d] %s: %s\n", i + 1, font_path_labels[i], font_paths[i]);
 
         /* Check if file exists before trying to load */
-        FILE *test = fopen(font_paths[i], "rb");
+        FILE *test = file_open(font_paths[i], "rb");
         if (test) {
             fclose(test);
             fprintf(stderr, "Font resolution: File exists, attempting to load...\n");

@@ -4,6 +4,7 @@
 #include "lisp.h"
 #include "dynamic_buffer.h"
 #include "../../telnet-lisp/include/lisp.h"
+#include "../../telnet-lisp/include/file_utils.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -123,11 +124,7 @@ static int telnet_open_log(Telnet *t, const char *log_dir) {
     }
 
     /* Create log directory if it doesn't exist */
-#ifdef _WIN32
-    _mkdir(expanded_dir);
-#else
-    mkdir(expanded_dir, 0755);
-#endif
+    file_mkdir(expanded_dir);
 
     /* Generate log filename: <timestamp>-telnet-session-<socket>.log */
     char timestamp[32];
@@ -139,7 +136,7 @@ static int telnet_open_log(Telnet *t, const char *log_dir) {
              t->socket);
 
     /* Open log file in append mode */
-    t->log_file = fopen(t->log_filename, "a");
+    t->log_file = file_open(t->log_filename, "a");
     if (!t->log_file) {
         fprintf(stderr, "Warning: Failed to open telnet log file: %s\n", t->log_filename);
         return -1;

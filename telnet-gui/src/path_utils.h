@@ -6,7 +6,13 @@
 #include <stddef.h>
 #include <limits.h>
 
-/* Maximum path length for all path buffers */
+/* Maximum path length for all path buffers
+ * Windows: UNICODE_STRING max (32767 UTF-16 chars + null) = 32768
+ * Note: Our char buffers use UTF-8. This size assumes predominantly ASCII
+ * paths (1 byte/char). Real-world paths are typically <1KB even with Unicode
+ * usernames. Theoretical worst-case UTF-8 (4 bytes/char) could need 131KB,
+ * but such paths don't exist in practice.
+ */
 #ifdef _WIN32
 #define TELNET_MAX_PATH 32768  /* Windows: UNICODE_STRING max (32767 chars + null) */
 #else

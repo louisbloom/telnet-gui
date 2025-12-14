@@ -1,4 +1,5 @@
 #include "lisp.h"
+#include "file_utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -139,7 +140,7 @@ int main(int argc, char **argv) {
     /* If file argument provided, load and execute it */
     if (argc > 1) {
         for (int i = 1; i < argc; i++) {
-            FILE *file = fopen(argv[i], "r");
+            FILE *file = file_open(argv[i], "r");
             if (file == NULL) {
                 fprintf(stderr, "ERROR: Cannot open file: %s\n", argv[i]);
                 return 1;

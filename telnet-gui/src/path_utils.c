@@ -54,7 +54,7 @@ int path_construct_data_directory(const char *base_path, char *out_path, size_t 
 
     // Copy base path and strip trailing separator
     size_t len = strlen(base_path);
-    char temp_path[TELNET_MAX_PATH];
+    char temp_path[1024]; // Reasonable size for path manipulation
     strncpy(temp_path, base_path, sizeof(temp_path) - 1);
     temp_path[sizeof(temp_path) - 1] = '\0';
 

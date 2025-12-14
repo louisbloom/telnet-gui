@@ -9,6 +9,7 @@
 #include "dynamic_buffer.h"
 #include "path_utils.h"
 #include "../../telnet-lisp/include/lisp.h"
+#include "../../telnet-lisp/include/file_utils.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -356,7 +357,7 @@ static int load_bootstrap_file(void) {
                 bootstrap_paths[i]);
 
         /* Check if file exists before trying to load */
-        FILE *test = fopen(bootstrap_paths[i], "rb");
+        FILE *test = file_open(bootstrap_paths[i], "rb");
         if (test) {
             fclose(test);
             fprintf(stderr, "Bootstrap file resolution: File exists, attempting to load...\n");
@@ -898,7 +899,7 @@ int lisp_x_init(void) {
 
 /* Helper: Check if a file exists */
 static int file_exists(const char *path) {
-    FILE *f = fopen(path, "r");
+    FILE *f = file_open(path, "r");
     if (f) {
         fclose(f);
         return 1;

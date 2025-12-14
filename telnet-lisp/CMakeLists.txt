@@ -31,6 +31,7 @@ set(LIB_SOURCES
     src/regex.c
     src/hash_table.c
     src/utf8.c
+    src/file_utils.c
 )
 
 # Create static library
@@ -62,6 +63,6 @@ install(TARGETS lisp
     ARCHIVE DESTINATION lib
 )
 
-install(FILES include/lisp.h include/utf8.h
+install(FILES include/lisp.h include/utf8.h include/file_utils.h
     DESTINATION include
 )
