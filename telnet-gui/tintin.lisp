@@ -4285,54 +4285,54 @@
                 (let* ((natural (vector-ref col-maxes k))
                         ;; Scale up proportionally
                         (scaled (quotient (* natural available) content-width)))
-                  (set! result (cons scaled result)))))
+                  (set! result (cons scaled result))))))
 
-            ;; Case B: Doesn't fit - scale DOWN with constraints
-            (let ((available (- max-width border-width separator-width)))
-              ;; New algorithm: separate small (< 8) and large (>= 8) columns
-              (let ((widths (make-vector num-cols 0))
-                     (small-cols '())
-                     (large-cols '())
-                     (small-total 0)
-                     (large-natural-total 0))
+          ;; Case B: Doesn't fit - scale DOWN with constraints
+          (let ((available (- max-width border-width separator-width)))
+            ;; New algorithm: separate small (< 8) and large (>= 8) columns
+            (let ((widths (make-vector num-cols 0))
+                   (small-cols '())
+                   (large-cols '())
+                   (small-total 0)
+                   (large-natural-total 0))
 
-                ;; Step 1: Categorize columns
+              ;; Step 1: Categorize columns
+              (do ((k 0 (+ k 1)))
+                ((>= k num-cols))
+                (let ((natural (vector-ref col-maxes k)))
+                  (if (< natural min-col-width)
+                    (set! small-cols (cons k small-cols))
+                    (begin
+                      (set! large-cols (cons k large-cols))
+                      (set! large-natural-total (+ large-natural-total natural))))))
+
+              ;; Step 2: Small columns keep natural width (no scaling)
+              (for-each (lambda (k)
+                          (let ((natural (vector-ref col-maxes k)))
+                            (vector-set! widths k natural)
+                            (set! small-total (+ small-total natural))))
+                small-cols)
+
+              ;; Step 3: Allocate remaining to large columns (min=8)
+              (let ((large-available (- available small-total)))
+                (if (null? large-cols)
+                  ;; No large columns - all small, keep natural
+                  '()
+                  ;; Distribute to large columns
+                  (for-each (lambda (k)
+                              (let* ((natural (vector-ref col-maxes k))
+                                      (scaled (if (= large-natural-total 0)
+                                                min-col-width  ; Avoid division by zero
+                                                (quotient (* natural large-available) large-natural-total)))
+                                      (final (max min-col-width scaled)))
+                                (vector-set! widths k final)))
+                    large-cols)))
+
+              ;; Convert vector to list
+              (let ((result '()))
                 (do ((k 0 (+ k 1)))
-                  ((>= k num-cols))
-                  (let ((natural (vector-ref col-maxes k)))
-                    (if (< natural min-col-width)
-                      (set! small-cols (cons k small-cols))
-                      (begin
-                        (set! large-cols (cons k large-cols))
-                        (set! large-natural-total (+ large-natural-total natural))))))
-
-                ;; Step 2: Small columns keep natural width (no scaling)
-                (for-each (lambda (k)
-			    (let ((natural (vector-ref col-maxes k)))
-			      (vector-set! widths k natural)
-			      (set! small-total (+ small-total natural))))
-                  small-cols)
-
-                ;; Step 3: Allocate remaining to large columns (min=8)
-                (let ((large-available (- available small-total)))
-                  (if (null? large-cols)
-                    ;; No large columns - all small, keep natural
-                    '()
-                    ;; Distribute to large columns
-                    (for-each (lambda (k)
-				(let* ((natural (vector-ref col-maxes k))
-					(scaled (if (= large-natural-total 0)
-						  min-col-width  ; Avoid division by zero
-						  (quotient (* natural large-available) large-natural-total)))
-					(final (max min-col-width scaled)))
-				  (vector-set! widths k final)))
-                      large-cols)))
-
-                ;; Convert vector to list
-                (let ((result '()))
-                  (do ((k 0 (+ k 1)))
-                    ((>= k num-cols) (reverse result))
-                    (set! result (cons (vector-ref widths k) result)))))))))))))
+                  ((>= k num-cols) (reverse result))
+                  (set! result (cons (vector-ref widths k) result)))))))))))
 
 ;; DEPRECATED: Old function kept for compatibility
 ;; Use tintin-calculate-optimal-widths instead
