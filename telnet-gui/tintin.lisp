@@ -4301,7 +4301,7 @@
                 (if (> total-scaled available)
                   ;; Over budget - reduce all columns proportionally to fit
                   (let ((result '())
-                         (absolute-min 1))  ; Minimum 1 char per column (headers will truncate)
+                         (absolute-min min-col-width))  ; Respect min-col-width during scaling
                     (do ((k 0 (+ k 1)))
                       ((>= k num-cols) (reverse result))
                       (let* ((width (vector-ref widths k))
@@ -4393,7 +4393,7 @@
       (tintin-echo "Error: Table data cannot be empty")
       (let* ((term-info (terminal-info))
               (term-cols (cdr (assoc 'cols term-info)))
-              (min-col-width 3)
+              (min-col-width 8)
               (headers (car data))
               (rows (cdr data))
               (all-rows data))
