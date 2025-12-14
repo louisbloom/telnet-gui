@@ -4302,31 +4302,35 @@
                 (let ((natural (vector-ref col-maxes k)))
                   (if (< natural min-col-width)
                     (set! small-cols (cons k small-cols))
-                    (begin
+                    (progn
                       (set! large-cols (cons k large-cols))
                       (set! large-natural-total (+ large-natural-total natural))))))
 
               ;; Step 2: Small columns keep natural width (no scaling)
-              (for-each (lambda (k)
-                          (let ((natural (vector-ref col-maxes k)))
-                            (vector-set! widths k natural)
-                            (set! small-total (+ small-total natural))))
-                small-cols)
+              (let ((iter-small small-cols))
+                (do ()
+                  ((null? iter-small))
+                  (let* ((k (car iter-small))
+                          (natural (vector-ref col-maxes k)))
+                    (vector-set! widths k natural)
+                    (set! small-total (+ small-total natural))
+                    (set! iter-small (cdr iter-small)))))
 
               ;; Step 3: Allocate remaining to large columns (min=8)
               (let ((large-available (- available small-total)))
-                (if (null? large-cols)
-                  ;; No large columns - all small, keep natural
-                  '()
+                (if (not (null? large-cols))
                   ;; Distribute to large columns
-                  (for-each (lambda (k)
-                              (let* ((natural (vector-ref col-maxes k))
-                                      (scaled (if (= large-natural-total 0)
-                                                min-col-width  ; Avoid division by zero
-                                                (quotient (* natural large-available) large-natural-total)))
-                                      (final (max min-col-width scaled)))
-                                (vector-set! widths k final)))
-                    large-cols)))
+                  (let ((iter-large large-cols))
+                    (do ()
+                      ((null? iter-large))
+                      (let* ((k (car iter-large))
+                              (natural (vector-ref col-maxes k))
+                              (scaled (if (= large-natural-total 0)
+                                        min-col-width  ; Avoid division by zero
+                                        (quotient (* natural large-available) large-natural-total)))
+                              (final (max min-col-width scaled)))
+                        (vector-set! widths k final)
+                        (set! iter-large (cdr iter-large)))))))
 
               ;; Convert vector to list
               (let ((result '()))
