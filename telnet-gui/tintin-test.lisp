@@ -24,6 +24,16 @@
 ;; Load TinTin++ implementation
 (load "tintin.lisp")  ; ignore
 
+;; CRITICAL: Verify tintin.lisp loaded successfully
+;; Ensures tests fail immediately if there are parse/runtime errors
+(condition-case err
+  (progn
+    ;; Try to access a symbol that should be defined if tintin.lisp loaded
+    (if (not (boolean? *tintin-enabled*))
+      (error "FATAL: tintin.lisp loaded but *tintin-enabled* not defined correctly")))
+  (error
+    (error "FATAL: tintin.lisp failed to load properly")))
+
 ;; ============================================================================
 ;; Test 1: Command Separator
 ;; ============================================================================
@@ -1300,25 +1310,34 @@
 (print "TESTING TABLE COLUMN WIDTH CALCULATION")
 (print "====================================================================")
 
-;; Test helper to verify column widths
-(define (test-column-widths natural-widths terminal-width expected desc)
-  (define num-cols (list-length natural-widths))
-  (define col-maxes (make-vector num-cols 0))
+;; Helper to create a string of specified length
+(defun make-string-of-length (n)
+  (define result "")
+  (do ((i 0 (+ i 1)))
+    ((>= i n) result)
+    (set! result (concat result "x"))))
 
-  ;; Fill vector with natural widths
+;; Test helper to verify column widths
+(defun test-column-widths (natural-widths terminal-width expected desc)
+  (define num-cols (list-length natural-widths))
+
+  ;; Create test data that produces the specified natural widths
+  ;; Generate strings of exactly the right length for each column
+  (define test-row '())
   (do ((i 0 (+ i 1)))
     ((>= i num-cols))
-    (vector-set! col-maxes i (list-ref natural-widths i)))
+    (let ((width (list-ref natural-widths i)))
+      (set! test-row (append test-row (list (make-string-of-length width))))))
 
-  ;; Call the width calculation function
-  (define result (tintin-calculate-optimal-widths col-maxes terminal-width))
+  ;; Call the width calculation function with single-row data
+  (define result (tintin-calculate-optimal-widths (list test-row) terminal-width 8))
 
   ;; Verify result
-  (assert-equal (list-length result) num-cols (string-append desc " - column count"))
+  (assert-equal (list-length result) num-cols (concat desc " - column count"))
   (do ((i 0 (+ i 1)))
     ((>= i num-cols))
     (assert-equal (list-ref result i) (list-ref expected i)
-      (string-append desc " - column " (number->string (+ i 1))))))
+      (concat desc " - column " (number->string (+ i 1))))))
 
 ;; Test Case 1: Scale UP when table fits naturally
 ;; Natural: [5, 2, 6] = 13 content, terminal: 80

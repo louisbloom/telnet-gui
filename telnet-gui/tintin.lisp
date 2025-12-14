@@ -4328,7 +4328,7 @@
                               (scaled (if (= large-natural-total 0)
                                         min-col-width  ; Avoid division by zero
                                         (quotient (* natural large-available) large-natural-total)))
-                              (final (max min-col-width scaled)))
+                              (final (if (> scaled min-col-width) scaled min-col-width)))
                         (vector-set! widths k final)
                         (set! iter-large (cdr iter-large)))))))
 
