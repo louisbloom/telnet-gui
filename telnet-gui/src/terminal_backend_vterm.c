@@ -62,9 +62,14 @@ typedef struct {
     int viewport_offset;
 
     /* Cursor tracking */
-    int cursor_row;
+    int cursor_row; /* Cursor position anywhere in vterm (including input area) */
     int cursor_col;
     int cursor_visible;
+
+    /* Terminal content cursor tracking (scrolling region only, excludes input area) */
+    int terminal_cursor_row; /* Cursor position within terminal content (for echoes) */
+    int terminal_cursor_col;
+    int ignore_cursor_tracking; /* Set to 1 during resize/render to prevent corruption */
 } VTermBackendState;
 
 /* Helper: Convert logical scrollback index to physical circular buffer index */
@@ -133,10 +138,20 @@ static int screen_movecursor(VTermPos pos, VTermPos oldpos, int visible, void *u
     VTermBackendState *state = (VTermBackendState *)user;
     if (!state)
         return 0;
+
     /* Track cursor position and visibility for rendering */
     state->cursor_row = pos.row;
     state->cursor_col = pos.col;
     state->cursor_visible = visible;
+
+    /* Track terminal content cursor (scrolling region only) */
+    /* Skip update during internal operations (resize, render) to prevent corruption */
+    if (!state->ignore_cursor_tracking && pos.row < state->scrolling_rows) {
+        state->terminal_cursor_row = pos.row;
+        state->terminal_cursor_col = pos.col;
+    }
+    /* If flag is set or cursor in input area, terminal_cursor stays at last known position */
+
     state->needs_redraw = 1;
     return 1;
 }
@@ -417,6 +432,11 @@ static void *vterm_create(int rows, int cols) {
     state->cursor_col = 0;
     state->cursor_visible = 1;
 
+    /* Initialize terminal content cursor tracking */
+    state->terminal_cursor_row = 0;
+    state->terminal_cursor_col = 0;
+    state->ignore_cursor_tracking = 0;
+
     memset(&state->callbacks, 0, sizeof(state->callbacks));
     state->callbacks.damage = damage;
     state->callbacks.movecursor = screen_movecursor;
@@ -609,6 +629,12 @@ static void vterm_resize(void *vstate, int rows, int cols, int input_visible_row
     if (!state)
         return;
 
+    /* Disable cursor tracking and save terminal cursor position FIRST */
+    /* Must be before ANY vterm_input_write calls that could trigger screen_movecursor */
+    state->ignore_cursor_tracking = 1;
+    int saved_cursor_row = state->terminal_cursor_row;
+    int saved_cursor_col = state->terminal_cursor_col;
+
     int old_scrolling_rows = state->scrolling_rows;
     int old_cols = state->cols;
     int old_input_row = state->input_row;
@@ -646,6 +672,10 @@ static void vterm_resize(void *vstate, int rows, int cols, int input_visible_row
         for (int i = 0; i < lines_to_scroll; i++) {
             vterm_input_write(state->vterm, "\n", 1);
         }
+        /* Adjust saved cursor position for the scroll - content moved up */
+        saved_cursor_row -= lines_to_scroll;
+        if (saved_cursor_row < 0)
+            saved_cursor_row = 0;
     }
 
     state->rows = total_rows;
@@ -679,6 +709,17 @@ static void vterm_resize(void *vstate, int rows, int cols, int input_visible_row
     char seq[32];
     ansi_format_scroll_region(seq, sizeof(seq), 1, rows);
     vterm_input_write(state->vterm, seq, strlen(seq));
+    /* DECSTBM moves cursor to (1,1) as documented side effect */
+
+    /* Restore cursor to terminal content position */
+    ansi_format_cursor_pos(seq, sizeof(seq), saved_cursor_row + 1, saved_cursor_col + 1);
+    vterm_input_write(state->vterm, seq, strlen(seq));
+
+    /* Re-enable cursor tracking and manually set terminal_cursor */
+    state->ignore_cursor_tracking = 0;
+    state->terminal_cursor_row = saved_cursor_row;
+    state->terminal_cursor_col = saved_cursor_col;
+
     /* Don't flush damage here - let the main render loop handle it to avoid blocking during reflow */
     /* vterm_screen_flush_damage(state->screen); */
 
@@ -843,6 +884,12 @@ static void vterm_echo_local(void *vstate) {
         tmp[out_len++] = c;
     }
 
+    /* Position cursor at terminal content cursor before echoing */
+    /* This ensures echo appears in the scrolling region, not input area */
+    char pos_seq[32];
+    ansi_format_cursor_pos(pos_seq, sizeof(pos_seq), state->terminal_cursor_row + 1, state->terminal_cursor_col + 1);
+    vterm_input_write(state->vterm, pos_seq, strlen(pos_seq));
+
     vterm_input_write(state->vterm, tmp, out_len);
     vterm_screen_flush_damage(state->screen);
 
@@ -964,8 +1011,9 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
     DynamicBuffer *buf = state->render_buffer;
     dynamic_buffer_clear(buf);
 
-    /* Save cursor position so telnet input can restore it for correct echo positioning */
-    dynamic_buffer_append_str(buf, ANSI_CURSOR_SAVE); /* DECSC - Save Cursor */
+    /* Note: We don't use DECSC/DECRC here because DECSTBM below resets cursor to (1,1)
+     * and DECRC doesn't reliably restore after that. Instead, we explicitly position
+     * cursor at terminal_cursor_row/col at the end. */
 
     /* Calculate divider colors based on connection status */
     int divider_r, divider_g, divider_b;
@@ -1126,12 +1174,15 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
     ansi_format_scroll_region(scroll_buf, sizeof(scroll_buf), 1, state->scrolling_rows);
     dynamic_buffer_append_str(buf, scroll_buf);
 
-    /* Restore cursor position so telnet input echoes at the correct location */
-    dynamic_buffer_append_str(buf, ANSI_CURSOR_RESTORE); /* DECRC - Restore Cursor */
+    /* Explicitly restore cursor to terminal content position */
+    /* DECSTBM above moves cursor to (1,1), so we must reposition explicitly */
+    char pos_buf[32];
+    ansi_format_cursor_pos(pos_buf, sizeof(pos_buf), state->terminal_cursor_row + 1, state->terminal_cursor_col + 1);
+    dynamic_buffer_append_str(buf, pos_buf);
 
-    /* Set echoing_locally flag to prevent output callback from buffering when rendering input area */
-    /* This prevents input area text from being sent to telnet when we're just rendering it */
+    /* Set flags to prevent output callback from buffering and cursor tracking corruption */
     state->echoing_locally = 1;
+    state->ignore_cursor_tracking = 1;
 
     /* Send all escape sequences to vterm */
     vterm_input_write(state->vterm, dynamic_buffer_data(buf), dynamic_buffer_len(buf));
@@ -1139,8 +1190,9 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
     vterm_screen_flush_damage(state->screen);
     state->needs_redraw = 1;
 
-    /* Clear echoing_locally flag after rendering */
+    /* Clear flags after rendering */
     state->echoing_locally = 0;
+    state->ignore_cursor_tracking = 0;
 }
 
 static const char *vterm_get_version(void) {
