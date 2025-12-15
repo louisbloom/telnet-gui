@@ -106,29 +106,9 @@ cmake --build build --target lisp-repl    # REPL application
 cmake --build build --target telnet-gui   # GUI application (requires GUI deps)
 ```
 
-**Using wrapper scripts (Windows - any shell):**
-
-```bash
-# PowerShell:
-.\build.ps1              # Build all targets
-.\build.ps1 format       # Build specific target
-.\build.ps1 -Clean       # Clean and rebuild
-
-# CMD:
-build.bat                # Build all targets
-build.bat format         # Build specific target
-
-# Git Bash/MINGW64:
-./build.sh               # Build all targets
-./build.sh format        # Build specific target
-./build.sh --clean       # Clean and rebuild
-```
-
 **Notes for Windows:**
 
 - UCRT64 toolchain required (not MINGW64/MSYS/MSVC)
-- Either build from UCRT64 shell OR use provided wrapper scripts
-- Wrapper scripts automatically invoke UCRT64 shell with correct environment
 - Ninja generator recommended for faster builds
 
 ### Running the REPL
