@@ -14,6 +14,109 @@
 #define PADDING_X 8
 #define PADDING_Y 8
 
+/* Draw a filled rounded rectangle with given corner radius */
+static void sdl_render_rounded_rect(SDL_Renderer *renderer, SDL_Rect *rect, int radius) {
+    if (radius <= 0) {
+        SDL_RenderFillRect(renderer, rect);
+        return;
+    }
+
+    int x = rect->x;
+    int y = rect->y;
+    int w = rect->w;
+    int h = rect->h;
+
+    /* Clamp radius to half of smallest dimension */
+    if (radius > w / 2)
+        radius = w / 2;
+    if (radius > h / 2)
+        radius = h / 2;
+
+    /* Draw center horizontal rectangle */
+    SDL_Rect center_h = {x + radius, y, w - 2 * radius, h};
+    SDL_RenderFillRect(renderer, &center_h);
+
+    /* Draw center vertical rectangle */
+    SDL_Rect center_v = {x, y + radius, w, h - 2 * radius};
+    SDL_RenderFillRect(renderer, &center_v);
+
+    /* Draw filled circles at corners using midpoint circle algorithm */
+    int cx, cy;
+    int px, py, d;
+
+    /* Top-left corner */
+    cx = x + radius;
+    cy = y + radius;
+    px = 0;
+    py = radius;
+    d = 1 - radius;
+    while (px <= py) {
+        SDL_RenderDrawLine(renderer, cx - py, cy - px, cx, cy - px);
+        SDL_RenderDrawLine(renderer, cx - px, cy - py, cx, cy - py);
+        px++;
+        if (d < 0) {
+            d += 2 * px + 1;
+        } else {
+            py--;
+            d += 2 * (px - py) + 1;
+        }
+    }
+
+    /* Top-right corner */
+    cx = x + w - radius - 1;
+    cy = y + radius;
+    px = 0;
+    py = radius;
+    d = 1 - radius;
+    while (px <= py) {
+        SDL_RenderDrawLine(renderer, cx, cy - px, cx + py, cy - px);
+        SDL_RenderDrawLine(renderer, cx, cy - py, cx + px, cy - py);
+        px++;
+        if (d < 0) {
+            d += 2 * px + 1;
+        } else {
+            py--;
+            d += 2 * (px - py) + 1;
+        }
+    }
+
+    /* Bottom-left corner */
+    cx = x + radius;
+    cy = y + h - radius - 1;
+    px = 0;
+    py = radius;
+    d = 1 - radius;
+    while (px <= py) {
+        SDL_RenderDrawLine(renderer, cx - py, cy + px, cx, cy + px);
+        SDL_RenderDrawLine(renderer, cx - px, cy + py, cx, cy + py);
+        px++;
+        if (d < 0) {
+            d += 2 * px + 1;
+        } else {
+            py--;
+            d += 2 * (px - py) + 1;
+        }
+    }
+
+    /* Bottom-right corner */
+    cx = x + w - radius - 1;
+    cy = y + h - radius - 1;
+    px = 0;
+    py = radius;
+    d = 1 - radius;
+    while (px <= py) {
+        SDL_RenderDrawLine(renderer, cx, cy + px, cx + py, cy + px);
+        SDL_RenderDrawLine(renderer, cx, cy + py, cx + px, cy + py);
+        px++;
+        if (d < 0) {
+            d += 2 * px + 1;
+        } else {
+            py--;
+            d += 2 * (px - py) + 1;
+        }
+    }
+}
+
 /* SDL backend state - all SDL-specific data */
 typedef struct {
     SDL_Renderer *sdl_renderer;
@@ -272,11 +375,11 @@ static void sdl_render_cursor(void *vstate, int row, int col, uint32_t cursor_ch
     int cursor_r, cursor_g, cursor_b;
     lisp_x_get_cursor_color(&cursor_r, &cursor_g, &cursor_b);
 
-    /* Draw cursor background rectangle, vertically centered within line height */
+    /* Draw cursor background with slightly rounded corners, vertically centered within line height */
     SDL_SetRenderDrawColor(state->sdl_renderer, cursor_r, cursor_g, cursor_b, 255);
     SDL_Rect cursor_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y + vertical_offset, cell_w,
                             state->actual_cell_h};
-    SDL_RenderFillRect(state->sdl_renderer, &cursor_rect);
+    sdl_render_rounded_rect(state->sdl_renderer, &cursor_rect, 2);
 
     /* If there's a character at the cursor position, render it on top with normal foreground color */
     /* Skip newline characters (they don't render visually) */

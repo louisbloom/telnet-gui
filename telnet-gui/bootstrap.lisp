@@ -1375,21 +1375,189 @@
 ;; ============================================================================
 ;; COLOR CONFIGURATION
 ;; ============================================================================
-;; All colors are specified as RGB lists (r g b) where each component is 0-255
+;; All colors are specified as RGB lists (r g b) where each component is 0-255.
+;; Override any color in your config.lisp file loaded with -l option.
 
-;; Terminal default colors (used when no ANSI color codes are present)
-(define *terminal-fg-color* '(255 255 255))  ; White text
-(define *terminal-bg-color* '(0 0 0))        ; Black background
+;; ----------------------------------------------------------------------------
+;; Terminal Default Colors
+;; ----------------------------------------------------------------------------
 
-;; Text selection colors
-(define *selection-fg-color* '(0 0 0))       ; Black text on selection
-(define *selection-bg-color* '(255 140 0))   ; Orange selection background
+(define *terminal-fg-color* '(255 255 255))
+"Default terminal foreground (text) color.
 
-;; Cursor/caret color
-(define *terminal-cursor-color* '(0 100 100))       ; Teal cursor background
+## Format
+RGB list: (R G B) where each component is 0-255.
 
-;; Separator line between terminal and input area
-(define *input-separator-color* '(100 100 100))  ; Gray separator line
+## Default
+White (255, 255, 255)
+
+## Description
+Used for terminal text when no ANSI color codes are present. Server output
+with ANSI color codes will override this for specific text.
+
+## Examples
+```lisp
+(define *terminal-fg-color* '(255 255 255))  ; White (default)
+(define *terminal-fg-color* '(200 200 200))  ; Light gray
+(define *terminal-fg-color* '(0 255 0))      ; Green (retro terminal)
+```"
+
+(define *terminal-bg-color* '(0 0 0))
+"Default terminal background color.
+
+## Format
+RGB list: (R G B) where each component is 0-255.
+
+## Default
+Black (0, 0, 0)
+
+## Description
+Used for terminal background, input area background, and divider background.
+Server output with ANSI background colors will override this for specific cells.
+
+## Examples
+```lisp
+(define *terminal-bg-color* '(0 0 0))        ; Black (default)
+(define *terminal-bg-color* '(30 30 30))     ; Dark gray
+(define *terminal-bg-color* '(0 0 40))       ; Dark blue
+```"
+
+;; ----------------------------------------------------------------------------
+;; Text Selection Colors
+;; ----------------------------------------------------------------------------
+
+(define *selection-fg-color* '(0 0 0))
+"Foreground (text) color for selected text.
+
+## Format
+RGB list: (R G B) where each component is 0-255.
+
+## Default
+Black (0, 0, 0)
+
+## Description
+Text color when cells are selected/highlighted. Should contrast well with
+`*selection-bg-color*` for readability.
+
+## Examples
+```lisp
+(define *selection-fg-color* '(0 0 0))        ; Black (default)
+(define *selection-fg-color* '(255 255 255))  ; White
+```"
+
+(define *selection-bg-color* '(0 180 180))
+"Background color for selected text.
+
+## Format
+RGB list: (R G B) where each component is 0-255.
+
+## Default
+Cyan (0, 180, 180)
+
+## Description
+Background color of selected text regions. Should contrast well with
+`*selection-fg-color*` and be visible against `*terminal-bg-color*`.
+
+## Examples
+```lisp
+(define *selection-bg-color* '(0 180 180))    ; Cyan (default)
+(define *selection-bg-color* '(255 140 0))    ; Orange
+(define *selection-bg-color* '(100 149 237))  ; Cornflower blue
+```"
+
+;; ----------------------------------------------------------------------------
+;; Cursor Color
+;; ----------------------------------------------------------------------------
+
+(define *terminal-cursor-color* '(140 120 150))
+"Cursor (caret) background color in input area.
+
+## Format
+RGB list: (R G B) where each component is 0-255.
+
+## Default
+Muted purple (140, 120, 150)
+
+## Description
+Background color of the cursor rectangle in the input area. The character
+under the cursor is rendered with this background color.
+
+## Examples
+```lisp
+(define *terminal-cursor-color* '(140 120 150))  ; Muted purple (default)
+(define *terminal-cursor-color* '(150 140 120))  ; Warm gray
+(define *terminal-cursor-color* '(255 255 255))  ; White block cursor
+```"
+
+;; ----------------------------------------------------------------------------
+;; Divider Colors
+;; ----------------------------------------------------------------------------
+
+(define *divider-connected-color* '(128 150 150))
+"Divider line color when connected to server.
+
+## Format
+RGB list: (R G B) where each component is 0-255.
+
+## Default
+Gray with green/blue tint (128, 150, 150)
+
+## Description
+Color of the box-drawing divider lines (top and bottom of input area) when
+a telnet connection is active. Provides visual feedback of connection status.
+
+## Examples
+```lisp
+(define *divider-connected-color* '(128 150 150))  ; Gray with green/blue tint (default)
+(define *divider-connected-color* '(80 200 120))   ; Saturated green
+(define *divider-connected-color* '(0 180 180))    ; Cyan (match theme)
+```"
+
+(define *divider-disconnected-color* '(128 128 128))
+"Divider line color when disconnected from server.
+
+## Format
+RGB list: (R G B) where each component is 0-255.
+
+## Default
+Gray (128, 128, 128)
+
+## Description
+Color of the box-drawing divider lines when no telnet connection is active.
+A neutral color indicating disconnected state.
+
+## Examples
+```lisp
+(define *divider-disconnected-color* '(128 128 128))  ; Gray (default)
+(define *divider-disconnected-color* '(100 100 100))  ; Darker gray
+(define *divider-disconnected-color* '(255 100 100))  ; Red (warning)
+```"
+
+;; ----------------------------------------------------------------------------
+;; User Input Echo Color
+;; ----------------------------------------------------------------------------
+
+(define *user-input-echo-color* '(255 215 0))
+"Color for echoing user input to terminal.
+
+## Format
+RGB list: (R G B) where each component is 0-255.
+
+## Default
+Gold (255, 215, 0)
+
+## Description
+When you press Enter, your input is echoed to the terminal in this color
+before being sent to the server. Helps distinguish your commands from
+server output.
+
+## Examples
+```lisp
+(define *user-input-echo-color* '(255 215 0))    ; Gold (default)
+(define *user-input-echo-color* '(255 220 100))  ; Light yellow
+(define *user-input-echo-color* '(0 255 255))    ; Cyan
+(define *user-input-echo-color* '(255 255 255))  ; White (same as terminal)
+```"
 
 ;; ============================================================================
 ;; TERMINAL LINE HEIGHT CONFIGURATION

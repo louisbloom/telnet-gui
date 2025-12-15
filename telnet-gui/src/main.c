@@ -1256,9 +1256,10 @@ int main(int argc, char **argv) {
                         /* Echo raw input FIRST for non-eval mode (eval mode has its own echo with >) */
                         if (input_area_get_mode(&input_area) != INPUT_AREA_MODE_EVAL && input_area.echo_buf) {
                             char color_buf[32];
+                            int echo_r, echo_g, echo_b;
+                            lisp_x_get_user_input_echo_color(&echo_r, &echo_g, &echo_b);
                             dynamic_buffer_clear(input_area.echo_buf);
-                            /* Use light yellow/gold true color for user input (RGB 255, 220, 100) */
-                            ansi_format_fg_color_rgb(color_buf, sizeof(color_buf), 255, 220, 100);
+                            ansi_format_fg_color_rgb(color_buf, sizeof(color_buf), echo_r, echo_g, echo_b);
                             dynamic_buffer_append_str(input_area.echo_buf, color_buf);
                             if (dynamic_buffer_append_printf(input_area.echo_buf, "%s\r\n", text) == 0) {
                                 /* Reset color after text */

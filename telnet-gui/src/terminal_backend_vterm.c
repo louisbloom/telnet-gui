@@ -1019,16 +1019,12 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
      * and DECRC doesn't reliably restore after that. Instead, we explicitly position
      * cursor at terminal_cursor_row/col at the end. */
 
-    /* Calculate divider colors based on connection status */
+    /* Get divider colors based on connection status from Lisp config */
     int divider_r, divider_g, divider_b;
     if (connected) {
-        divider_r = 80;
-        divider_g = 160;
-        divider_b = 80; /* Green when connected */
+        lisp_x_get_divider_connected_color(&divider_r, &divider_g, &divider_b);
     } else {
-        divider_r = 100;
-        divider_g = 100;
-        divider_b = 100; /* Grayish when disconnected */
+        lisp_x_get_divider_disconnected_color(&divider_r, &divider_g, &divider_b);
     }
 
     /* Get terminal background color for divider background */

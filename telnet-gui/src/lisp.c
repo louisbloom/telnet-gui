@@ -1758,15 +1758,11 @@ void lisp_x_get_selection_fg_color(int *r, int *g, int *b) {
 }
 
 void lisp_x_get_selection_bg_color(int *r, int *g, int *b) {
-    get_color_from_lisp("*selection-bg-color*", r, g, b, 255, 140, 0); /* Orange */
+    get_color_from_lisp("*selection-bg-color*", r, g, b, 0, 180, 180); /* Cyan */
 }
 
 void lisp_x_get_cursor_color(int *r, int *g, int *b) {
-    get_color_from_lisp("*terminal-cursor-color*", r, g, b, 0, 100, 100); /* Teal */
-}
-
-void lisp_x_get_input_separator_color(int *r, int *g, int *b) {
-    get_color_from_lisp("*input-separator-color*", r, g, b, 100, 100, 100); /* Gray */
+    get_color_from_lisp("*terminal-cursor-color*", r, g, b, 140, 120, 150); /* Muted purple */
 }
 
 /* Terminal default colors */
@@ -1776,6 +1772,20 @@ void lisp_x_get_terminal_fg_color(int *r, int *g, int *b) {
 
 void lisp_x_get_terminal_bg_color(int *r, int *g, int *b) {
     get_color_from_lisp("*terminal-bg-color*", r, g, b, 0, 0, 0); /* Black */
+}
+
+/* Divider colors */
+void lisp_x_get_divider_connected_color(int *r, int *g, int *b) {
+    get_color_from_lisp("*divider-connected-color*", r, g, b, 128, 150, 150); /* Gray with green/blue tint */
+}
+
+void lisp_x_get_divider_disconnected_color(int *r, int *g, int *b) {
+    get_color_from_lisp("*divider-disconnected-color*", r, g, b, 128, 128, 128); /* Gray */
+}
+
+/* User input echo color */
+void lisp_x_get_user_input_echo_color(int *r, int *g, int *b) {
+    get_color_from_lisp("*user-input-echo-color*", r, g, b, 255, 215, 0); /* Gold */
 }
 
 /* Register terminal pointer for terminal-echo builtin */

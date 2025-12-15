@@ -65,11 +65,17 @@ const char *lisp_x_call_user_input_hook(const char *text, int cursor_pos);
 void lisp_x_get_selection_fg_color(int *r, int *g, int *b);
 void lisp_x_get_selection_bg_color(int *r, int *g, int *b);
 void lisp_x_get_cursor_color(int *r, int *g, int *b);
-void lisp_x_get_input_separator_color(int *r, int *g, int *b);
 
 /* Terminal default colors */
 void lisp_x_get_terminal_fg_color(int *r, int *g, int *b);
 void lisp_x_get_terminal_bg_color(int *r, int *g, int *b);
+
+/* Divider colors */
+void lisp_x_get_divider_connected_color(int *r, int *g, int *b);
+void lisp_x_get_divider_disconnected_color(int *r, int *g, int *b);
+
+/* User input echo color */
+void lisp_x_get_user_input_echo_color(int *r, int *g, int *b);
 
 /* Forward declaration for Telnet type (defined in telnet.h) */
 struct Telnet;
