@@ -92,16 +92,20 @@ typedef struct {
 
 /* Helper: Convert VTerm color to TermCell color */
 static void vterm_color_to_term_color(const VTermColor *vcolor, GenericColor *tcolor) {
-    if (VTERM_COLOR_IS_DEFAULT_FG(vcolor) || VTERM_COLOR_IS_DEFAULT_BG(vcolor)) {
-        tcolor->type = TERM_COLOR_DEFAULT;
-    } else if (VTERM_COLOR_IS_INDEXED(vcolor)) {
-        tcolor->type = TERM_COLOR_INDEXED;
-        tcolor->color.idx = vcolor->indexed.idx;
-    } else if (VTERM_COLOR_IS_RGB(vcolor)) {
+    /* Check actual color type first (RGB or INDEXED) before checking DEFAULT flags.
+     * VTerm color flags are bitwise, so INDEXED and DEFAULT_FG can both be set.
+     * We prioritize explicit color values over DEFAULT metadata. */
+
+    if (VTERM_COLOR_IS_RGB(vcolor)) {
         tcolor->type = TERM_COLOR_RGB;
         tcolor->color.rgb.r = vcolor->rgb.red;
         tcolor->color.rgb.g = vcolor->rgb.green;
         tcolor->color.rgb.b = vcolor->rgb.blue;
+    } else if (VTERM_COLOR_IS_INDEXED(vcolor)) {
+        tcolor->type = TERM_COLOR_INDEXED;
+        tcolor->color.idx = vcolor->indexed.idx;
+    } else if (VTERM_COLOR_IS_DEFAULT_FG(vcolor) || VTERM_COLOR_IS_DEFAULT_BG(vcolor)) {
+        tcolor->type = TERM_COLOR_DEFAULT;
     } else {
         tcolor->type = TERM_COLOR_DEFAULT;
     }
@@ -1168,6 +1172,9 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
     for (int i = 0; i < actual_cols; i++) {
         dynamic_buffer_append(buf, box_char, 3);
     }
+
+    /* Reset colors after drawing divider to prevent green color from persisting */
+    dynamic_buffer_append_str(buf, SGR_RESET);
 
     /* Restore scrolling region */
     char scroll_buf[24];
