@@ -1762,7 +1762,7 @@ void lisp_x_get_selection_bg_color(int *r, int *g, int *b) {
 }
 
 void lisp_x_get_cursor_color(int *r, int *g, int *b) {
-    get_color_from_lisp("*cursor-color*", r, g, b, 200, 200, 200); /* Light gray */
+    get_color_from_lisp("*terminal-cursor-color*", r, g, b, 0, 100, 100); /* Teal */
 }
 
 void lisp_x_get_input_separator_color(int *r, int *g, int *b) {

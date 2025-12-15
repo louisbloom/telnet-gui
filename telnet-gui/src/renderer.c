@@ -4,9 +4,11 @@
 #include "renderer_backend.h"
 #include "terminal.h"
 #include "lisp.h"
+#include "../../telnet-lisp/include/utf8.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <SDL2/SDL.h>
+#include <stdint.h>
 
 /* Padding around terminal area (including input area) */
 #define PADDING_X 8
@@ -148,7 +150,20 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
         int input_text_first_row = scrolling_rows + 1; /* First row of input text */
         int screen_row = input_text_first_row + visible_cursor_row;
 
-        r->backend->render_cursor(r->backend_state, screen_row, cursor_visual_col, r->cell_w, effective_cell_h);
+        /* Get character at cursor position (0 if cursor is at end of buffer) */
+        uint32_t cursor_char = 0;
+        int cursor_pos = input_area_get_cursor_pos(input_area);
+        const char *buffer = input_area_get_text(input_area);
+        int buffer_len = input_area_get_length(input_area);
+        if (cursor_pos < buffer_len && buffer[cursor_pos] != '\0') {
+            int codepoint = utf8_get_codepoint(&buffer[cursor_pos]);
+            if (codepoint >= 0) {
+                cursor_char = (uint32_t)codepoint;
+            }
+        }
+
+        r->backend->render_cursor(r->backend_state, screen_row, cursor_visual_col, cursor_char, r->cell_w,
+                                  effective_cell_h);
     }
 
     /* End frame */

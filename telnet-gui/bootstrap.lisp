@@ -1386,7 +1386,7 @@
 (define *selection-bg-color* '(255 140 0))   ; Orange selection background
 
 ;; Cursor/caret color
-(define *cursor-color* '(200 200 200))       ; Light gray vertical line
+(define *terminal-cursor-color* '(0 100 100))       ; Teal cursor background
 
 ;; Separator line between terminal and input area
 (define *input-separator-color* '(100 100 100))  ; Gray separator line

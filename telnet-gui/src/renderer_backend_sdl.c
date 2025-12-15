@@ -8,6 +8,7 @@
 #include <vterm.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 
 /* Padding around terminal area (including input area) - must match renderer.c */
 #define PADDING_X 8
@@ -253,7 +254,7 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
     }
 }
 
-static void sdl_render_cursor(void *vstate, int row, int col, int cell_w, int cell_h) {
+static void sdl_render_cursor(void *vstate, int row, int col, uint32_t cursor_char, int cell_w, int cell_h) {
     SDLBackendState *state = (SDLBackendState *)vstate;
     if (!state)
         return;
@@ -267,15 +268,48 @@ static void sdl_render_cursor(void *vstate, int row, int col, int cell_w, int ce
     }
     vertical_offset = state->cached_vertical_offset;
 
-    /* Get cursor color from Lisp config */
+    /* Get cursor background color from Lisp config */
     int cursor_r, cursor_g, cursor_b;
     lisp_x_get_cursor_color(&cursor_r, &cursor_g, &cursor_b);
 
-    /* Render cursor as filled block, vertically centered within line height */
+    /* Draw cursor background rectangle, vertically centered within line height */
     SDL_SetRenderDrawColor(state->sdl_renderer, cursor_r, cursor_g, cursor_b, 255);
     SDL_Rect cursor_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y + vertical_offset, cell_w,
                             state->actual_cell_h};
     SDL_RenderFillRect(state->sdl_renderer, &cursor_rect);
+
+    /* If there's a character at the cursor position, render it on top with normal foreground color */
+    /* Skip newline characters (they don't render visually) */
+    if (cursor_char != 0 && cursor_char != '\n') {
+        /* Get terminal foreground color for the character */
+        int fg_r, fg_g, fg_b;
+        lisp_x_get_terminal_fg_color(&fg_r, &fg_g, &fg_b);
+        SDL_Color fg_color = {fg_r, fg_g, fg_b, 255};
+        SDL_Color bg_color = {cursor_r, cursor_g, cursor_b, 255}; /* Use cursor color as background */
+
+        /* Handle box drawing characters manually for pixel-perfect alignment */
+        if (is_box_drawing_char(cursor_char)) {
+            int dst_x = col * cell_w + PADDING_X;
+            int dst_y = row * cell_h + PADDING_Y + vertical_offset;
+            render_box_drawing_char(state->sdl_renderer, cursor_char, dst_x, dst_y, cell_w, state->actual_cell_h,
+                                    fg_color);
+        } else {
+            /* Use glyph cache for rendering */
+            SDL_Texture *glyph = glyph_cache_get(state->glyph_cache, cursor_char, fg_color, bg_color, 0, 0);
+            if (glyph) {
+                /* Get actual texture size */
+                int tex_w, tex_h;
+                SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);
+
+                /* Position glyph vertically centered within line height */
+                int dst_x = col * cell_w + PADDING_X;
+                int dst_y = row * cell_h + PADDING_Y + vertical_offset;
+                SDL_Rect dst = {dst_x, dst_y, tex_w, tex_h};
+
+                SDL_RenderCopy(state->sdl_renderer, glyph, NULL, &dst);
+            }
+        }
+    }
 }
 
 /* Backend registration */

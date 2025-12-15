@@ -39,9 +39,10 @@ typedef struct RendererBackend {
      * Parameters:
      *   state - backend state
      *   row, col - cursor position in cells
+     *   cursor_char - Unicode codepoint at cursor position (0 if cursor is at end of buffer)
      *   cell_w, cell_h - cell dimensions in pixels (for SDL) or ignored (for TUI)
      */
-    void (*render_cursor)(void *state, int row, int col, int cell_w, int cell_h);
+    void (*render_cursor)(void *state, int row, int col, uint32_t cursor_char, int cell_w, int cell_h);
 } RendererBackend;
 
 /* Backend registry - implemented backends */
