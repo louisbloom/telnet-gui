@@ -53,6 +53,9 @@ typedef struct {
     /* Render buffer for building ANSI sequences (reused across calls) */
     DynamicBuffer *render_buffer;
 
+    /* Normalize buffer for LF to CRLF conversion (reused across calls) */
+    DynamicBuffer *normalize_buffer;
+
     /* Scrollback */
     ScrollbackLine *scrollback;
     int scrollback_size;
@@ -407,10 +410,20 @@ static void *vterm_create(int rows, int cols) {
         return NULL;
     }
 
+    state->normalize_buffer = dynamic_buffer_create(1024);
+    if (!state->normalize_buffer) {
+        dynamic_buffer_destroy(state->render_buffer);
+        free(state->output_buffer);
+        vterm_free(state->vterm);
+        free(state);
+        return NULL;
+    }
+
     vterm_output_set_callback(state->vterm, output_callback, state);
 
     state->screen = vterm_obtain_screen(state->vterm);
     if (!state->screen) {
+        dynamic_buffer_destroy(state->normalize_buffer);
         dynamic_buffer_destroy(state->render_buffer);
         free(state->output_buffer);
         vterm_free(state->vterm);
@@ -488,6 +501,9 @@ static void vterm_destroy(void *vstate) {
     if (state->render_buffer)
         dynamic_buffer_destroy(state->render_buffer);
 
+    if (state->normalize_buffer)
+        dynamic_buffer_destroy(state->normalize_buffer);
+
     if (state->scrollback) {
         for (int i = 0; i < state->scrollback_size; i++) {
             int physical_index = scrollback_physical_index(state, i);
@@ -513,28 +529,25 @@ static void vterm_feed_data(void *vstate, const char *data, size_t len) {
 
     /* Normalize LF to CRLF to keep cursor at column 0 on new lines */
     size_t max_out = len * 2;
-    char stack_buf[1024];
-    char *tmp = (max_out <= sizeof(stack_buf)) ? stack_buf : (char *)malloc(max_out);
-    if (!tmp) {
+    dynamic_buffer_clear(state->normalize_buffer);
+    if (dynamic_buffer_ensure_size(state->normalize_buffer, max_out) < 0) {
         state->echoing_locally = 0;
         return;
     }
 
-    size_t out_len = 0;
     for (size_t i = 0; i < len; i++) {
         char c = data[i];
         if (c == '\n') {
             char prev = (i == 0) ? '\0' : data[i - 1];
             if (prev != '\r') {
-                tmp[out_len++] = '\r';
+                dynamic_buffer_append(state->normalize_buffer, "\r", 1);
             }
         }
-        tmp[out_len++] = c;
+        dynamic_buffer_append(state->normalize_buffer, &c, 1);
     }
 
-    vterm_input_write(state->vterm, tmp, out_len);
-    if (tmp != stack_buf)
-        free(tmp);
+    vterm_input_write(state->vterm, dynamic_buffer_data(state->normalize_buffer),
+                      dynamic_buffer_len(state->normalize_buffer));
 
     /* Flush damage - this may trigger output, so keep echoing_locally set */
     vterm_screen_flush_damage(state->screen);
@@ -864,14 +877,12 @@ static void vterm_echo_local(void *vstate) {
 
     /* Worst-case buffer: every byte is '\n' -> doubles size */
     size_t max_out = new_bytes * 2;
-    char stack_buf[1024];
-    char *tmp = (max_out <= sizeof(stack_buf)) ? stack_buf : (char *)malloc(max_out);
-    if (!tmp) {
+    dynamic_buffer_clear(state->normalize_buffer);
+    if (dynamic_buffer_ensure_size(state->normalize_buffer, max_out) < 0) {
         state->echoing_locally = 0;
         return;
     }
 
-    size_t out_len = 0;
     for (size_t i = 0; i < new_bytes; i++) {
         char c = src[i];
         int needs_cr = (c == '\n');
@@ -882,10 +893,10 @@ static void vterm_echo_local(void *vstate) {
                     ? ((state->output_buffer_echoed > 0) ? state->output_buffer[state->output_buffer_echoed - 1] : '\0')
                     : src[i - 1];
             if (prev != '\r') {
-                tmp[out_len++] = '\r';
+                dynamic_buffer_append(state->normalize_buffer, "\r", 1);
             }
         }
-        tmp[out_len++] = c;
+        dynamic_buffer_append(state->normalize_buffer, &c, 1);
     }
 
     /* Position cursor at terminal content cursor before echoing */
@@ -894,11 +905,9 @@ static void vterm_echo_local(void *vstate) {
     ansi_format_cursor_pos(pos_seq, sizeof(pos_seq), state->terminal_cursor_row + 1, state->terminal_cursor_col + 1);
     vterm_input_write(state->vterm, pos_seq, strlen(pos_seq));
 
-    vterm_input_write(state->vterm, tmp, out_len);
+    vterm_input_write(state->vterm, dynamic_buffer_data(state->normalize_buffer),
+                      dynamic_buffer_len(state->normalize_buffer));
     vterm_screen_flush_damage(state->screen);
-
-    if (tmp != stack_buf)
-        free(tmp);
 
     state->output_buffer_echoed = state->output_buffer_len;
     state->echoing_locally = 0;
