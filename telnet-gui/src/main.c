@@ -1192,6 +1192,10 @@ int main(int argc, char **argv) {
                 break;
 
             case SDL_MOUSEBUTTONDOWN: {
+                /* Right-click is handled in MOUSEBUTTONUP for copy */
+                if (event.button.button == SDL_BUTTON_RIGHT) {
+                    break;
+                }
                 /* Check if there was an active selection that needs clearing */
                 int had_selection = terminal_selection.active;
                 if (had_selection) {
@@ -1623,6 +1627,14 @@ int main(int argc, char **argv) {
             }
 
             case SDL_MOUSEBUTTONUP: {
+                /* Right-click copies terminal selection (like Ctrl+C) */
+                if (event.button.button == SDL_BUTTON_RIGHT) {
+                    if (terminal_selection.active) {
+                        copy_terminal_selection(term);
+                        clear_terminal_selection(term);
+                    }
+                    break;
+                }
                 /* Selection remains active after mouse button up - user can copy with Ctrl+C */
                 /* Only handle mouse events for terminal if not in input area or padding */
                 int win_width, win_height;
