@@ -5453,6 +5453,87 @@
 ;; ============================================================================
 ;; AUTO-ACTIVATION
 ;; ============================================================================
+;; ANSI Stack Post-Processing
+;;
+;; When highlights are applied to text that contains server ANSI codes,
+;; embedded reset codes from the server can kill the highlight colors.
+;; This post-processor fixes that by maintaining a stack of ANSI states.
+
+;; Check if an ANSI sequence is a reset code (\033[0m or \033[m)
+(defun tintin-is-reset-code (seq)
+  (regex-match "^\033\\[0*m$" seq))
+
+;; Check if an ANSI sequence is an SGR code (ends with 'm')
+;; SGR codes are the ones we want to track in our stack
+(defun tintin-is-sgr-code (seq)
+  (regex-match "^\033\\[[0-9;]*m$" seq))
+
+;; Post-process text to handle nested ANSI states
+;; When a reset code is encountered, if there are remaining states on the stack,
+;; restore the top state after the reset instead of leaving text uncolored.
+(defun tintin-post-process-ansi-stack (text)
+  (tintin-ansi-stack-loop text 0 (string-length text) "" '()))
+
+;; Recursive helper for ANSI stack processing
+(defun tintin-ansi-stack-loop (text pos len result stack)
+  (if (>= pos len)
+    result
+    (let ((char (string-ref text pos)))
+      (if (string=? char "\033")  ;; ESC character
+        ;; Try to parse ANSI sequence
+        (let ((seq-end (tintin-find-ansi-end text pos len)))
+          (if seq-end
+            (let ((seq (substring text pos seq-end)))
+              (if (tintin-is-reset-code seq)
+                ;; Reset code - pop from stack and potentially restore
+                (if (null? stack)
+                  ;; Empty stack - just pass through the reset
+                  (tintin-ansi-stack-loop text seq-end len (concat result seq) stack)
+                  ;; Pop the top state
+                  (let ((new-stack (cdr stack)))
+                    (if (null? new-stack)
+                      ;; Stack now empty - just output reset
+                      (tintin-ansi-stack-loop text seq-end len (concat result seq) new-stack)
+                      ;; Stack has remaining state - output reset then restore top
+                      (tintin-ansi-stack-loop text seq-end len (concat result seq (car new-stack)) new-stack))))
+                ;; Not a reset - check if SGR (should be pushed)
+                (if (tintin-is-sgr-code seq)
+                  (tintin-ansi-stack-loop text seq-end len (concat result seq) (cons seq stack))
+                  ;; Non-SGR ANSI code - just pass through (don't push)
+                  (tintin-ansi-stack-loop text seq-end len (concat result seq) stack))))
+            ;; Not a valid ANSI sequence - just add the char
+            (tintin-ansi-stack-loop text (+ pos 1) len (concat result char) stack)))
+        ;; Regular character - just add it
+        (tintin-ansi-stack-loop text (+ pos 1) len (concat result char) stack)))))
+
+;; Find the end position of an ANSI sequence starting at pos
+;; Returns nil if not a valid ANSI sequence, or the end position (exclusive)
+(defun tintin-find-ansi-end (text pos len)
+  (if (and (< (+ pos 1) len)
+        (string=? (string-ref text (+ pos 1)) "["))  ;; '[' character
+    ;; CSI sequence - find the terminator
+    (tintin-find-ansi-terminator text (+ pos 2) len)
+    nil))
+
+;; Recursive helper to find ANSI terminator (scans digits and semicolons)
+(defun tintin-find-ansi-terminator (text i len)
+  (if (>= i len)
+    nil  ;; No terminator found
+    (let ((c (string-ref text i)))
+      (if (or (and (string>=? c "0")
+                (string<=? c "9"))
+            (string=? c ";"))
+        ;; Still in parameter section, keep scanning
+        (tintin-find-ansi-terminator text (+ i 1) len)
+        ;; Check if this is a valid terminator (letter)
+        (if (or (and (string>=? c "A")
+                  (string<=? c "Z"))
+              (and (string>=? c "a")
+                (string<=? c "z")))
+          (+ i 1)  ;; Return position after terminator
+          nil)))))
+
+;; ============================================================================
 ;; Automatically activate TinTin++ when this file is loaded
 
 ;; Activate TinTin++ user input hook
@@ -5465,9 +5546,11 @@
 ;;
 ;; This hook receives data from the telnet server before it's displayed
 ;; in the terminal. We apply highlight patterns to colorize matching text.
+;; After applying highlights, we post-process to handle nested ANSI states
+;; so that server reset codes don't kill highlight colors.
 (defun tintin-telnet-input-filter (text)
   (if (and *tintin-enabled* (> (hash-count *tintin-highlights*) 0))
-    (tintin-apply-highlights text)
+    (tintin-post-process-ansi-stack (tintin-apply-highlights text))
     text))
 
 ;; Install telnet-input-filter-hook

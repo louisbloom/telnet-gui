@@ -1454,6 +1454,129 @@
 (print "ALL TABLE WIDTH TESTS PASSED!")
 (print "====================================================================")
 
+;; ====================================================================
+;; ANSI Stack Post-Processing Tests
+;; ====================================================================
+
+(print "")
+(print "====================================================================")
+(print "Testing ANSI Stack Post-Processing...")
+(print "====================================================================")
+
+;; Helper to compare strings with ANSI codes
+(defun test-ansi-stack (input expected description)
+  (let ((result (tintin-post-process-ansi-stack input)))
+    (if (string=? result expected)
+      (print (concat "PASS: " description))
+      (begin
+        (print (concat "FAIL: " description))
+        (print (concat "  Input:    " (escape-ansi-for-display input)))
+        (print (concat "  Expected: " (escape-ansi-for-display expected)))
+        (print (concat "  Got:      " (escape-ansi-for-display result)))
+        (error "Test failed")))))
+
+;; Helper to make ANSI codes visible in output
+(defun escape-ansi-for-display (str)
+  (regex-replace-all "\033" str "\\\\033"))
+
+;; Test 1: Basic stack with single color (no change needed)
+(print "Test: Basic single color with reset...")
+(test-ansi-stack "\033[32mhello\033[0m"
+  "\033[32mhello\033[0m"
+  "Single color with reset")
+
+;; Test 2: Nested colors - inner reset should restore outer
+(print "Test: Nested colors - inner reset restores outer...")
+(test-ansi-stack "\033[32mouter \033[31minner\033[0m restored\033[0m"
+  "\033[32mouter \033[31minner\033[0m\033[32m restored\033[0m"
+  "Nested colors with inner reset")
+
+;; Test 3: No ANSI codes - pass through unchanged
+(print "Test: Plain text pass-through...")
+(test-ansi-stack "plain text"
+  "plain text"
+  "Plain text unchanged")
+
+;; Test 4: Empty stack reset - pass through
+(print "Test: Reset with empty stack...")
+(test-ansi-stack "\033[0mtext"
+  "\033[0mtext"
+  "Reset with empty stack")
+
+;; Test 5: Multiple consecutive resets
+(print "Test: Multiple consecutive resets...")
+(test-ansi-stack "\033[32mtext\033[0m\033[0m"
+  "\033[32mtext\033[0m\033[0m"
+  "Consecutive resets")
+
+;; Test 6: Real-world case - highlight wrapping server colors
+(print "Test: Highlight wrapping server colors (real-world case)...")
+(test-ansi-stack "\033[32mA crow's vicious attack \033[31mhits\033[0m the mercenary.\033[0m"
+  "\033[32mA crow's vicious attack \033[31mhits\033[0m\033[32m the mercenary.\033[0m"
+  "Highlight + server colors")
+
+;; Test 7: Three-level nesting
+(print "Test: Three-level color nesting...")
+(test-ansi-stack "\033[32mlevel1 \033[31mlevel2 \033[34mlevel3\033[0m back2\033[0m back1\033[0m"
+  "\033[32mlevel1 \033[31mlevel2 \033[34mlevel3\033[0m\033[31m back2\033[0m\033[32m back1\033[0m"
+  "Three-level nesting")
+
+;; Test 8: Bold and color (multiple SGR params)
+(print "Test: Bold+color combination...")
+(test-ansi-stack "\033[1;32mbold green \033[31mred\033[0m back\033[0m"
+  "\033[1;32mbold green \033[31mred\033[0m\033[1;32m back\033[0m"
+  "Bold+color combination")
+
+;; Test 9: Alternative reset code \033[m (no 0)
+(print "Test: Alternative reset code without zero...")
+(test-ansi-stack "\033[32mouter \033[31minner\033[m restored\033[m"
+  "\033[32mouter \033[31minner\033[m\033[32m restored\033[m"
+  "Reset code without zero")
+
+;; Test 10: Empty string
+(print "Test: Empty string...")
+(test-ansi-stack ""
+  ""
+  "Empty string")
+
+;; Test 11: Just a reset code
+(print "Test: Just reset code...")
+(test-ansi-stack "\033[0m"
+  "\033[0m"
+  "Just reset code")
+
+;; Test 12: Color without any reset
+(print "Test: Color without reset...")
+(test-ansi-stack "\033[32mcolored text"
+  "\033[32mcolored text"
+  "Color without reset")
+
+(print "")
+(print "====================================================================")
+(print "Testing tintin-is-reset-code helper...")
+(print "====================================================================")
+
+;; Test tintin-is-reset-code
+(print "Test: is-reset-code with \\033[0m...")
+(assert-true (tintin-is-reset-code "\033[0m") "\\033[0m should be reset")
+
+(print "Test: is-reset-code with \\033[m...")
+(assert-true (tintin-is-reset-code "\033[m") "\\033[m should be reset")
+
+(print "Test: is-reset-code with \\033[00m...")
+(assert-true (tintin-is-reset-code "\033[00m") "\\033[00m should be reset")
+
+(print "Test: is-reset-code with \\033[32m...")
+(assert-false (tintin-is-reset-code "\033[32m") "\\033[32m should NOT be reset")
+
+(print "Test: is-reset-code with \\033[1;32m...")
+(assert-false (tintin-is-reset-code "\033[1;32m") "\\033[1;32m should NOT be reset")
+
+(print "")
+(print "====================================================================")
+(print "ALL ANSI STACK TESTS PASSED!")
+(print "====================================================================")
+
 ;; Clean up temporary test files
 (delete-file "tintin-load-test.lisp")
 (delete-file "tintin-test-save.lisp")
