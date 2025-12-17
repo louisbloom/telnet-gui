@@ -8,13 +8,13 @@
 ;; ===========================================
 
 ;; Test digit matching
-(assert-true (regex-match "\\d+" "hello123") "regex-match digits")
+(assert-true (regex-match? "\\d+" "hello123") "regex-match? digits")
 
 ;; Test character class matching
-(assert-true (regex-match "^[a-z]+$" "hello") "regex-match character class")
+(assert-true (regex-match? "^[a-z]+$" "hello") "regex-match? character class")
 
 ;; Simple substring matching
-(assert-true (regex-match "test" "this is a test") "regex-match substring")
+(assert-true (regex-match? "test" "this is a test") "regex-match? substring")
 
 ;; ===========================================
 ;; Finding Matches
@@ -96,23 +96,23 @@
 (assert-false (regex-valid? "[invalid") "regex-valid? invalid pattern")
 
 ;; ===========================================
-;; Enhanced Wildcard Matching (using regex-match for pattern matching)
+;; Enhanced Wildcard Matching (using regex-match? for pattern matching)
 ;; ===========================================
 
 ;; Character classes - match any of a, b, or c
-(assert-true (regex-match "[abc]test" "atest") "regex-match character class")
+(assert-true (regex-match? "[abc]test" "atest") "regex-match? character class")
 
 ;; Character ranges - match lowercase
-(assert-true (regex-match "[a-z]+" "hello") "regex-match character range")
+(assert-true (regex-match? "[a-z]+" "hello") "regex-match? character range")
 
 ;; Negated classes - match non-digits
-(assert-true (regex-match "[^0-9]+" "abc") "regex-match negated class")
+(assert-true (regex-match? "[^0-9]+" "abc") "regex-match? negated class")
 
 ;; Wildcards - .* matches zero or more
-(assert-true (regex-match "test.*" "test123") "regex-match asterisk wildcard")
+(assert-true (regex-match? "test.*" "test123") "regex-match? asterisk wildcard")
 
 ;; Wildcards - . matches exactly one
-(assert-true (regex-match "test." "test1") "regex-match question wildcard")
+(assert-true (regex-match? "test." "test1") "regex-match? question wildcard")
 
 ;; ===========================================
 ;; Practical Examples
@@ -120,8 +120,8 @@
 
 ;; Email validation
 (define email-pattern "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")
-(assert-true (regex-match email-pattern "user@example.com") "email validation valid")
-(assert-false (regex-match email-pattern "invalid.email") "email validation invalid")
+(assert-true (regex-match? email-pattern "user@example.com") "email validation valid")
+(assert-false (regex-match? email-pattern "invalid.email") "email validation invalid")
 
 ;; Extract phone numbers
 (assert-equal (regex-find-all "\\d{3}-\\d{4}" "Call 555-1234 or 555-5678") '("555-1234" "555-5678") "extract phone numbers")
@@ -140,8 +140,8 @@
 
 ;; Password validation (8+ chars, alphanumeric)
 (define password-pattern "^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d]{8,}$")
-(assert-true (regex-match password-pattern "Password123") "password validation strong")
-(assert-false (regex-match password-pattern "weak") "password validation weak")
+(assert-true (regex-match? password-pattern "Password123") "password validation strong")
+(assert-false (regex-match? password-pattern "weak") "password validation weak")
 
 ;; Extract hashtags
 (assert-equal (regex-find-all "#\\w+" "Check out #lisp and #programming!") '("#lisp" "#programming") "extract hashtags")

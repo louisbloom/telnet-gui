@@ -204,7 +204,7 @@ The application automatically finds resources in installed locations using runti
 (string-length "Hello, 世界!")  ; => 11
 
 ; Regex pattern matching
-(regex-match "\\d+" "hello123")  ; => 1
+(regex-match? "\\d+" "hello123")  ; => 1
 ```
 
 ### Documentation

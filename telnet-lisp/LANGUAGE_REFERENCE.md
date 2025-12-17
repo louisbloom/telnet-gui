@@ -823,7 +823,7 @@ The condition system provides Emacs Lisp-style error handling with typed errors,
 
 ### Regex Functions (PCRE2)
 
-- `regex-match` - Test if string matches pattern (arguments: pattern, string)
+- `regex-match?` - Test if string matches pattern (arguments: pattern, string)
 - `regex-find` - Find first regex match (arguments: pattern, string)
 - `regex-find-all` - Find all regex matches (arguments: pattern, string)
 - `regex-extract` - Extract capture groups (arguments: pattern, string)
@@ -1441,8 +1441,8 @@ Convert to tail recursion by:
 
 ```lisp
 ; Basic regex matching
-(regex-match "\\d+" "hello123")      ; => 1
-(regex-match "^hello$" "hello")      ; => 1
+(regex-match? "\\d+" "hello123")      ; => 1
+(regex-match? "^hello$" "hello")      ; => 1
 
 ; Finding matches
 (regex-find "\\d+" "abc123def")      ; => "123"

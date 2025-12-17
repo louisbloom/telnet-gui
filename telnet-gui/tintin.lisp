@@ -747,8 +747,8 @@
     (let ((regex-pattern (tintin-pattern-to-regex pattern)))
       (if (string=? regex-pattern "")
         #f
-        ;; Use regex-match to test if pattern matches
-        (let ((match-result (regex-match regex-pattern text)))
+        ;; Use regex-match? to test if pattern matches
+        (let ((match-result (regex-match? regex-pattern text)))
           (if match-result #t #f))))))
 
 ;; Sort highlight entries by priority (descending - higher priority first)
@@ -5461,12 +5461,12 @@
 
 ;; Check if an ANSI sequence is a reset code (\033[0m or \033[m)
 (defun tintin-is-reset-code (seq)
-  (regex-match "^\033\\[0*m$" seq))
+  (regex-match? "^\033\\[0*m$" seq))
 
 ;; Check if an ANSI sequence is an SGR code (ends with 'm')
 ;; SGR codes are the ones we want to track in our stack
 (defun tintin-is-sgr-code (seq)
-  (regex-match "^\033\\[[0-9;]*m$" seq))
+  (regex-match? "^\033\\[[0-9;]*m$" seq))
 
 ;; Post-process text to handle nested ANSI states
 ;; When a reset code is encountered, if there are remaining states on the stack,

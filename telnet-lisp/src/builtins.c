@@ -70,9 +70,9 @@ static const char *doc_regex_match = "Test if regex pattern matches string.\n"
                                      "\n"
                                      "## Examples\n"
                                      "```lisp\n"
-                                     "(regex-match \"[0-9]+\" \"abc123\")      ; => #t\n"
-                                     "(regex-match \"^[0-9]+$\" \"abc123\")    ; => nil (not all digits)\n"
-                                     "(regex-match \"hello\" \"hello world\")  ; => #t\n"
+                                     "(regex-match? \"[0-9]+\" \"abc123\")      ; => #t\n"
+                                     "(regex-match? \"^[0-9]+$\" \"abc123\")    ; => nil (not all digits)\n"
+                                     "(regex-match? \"hello\" \"hello world\")  ; => #t\n"
                                      "```\n"
                                      "\n"
                                      "## See Also\n"
@@ -97,7 +97,7 @@ static const char *doc_regex_find = "Find first regex match in string.\n"
                                     "```\n"
                                     "\n"
                                     "## See Also\n"
-                                    "- `regex-match` - Test if pattern matches\n"
+                                    "- `regex-match?` - Test if pattern matches\n"
                                     "- `regex-find-all` - Find all matches\n"
                                     "- `regex-extract` - Extract capture groups";
 
@@ -1722,7 +1722,7 @@ static const char *doc_string_match = "Test if string matches wildcard pattern.\
                                       "```\n"
                                       "\n"
                                       "## See Also\n"
-                                      "- `regex-match` - Full regex pattern matching\n"
+                                      "- `regex-match?` - Full regex pattern matching\n"
                                       "- `string-prefix?` - Test for exact prefix";
 
 static const char *doc_string_ref = "Get character at index from string (UTF-8 aware).\n"
@@ -2606,7 +2606,7 @@ void register_builtins(Environment *env) {
     env_define(env, "atom?", lisp_make_builtin(builtin_atom_question, "atom?", doc_atom_question));
     env_define(env, "pair?", lisp_make_builtin(builtin_pair_question, "pair?", doc_pair_question));
 
-    env_define(env, "regex-match", lisp_make_builtin(builtin_regex_match, "regex-match", doc_regex_match));
+    env_define(env, "regex-match?", lisp_make_builtin(builtin_regex_match, "regex-match?", doc_regex_match));
     env_define(env, "regex-find", lisp_make_builtin(builtin_regex_find, "regex-find", doc_regex_find));
     env_define(env, "regex-find-all", lisp_make_builtin(builtin_regex_find_all, "regex-find-all", doc_regex_find_all));
     env_define(env, "regex-extract", lisp_make_builtin(builtin_regex_extract, "regex-extract", doc_regex_extract));
@@ -4048,14 +4048,14 @@ static LispObject *builtin_atom_question(LispObject *args, Environment *env) {
 static LispObject *builtin_regex_match(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
-        return lisp_make_error("regex-match requires 2 arguments");
+        return lisp_make_error("regex-match? requires 2 arguments");
     }
 
     LispObject *pattern_obj = lisp_car(args);
     LispObject *string_obj = lisp_car(lisp_cdr(args));
 
     if (pattern_obj->type != LISP_STRING || string_obj->type != LISP_STRING) {
-        return lisp_make_error("regex-match requires strings");
+        return lisp_make_error("regex-match? requires strings");
     }
 
     char *error_msg = NULL;
@@ -4063,7 +4063,7 @@ static LispObject *builtin_regex_match(LispObject *args, Environment *env) {
 
     if (re == NULL) {
         char error[512];
-        snprintf(error, sizeof(error), "regex-match: %s", error_msg);
+        snprintf(error, sizeof(error), "regex-match?: %s", error_msg);
         return lisp_make_error(error);
     }
 

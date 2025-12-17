@@ -12,9 +12,9 @@
   (list-ref "string" 0)
   (error #t))  ; => #t
 
-                                        ; Test 3: list-ref with number from regex-match should error, not segfault
+                                        ; Test 3: list-ref with number from regex-match? should error, not segfault
                                         ; (This was the original bug scenario in TinTin++ highlight code)
-(define match-result 1)  ; regex-match returns 1 on match
+(define match-result 1)  ; regex-match? returns 1 on match
 (condition-case err
   (list-ref match-result 0)
   (error #t))  ; => #t
