@@ -626,9 +626,9 @@
               (if (< (+ pos 1) len)
                 (let ((next-ch (string-ref pattern (+ pos 1))))
                   (if (char=? next-ch #\*)
-                    ;; %* → (.*?)
-                    (progn
-                      (set! result (concat result "(.*?)"))
+                    ;; %* at end → (.*), otherwise (.*?)
+                    (let ((at-end (>= (+ pos 2) len)))
+                      (set! result (concat result (if at-end "(.*)" "(.*?)")))
                       (set! pos (+ pos 2)))
                     ;; Check if it's %1-%99
                     (if (and (char>=? next-ch #\0) (char<=? next-ch #\9))
@@ -638,9 +638,10 @@
                               (char>=? (string-ref pattern digit-end) #\0)
                               (char<=? (string-ref pattern digit-end) #\9))
                           (set! digit-end (+ digit-end 1)))
-                        ;; %N or %NN → (.*?)
-                        (set! result (concat result "(.*?)"))
-                        (set! pos digit-end))
+                        ;; %N or %NN at end → (.*), otherwise (.*?)
+                        (let ((at-end (>= digit-end len)))
+                          (set! result (concat result (if at-end "(.*)" "(.*?)")))
+                          (set! pos digit-end)))
                       ;; Not %* or %N - literal %
                       (progn
                         (set! result (concat result "\\%"))
