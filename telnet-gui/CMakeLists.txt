@@ -41,6 +41,8 @@ set(FONT_COURIER_SRC "${CMAKE_CURRENT_SOURCE_DIR}/fonts/CourierPrime-Regular.ttf
 set(FONT_COURIER_DST "${CMAKE_CURRENT_BINARY_DIR}/fonts/CourierPrime-Regular.ttf")
 set(FONT_CASCADIA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/fonts/CascadiaMono-Regular.ttf")
 set(FONT_CASCADIA_DST "${CMAKE_CURRENT_BINARY_DIR}/fonts/CascadiaMono-Regular.ttf")
+set(FONT_CASCADIA_CODE_SRC "${CMAKE_CURRENT_SOURCE_DIR}/fonts/CascadiaCode-Regular.ttf")
+set(FONT_CASCADIA_CODE_DST "${CMAKE_CURRENT_BINARY_DIR}/fonts/CascadiaCode-Regular.ttf")
 
 # Copy bootstrap Lisp file to build directory
 set(BOOTSTRAP_SRC "${CMAKE_CURRENT_SOURCE_DIR}/bootstrap.lisp")
@@ -71,6 +73,7 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_DEJAVU_BOLD_SRC}" "${FONT_DEJAVU_BOLD_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_COURIER_SRC}" "${FONT_COURIER_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_CASCADIA_SRC}" "${FONT_CASCADIA_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_CASCADIA_CODE_SRC}" "${FONT_CASCADIA_CODE_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${BOOTSTRAP_SRC}" "${BOOTSTRAP_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_SRC}" "${TINTIN_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_TEST_SRC}" "${TINTIN_TEST_DST}"
@@ -108,6 +111,7 @@ install(FILES
     "${FONT_DEJAVU_BOLD_SRC}"
     "${FONT_COURIER_SRC}"
     "${FONT_CASCADIA_SRC}"
+    "${FONT_CASCADIA_CODE_SRC}"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/fonts"
     COMPONENT Runtime
 )
