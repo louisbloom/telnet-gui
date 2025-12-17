@@ -21,6 +21,7 @@ A reference for the Telnet Lisp language, covering data types, special forms, bu
 - **Integers**: 64-bit signed integers
 - **Booleans**: True (#t) and false (#f)
 - **Strings**: C-style null-terminated strings with full UTF-8 support
+- **Characters**: Unicode characters (codepoints) with `#\a` reader syntax
 - **Lists**: Cons cells for linked lists
 - **Vectors**: Dynamic arrays (grow/shrink)
 - **Hash Tables**: Key-value mappings
@@ -506,7 +507,8 @@ String equality - returns true if `str1` and `str2` have identical character seq
 - `split` - Split string by pattern (supports wildcards: `*`, `?`, `[]`)
 - `string-length` - Get character count (UTF-8 aware, not byte count)
 - `substring` - Extract substring by character indices (UTF-8 aware)
-- `string-ref` - Get character at index (UTF-8 aware, returns single character string)
+- `string-ref` - Get character at index (UTF-8 aware, returns character type)
+- `string-append` - Alias for `concat`
 - `string-replace` - Replace all occurrences of substring in string
 - `string-upcase` - Convert string to uppercase (UTF-8 aware, ASCII only)
 - `string-downcase` - Convert string to lowercase (UTF-8 aware, ASCII only)
@@ -539,6 +541,57 @@ String comparisons follow Scheme R7RS naming with `?` suffix:
 - `string-index` - Find first occurrence of substring, returns character index or nil
 - `string-match?` - Match string against wildcard pattern
 - `string-prefix?` - Check if one string is a prefix of another
+
+### Character Functions
+
+Characters are Unicode codepoints with `#\a` reader syntax:
+
+**Character Literals:**
+
+- `#\a`, `#\Z`, `#\!` - Single characters
+- `#\space`, `#\newline`, `#\tab`, `#\return` - Named characters
+- `#\escape`, `#\null`, `#\backspace`, `#\delete` - Control characters
+- `#\x1b`, `#\xNN` - Hex notation
+- `#\u4e16`, `#\uNNNN` - Unicode notation
+
+**Type Predicate:**
+
+- `char?` - Returns #t if argument is a character
+
+**Conversion:**
+
+- `char-code` - Get codepoint: `(char-code #\a)` → `97`
+- `code-char` - Get character: `(code-char 97)` → `#\a`
+- `char->string` - Convert to string: `(char->string #\a)` → `"a"`
+- `string->char` - Convert from string: `(string->char "a")` → `#\a` (error if length != 1)
+
+**Comparison:**
+
+- `char=?` - `(char=? #\a #\a)` → `#t`
+- `char<?` - `(char<? #\a #\b)` → `#t`
+- `char>?` - `(char>? #\b #\a)` → `#t`
+- `char<=?` - `(char<=? #\a #\a)` → `#t`
+- `char>=?` - `(char>=? #\a #\a)` → `#t`
+
+**Case Conversion:**
+
+- `char-upcase` - `(char-upcase #\a)` → `#\A`
+- `char-downcase` - `(char-downcase #\A)` → `#\a`
+
+**Classification:**
+
+- `char-alphabetic?` - `(char-alphabetic? #\a)` → `#t`
+- `char-numeric?` - `(char-numeric? #\5)` → `#t`
+- `char-whitespace?` - `(char-whitespace? #\space)` → `#t`
+
+**Examples:**
+
+```lisp
+(string-ref "hello" 0)         ; => #\h (character, not string)
+(char=? (string-ref "ab" 0) #\a)  ; => #t
+(char->string #\newline)       ; => "\n"
+(char-code #\世)               ; => 19990
+```
 
 ### Numeric Conversion Functions
 
@@ -746,6 +799,7 @@ Functions for transforming lists by applying a function to each element.
 - `boolean?` - Check if boolean
 - `number?` - Check if number or integer
 - `string?` - Check if string
+- `char?` - Check if character
 - `vector?` - Check if vector
 - `hash-table?` - Check if hash table
 - `symbol?` - Check if symbol

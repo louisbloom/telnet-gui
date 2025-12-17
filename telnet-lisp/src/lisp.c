@@ -55,6 +55,13 @@ LispObject *lisp_make_integer(long long value) {
     return obj;
 }
 
+LispObject *lisp_make_char(unsigned int codepoint) {
+    LispObject *obj = GC_malloc(sizeof(LispObject));
+    obj->type = LISP_CHAR;
+    obj->value.character = codepoint;
+    return obj;
+}
+
 LispObject *lisp_make_boolean(int value) {
     /* Return interned boolean objects */
     if (value) {

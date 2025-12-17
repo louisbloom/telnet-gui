@@ -40,6 +40,23 @@ static LispObject *builtin_string_replace(LispObject *args, Environment *env);
 static LispObject *builtin_string_upcase(LispObject *args, Environment *env);
 static LispObject *builtin_string_downcase(LispObject *args, Environment *env);
 
+/* Character operations */
+static LispObject *builtin_char_question(LispObject *args, Environment *env);
+static LispObject *builtin_char_code(LispObject *args, Environment *env);
+static LispObject *builtin_code_char(LispObject *args, Environment *env);
+static LispObject *builtin_char_to_string(LispObject *args, Environment *env);
+static LispObject *builtin_string_to_char(LispObject *args, Environment *env);
+static LispObject *builtin_char_eq(LispObject *args, Environment *env);
+static LispObject *builtin_char_lt(LispObject *args, Environment *env);
+static LispObject *builtin_char_gt(LispObject *args, Environment *env);
+static LispObject *builtin_char_lte(LispObject *args, Environment *env);
+static LispObject *builtin_char_gte(LispObject *args, Environment *env);
+static LispObject *builtin_char_upcase(LispObject *args, Environment *env);
+static LispObject *builtin_char_downcase(LispObject *args, Environment *env);
+static LispObject *builtin_char_alphabetic(LispObject *args, Environment *env);
+static LispObject *builtin_char_numeric(LispObject *args, Environment *env);
+static LispObject *builtin_char_whitespace(LispObject *args, Environment *env);
+
 /* Boolean operations */
 static LispObject *builtin_not(LispObject *args, Environment *env);
 
@@ -2553,6 +2570,7 @@ void register_builtins(Environment *env) {
     env_define(env, "<=", lisp_make_builtin(builtin_lte, "<=", doc_lte));
 
     env_define(env, "concat", lisp_make_builtin(builtin_concat, "concat", doc_concat));
+    env_define(env, "string-append", lisp_make_builtin(builtin_concat, "string-append", doc_concat));
     env_define(env, "number->string",
                lisp_make_builtin(builtin_number_to_string, "number->string", doc_number_to_string));
     env_define(env, "string->number",
@@ -2575,6 +2593,23 @@ void register_builtins(Environment *env) {
     env_define(env, "string-upcase", lisp_make_builtin(builtin_string_upcase, "string-upcase", doc_string_upcase));
     env_define(env, "string-downcase",
                lisp_make_builtin(builtin_string_downcase, "string-downcase", doc_string_downcase));
+
+    /* Character operations */
+    env_define(env, "char?", lisp_make_builtin(builtin_char_question, "char?", NULL));
+    env_define(env, "char-code", lisp_make_builtin(builtin_char_code, "char-code", NULL));
+    env_define(env, "code-char", lisp_make_builtin(builtin_code_char, "code-char", NULL));
+    env_define(env, "char->string", lisp_make_builtin(builtin_char_to_string, "char->string", NULL));
+    env_define(env, "string->char", lisp_make_builtin(builtin_string_to_char, "string->char", NULL));
+    env_define(env, "char=?", lisp_make_builtin(builtin_char_eq, "char=?", NULL));
+    env_define(env, "char<?", lisp_make_builtin(builtin_char_lt, "char<?", NULL));
+    env_define(env, "char>?", lisp_make_builtin(builtin_char_gt, "char>?", NULL));
+    env_define(env, "char<=?", lisp_make_builtin(builtin_char_lte, "char<=?", NULL));
+    env_define(env, "char>=?", lisp_make_builtin(builtin_char_gte, "char>=?", NULL));
+    env_define(env, "char-upcase", lisp_make_builtin(builtin_char_upcase, "char-upcase", NULL));
+    env_define(env, "char-downcase", lisp_make_builtin(builtin_char_downcase, "char-downcase", NULL));
+    env_define(env, "char-alphabetic?", lisp_make_builtin(builtin_char_alphabetic, "char-alphabetic?", NULL));
+    env_define(env, "char-numeric?", lisp_make_builtin(builtin_char_numeric, "char-numeric?", NULL));
+    env_define(env, "char-whitespace?", lisp_make_builtin(builtin_char_whitespace, "char-whitespace?", NULL));
 
     env_define(env, "not", lisp_make_builtin(builtin_not, "not", doc_not));
 
@@ -3675,12 +3710,8 @@ static LispObject *builtin_string_ref(LispObject *args, Environment *env) {
         return lisp_make_error("string-ref: invalid character at index");
     }
 
-    int bytes = utf8_char_bytes(char_ptr);
-    char *result = GC_malloc(bytes + 1);
-    memcpy(result, char_ptr, bytes);
-    result[bytes] = '\0';
-
-    return lisp_make_string(result);
+    unsigned int codepoint = utf8_get_codepoint(char_ptr);
+    return lisp_make_char(codepoint);
 }
 
 /* String replace */
@@ -3824,6 +3855,218 @@ static LispObject *builtin_string_downcase(LispObject *args, Environment *env) {
     *dst = '\0';
 
     return lisp_make_string(result);
+}
+
+/* Character operations */
+static LispObject *builtin_char_question(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return NIL;
+    }
+    LispObject *obj = lisp_car(args);
+    return lisp_make_boolean(obj->type == LISP_CHAR);
+}
+
+static LispObject *builtin_char_code(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("char-code requires 1 argument");
+    }
+    LispObject *char_obj = lisp_car(args);
+    if (char_obj->type != LISP_CHAR) {
+        return lisp_make_error("char-code requires a character");
+    }
+    return lisp_make_integer(char_obj->value.character);
+}
+
+static LispObject *builtin_code_char(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("code-char requires 1 argument");
+    }
+    LispObject *code_obj = lisp_car(args);
+    if (code_obj->type != LISP_INTEGER) {
+        return lisp_make_error("code-char requires an integer");
+    }
+    long long code = code_obj->value.integer;
+    if (code < 0 || code > 0x10FFFF) {
+        return lisp_make_error("code-char: invalid Unicode codepoint");
+    }
+    return lisp_make_char((unsigned int)code);
+}
+
+static LispObject *builtin_char_to_string(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("char->string requires 1 argument");
+    }
+    LispObject *char_obj = lisp_car(args);
+    if (char_obj->type != LISP_CHAR) {
+        return lisp_make_error("char->string requires a character");
+    }
+    char buf[5];
+    utf8_put_codepoint(char_obj->value.character, buf);
+    return lisp_make_string(buf);
+}
+
+static LispObject *builtin_string_to_char(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("string->char requires 1 argument");
+    }
+    LispObject *str_obj = lisp_car(args);
+    if (str_obj->type != LISP_STRING) {
+        return lisp_make_error("string->char requires a string");
+    }
+    const char *str = str_obj->value.string;
+    size_t char_count = utf8_strlen(str);
+    if (char_count != 1) {
+        return lisp_make_error("string->char requires a single-character string");
+    }
+    unsigned int codepoint = utf8_get_codepoint(str);
+    return lisp_make_char(codepoint);
+}
+
+static LispObject *builtin_char_eq(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("char=? requires 2 arguments");
+    }
+    LispObject *c1 = lisp_car(args);
+    LispObject *c2 = lisp_car(lisp_cdr(args));
+    if (c1->type != LISP_CHAR || c2->type != LISP_CHAR) {
+        return lisp_make_error("char=? requires characters");
+    }
+    return lisp_make_boolean(c1->value.character == c2->value.character);
+}
+
+static LispObject *builtin_char_lt(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("char<? requires 2 arguments");
+    }
+    LispObject *c1 = lisp_car(args);
+    LispObject *c2 = lisp_car(lisp_cdr(args));
+    if (c1->type != LISP_CHAR || c2->type != LISP_CHAR) {
+        return lisp_make_error("char<? requires characters");
+    }
+    return lisp_make_boolean(c1->value.character < c2->value.character);
+}
+
+static LispObject *builtin_char_gt(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("char>? requires 2 arguments");
+    }
+    LispObject *c1 = lisp_car(args);
+    LispObject *c2 = lisp_car(lisp_cdr(args));
+    if (c1->type != LISP_CHAR || c2->type != LISP_CHAR) {
+        return lisp_make_error("char>? requires characters");
+    }
+    return lisp_make_boolean(c1->value.character > c2->value.character);
+}
+
+static LispObject *builtin_char_lte(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("char<=? requires 2 arguments");
+    }
+    LispObject *c1 = lisp_car(args);
+    LispObject *c2 = lisp_car(lisp_cdr(args));
+    if (c1->type != LISP_CHAR || c2->type != LISP_CHAR) {
+        return lisp_make_error("char<=? requires characters");
+    }
+    return lisp_make_boolean(c1->value.character <= c2->value.character);
+}
+
+static LispObject *builtin_char_gte(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("char>=? requires 2 arguments");
+    }
+    LispObject *c1 = lisp_car(args);
+    LispObject *c2 = lisp_car(lisp_cdr(args));
+    if (c1->type != LISP_CHAR || c2->type != LISP_CHAR) {
+        return lisp_make_error("char>=? requires characters");
+    }
+    return lisp_make_boolean(c1->value.character >= c2->value.character);
+}
+
+static LispObject *builtin_char_upcase(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("char-upcase requires 1 argument");
+    }
+    LispObject *char_obj = lisp_car(args);
+    if (char_obj->type != LISP_CHAR) {
+        return lisp_make_error("char-upcase requires a character");
+    }
+    unsigned int cp = char_obj->value.character;
+    /* ASCII only case conversion */
+    if (cp >= 'a' && cp <= 'z') {
+        cp = cp - 'a' + 'A';
+    }
+    return lisp_make_char(cp);
+}
+
+static LispObject *builtin_char_downcase(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("char-downcase requires 1 argument");
+    }
+    LispObject *char_obj = lisp_car(args);
+    if (char_obj->type != LISP_CHAR) {
+        return lisp_make_error("char-downcase requires a character");
+    }
+    unsigned int cp = char_obj->value.character;
+    /* ASCII only case conversion */
+    if (cp >= 'A' && cp <= 'Z') {
+        cp = cp - 'A' + 'a';
+    }
+    return lisp_make_char(cp);
+}
+
+static LispObject *builtin_char_alphabetic(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("char-alphabetic? requires 1 argument");
+    }
+    LispObject *char_obj = lisp_car(args);
+    if (char_obj->type != LISP_CHAR) {
+        return lisp_make_error("char-alphabetic? requires a character");
+    }
+    unsigned int cp = char_obj->value.character;
+    /* ASCII only check */
+    int is_alpha = (cp >= 'a' && cp <= 'z') || (cp >= 'A' && cp <= 'Z');
+    return lisp_make_boolean(is_alpha);
+}
+
+static LispObject *builtin_char_numeric(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("char-numeric? requires 1 argument");
+    }
+    LispObject *char_obj = lisp_car(args);
+    if (char_obj->type != LISP_CHAR) {
+        return lisp_make_error("char-numeric? requires a character");
+    }
+    unsigned int cp = char_obj->value.character;
+    int is_numeric = (cp >= '0' && cp <= '9');
+    return lisp_make_boolean(is_numeric);
+}
+
+static LispObject *builtin_char_whitespace(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("char-whitespace? requires 1 argument");
+    }
+    LispObject *char_obj = lisp_car(args);
+    if (char_obj->type != LISP_CHAR) {
+        return lisp_make_error("char-whitespace? requires a character");
+    }
+    unsigned int cp = char_obj->value.character;
+    int is_ws = (cp == ' ' || cp == '\t' || cp == '\n' || cp == '\r' || cp == '\f' || cp == '\v');
+    return lisp_make_boolean(is_ws);
 }
 
 /* Boolean operations */
@@ -5721,6 +5964,9 @@ static int objects_equal_recursive(LispObject *a, LispObject *b) {
 
     case LISP_INTEGER:
         return a->value.integer == b->value.integer;
+
+    case LISP_CHAR:
+        return a->value.character == b->value.character;
 
     case LISP_STRING:
         return strcmp(a->value.string, b->value.string) == 0;

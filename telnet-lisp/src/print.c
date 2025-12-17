@@ -117,6 +117,48 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
         append_str(buffer, size, pos, temp);
         break;
 
+    case LISP_CHAR: {
+        unsigned int cp = obj->value.character;
+        append_str(buffer, size, pos, "#\\");
+        /* Named characters */
+        if (cp == ' ')
+            append_str(buffer, size, pos, "space");
+        else if (cp == '\n')
+            append_str(buffer, size, pos, "newline");
+        else if (cp == '\t')
+            append_str(buffer, size, pos, "tab");
+        else if (cp == '\r')
+            append_str(buffer, size, pos, "return");
+        else if (cp == 0x1b)
+            append_str(buffer, size, pos, "escape");
+        else if (cp == 0)
+            append_str(buffer, size, pos, "null");
+        else if (cp == '\b')
+            append_str(buffer, size, pos, "backspace");
+        else if (cp == 0x7f)
+            append_str(buffer, size, pos, "delete");
+        else if (cp == '\a')
+            append_str(buffer, size, pos, "alarm");
+        else if (cp >= 0x21 && cp <= 0x7e) {
+            /* Printable ASCII */
+            char cbuf[2] = {(char)cp, '\0'};
+            append_str(buffer, size, pos, cbuf);
+        } else if (cp > 0x7f && cp <= 0xffff) {
+            /* Unicode - use #\uXXXX format for BMP */
+            snprintf(temp, sizeof(temp), "u%04x", cp);
+            append_str(buffer, size, pos, temp);
+        } else if (cp > 0xffff) {
+            /* Unicode beyond BMP - use #\UXXXXXXXX format */
+            snprintf(temp, sizeof(temp), "U%08x", cp);
+            append_str(buffer, size, pos, temp);
+        } else {
+            /* Non-printable control chars - use #\xXX format */
+            snprintf(temp, sizeof(temp), "x%02x", cp);
+            append_str(buffer, size, pos, temp);
+        }
+        break;
+    }
+
     case LISP_BOOLEAN:
         append_str(buffer, size, pos, obj->value.boolean ? "#t" : "#f");
         break;
@@ -270,6 +312,15 @@ static void princ_object(LispObject *obj) {
     case LISP_INTEGER:
         printf("%lld", obj->value.integer);
         break;
+
+    case LISP_CHAR: {
+        /* princ prints the actual character, not the reader syntax */
+        unsigned int cp = obj->value.character;
+        char utf8_buf[5];
+        utf8_put_codepoint(cp, utf8_buf);
+        printf("%s", utf8_buf);
+        break;
+    }
 
     case LISP_BOOLEAN:
         printf("%s", obj->value.boolean ? "#t" : "#f");

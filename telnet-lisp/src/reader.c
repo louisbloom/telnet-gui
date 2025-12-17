@@ -12,6 +12,7 @@ static LispObject *read_backquote(const char **input);
 static LispObject *read_unquote(const char **input);
 static LispObject *read_unquote_splicing(const char **input);
 static LispObject *read_vector(const char **input);
+static LispObject *read_character(const char **input);
 
 static void skip_whitespace(const char **input) {
     while (**input && (isspace(**input) || **input == ';')) {
@@ -283,6 +284,108 @@ static LispObject *read_vector(const char **input) {
     return vec;
 }
 
+static int hex_digit_value(char c) {
+    if (c >= '0' && c <= '9')
+        return c - '0';
+    if (c >= 'a' && c <= 'f')
+        return 10 + (c - 'a');
+    if (c >= 'A' && c <= 'F')
+        return 10 + (c - 'A');
+    return -1;
+}
+
+static LispObject *read_character(const char **input) {
+    (*input) += 2; /* Skip #\ */
+
+    if (**input == '\0') {
+        return lisp_make_error("Unexpected end of input after #\\");
+    }
+
+    /* Check for hex notation #\x followed by hex digits */
+    if (**input == 'x' && hex_digit_value(*(*input + 1)) >= 0) {
+        (*input)++; /* Skip 'x' */
+        unsigned int codepoint = 0;
+        while (hex_digit_value(**input) >= 0) {
+            codepoint = codepoint * 16 + hex_digit_value(**input);
+            (*input)++;
+        }
+        return lisp_make_char(codepoint);
+    }
+
+    /* Check for unicode notation #\u followed by hex digits */
+    if (**input == 'u' && hex_digit_value(*(*input + 1)) >= 0) {
+        (*input)++; /* Skip 'u' */
+        unsigned int codepoint = 0;
+        while (hex_digit_value(**input) >= 0) {
+            codepoint = codepoint * 16 + hex_digit_value(**input);
+            (*input)++;
+        }
+        return lisp_make_char(codepoint);
+    }
+
+    /* Check for non-alphanumeric single character (e.g., #\\, #\!, #\@)
+     * Named characters like "space" always start with a letter,
+     * so non-letter characters must be single-char literals */
+    if (!isalpha(**input)) {
+        /* Could be UTF-8, so get the codepoint properly */
+        unsigned int codepoint = utf8_get_codepoint(*input);
+        /* Advance past the character (handles multi-byte UTF-8) */
+        size_t bytes = utf8_char_bytes(*input);
+        (*input) += bytes;
+        return lisp_make_char(codepoint);
+    }
+
+    /* Read character name (could be single char or named char like "space") */
+    const char *start = *input;
+    size_t length = 0;
+
+    /* Character names end at whitespace, parens, or semicolons */
+    while (**input && !isspace(**input) && **input != ')' && **input != '(' && **input != ';') {
+        length++;
+        (*input)++;
+    }
+
+    if (length == 0) {
+        return lisp_make_error("Empty character literal");
+    }
+
+    /* Single character */
+    if (length == 1) {
+        unsigned int codepoint = utf8_get_codepoint(start);
+        return lisp_make_char(codepoint);
+    }
+
+    /* Named characters */
+    char *name = GC_malloc(length + 1);
+    strncpy(name, start, length);
+    name[length] = '\0';
+
+    /* Check named characters (case-insensitive) */
+    if (strcasecmp(name, "space") == 0)
+        return lisp_make_char(' ');
+    if (strcasecmp(name, "newline") == 0)
+        return lisp_make_char('\n');
+    if (strcasecmp(name, "tab") == 0)
+        return lisp_make_char('\t');
+    if (strcasecmp(name, "return") == 0)
+        return lisp_make_char('\r');
+    if (strcasecmp(name, "escape") == 0)
+        return lisp_make_char(0x1b);
+    if (strcasecmp(name, "null") == 0)
+        return lisp_make_char(0);
+    if (strcasecmp(name, "backspace") == 0)
+        return lisp_make_char('\b');
+    if (strcasecmp(name, "delete") == 0)
+        return lisp_make_char(0x7f);
+    if (strcasecmp(name, "alarm") == 0)
+        return lisp_make_char('\a');
+
+    /* Unknown character name - return error */
+    char errbuf[128];
+    snprintf(errbuf, sizeof(errbuf), "Unknown character name: %s", name);
+    return lisp_make_error(errbuf);
+}
+
 static LispObject *read_quote(const char **input) {
     (*input)++; /* Skip quote character */
     LispObject *quoted = lisp_read(input);
@@ -366,7 +469,7 @@ LispObject *lisp_read(const char **input) {
         return read_string(input);
     }
 
-    /* Handle #t, #f, and #(...) */
+    /* Handle #t, #f, #(...), and #\char */
     if (**input == '#') {
         const char *p = *input + 1;
         if (*p == 't') {
@@ -377,6 +480,8 @@ LispObject *lisp_read(const char **input) {
             return NIL;
         } else if (*p == '(') {
             return read_vector(input);
+        } else if (*p == '\\') {
+            return read_character(input);
         }
         /* Unknown # syntax - advance past # and next char to prevent silent exit */
         (*input) += (*p ? 2 : 1);

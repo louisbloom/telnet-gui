@@ -14,9 +14,9 @@
 ;; Extract substring by character index (not byte index)
 (assert-equal (substring test_str 7 9) "世界" "substring with Chinese characters")
 
-;; Get character at specific index (returns single character string)
-(assert-equal (string-ref test_str 0) "H" "string-ref ASCII character")
-(assert-equal (string-ref test_str 7) "世" "string-ref Chinese character")
+;; Get character at specific index (returns character type)
+(assert-equal (string-ref test_str 0) #\H "string-ref ASCII character")
+(assert-equal (string-ref test_str 7) (code-char 19990) "string-ref Chinese character")
 
 ;; Test with emoji (composed of multiple UTF-8 bytes)
 (define emoji_str "Hello 🚀 World")

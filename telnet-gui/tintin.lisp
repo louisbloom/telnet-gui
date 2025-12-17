@@ -251,20 +251,21 @@
 
 ;; Helper: Find first occurrence of character in string
 ;; Returns position or nil if not found
+;; ch should be a character (e.g., #\:)
 (defun tintin-string-find-char (str ch)
   (let ((len (string-length str))
          (pos 0)
          (found nil))
     (do ()
       ((or (>= pos len) found) found)
-      (if (string=? (string-ref str pos) ch)
+      (if (char=? (string-ref str pos) ch)
         (set! found pos)
         (set! pos (+ pos 1))))))
 
 ;; Split color spec on colon (FG:BG separator)
 ;; Returns (fg-part bg-part) or (fg-part nil)
 (defun tintin-split-fg-bg (spec)
-  (let ((colon-pos (tintin-string-find-char spec ":")))
+  (let ((colon-pos (tintin-string-find-char spec #\:)))
     (if colon-pos
       (list (substring spec 0 colon-pos)
         (substring spec (+ colon-pos 1) (string-length spec)))
@@ -509,20 +510,20 @@
 
 ;; Check if character needs regex escaping
 (defun tintin-regex-special-char? (ch)
-  (or (string=? ch ".")
-    (string=? ch "*")
-    (string=? ch "+")
-    (string=? ch "?")
-    (string=? ch "[")
-    (string=? ch "]")
-    (string=? ch "{")
-    (string=? ch "}")
-    (string=? ch "(")
-    (string=? ch ")")
-    (string=? ch "|")
-    (string=? ch "\\")
-    (string=? ch "^")
-    (string=? ch "$")))
+  (or (char=? ch #\.)
+    (char=? ch #\*)
+    (char=? ch #\+)
+    (char=? ch #\?)
+    (char=? ch #\[)
+    (char=? ch #\])
+    (char=? ch #\{)
+    (char=? ch #\})
+    (char=? ch #\()
+    (char=? ch #\))
+    (char=? ch #\|)
+    (char=? ch #\\)
+    (char=? ch #\^)
+    (char=? ch #\$)))
 
 ;; Convert TinTin++ pattern to PCRE2 regex
 ;; Pattern translation:
@@ -621,21 +622,21 @@
         (let ((ch (string-ref pattern pos)))
           (cond
             ;; Handle % placeholders
-            ((string=? ch "%")
+            ((char=? ch #\%)
               (if (< (+ pos 1) len)
                 (let ((next-ch (string-ref pattern (+ pos 1))))
-                  (if (string=? next-ch "*")
+                  (if (char=? next-ch #\*)
                     ;; %* → (.*?)
                     (progn
                       (set! result (concat result "(.*?)"))
                       (set! pos (+ pos 2)))
                     ;; Check if it's %1-%99
-                    (if (and (string>=? next-ch "0") (string<=? next-ch "9"))
+                    (if (and (char>=? next-ch #\0) (char<=? next-ch #\9))
                       (let ((digit-end (+ pos 2)))
                         ;; Consume second digit if present
                         (if (and (< digit-end len)
-                              (string>=? (string-ref pattern digit-end) "0")
-                              (string<=? (string-ref pattern digit-end) "9"))
+                              (char>=? (string-ref pattern digit-end) #\0)
+                              (char<=? (string-ref pattern digit-end) #\9))
                           (set! digit-end (+ digit-end 1)))
                         ;; %N or %NN → (.*?)
                         (set! result (concat result "(.*?)"))
@@ -650,18 +651,18 @@
                   (set! pos (+ pos 1)))))
 
             ;; Handle ^ at start (line anchor)
-            ((and (string=? ch "^") (= pos 0))
+            ((and (char=? ch #\^) (= pos 0))
               (set! result (concat result "^"))
               (set! pos (+ pos 1)))
 
             ;; Escape regex special characters
             ((tintin-regex-special-char? ch)
-              (set! result (concat result "\\" ch))
+              (set! result (concat result "\\" (char->string ch)))
               (set! pos (+ pos 1)))
 
             ;; Regular character - no escaping needed
             (#t
-              (set! result (concat result ch))
+              (set! result (concat result (char->string ch)))
               (set! pos (+ pos 1)))))))))
 
 ;; Test if TinTin++ pattern matches text using regex
@@ -952,7 +953,7 @@
             (reverse (cons (substring text line-start len) lines))
             (reverse lines)))
         (let ((ch (string-ref text pos)))
-          (if (string=? ch "\n")
+          (if (char=? ch #\newline)
             ;; Found line ending - add line including \n
             (progn
               (set! lines (cons (substring text line-start (+ pos 1)) lines))
@@ -1486,10 +1487,10 @@
   (if (>= pos len)
     pos
     (let ((ch (string-ref str pos)))
-      (if (or (string=? ch " ")
-            (string=? ch "\t")
-            (string=? ch "\r")
-            (string=? ch "\n"))
+      (if (or (char=? ch #\space)
+            (char=? ch #\tab)
+            (char=? ch #\return)
+            (char=? ch #\newline))
         (tintin-find-first-non-ws str (+ pos 1) len)
         pos))))
 
@@ -1498,10 +1499,10 @@
   (if (< pos 0)
     -1
     (let ((ch (string-ref str pos)))
-      (if (or (string=? ch " ")
-            (string=? ch "\t")
-            (string=? ch "\r")
-            (string=? ch "\n"))
+      (if (or (char=? ch #\space)
+            (char=? ch #\tab)
+            (char=? ch #\return)
+            (char=? ch #\newline))
         (tintin-find-last-non-ws str (- pos 1))
         pos))))
 
@@ -1515,14 +1516,14 @@
     ;; Process current character
     (let ((ch (string-ref str pos)))
       (cond
-        ((string=? ch "{")
-          (tintin-split-loop str (+ pos 1) len (+ depth 1) (concat current ch) results))
-        ((string=? ch "}")
-          (tintin-split-loop str (+ pos 1) len (- depth 1) (concat current ch) results))
-        ((and (string=? ch ";") (= depth 0))
+        ((char=? ch #\{)
+          (tintin-split-loop str (+ pos 1) len (+ depth 1) (concat current (char->string ch)) results))
+        ((char=? ch #\})
+          (tintin-split-loop str (+ pos 1) len (- depth 1) (concat current (char->string ch)) results))
+        ((and (char=? ch #\;) (= depth 0))
           (tintin-split-loop str (+ pos 1) len depth "" (cons current results)))
         (#t
-          (tintin-split-loop str (+ pos 1) len depth (concat current ch) results))))))
+          (tintin-split-loop str (+ pos 1) len depth (concat current (char->string ch)) results))))))
 
 (defun tintin-split-commands (str)
   "Split command string by semicolons, respecting brace nesting.
@@ -1837,7 +1838,7 @@
            (len (string-length str)))
       ;; Find opening brace
       (do ()
-        ((or (>= pos len) (string=? (string-ref str pos) "{"))
+        ((or (>= pos len) (char=? (string-ref str pos) #\{))
           (if (>= pos len)
             nil
             ;; Extract including braces - track depth for nested braces
@@ -1851,9 +1852,9 @@
                     (cons (substring str brace-start end-pos) end-pos)
                     nil))
                 (let ((ch (string-ref str end-pos)))
-                  (if (string=? ch "{")
+                  (if (char=? ch #\{)
                     (set! depth (+ depth 1))
-                    (if (string=? ch "}")
+                    (if (char=? ch #\})
                       (set! depth (- depth 1))))
                   (set! end-pos (+ end-pos 1)))))))
         (set! pos (+ pos 1))))))
@@ -1868,7 +1869,7 @@
            (pos start-pos))
       ;; Skip leading whitespace
       (do ()
-        ((or (>= pos len) (not (string=? (string-ref str pos) " "))))
+        ((or (>= pos len) (not (char=? (string-ref str pos) #\space))))
         (set! pos (+ pos 1)))
       ;; Check if we have any characters left
       (if (>= pos len)
@@ -1877,7 +1878,7 @@
         (let ((start pos)
                (end pos))
           (do ()
-            ((or (>= end len) (string=? (string-ref str end) " ")))
+            ((or (>= end len) (char=? (string-ref str end) #\space)))
             (set! end (+ end 1)))
           ;; Return token and position
           (if (= start end)
@@ -1893,7 +1894,7 @@
            (pos start-pos))
       ;; Skip leading whitespace
       (do ()
-        ((or (>= pos len) (not (string=? (string-ref str pos) " "))))
+        ((or (>= pos len) (not (char=? (string-ref str pos) #\space))))
         (set! pos (+ pos 1)))
       ;; Check if we have any characters left
       (if (>= pos len)
@@ -2019,14 +2020,14 @@
     ;; Step 1: Skip whitespace after #
     (do ()
       ((or (>= start-pos (string-length input))
-         (not (string=? (string-ref input start-pos) " "))))
+         (not (char=? (string-ref input start-pos) #\space))))
       (set! start-pos (+ start-pos 1)))
 
     ;; Step 2: Skip past command name (until space, {, or end)
     (do ()
       ((or (>= start-pos (string-length input))
-         (string=? (string-ref input start-pos) " ")
-         (string=? (string-ref input start-pos) "{")))
+         (char=? (string-ref input start-pos) #\space)
+         (char=? (string-ref input start-pos) #\{)))
       (set! start-pos (+ start-pos 1)))
 
     ;; Step 3: Parse N arguments using mixed format
@@ -2037,14 +2038,14 @@
       ;; Skip whitespace before this argument
       (do ()
         ((or (>= start-pos (string-length input))
-           (not (string=? (string-ref input start-pos) " "))))
+           (not (char=? (string-ref input start-pos) #\space))))
         (set! start-pos (+ start-pos 1)))
 
       ;; Check if we have more input
       (if (>= start-pos (string-length input))
         (set! success #f)  ; Ran out of input before getting N arguments
         ;; Check if this argument is braced or unbraced
-        (let ((is-braced (string=? (string-ref input start-pos) "{")))
+        (let ((is-braced (char=? (string-ref input start-pos) #\{)))
           (if is-braced
             ;; Extract braced argument (preserves braces)
             (let ((arg-data (tintin-extract-braced input start-pos)))
@@ -2090,11 +2091,11 @@
 
 ;; Check if character is valid in variable name: [a-zA-Z0-9_-]
 (defun tintin-is-varname-char? (ch)
-  (or (and (string>=? ch "a") (string<=? ch "z"))
-    (and (string>=? ch "A") (string<=? ch "Z"))
-    (and (string>=? ch "0") (string<=? ch "9"))
-    (string=? ch "_")
-    (string=? ch "-")))
+  (or (and (char>=? ch #\a) (char<=? ch #\z))
+    (and (char>=? ch #\A) (char<=? ch #\Z))
+    (and (char>=? ch #\0) (char<=? ch #\9))
+    (char=? ch #\_)
+    (char=? ch #\-)))
 
 ;; Expand $variable references in a string
 (defun tintin-expand-variables (str)
@@ -2254,7 +2255,7 @@
       (do ()
         ((>= pos len) result)
         (let ((ch (string-ref str pos)))
-          (if (string=? ch "$")
+          (if (char=? ch #\$)
             ;; Extract variable name
             (let ((var-start (+ pos 1))
                    (var-end (+ pos 1)))
@@ -2278,7 +2279,7 @@
                   (set! pos var-end))))
             ;; Regular character
             (progn
-              (set! result (concat result ch))
+              (set! result (concat result (char->string ch)))
               (set! pos (+ pos 1)))))))))
 
 ;; ============================================================================
@@ -2568,7 +2569,7 @@
 (defun tintin-is-command? (str)
   (and (string? str)
     (> (string-length str) 0)
-    (string=? (string-ref str 0) "#")))
+    (char=? (string-ref str 0) #\#)))
 
 ;; Extract command name from TinTin++ command string
 ;; Example: "#alias {k} {kill}" → "alias"
@@ -2581,7 +2582,7 @@
            (pos 1))  ; Start after #
       ;; Skip any whitespace after #
       (do ()
-        ((or (>= pos len) (not (string=? (string-ref str pos) " "))))
+        ((or (>= pos len) (not (char=? (string-ref str pos) #\space))))
         (set! pos (+ pos 1)))
       ;; Check if we have any characters left
       (if (>= pos len)
@@ -2591,8 +2592,8 @@
                (end pos))
           (do ()
             ((or (>= end len)
-               (string=? (string-ref str end) " ")
-               (string=? (string-ref str end) "{")))
+               (char=? (string-ref str end) #\space)
+               (char=? (string-ref str end) #\{)))
             (set! end (+ end 1)))
           ;; Extract and lowercase the command name
           (if (= start end)
@@ -3412,8 +3413,8 @@
     str
     (let ((len (string-length str)))
       (if (and (> len 1)
-            (string=? (string-ref str 0) "{")
-            (string=? (string-ref str (- len 1)) "}"))
+            (char=? (string-ref str 0) #\{)
+            (char=? (string-ref str (- len 1)) #\}))
         (substring str 1 (- len 1))
         str))))
 
@@ -3832,9 +3833,9 @@
         ((or (< i 0)
            (and (< i text-len)  ; Bounds check
              (let ((ch (string-ref text i)))
-               (or (string=? ch " ")
-                 (string=? ch "-")
-                 (string=? ch "\n")))))
+               (or (char=? ch #\space)
+                 (char=? ch #\-)
+                 (char=? ch #\newline)))))
           (if (< i 0)
             (if (< width text-len) width text-len)  ; Hard break at width or text end
             (+ i 1)))))))  ; Break after space/hyphen
@@ -3931,7 +3932,7 @@
                          ;; Find last non-space character
                          (do ()
                            ((or (<= line1-end 0)
-                              (not (string=? (string-ref line1-raw (- line1-end 1)) " "))))
+                              (not (char=? (string-ref line1-raw (- line1-end 1)) #\space))))
                            (set! line1-end (- line1-end 1)))
                          (if (= line1-end line1-len)
                            line1-raw  ; No trailing spaces
@@ -3939,7 +3940,7 @@
                 (rest-start safe-break-pos)
                 ;; Skip leading space in rest
                 (rest-start-adj (if (and (< rest-start (string-length text))
-                                      (string=? (string-ref text rest-start) " "))
+                                      (char=? (string-ref text rest-start) #\space))
                                   (+ rest-start 1)
                                   rest-start)))
           (if (>= rest-start-adj (string-length text))
@@ -5402,17 +5403,17 @@
          (pos 1))  ; Start after #
     ;; Skip whitespace after #
     (do ()
-      ((or (>= pos len) (not (string=? (string-ref input pos) " "))))
+      ((or (>= pos len) (not (char=? (string-ref input pos) #\space))))
       (set! pos (+ pos 1)))
     ;; Skip command name
     (do ()
       ((or (>= pos len)
-         (string=? (string-ref input pos) " ")
-         (string=? (string-ref input pos) "{")))
+         (char=? (string-ref input pos) #\space)
+         (char=? (string-ref input pos) #\{)))
       (set! pos (+ pos 1)))
     ;; Skip whitespace after command name
     (do ()
-      ((or (>= pos len) (not (string=? (string-ref input pos) " "))))
+      ((or (>= pos len) (not (char=? (string-ref input pos) #\space))))
       (set! pos (+ pos 1)))
     ;; If we have more characters, there are arguments
     (< pos len)))
@@ -5479,7 +5480,7 @@
   (if (>= pos len)
     result
     (let ((char (string-ref text pos)))
-      (if (string=? char "\033")  ;; ESC character
+      (if (char=? char #\escape)  ;; ESC character
         ;; Try to parse ANSI sequence
         (let ((seq-end (tintin-find-ansi-end text pos len)))
           (if seq-end
@@ -5502,15 +5503,15 @@
                   ;; Non-SGR ANSI code - just pass through (don't push)
                   (tintin-ansi-stack-loop text seq-end len (concat result seq) stack))))
             ;; Not a valid ANSI sequence - just add the char
-            (tintin-ansi-stack-loop text (+ pos 1) len (concat result char) stack)))
+            (tintin-ansi-stack-loop text (+ pos 1) len (concat result (char->string char)) stack)))
         ;; Regular character - just add it
-        (tintin-ansi-stack-loop text (+ pos 1) len (concat result char) stack)))))
+        (tintin-ansi-stack-loop text (+ pos 1) len (concat result (char->string char)) stack)))))
 
 ;; Find the end position of an ANSI sequence starting at pos
 ;; Returns nil if not a valid ANSI sequence, or the end position (exclusive)
 (defun tintin-find-ansi-end (text pos len)
   (if (and (< (+ pos 1) len)
-        (string=? (string-ref text (+ pos 1)) "["))  ;; '[' character
+        (char=? (string-ref text (+ pos 1)) #\[))  ;; '[' character
     ;; CSI sequence - find the terminator
     (tintin-find-ansi-terminator text (+ pos 2) len)
     nil))
@@ -5520,16 +5521,16 @@
   (if (>= i len)
     nil  ;; No terminator found
     (let ((c (string-ref text i)))
-      (if (or (and (string>=? c "0")
-                (string<=? c "9"))
-            (string=? c ";"))
+      (if (or (and (char>=? c #\0)
+                (char<=? c #\9))
+            (char=? c #\;))
         ;; Still in parameter section, keep scanning
         (tintin-find-ansi-terminator text (+ i 1) len)
         ;; Check if this is a valid terminator (letter)
-        (if (or (and (string>=? c "A")
-                  (string<=? c "Z"))
-              (and (string>=? c "a")
-                (string<=? c "z")))
+        (if (or (and (char>=? c #\A)
+                  (char<=? c #\Z))
+              (and (char>=? c #\a)
+                (char<=? c #\z)))
           (+ i 1)  ;; Return position after terminator
           nil)))))
 

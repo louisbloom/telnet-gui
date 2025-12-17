@@ -34,6 +34,7 @@ typedef enum {
     LISP_NIL,
     LISP_NUMBER,
     LISP_INTEGER,
+    LISP_CHAR,
     LISP_STRING,
     LISP_SYMBOL,
     LISP_BOOLEAN,
@@ -57,6 +58,7 @@ struct LispObject {
     union {
         double number;
         long long integer;
+        unsigned int character;  /* Unicode codepoint for LISP_CHAR */
         char *string;
         char *symbol;
         int boolean;
@@ -150,6 +152,7 @@ LispObject *lisp_load_file(const char *filename, Environment *env);
 /* Object creation */
 LispObject *lisp_make_number(double value);
 LispObject *lisp_make_integer(long long value);
+LispObject *lisp_make_char(unsigned int codepoint);
 LispObject *lisp_make_string(const char *value);
 LispObject *lisp_make_symbol(const char *name);
 LispObject *lisp_make_boolean(int value);
