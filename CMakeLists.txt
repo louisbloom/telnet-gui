@@ -517,7 +517,7 @@ if(CLANG_FORMAT)
             # Use relative path for bash compatibility (MSYS2/bash doesn't handle Windows paths well)
             file(RELATIVE_PATH LISP_FILES_LIST_REL "${CMAKE_SOURCE_DIR}" "${LISP_FILES_LIST}")
             set(LISP_FORMAT_COMMANDS
-                COMMAND bash -c "cat '${LISP_FILES_LIST_REL}' | tr -d '\\r' | xargs bash tools/format-all-lisp-files.sh"
+                COMMAND bash tools/format-all-lisp-files.sh ${LISP_SOURCES}
             )
 
             if(PRETTIER)
@@ -608,7 +608,7 @@ if(CLANG_FORMAT)
             # Use relative path for bash compatibility (MSYS2/bash doesn't handle Windows paths well)
             file(RELATIVE_PATH LISP_FILES_LIST_REL "${CMAKE_SOURCE_DIR}" "${LISP_FILES_LIST}")
             set(LISP_FORMAT_COMMANDS
-                COMMAND bash -c "cat '${LISP_FILES_LIST_REL}' | tr -d '\\r' | xargs bash tools/format-all-lisp-files.sh"
+                COMMAND bash tools/format-all-lisp-files.sh ${LISP_SOURCES}
             )
 
             if(PRETTIER)
