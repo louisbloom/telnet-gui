@@ -1217,28 +1217,11 @@
                     (if (< match-pos 0)
                       line
                       (let ((match-end-pos (+ match-pos (string-length matched-text))))
-                        ;; Check what comes immediately after the match
-                        (let ((after-type (tintin-check-after-match line match-end-pos)))
-                          (let ((prev-state (tintin-find-active-ansi-before line match-pos)))
-                            (let ((ansi-close
-                                    (cond
-                                      ;; Reset follows: use reset to close cleanly
-                                      ((eq? after-type 'reset) "\033[0m")
-                                      ;; Another ANSI code follows: restore previous state if any, else reset
-                                      ;; This preserves outer highlights when nested
-                                      ((eq? after-type 'ansi)
-                                        (if (string=? prev-state "")
-                                          "\033[0m"
-                                          ;; Reset first to clear all attributes, then restore prev state
-                                          (concat "\033[0m" prev-state)))
-                                      ;; Regular text follows: restore previous state or reset
-                                      (#t (if (string=? prev-state "")
-                                            "\033[0m"
-                                            ;; Reset first to clear all attributes, then restore prev state
-                                            (concat "\033[0m" prev-state))))))
-                              (string-replace line
-                                matched-text
-                                (concat ansi-open matched-text ansi-close))))))))
+                        ;; Always use just reset - let post-processor handle restoration
+                        (let ((ansi-close "\033[0m"))
+                          (string-replace line
+                            matched-text
+                            (concat ansi-open matched-text ansi-close))))))
                   line)))))))))
 
 ;; Apply highlights to a single line
