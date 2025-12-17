@@ -898,9 +898,11 @@ target_link_libraries(telnet-gui PRIVATE
     lisp
     ${GC_LIBRARIES}
     ${PCRE2_LIBRARIES}
-    ws2_32
     m
 )
+if(WIN32)
+    target_link_libraries(telnet-gui PRIVATE ws2_32)
+endif()
 
 # On Windows, keep console subsystem (no -mwindows) for proper console I/O with -t and -h flags.
 # The console window is hidden programmatically in main.c for normal GUI operation using ShowWindow().

@@ -26,6 +26,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <fcntl.h>
 #endif
 
 #define IAC ((unsigned char)255)

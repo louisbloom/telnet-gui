@@ -367,7 +367,7 @@ foreach(TEST_FILE ${TEST_FILES})
 
     # All tests now use assertion-based format with test-helpers.lisp
     add_test(NAME ${CATEGORY}_${TEST_NAME}
-        COMMAND ${CMAKE_BINARY_DIR}/lisp-repl.exe ${TEST_FILE}
+        COMMAND $<TARGET_FILE:lisp-repl> ${TEST_FILE}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/telnet-lisp
     )
 endforeach()
@@ -375,17 +375,17 @@ endforeach()
 # Register telnet-gui test files for direct execution (no test_runner.sh)
 # Tests use assert-* macros that abort on failure via (error ...)
 add_test(NAME gui_tintin-test
-    COMMAND ${CMAKE_BINARY_DIR}/lisp-repl.exe tintin-test.lisp
+    COMMAND $<TARGET_FILE:lisp-repl> tintin-test.lisp
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/telnet-gui
 )
 
 add_test(NAME gui_completion-test
-    COMMAND ${CMAKE_BINARY_DIR}/lisp-repl.exe completion-test.lisp
+    COMMAND $<TARGET_FILE:lisp-repl> completion-test.lisp
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/telnet-gui
 )
 
 add_test(NAME gui_bootstrap-test
-    COMMAND ${CMAKE_BINARY_DIR}/telnet-gui/telnet-gui.exe -t bootstrap-test.lisp
+    COMMAND $<TARGET_FILE:telnet-gui> -t bootstrap-test.lisp
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/telnet-gui
 )
 
