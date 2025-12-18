@@ -141,6 +141,12 @@ void terminal_scroll_to_bottom(Terminal *term) {
     term->backend->scroll_to_bottom(term->backend_state);
 }
 
+int terminal_is_scroll_locked(Terminal *term) {
+    if (!term || !term->backend || !term->backend->is_scroll_locked)
+        return 0;
+    return term->backend->is_scroll_locked(term->backend_state);
+}
+
 int terminal_get_viewport_offset(Terminal *term) {
     if (!term || !term->backend || !term->backend->get_viewport_offset)
         return 0;

@@ -33,6 +33,7 @@ typedef struct TerminalBackend {
     void (*scroll_up)(void *state, int lines);
     void (*scroll_down)(void *state, int lines);
     void (*scroll_to_bottom)(void *state);
+    int (*is_scroll_locked)(void *state);
     int (*get_viewport_offset)(void *state);
     int (*get_scrollback_size)(void *state);
     int (*get_max_scrollback_lines)(void *state);

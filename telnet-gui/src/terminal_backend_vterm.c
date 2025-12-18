@@ -63,6 +63,7 @@ typedef struct {
     int scrollback_capacity;
     int max_scrollback_lines;
     int viewport_offset;
+    int scroll_locked; /* Whether user has scrolled back (prevents auto-scroll on new data) */
 
     /* Cursor tracking */
     int cursor_row; /* Cursor position anywhere in vterm (including input area) */
@@ -765,6 +766,7 @@ static void vterm_scroll_up(void *vstate, int lines) {
 
     if (new_offset != state->viewport_offset) {
         state->viewport_offset = new_offset;
+        state->scroll_locked = 1; /* User scrolled back, lock scroll */
         state->needs_redraw = 1;
     }
 }
@@ -780,6 +782,9 @@ static void vterm_scroll_down(void *vstate, int lines) {
 
     if (new_offset != state->viewport_offset) {
         state->viewport_offset = new_offset;
+        if (new_offset == 0) {
+            state->scroll_locked = 0; /* Back at bottom, unlock scroll */
+        }
         state->needs_redraw = 1;
     }
 }
@@ -789,10 +794,16 @@ static void vterm_scroll_to_bottom(void *vstate) {
     if (!state)
         return;
 
+    state->scroll_locked = 0; /* Explicit scroll to bottom unlocks */
     if (state->viewport_offset != 0) {
         state->viewport_offset = 0;
         state->needs_redraw = 1;
     }
+}
+
+static int vterm_is_scroll_locked(void *vstate) {
+    VTermBackendState *state = (VTermBackendState *)vstate;
+    return state ? state->scroll_locked : 0;
 }
 
 static int vterm_get_viewport_offset(void *vstate) {
@@ -1233,6 +1244,7 @@ const TerminalBackend terminal_backend_vterm = {
     .scroll_up = vterm_scroll_up,
     .scroll_down = vterm_scroll_down,
     .scroll_to_bottom = vterm_scroll_to_bottom,
+    .is_scroll_locked = vterm_is_scroll_locked,
     .get_viewport_offset = vterm_get_viewport_offset,
     .get_scrollback_size = vterm_get_scrollback_size,
     .get_max_scrollback_lines = vterm_get_max_scrollback_lines,

@@ -1378,25 +1378,6 @@ int lisp_x_get_scroll_to_bottom_on_user_input(void) {
     return lisp_is_truthy(value) ? 1 : 0;
 }
 
-int lisp_x_get_scroll_to_bottom_on_telnet_input(void) {
-    if (!lisp_env) {
-        return 0; /* Default: disabled */
-    }
-
-    LispObject *value = env_lookup(lisp_env, "*scroll-to-bottom-on-telnet-input*");
-    if (!value || value == NIL) {
-        return 0; /* Default: disabled */
-    }
-
-    /* Check if it's a boolean */
-    if (value->type == LISP_BOOLEAN) {
-        return value->value.boolean ? 1 : 0;
-    }
-
-    /* Use truthy check for other types */
-    return lisp_is_truthy(value) ? 1 : 0;
-}
-
 int lisp_x_get_input_history_size(void) {
     if (!lisp_env) {
         return 100; /* Default: 100 entries */

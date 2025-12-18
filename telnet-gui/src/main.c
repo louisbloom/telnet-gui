@@ -1788,8 +1788,8 @@ int main(int argc, char **argv) {
                         /* Feed filtered data to terminal */
                         terminal_feed_data(term, filtered_data, filtered_len);
 
-                        /* Scroll to bottom on telnet input if configured */
-                        if (lisp_x_get_scroll_to_bottom_on_telnet_input()) {
+                        /* Auto-scroll to bottom unless user has scrolled back */
+                        if (!terminal_is_scroll_locked(term)) {
                             terminal_scroll_to_bottom(term);
                         }
                     } else if (received < 0) {

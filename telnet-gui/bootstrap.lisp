@@ -1174,23 +1174,6 @@
 ;;   - Disable (#f) if you want to read scrollback while typing commands
 (define *scroll-to-bottom-on-user-input* #t)
 
-;; *scroll-to-bottom-on-telnet-input*: Auto-scroll to bottom when server sends data
-;;
-;; When enabled (#t), the terminal automatically scrolls to the bottom whenever
-;; new data arrives from the server. This keeps you following the live output.
-;; When disabled (#f), you can scroll up to read history while new data continues
-;; to arrive in the background.
-;;
-;; Values:
-;;   #t - Auto-scroll on server output (follows live output)
-;;   #f - Don't auto-scroll, stay at current scroll position (default)
-;;
-;; Use cases:
-;;   - Enable (#t) to always follow live output
-;;   - Disable (#f) to read scrollback while server continues to send data
-;;   - Disable (#f) for high-traffic servers where you want to review past output
-(define *scroll-to-bottom-on-telnet-input* #f)
-
 ;; ============================================================================
 ;; INPUT HISTORY CONFIGURATION
 ;; ============================================================================

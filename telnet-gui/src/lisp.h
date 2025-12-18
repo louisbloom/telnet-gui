@@ -40,9 +40,6 @@ int lisp_x_get_max_scrollback_lines(void);
 /* Get scroll-to-bottom-on-user-input from Lisp config (default: 1/true) */
 int lisp_x_get_scroll_to_bottom_on_user_input(void);
 
-/* Get scroll-to-bottom-on-telnet-input from Lisp config (default: 0/false) */
-int lisp_x_get_scroll_to_bottom_on_telnet_input(void);
-
 /* Get input history size from Lisp config (default: 100) */
 int lisp_x_get_input_history_size(void);
 

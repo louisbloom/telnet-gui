@@ -60,6 +60,9 @@ void terminal_scroll_down(Terminal *term, int lines);
 /* Scroll to bottom (show current screen) */
 void terminal_scroll_to_bottom(Terminal *term);
 
+/* Check if scroll is locked (user scrolled back from bottom) */
+int terminal_is_scroll_locked(Terminal *term);
+
 /* Get viewport offset */
 int terminal_get_viewport_offset(Terminal *term);
 
