@@ -72,10 +72,10 @@ static LispObject *lisp_eval_internal(LispObject *expr, Environment *env, int in
         return expr;
 
     case LISP_SYMBOL: {
-        LispObject *value = env_lookup(env, expr->value.symbol);
+        LispObject *value = env_lookup(env, expr->value.symbol->name);
         if (value == NULL) {
             char error[256];
-            snprintf(error, sizeof(error), "Undefined symbol: %s", expr->value.symbol);
+            snprintf(error, sizeof(error), "Undefined symbol: %s", expr->value.symbol->name);
             return lisp_make_error_with_stack(error, env);
         }
         return value;
@@ -280,10 +280,18 @@ static LispObject *eval_define(LispObject *args, Environment *env) {
 
     /* If defining a lambda, attach the name for better debugging */
     if (value->type == LISP_LAMBDA && value->value.lambda.name == NULL) {
-        value->value.lambda.name = GC_strdup(name->value.symbol);
+        value->value.lambda.name = GC_strdup(name->value.symbol->name);
     }
 
-    env_define(env, name->value.symbol, value);
+    env_define(env, name->value.symbol->name, value);
+
+    /* Copy lambda/macro docstrings to symbol for uniform access via documentation */
+    if (value->type == LISP_LAMBDA && value->value.lambda.docstring != NULL) {
+        name->value.symbol->docstring = GC_strdup(value->value.lambda.docstring);
+    } else if (value->type == LISP_MACRO && value->value.macro.docstring != NULL) {
+        name->value.symbol->docstring = GC_strdup(value->value.macro.docstring);
+    }
+
     return value;
 }
 
@@ -310,10 +318,10 @@ static LispObject *eval_set_bang(LispObject *args, Environment *env) {
     }
 
     /* Try to update existing binding */
-    if (!env_set(env, name->value.symbol, value)) {
+    if (!env_set(env, name->value.symbol->name, value)) {
         /* If not found, error */
         char error[256];
-        snprintf(error, sizeof(error), "set!: cannot set undefined variable: %s", name->value.symbol);
+        snprintf(error, sizeof(error), "set!: cannot set undefined variable: %s", name->value.symbol->name);
         return lisp_make_error(error);
     }
 
@@ -543,7 +551,7 @@ static LispObject *eval_defmacro(LispObject *args, Environment *env) {
     }
 
     /* Create the macro */
-    LispObject *macro = lisp_make_macro(params, body, env, name->value.symbol);
+    LispObject *macro = lisp_make_macro(params, body, env, name->value.symbol->name);
 
     /* Set docstring if extracted */
     if (docstring != NULL) {
@@ -551,7 +559,12 @@ static LispObject *eval_defmacro(LispObject *args, Environment *env) {
     }
 
     /* Define it in the environment */
-    env_define(env, name->value.symbol, macro);
+    env_define(env, name->value.symbol->name, macro);
+
+    /* Copy macro docstring to symbol for uniform access via documentation */
+    if (macro->value.macro.docstring != NULL) {
+        name->value.symbol->docstring = GC_strdup(macro->value.macro.docstring);
+    }
 
     return macro;
 }
@@ -651,7 +664,7 @@ static LispObject *expand_macro(LispObject *macro, LispObject *args, Environment
         /* Check for rest parameter (dotted list) */
         if (params->type == LISP_SYMBOL) {
             /* Rest of arguments go into this parameter as a list */
-            env_define(new_env, params->value.symbol, arg_list);
+            env_define(new_env, params->value.symbol->name, arg_list);
             arg_list = NIL; /* Mark as consumed */
             break;
         }
@@ -670,7 +683,7 @@ static LispObject *expand_macro(LispObject *macro, LispObject *args, Environment
         }
 
         LispObject *arg = lisp_car(arg_list);
-        env_define(new_env, param->value.symbol, arg);
+        env_define(new_env, param->value.symbol->name, arg);
 
         params = lisp_cdr(params);
         arg_list = lisp_cdr(arg_list);
@@ -726,7 +739,7 @@ static LispObject *eval_let(LispObject *args, Environment *env, int in_tail_posi
             return value;
         }
 
-        env_define(new_env, name->value.symbol, value);
+        env_define(new_env, name->value.symbol->name, value);
         bindings = lisp_cdr(bindings);
     }
 
@@ -776,7 +789,7 @@ static LispObject *eval_let_star(LispObject *args, Environment *env, int in_tail
             return value;
         }
 
-        env_define(new_env, name->value.symbol, value);
+        env_define(new_env, name->value.symbol->name, value);
         bindings = lisp_cdr(bindings);
     }
 
@@ -866,7 +879,7 @@ static LispObject *eval_do(LispObject *args, Environment *env) {
             return init_result;
         }
 
-        env_define(loop_env, name->value.symbol, init_result);
+        env_define(loop_env, name->value.symbol->name, init_result);
         binding_list = lisp_cdr(binding_list);
     }
 
@@ -917,7 +930,7 @@ static LispObject *eval_do(LispObject *args, Environment *env) {
                 }
 
                 /* Update the variable */
-                env_set(loop_env, name->value.symbol, step_result);
+                env_set(loop_env, name->value.symbol->name, step_result);
             }
 
             binding_list = lisp_cdr(binding_list);
@@ -1170,7 +1183,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
         } else {
             if (lambda_params != NIL && lambda_params->type == LISP_CONS && lisp_car(lambda_params) != NULL &&
                 lisp_car(lambda_params)->type == LISP_SYMBOL) {
-                snprintf(lambda_name, sizeof(lambda_name), "lambda/%s", lisp_car(lambda_params)->value.symbol);
+                snprintf(lambda_name, sizeof(lambda_name), "lambda/%s", lisp_car(lambda_params)->value.symbol->name);
                 frame_name = lambda_name;
             } else {
                 frame_name = "lambda";
@@ -1211,7 +1224,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
         while (params != NIL && params != NULL) {
             LispObject *param = lisp_car(params);
             LispObject *arg = lisp_car(arg_list);
-            env_define(new_env, param->value.symbol, arg);
+            env_define(new_env, param->value.symbol->name, arg);
             params = lisp_cdr(params);
             arg_list = lisp_cdr(arg_list);
         }
@@ -1221,7 +1234,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
         while (opt_params != NIL && opt_params != NULL) {
             LispObject *param_sym = lisp_car(opt_params);
             LispObject *value = (arg_list != NIL) ? lisp_car(arg_list) : NIL;
-            env_define(new_env, param_sym->value.symbol, value);
+            env_define(new_env, param_sym->value.symbol->name, value);
             opt_params = lisp_cdr(opt_params);
             if (arg_list != NIL) {
                 arg_list = lisp_cdr(arg_list);
@@ -1230,7 +1243,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
 
         /* Bind rest parameter (collect remaining args as list) */
         if (rest_param) {
-            env_define(new_env, rest_param->value.symbol, arg_list);
+            env_define(new_env, rest_param->value.symbol->name, arg_list);
         }
 
         /* Evaluate body with tail position awareness (implicit progn) */
@@ -1273,7 +1286,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
             } else if (tail_lambda_params != NIL && tail_lambda_params->type == LISP_CONS &&
                        lisp_car(tail_lambda_params) != NULL && lisp_car(tail_lambda_params)->type == LISP_SYMBOL) {
                 snprintf(tail_lambda_name, sizeof(tail_lambda_name), "lambda/%s",
-                         lisp_car(tail_lambda_params)->value.symbol);
+                         lisp_car(tail_lambda_params)->value.symbol->name);
                 tail_frame_name = tail_lambda_name;
             } else {
                 tail_frame_name = "lambda";
@@ -1313,7 +1326,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
             while (tail_params != NIL && tail_params != NULL) {
                 LispObject *tail_param = lisp_car(tail_params);
                 LispObject *tail_arg = lisp_car(tail_arg_list);
-                env_define(tail_env, tail_param->value.symbol, tail_arg);
+                env_define(tail_env, tail_param->value.symbol->name, tail_arg);
                 tail_params = lisp_cdr(tail_params);
                 tail_arg_list = lisp_cdr(tail_arg_list);
             }
@@ -1323,7 +1336,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
             while (tail_opt_params != NIL && tail_opt_params != NULL) {
                 LispObject *tail_param_sym = lisp_car(tail_opt_params);
                 LispObject *tail_value = (tail_arg_list != NIL) ? lisp_car(tail_arg_list) : NIL;
-                env_define(tail_env, tail_param_sym->value.symbol, tail_value);
+                env_define(tail_env, tail_param_sym->value.symbol->name, tail_value);
                 tail_opt_params = lisp_cdr(tail_opt_params);
                 if (tail_arg_list != NIL) {
                     tail_arg_list = lisp_cdr(tail_arg_list);
@@ -1332,7 +1345,7 @@ static LispObject *apply(LispObject *func, LispObject *args, Environment *env, i
 
             /* Bind rest parameter (collect remaining args as list) */
             if (tail_rest_param) {
-                env_define(tail_env, tail_rest_param->value.symbol, tail_arg_list);
+                env_define(tail_env, tail_rest_param->value.symbol->name, tail_arg_list);
             }
 
             /* Execute lambda body (in tail position) */
@@ -1441,13 +1454,13 @@ static LispObject *eval_condition_case(LispObject *args, Environment *env, int i
 
             /* Direct match - use this handler */
             if (error_type != NULL && error_type->type == LISP_SYMBOL &&
-                strcmp(handler_type->value.symbol, error_type->value.symbol) == 0) {
+                strcmp(handler_type->value.symbol->name, error_type->value.symbol->name) == 0) {
                 matching_handler = handler;
                 break;
             }
 
             /* 'error catches everything (but keep looking for more specific) */
-            if (strcmp(handler_type->value.symbol, "error") == 0) {
+            if (strcmp(handler_type->value.symbol->name, "error") == 0) {
                 error_catch_all = handler;
             }
         }
@@ -1469,10 +1482,10 @@ static LispObject *eval_condition_case(LispObject *args, Environment *env, int i
             int had_binding = 0;
             if (var != NIL) {
                 /* Save old binding if it exists */
-                saved_binding = env_lookup(env, var->value.symbol);
+                saved_binding = env_lookup(env, var->value.symbol->name);
                 had_binding = (saved_binding != NULL);
                 /* Temporarily bind error variable */
-                env_define(env, var->value.symbol, result);
+                env_define(env, var->value.symbol->name, result);
             }
 
             /* Evaluate handler body (implicit progn, tail position preserved) */
@@ -1481,7 +1494,7 @@ static LispObject *eval_condition_case(LispObject *args, Environment *env, int i
             /* Restore old binding if var was bound */
             if (var != NIL) {
                 if (had_binding) {
-                    env_set(env, var->value.symbol, saved_binding);
+                    env_set(env, var->value.symbol->name, saved_binding);
                 }
                 /* Note: We can't easily remove the binding, so if it didn't exist before,
                  * it will remain after. This matches Emacs Lisp behavior. */

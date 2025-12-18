@@ -25,7 +25,7 @@ A reference for the Telnet Lisp language, covering data types, special forms, bu
 - **Lists**: Cons cells for linked lists
 - **Vectors**: Dynamic arrays (grow/shrink)
 - **Hash Tables**: Key-value mappings
-- **Symbols**: Variable names and function symbols
+- **Symbols**: Interned names with optional docstrings (used for variables, functions, keywords)
 - **Lambda Functions**: User-defined closures with lexical scoping
 
 ## Special Forms
@@ -141,6 +141,48 @@ Define a macro that transforms code before evaluation.
 ; Macro with rest parameters
 (defmacro my-progn (first . rest)
   (cons 'progn (cons first rest)))
+```
+
+#### when and unless
+
+`when` and `unless` are conditional macros that execute their body only when a condition is true (or false).
+
+**Syntax:**
+
+```lisp
+(when condition body...)
+(unless condition body...)
+```
+
+**Examples:**
+
+```lisp
+; when - execute body when condition is true
+(when (> 5 3)
+  (+ 1 2)
+  (* 3 4))  ; => 12 (returns last expression)
+
+(when nil
+  (+ 1 2))  ; => nil
+
+; unless - execute body when condition is false
+(unless (< 5 3)
+  "condition was false")  ; => "condition was false"
+
+(unless #t
+  "won't run")  ; => nil
+```
+
+**Implementation:**
+
+```lisp
+(defmacro when (condition . body)
+  "Execute BODY when CONDITION is true."
+  `(if ,condition (progn ,@body) nil))
+
+(defmacro unless (condition . body)
+  "Execute BODY when CONDITION is false."
+  `(if ,condition nil (progn ,@body)))
 ```
 
 #### defun
@@ -298,43 +340,114 @@ Create anonymous functions with optional and rest parameters. Lambda functions s
 
 ### Docstrings
 
-Lambda and macro definitions support documentation strings (docstrings) following Emacs Lisp conventions. Docstrings use CommonMark (Markdown) format for rich documentation.
+Documentation strings (docstrings) follow Emacs Lisp conventions. Functions and macros get docstrings from the first string in their body. Variables use `defvar`, `defconst`, or `set-documentation!`. Docstrings use CommonMark (Markdown) format.
 
-**Syntax:**
-
-For lambdas:
+**Syntax for Functions/Macros:**
 
 ```lisp
 (lambda (params...)
   "Docstring here (optional)"
   body...)
-```
 
-For macros:
-
-```lisp
 (defmacro name (params...)
   "Docstring here (optional)"
   body...)
 ```
 
+**Syntax for Variables:**
+
+```lisp
+(defvar name value "Docstring here (optional)")
+(defconst name value "Docstring here (optional)")
+(set-documentation! 'name "Docstring here")
+```
+
 **Requirements:**
 
 - Docstring must be a string literal
-- Must be the first expression after parameters
-- Must be followed by at least one more expression (the actual body)
+- For functions/macros: must be first expression after parameters, followed by at least one more expression
 - Single-expression functions cannot have docstrings (prevents ambiguity)
 - Docstrings use CommonMark (Markdown) format
 
 **Introspection Functions:**
 
-- `(documentation symbol)` - Get docstring for function/macro bound to symbol
-- `(lambda-docstring lambda)` - Get docstring from lambda object
-- `(macro-docstring macro)` - Get docstring from macro object
+- `(documentation symbol)` - Get docstring for a symbol. First checks the symbol's own docstring (set via `set-documentation!` or copied from lambda/macro on define), then falls back to the value's docstring if bound to a lambda/macro/builtin.
+- `(doc symbol)` - Shorthand for `documentation`
+- `(bound? symbol)` - Check if symbol is bound in the environment
+- `(set-documentation! symbol docstring)` - Set docstring directly on the interned symbol. Since symbols are interned (globally shared), this sets the docstring globally.
+- `(doc-set! symbol docstring)` - Shorthand for `set-documentation!`
 
 Returns `nil` if no docstring exists.
 
+**Note:** Docstrings are stored on symbols (like Emacs Lisp), not on bindings. This means docstrings are global per symbol name.
+
+#### Variable Definition Macros
+
+**defvar** - Define a variable (only sets value if unbound):
+
+```lisp
+(defvar name)                    ; Define with nil value
+(defvar name value)              ; Define with value
+(defvar name value "Docstring")  ; Define with value and docstring
+```
+
+`defvar` only sets the value if the variable is not already bound. The docstring is always set if provided.
+
+**defconst** - Define a constant (always sets value):
+
+```lisp
+(defconst name value)              ; Define constant
+(defconst name value "Docstring")  ; Define with docstring
+```
+
+`defconst` always sets the value (unlike `defvar`). Note: constants are a convention, not enforced (Emacs Lisp style - hackable).
+
+**defalias** - Create a function alias:
+
+```lisp
+(defalias alias target)              ; Create alias
+(defalias alias target "Docstring")  ; Create alias with docstring
+```
+
 **Examples:**
+
+```lisp
+; Variable with docstring
+(defvar my-toggle nil "Non-nil means the feature is enabled.")
+(documentation 'my-toggle)  ; => "Non-nil means the feature is enabled."
+
+; defvar doesn't rebind if already bound
+(defvar my-toggle #t "New docstring")
+my-toggle  ; => nil (unchanged)
+
+; Constant with docstring
+(defconst pi 3.14159 "The ratio of circumference to diameter.")
+(documentation 'pi)  ; => "The ratio of circumference to diameter."
+
+; defconst always rebinds
+(defconst pi 3.14 "Truncated pi")
+pi  ; => 3.14 (updated)
+
+; Function alias
+(defalias my-add + "Alias for the + function.")
+(my-add 1 2 3)  ; => 6
+(doc 'my-add)   ; => "Alias for the + function."
+
+; Check if symbol is bound
+(bound? 'car)                    ; => #t
+(bound? 'nonexistent-symbol)     ; => #f
+
+; Set documentation on a symbol (works whether bound or not)
+(define my-var 42)
+(set-documentation! 'my-var "The answer to everything.")
+(documentation 'my-var)  ; => "The answer to everything."
+
+; Can also set docstring on unbound symbols
+(set-documentation! 'future-var "Will be defined later.")
+(documentation 'future-var)  ; => "Will be defined later."
+```
+
+#### Function Docstrings
 
 ````lisp
 ; Function with docstring
@@ -352,15 +465,6 @@ Returns `nil` if no docstring exists.
 
 (documentation 'calculate-area)
 ; => "Calculate the area of a rectangle.\n\n    ## Parameters..."
-
-; Lambda with docstring
-(define greet
-  (lambda (name)
-    "Greet a person by NAME."
-    (concat "Hello, " name "!")))
-
-(lambda-docstring greet)
-; => "Greet a person by NAME."
 
 ; Macro with docstring
 (defmacro when (condition . body)
@@ -401,9 +505,6 @@ Returns `nil` if no docstring exists.
     (lambda (x)
       "Multiply X by the captured factor."
       (* x factor))))
-
-(define times5 (make-multiplier 5))
-(lambda-docstring times5)  ; => "Multiply X by the captured factor."
 ````
 
 **Edge Cases:**
@@ -418,6 +519,14 @@ Returns `nil` if no docstring exists.
 (documentation 'msg)  ; => nil (only one expression)
 (msg)  ; => "Just a message" (returns the string)
 ```
+
+#### Standard Library Aliases
+
+The standard library provides convenient aliases:
+
+- `doc` - Alias for `documentation`
+- `doc-set!` - Alias for `set-documentation!`
+- `string-append` - Alias for `concat`
 
 ## Built-in Functions
 
@@ -809,8 +918,12 @@ Functions for transforming lists by applying a function to each element.
 
 ### Symbol Operations
 
+Symbols are interned objects with a name and an optional docstring. The same symbol name always refers to the same object.
+
 - `symbol?` - Check if value is a symbol
 - `symbol->string` - Convert symbol to string
+- `documentation` - Get symbol's docstring (see [Docstrings](#docstrings))
+- `set-documentation!` - Set symbol's docstring (see [Docstrings](#docstrings))
 
 **Examples:**
 

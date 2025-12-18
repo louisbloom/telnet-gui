@@ -43,7 +43,7 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
         break;
 
     case LISP_SYMBOL:
-        append_str(buffer, size, pos, obj->value.symbol);
+        append_str(buffer, size, pos, obj->value.symbol->name);
         break;
 
     case LISP_CONS:
@@ -82,7 +82,7 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
         /* Print error type symbol */
         if (obj->value.error_with_stack.error_type != NULL &&
             obj->value.error_with_stack.error_type->type == LISP_SYMBOL) {
-            append_str(buffer, size, pos, obj->value.error_with_stack.error_type->value.symbol);
+            append_str(buffer, size, pos, obj->value.error_with_stack.error_type->value.symbol->name);
         } else {
             append_str(buffer, size, pos, "error");
         }
@@ -245,7 +245,7 @@ static void princ_object(LispObject *obj) {
         break;
 
     case LISP_SYMBOL:
-        printf("%s", obj->value.symbol);
+        printf("%s", obj->value.symbol->name);
         break;
 
     case LISP_CONS:
@@ -280,7 +280,7 @@ static void princ_object(LispObject *obj) {
         /* Print error type symbol */
         if (obj->value.error_with_stack.error_type != NULL &&
             obj->value.error_with_stack.error_type->type == LISP_SYMBOL) {
-            printf("%s", obj->value.error_with_stack.error_type->value.symbol);
+            printf("%s", obj->value.error_with_stack.error_type->value.symbol->name);
         } else {
             printf("error");
         }

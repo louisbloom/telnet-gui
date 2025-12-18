@@ -525,9 +525,9 @@ static LispObject *builtin_signal(LispObject *args, Environment *env);
 static LispObject *builtin_error(LispObject *args, Environment *env);
 
 /* Docstring introspection */
-static LispObject *builtin_lambda_docstring(LispObject *args, Environment *env);
-static LispObject *builtin_macro_docstring(LispObject *args, Environment *env);
 static LispObject *builtin_documentation(LispObject *args, Environment *env);
+static LispObject *builtin_bound_p(LispObject *args, Environment *env);
+static LispObject *builtin_set_documentation(LispObject *args, Environment *env);
 
 /* Equality predicates */
 static LispObject *builtin_eq_predicate(LispObject *args, Environment *env);
@@ -2328,139 +2328,125 @@ static const char *doc_error =
     "- `error-message` - Get error message from error object";
 
 /* Docstring introspection functions */
-static const char *doc_lambda_docstring =
-    "Get docstring from lambda object.\n"
+static const char *doc_documentation =
+    "Get documentation string for function, macro, variable, or built-in bound to symbol.\n"
     "\n"
     "## Parameters\n"
-    "- `lambda` - Lambda function object\n"
+    "- `symbol` - Symbol name (quoted)\n"
     "\n"
     "## Returns\n"
-    "String containing the lambda's documentation, or `nil` if no docstring exists.\n"
+    "String containing the documentation, or `nil` if:\n"
+    "- No docstring exists\n"
+    "- Symbol is unbound\n"
+    "- Symbol's value is not a function, macro, or built-in\n"
     "\n"
     "## Examples\n"
     "```lisp\n"
-    "; Lambda with docstring\n"
-    "(define greet\n"
-    "  (lambda (name)\n"
-    "    \"Greet a person by NAME.\"\n"
-    "    (concat \"Hello, \" name \"!\")))\n"
+    "; User-defined function\n"
+    "(define calculate-area\n"
+    "  (lambda (width height)\n"
+    "    \"Calculate the area of a rectangle.\n"
     "\n"
-    "(lambda-docstring greet)\n"
-    "; => \"Greet a person by NAME.\"\n"
+    "    ## Parameters\n"
+    "    - `width` - Width of the rectangle\n"
+    "    - `height` - Height of the rectangle\n"
     "\n"
-    "; Lambda without docstring\n"
-    "(define double (lambda (x) (* x 2)))\n"
-    "(lambda-docstring double)  ; => nil\n"
-    "```\n"
+    "    ## Returns\n"
+    "    The area as a number.\"\n"
+    "    (* width height)))\n"
     "\n"
-    "## Notes\n"
-    "Docstrings follow Emacs Lisp conventions and use CommonMark (Markdown) format.\n"
+    "(documentation 'calculate-area)\n"
+    "; => \"Calculate the area of a rectangle.\\n\\n    ## Parameters...\"\n"
     "\n"
-    "## Errors\n"
-    "Returns error if argument is not a lambda.\n"
+    "; Built-in function\n"
+    "(documentation 'car)\n"
+    "; => \"Get the first element of a list (the car).\\n\\n## Parameters...\"\n"
     "\n"
-    "## See Also\n"
-    "- `documentation` - Get docstring via symbol\n"
-    "- `macro-docstring` - Get macro docstring";
-
-static const char *doc_macro_docstring =
-    "Get docstring from macro object.\n"
-    "\n"
-    "## Parameters\n"
-    "- `macro` - Macro object\n"
-    "\n"
-    "## Returns\n"
-    "String containing the macro's documentation, or `nil` if no docstring exists.\n"
-    "\n"
-    "## Examples\n"
-    "```lisp\n"
-    "; Macro with docstring\n"
+    "; Macro\n"
     "(defmacro when (condition . body)\n"
     "  \"Execute BODY when CONDITION is true.\"\n"
     "  `(if ,condition (progn ,@body) nil))\n"
     "\n"
-    "(macro-docstring when)\n"
+    "(documentation 'when)\n"
     "; => \"Execute BODY when CONDITION is true.\"\n"
     "\n"
-    "; Macro without docstring\n"
-    "(defmacro unless (condition . body)\n"
-    "  `(if ,condition nil (progn ,@body)))\n"
+    "; Undefined symbol\n"
+    "(documentation 'nonexistent)  ; => ERROR: Undefined symbol\n"
     "\n"
-    "(macro-docstring unless)  ; => nil\n"
+    "; Function without docstring\n"
+    "(define no-doc (lambda (x) (* x 2)))\n"
+    "(documentation 'no-doc)       ; => nil\n"
     "```\n"
     "\n"
     "## Notes\n"
-    "Docstrings follow Emacs Lisp conventions and use CommonMark (Markdown) format.\n"
+    "- Similar to Emacs Lisp's `documentation` function\n"
+    "- Works with lambdas, macros, and built-in functions\n"
+    "- Docstrings use CommonMark (Markdown) format\n"
     "\n"
     "## Errors\n"
-    "Returns error if argument is not a macro.\n"
+    "Returns error if:\n"
+    "- Argument is not a symbol\n"
+    "- Symbol is undefined\n"
     "\n"
     "## See Also\n"
-    "- `documentation` - Get docstring via symbol\n"
-    "- `lambda-docstring` - Get lambda docstring";
+    "- `bound?` - Check if symbol is bound\n"
+    "- `set-documentation!` - Set documentation for symbol";
 
-static const char *doc_documentation = "Get documentation string for function, macro, or built-in bound to symbol.\n"
-                                       "\n"
-                                       "## Parameters\n"
-                                       "- `symbol` - Symbol name (quoted)\n"
-                                       "\n"
-                                       "## Returns\n"
-                                       "String containing the documentation, or `nil` if:\n"
-                                       "- No docstring exists\n"
-                                       "- Symbol is unbound\n"
-                                       "- Symbol's value is not a function, macro, or built-in\n"
-                                       "\n"
-                                       "## Examples\n"
-                                       "```lisp\n"
-                                       "; User-defined function\n"
-                                       "(define calculate-area\n"
-                                       "  (lambda (width height)\n"
-                                       "    \"Calculate the area of a rectangle.\n"
-                                       "\n"
-                                       "    ## Parameters\n"
-                                       "    - `width` - Width of the rectangle\n"
-                                       "    - `height` - Height of the rectangle\n"
-                                       "\n"
-                                       "    ## Returns\n"
-                                       "    The area as a number.\"\n"
-                                       "    (* width height)))\n"
-                                       "\n"
-                                       "(documentation 'calculate-area)\n"
-                                       "; => \"Calculate the area of a rectangle.\\n\\n    ## Parameters...\"\n"
-                                       "\n"
-                                       "; Built-in function\n"
-                                       "(documentation 'car)\n"
-                                       "; => \"Get the first element of a list (the car).\\n\\n## Parameters...\"\n"
-                                       "\n"
-                                       "; Macro\n"
-                                       "(defmacro when (condition . body)\n"
-                                       "  \"Execute BODY when CONDITION is true.\"\n"
-                                       "  `(if ,condition (progn ,@body) nil))\n"
-                                       "\n"
-                                       "(documentation 'when)\n"
-                                       "; => \"Execute BODY when CONDITION is true.\"\n"
-                                       "\n"
-                                       "; Undefined symbol\n"
-                                       "(documentation 'nonexistent)  ; => ERROR: Undefined symbol\n"
-                                       "\n"
-                                       "; Function without docstring\n"
-                                       "(define no-doc (lambda (x) (* x 2)))\n"
-                                       "(documentation 'no-doc)       ; => nil\n"
-                                       "```\n"
-                                       "\n"
-                                       "## Notes\n"
-                                       "- Similar to Emacs Lisp's `documentation` function\n"
-                                       "- Works with lambdas, macros, and built-in functions\n"
-                                       "- Docstrings use CommonMark (Markdown) format\n"
-                                       "\n"
-                                       "## Errors\n"
-                                       "Returns error if:\n"
-                                       "- Argument is not a symbol\n"
-                                       "- Symbol is undefined\n"
-                                       "\n"
-                                       "## See Also\n"
-                                       "- `lambda-docstring` - Get docstring from lambda object\n"
-                                       "- `macro-docstring` - Get docstring from macro object";
+static const char *doc_bound_p = "Check if a symbol is bound in the environment.\n"
+                                 "\n"
+                                 "## Parameters\n"
+                                 "- `symbol` - Symbol name (quoted)\n"
+                                 "\n"
+                                 "## Returns\n"
+                                 "`#t` if the symbol is bound, `#f` otherwise.\n"
+                                 "\n"
+                                 "## Examples\n"
+                                 "```lisp\n"
+                                 "(bound? 'car)              ; => #t (built-in)\n"
+                                 "(bound? 'nonexistent)      ; => #f\n"
+                                 "(define my-var 42)\n"
+                                 "(bound? 'my-var)           ; => #t\n"
+                                 "```\n"
+                                 "\n"
+                                 "## Notes\n"
+                                 "- Used by `defvar` macro to conditionally define variables\n"
+                                 "- Checks current and parent environments\n"
+                                 "\n"
+                                 "## See Also\n"
+                                 "- `defvar` - Define variable only if unbound\n"
+                                 "- `documentation` - Get documentation for symbol";
+
+static const char *doc_set_documentation = "Set documentation string for a bound symbol.\n"
+                                           "\n"
+                                           "## Parameters\n"
+                                           "- `symbol` - Symbol name (quoted)\n"
+                                           "- `docstring` - Documentation string (CommonMark format)\n"
+                                           "\n"
+                                           "## Returns\n"
+                                           "`#t` on success.\n"
+                                           "\n"
+                                           "## Examples\n"
+                                           "```lisp\n"
+                                           "(define my-var 42)\n"
+                                           "(set-documentation! 'my-var \"The answer to everything.\")\n"
+                                           "(documentation 'my-var)  ; => \"The answer to everything.\"\n"
+                                           "```\n"
+                                           "\n"
+                                           "## Notes\n"
+                                           "- Used by `defvar` and `defconst` macros\n"
+                                           "- Docstrings use CommonMark (Markdown) format\n"
+                                           "- Symbol must already be bound\n"
+                                           "\n"
+                                           "## Errors\n"
+                                           "Returns error if:\n"
+                                           "- First argument is not a symbol\n"
+                                           "- Second argument is not a string\n"
+                                           "- Symbol is not bound\n"
+                                           "\n"
+                                           "## See Also\n"
+                                           "- `documentation` - Get documentation for symbol\n"
+                                           "- `defvar` - Define variable with optional docstring\n"
+                                           "- `defconst` - Define constant with optional docstring";
 
 /* Printing functions */
 static const char *doc_princ = "Print object in human-readable form (without quotes on strings).\n"
@@ -2570,7 +2556,7 @@ void register_builtins(Environment *env) {
     env_define(env, "<=", lisp_make_builtin(builtin_lte, "<=", doc_lte));
 
     env_define(env, "concat", lisp_make_builtin(builtin_concat, "concat", doc_concat));
-    env_define(env, "string-append", lisp_make_builtin(builtin_concat, "string-append", doc_concat));
+    /* Note: string-append is defined as an alias via defalias in stdlib */
     env_define(env, "number->string",
                lisp_make_builtin(builtin_number_to_string, "number->string", doc_number_to_string));
     env_define(env, "string->number",
@@ -2724,11 +2710,10 @@ void register_builtins(Environment *env) {
     env_define(env, "error", lisp_make_builtin(builtin_error, "error", doc_error));
 
     /* Docstring introspection functions */
-    env_define(env, "lambda-docstring",
-               lisp_make_builtin(builtin_lambda_docstring, "lambda-docstring", doc_lambda_docstring));
-    env_define(env, "macro-docstring",
-               lisp_make_builtin(builtin_macro_docstring, "macro-docstring", doc_macro_docstring));
     env_define(env, "documentation", lisp_make_builtin(builtin_documentation, "documentation", doc_documentation));
+    env_define(env, "bound?", lisp_make_builtin(builtin_bound_p, "bound?", doc_bound_p));
+    env_define(env, "set-documentation!",
+               lisp_make_builtin(builtin_set_documentation, "set-documentation!", doc_set_documentation));
 }
 
 /* Helper function to get numeric value */
@@ -5573,7 +5558,7 @@ static LispObject *builtin_symbol_to_string(LispObject *args, Environment *env) 
     if (arg->type != LISP_SYMBOL) {
         return lisp_make_error("symbol->string requires a symbol argument");
     }
-    return lisp_make_string(arg->value.symbol);
+    return lisp_make_string(arg->value.symbol->name);
 }
 
 /* Vector operations */
@@ -5740,7 +5725,7 @@ static LispObject *builtin_hash_ref(LispObject *args, Environment *env) {
         return lisp_make_error("hash-ref key must be a string or symbol");
     }
 
-    const char *key = (key_obj->type == LISP_STRING) ? key_obj->value.string : key_obj->value.symbol;
+    const char *key = (key_obj->type == LISP_STRING) ? key_obj->value.string : key_obj->value.symbol->name;
     struct HashEntry *entry = hash_table_get_entry(table, key);
 
     if (entry) {
@@ -5766,7 +5751,7 @@ static LispObject *builtin_hash_set_bang(LispObject *args, Environment *env) {
         return lisp_make_error("hash-set! key must be a string or symbol");
     }
 
-    const char *key = (key_obj->type == LISP_STRING) ? key_obj->value.string : key_obj->value.symbol;
+    const char *key = (key_obj->type == LISP_STRING) ? key_obj->value.string : key_obj->value.symbol->name;
     LispObject *value = lisp_car(lisp_cdr(lisp_cdr(args)));
 
     hash_table_set_entry(table, key, value);
@@ -5789,7 +5774,7 @@ static LispObject *builtin_hash_remove_bang(LispObject *args, Environment *env) 
         return lisp_make_error("hash-remove! key must be a string or symbol");
     }
 
-    const char *key = (key_obj->type == LISP_STRING) ? key_obj->value.string : key_obj->value.symbol;
+    const char *key = (key_obj->type == LISP_STRING) ? key_obj->value.string : key_obj->value.symbol->name;
     int removed = hash_table_remove_entry(table, key);
 
     return removed ? LISP_TRUE : NIL;
@@ -5972,7 +5957,8 @@ static int objects_equal_recursive(LispObject *a, LispObject *b) {
         return strcmp(a->value.string, b->value.string) == 0;
 
     case LISP_SYMBOL:
-        return strcmp(a->value.symbol, b->value.symbol) == 0;
+        /* Symbols are interned, so pointer equality should work, but compare names for safety */
+        return strcmp(a->value.symbol->name, b->value.symbol->name) == 0;
 
     case LISP_BOOLEAN:
         return a->value.boolean == b->value.boolean;
@@ -6244,7 +6230,7 @@ static LispObject *builtin_map(LispObject *args, Environment *env) {
             }
 
             /* Bind the parameter to the item */
-            env_define(lambda_env, param->value.symbol, item);
+            env_define(lambda_env, param->value.symbol->name, item);
 
             /* Check for extra parameters (should only have one for map) */
             if (lisp_cdr(params) != NIL) {
@@ -6380,9 +6366,9 @@ static LispObject *builtin_signal(LispObject *args, Environment *env) {
         snprintf(message, sizeof(message), "%s", data->value.string);
     } else if (data != NIL) {
         char *data_str = lisp_print(data);
-        snprintf(message, sizeof(message), "%s: %s", error_type->value.symbol, data_str);
+        snprintf(message, sizeof(message), "%s: %s", error_type->value.symbol->name, data_str);
     } else {
-        snprintf(message, sizeof(message), "%s", error_type->value.symbol);
+        snprintf(message, sizeof(message), "%s", error_type->value.symbol->name);
     }
 
     return lisp_make_typed_error(error_type, message, data, env);
@@ -6408,54 +6394,6 @@ static LispObject *builtin_error(LispObject *args, Environment *env) {
     return lisp_make_typed_error_simple("error", message, env);
 }
 
-/* lambda-docstring - Get docstring from lambda object
- * (lambda-docstring LAMBDA)
- * Returns the documentation string of a lambda, or nil if none exists.
- */
-static LispObject *builtin_lambda_docstring(LispObject *args, Environment *env) {
-    (void)env;
-
-    if (args == NIL || lisp_cdr(args) != NIL) {
-        return lisp_make_error("lambda-docstring requires exactly 1 argument");
-    }
-
-    LispObject *func = lisp_car(args);
-
-    if (func->type != LISP_LAMBDA) {
-        return lisp_make_error("lambda-docstring requires a lambda");
-    }
-
-    if (func->value.lambda.docstring == NULL) {
-        return NIL;
-    }
-
-    return lisp_make_string(func->value.lambda.docstring);
-}
-
-/* macro-docstring - Get docstring from macro object
- * (macro-docstring MACRO)
- * Returns the documentation string of a macro, or nil if none exists.
- */
-static LispObject *builtin_macro_docstring(LispObject *args, Environment *env) {
-    (void)env;
-
-    if (args == NIL || lisp_cdr(args) != NIL) {
-        return lisp_make_error("macro-docstring requires exactly 1 argument");
-    }
-
-    LispObject *macro = lisp_car(args);
-
-    if (macro->type != LISP_MACRO) {
-        return lisp_make_error("macro-docstring requires a macro");
-    }
-
-    if (macro->value.macro.docstring == NULL) {
-        return NIL;
-    }
-
-    return lisp_make_string(macro->value.macro.docstring);
-}
-
 /* documentation - Get documentation string for a symbol
  * (documentation SYMBOL)
  * Returns the documentation string of the function or macro bound to SYMBOL,
@@ -6473,14 +6411,20 @@ static LispObject *builtin_documentation(LispObject *args, Environment *env) {
         return lisp_make_error("documentation requires a symbol");
     }
 
-    /* Look up the symbol's value */
-    LispObject *value = env_lookup(env, symbol->value.symbol);
-
-    if (value == NULL) {
-        return lisp_make_error("Undefined symbol");
+    /* First check for symbol's own docstring (set by define or set-documentation!) */
+    if (symbol->value.symbol->docstring != NULL) {
+        return lisp_make_string(symbol->value.symbol->docstring);
     }
 
-    /* Return docstring based on type */
+    /* Look up the symbol's value to check for value's docstring */
+    LispObject *value = env_lookup(env, symbol->value.symbol->name);
+
+    if (value == NULL) {
+        /* Symbol has no docstring and no binding */
+        return NIL;
+    }
+
+    /* Fall back to value's docstring (lambda/macro/builtin) */
     if (value->type == LISP_LAMBDA) {
         if (value->value.lambda.docstring == NULL) {
             return NIL;
@@ -6499,4 +6443,45 @@ static LispObject *builtin_documentation(LispObject *args, Environment *env) {
     }
 
     return NIL;
+}
+
+static LispObject *builtin_bound_p(LispObject *args, Environment *env) {
+    if (args == NIL) {
+        return lisp_make_error("bound? requires 1 argument");
+    }
+
+    LispObject *symbol = lisp_car(args);
+
+    if (symbol->type != LISP_SYMBOL) {
+        return lisp_make_error("bound? requires a symbol");
+    }
+
+    /* Check if the symbol is bound */
+    LispObject *value = env_lookup(env, symbol->value.symbol->name);
+
+    return value != NULL ? LISP_TRUE : NIL;
+}
+
+static LispObject *builtin_set_documentation(LispObject *args, Environment *env) {
+    (void)env; /* Unused - docstrings are stored on symbols, not bindings */
+
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("set-documentation! requires 2 arguments");
+    }
+
+    LispObject *symbol = lisp_car(args);
+    LispObject *docstring = lisp_car(lisp_cdr(args));
+
+    if (symbol->type != LISP_SYMBOL) {
+        return lisp_make_error("set-documentation! first argument must be a symbol");
+    }
+
+    if (docstring->type != LISP_STRING) {
+        return lisp_make_error("set-documentation! second argument must be a string");
+    }
+
+    /* Set the docstring directly on the interned symbol */
+    symbol->value.symbol->docstring = GC_strdup(docstring->value.string);
+
+    return LISP_TRUE;
 }

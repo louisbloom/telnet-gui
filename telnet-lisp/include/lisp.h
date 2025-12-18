@@ -14,6 +14,13 @@ typedef struct LispObject LispObject;
 typedef struct Environment Environment;
 typedef struct CallStackFrame CallStackFrame;
 typedef struct HandlerContext HandlerContext;
+typedef struct Symbol Symbol;
+
+/* Symbol structure - interned with optional docstring */
+struct Symbol {
+    char *name;
+    char *docstring;  /* Documentation string (CommonMark format) */
+};
 
 /* Call stack frame structure */
 struct CallStackFrame {
@@ -60,7 +67,7 @@ struct LispObject {
         long long integer;
         unsigned int character;  /* Unicode codepoint for LISP_CHAR */
         char *string;
-        char *symbol;
+        Symbol *symbol;  /* Interned symbol with name and docstring */
         int boolean;
         struct {
             LispObject *car;

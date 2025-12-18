@@ -90,10 +90,15 @@ LispObject *lisp_intern(const char *name) {
         return entry->value; /* Return existing symbol */
     }
 
-    /* Create new symbol */
+    /* Create new symbol struct */
+    Symbol *sym = GC_malloc(sizeof(Symbol));
+    sym->name = GC_strdup(name);
+    sym->docstring = NULL;
+
+    /* Create LispObject wrapper */
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_SYMBOL;
-    obj->value.symbol = GC_strdup(name);
+    obj->value.symbol = sym;
 
     /* Add to intern table */
     hash_table_set_entry(symbol_table, name, obj);
