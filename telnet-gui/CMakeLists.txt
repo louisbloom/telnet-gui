@@ -164,17 +164,156 @@ pkg_check_modules(SDL2 REQUIRED sdl2)
 pkg_check_modules(SDL2_TTF REQUIRED SDL2_ttf)
 
 # Optional: rlottie for Lottie animation support
-pkg_check_modules(RLOTTIE rlottie)
+# First try pkg-config, then search /usr/local (source build) on Windows
+set(RLOTTIE_FOUND FALSE)
+
+# On Windows, check /usr/local first (source build takes priority)
+if(WIN32)
+    set(RLOTTIE_PKG_CONFIG "")
+
+    # First check /usr/local by deriving MSYS2 root from UCRT64_ROOT (PRIORITY)
+    if(DEFINED UCRT64_ROOT)
+        get_filename_component(MSYS2_ROOT_FROM_UCRT64 "${UCRT64_ROOT}" DIRECTORY)
+        if(EXISTS "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib/pkgconfig/rlottie.pc")
+            set(RLOTTIE_PKG_CONFIG "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib/pkgconfig")
+            message(STATUS "Found rlottie.pc in /usr/local: ${RLOTTIE_PKG_CONFIG}")
+        endif()
+    endif()
+
+    # Check /usr/local via MSYS2_ROOT env var (fallback)
+    if(NOT RLOTTIE_PKG_CONFIG AND DEFINED ENV{MSYS2_ROOT})
+        if(EXISTS "$ENV{MSYS2_ROOT}/usr/local/lib/pkgconfig/rlottie.pc")
+            set(RLOTTIE_PKG_CONFIG "$ENV{MSYS2_ROOT}/usr/local/lib/pkgconfig")
+            message(STATUS "Found rlottie.pc in /usr/local: ${RLOTTIE_PKG_CONFIG}")
+        endif()
+    endif()
+
+    # Check UCRT64 (distribution package - FALLBACK)
+    if(NOT RLOTTIE_PKG_CONFIG AND DEFINED UCRT64_ROOT)
+        if(EXISTS "${UCRT64_ROOT}/lib/pkgconfig/rlottie.pc")
+            set(RLOTTIE_PKG_CONFIG "${UCRT64_ROOT}/lib/pkgconfig")
+            message(STATUS "Found rlottie.pc in UCRT64: ${RLOTTIE_PKG_CONFIG}")
+        endif()
+    endif()
+
+    # Search common MSYS2 locations
+    if(NOT RLOTTIE_PKG_CONFIG)
+        set(RLOTTIE_PKG_SEARCH_PATHS
+            # /usr/local source build locations (PRIORITY)
+            "C:/msys64/usr/local/lib/pkgconfig"
+            "C:/tools/msys64/usr/local/lib/pkgconfig"
+            "$ENV{USERPROFILE}/scoop/apps/msys2/current/usr/local/lib/pkgconfig"
+            "$ENV{ProgramFiles}/msys64/usr/local/lib/pkgconfig"
+            # UCRT64 package locations (FALLBACK)
+            "C:/msys64/ucrt64/lib/pkgconfig"
+            "C:/tools/msys64/ucrt64/lib/pkgconfig"
+            "$ENV{USERPROFILE}/scoop/apps/msys2/current/ucrt64/lib/pkgconfig"
+            "$ENV{ProgramFiles}/msys64/ucrt64/lib/pkgconfig"
+        )
+        # Add Scoop versioned directories
+        if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
+            file(GLOB SCOOP_PKG_USRLOCAL "$ENV{USERPROFILE}/scoop/apps/msys2/*/usr/local/lib/pkgconfig")
+            file(GLOB SCOOP_PKG_UCRT64 "$ENV{USERPROFILE}/scoop/apps/msys2/*/ucrt64/lib/pkgconfig")
+            list(APPEND RLOTTIE_PKG_SEARCH_PATHS ${SCOOP_PKG_USRLOCAL} ${SCOOP_PKG_UCRT64})
+        endif()
+
+        foreach(PKG_PATH IN LISTS RLOTTIE_PKG_SEARCH_PATHS)
+            if(EXISTS "${PKG_PATH}/rlottie.pc")
+                set(RLOTTIE_PKG_CONFIG "${PKG_PATH}")
+                message(STATUS "Found rlottie.pc at: ${RLOTTIE_PKG_CONFIG}")
+                break()
+            endif()
+        endforeach()
+    endif()
+
+    # Try pkg-config with the found path
+    if(RLOTTIE_PKG_CONFIG AND PKG_CONFIG_EXECUTABLE)
+        set(PKG_CONFIG_UNIX_PATH "${RLOTTIE_PKG_CONFIG}")
+        string(REPLACE "\\" "/" PKG_CONFIG_UNIX_PATH "${PKG_CONFIG_UNIX_PATH}")
+
+        set(OLD_PKG_CONFIG_PATH_ENV "$ENV{PKG_CONFIG_PATH}")
+        set(ENV{PKG_CONFIG_PATH} "${PKG_CONFIG_UNIX_PATH}")
+
+        execute_process(
+            COMMAND ${PKG_CONFIG_EXECUTABLE} --exists rlottie
+            RESULT_VARIABLE RLOTTIE_PKG_RESULT
+        )
+
+        if(RLOTTIE_PKG_RESULT EQUAL 0)
+            execute_process(
+                COMMAND ${PKG_CONFIG_EXECUTABLE} --modversion rlottie
+                OUTPUT_VARIABLE RLOTTIE_VERSION
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+            )
+            execute_process(
+                COMMAND ${PKG_CONFIG_EXECUTABLE} --cflags rlottie
+                OUTPUT_VARIABLE RLOTTIE_CFLAGS
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+            )
+            execute_process(
+                COMMAND ${PKG_CONFIG_EXECUTABLE} --libs rlottie
+                OUTPUT_VARIABLE RLOTTIE_LIBS
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+            )
+
+            string(REPLACE " " ";" RLOTTIE_CFLAGS_LIST "${RLOTTIE_CFLAGS}")
+            string(REPLACE " " ";" RLOTTIE_LIBS_LIST "${RLOTTIE_LIBS}")
+
+            set(RLOTTIE_FOUND TRUE)
+            set(RLOTTIE_LIBRARIES ${RLOTTIE_LIBS_LIST})
+            set(RLOTTIE_CFLAGS_OTHER ${RLOTTIE_CFLAGS_LIST})
+
+            # Derive include and lib directories from pkg-config path
+            string(REGEX REPLACE "/lib/pkgconfig$" "/include" RLOTTIE_INCLUDE_DIRS "${RLOTTIE_PKG_CONFIG}")
+            string(REGEX REPLACE "/lib/pkgconfig$" "/lib" RLOTTIE_LIBRARY_DIRS "${RLOTTIE_PKG_CONFIG}")
+
+            message(STATUS "Found rlottie ${RLOTTIE_VERSION} via pkg-config")
+        endif()
+
+        set(ENV{PKG_CONFIG_PATH} "${OLD_PKG_CONFIG_PATH_ENV}")
+    endif()
+endif()
+
+# Fallback: try standard pkg_check_modules (works on Linux/macOS and if PKG_CONFIG_PATH is set)
+if(NOT RLOTTIE_FOUND)
+    pkg_check_modules(RLOTTIE rlottie)
+endif()
+
 if(RLOTTIE_FOUND)
     message(STATUS "Found rlottie ${RLOTTIE_VERSION} - Lottie animation support enabled")
     target_compile_definitions(telnet-gui PRIVATE HAVE_RLOTTIE=1)
     target_compile_definitions(telnet-gui PRIVATE RLOTTIE_VERSION="${RLOTTIE_VERSION}")
     target_sources(telnet-gui PRIVATE src/animation.c)
+
+    # On Windows, check if rlottie is static or dynamic
+    if(WIN32 AND RLOTTIE_LIBRARY_DIRS)
+        # Derive bin directory from lib directory (../bin relative to lib)
+        string(REGEX REPLACE "/lib$" "/bin" RLOTTIE_BIN_DIR "${RLOTTIE_LIBRARY_DIRS}")
+        set(RLOTTIE_DLL "${RLOTTIE_BIN_DIR}/librlottie.dll")
+        set(RLOTTIE_STATIC_LIB "${RLOTTIE_LIBRARY_DIRS}/librlottie.a")
+        set(RLOTTIE_IMPORT_LIB "${RLOTTIE_LIBRARY_DIRS}/librlottie.dll.a")
+
+        # Check if static library exists (without import library = static build)
+        if(EXISTS "${RLOTTIE_STATIC_LIB}" AND NOT EXISTS "${RLOTTIE_IMPORT_LIB}")
+            message(STATUS "Using static rlottie library")
+            target_compile_definitions(telnet-gui PRIVATE RLOTTIE_STATIC)
+        elseif(EXISTS "${RLOTTIE_DLL}")
+            # Dynamic library - copy DLL to build directory
+            add_custom_command(TARGET telnet-gui POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${RLOTTIE_DLL}"
+                    "${CMAKE_CURRENT_BINARY_DIR}/librlottie.dll"
+                COMMENT "Copying librlottie.dll to telnet-gui build directory"
+            )
+            message(STATUS "Will copy rlottie DLL: ${RLOTTIE_DLL}")
+        endif()
+    endif()
 else()
     message(STATUS "rlottie not found - Lottie animation support disabled")
     message(STATUS "  Install: apt install librlottie-dev (Linux)")
-    message(STATUS "           pacman -S mingw-w64-ucrt-x86_64-rlottie (MSYS2)")
     message(STATUS "           brew install rlottie (macOS)")
+    message(STATUS "  Source:  git clone https://github.com/Samsung/rlottie && cd rlottie")
+    message(STATUS "           cmake -B build -DCMAKE_INSTALL_PREFIX=/usr/local && cmake --build build && cmake --install build")
     target_compile_definitions(telnet-gui PRIVATE HAVE_RLOTTIE=0)
 endif()
 
@@ -938,6 +1077,9 @@ target_link_libraries(telnet-gui PRIVATE
 )
 # Link rlottie if available (must be after SDL2 since it uses the renderer)
 if(RLOTTIE_FOUND)
+    if(RLOTTIE_LIBRARY_DIRS)
+        target_link_directories(telnet-gui PRIVATE ${RLOTTIE_LIBRARY_DIRS})
+    endif()
     target_link_libraries(telnet-gui PRIVATE ${RLOTTIE_LIBRARIES})
     target_include_directories(telnet-gui PRIVATE ${RLOTTIE_INCLUDE_DIRS})
 endif()

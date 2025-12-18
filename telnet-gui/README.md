@@ -27,28 +27,52 @@ The `telnet-gui` application provides a graphical interface for connecting to te
 
 - **rlottie**: Lottie animation support for background animations
   - Linux: `apt install librlottie-dev`
-  - MSYS2: `pacman -S mingw-w64-ucrt-x86_64-rlottie`
   - macOS: `brew install rlottie`
+  - **MSYS2**: Use the provided install script (not available in pacman):
+    ```bash
+    ./scripts/install-rlottie.sh  # Installs static library to /usr/local
+    ```
   - If not installed, the build continues without animation support
 
 ### Installation (MSYS2 UCRT64)
 
-#### libvterm Installation Priority
+#### Quick Setup with Install Scripts
 
-**Option 1: Build from Upstream Source (Recommended for full features)**
+The repository includes helper scripts to install optional libraries from source:
 
 ```bash
-# Install other dependencies first
+# Install core dependencies from pacman
+pacman -S mingw-w64-ucrt-x86_64-{SDL2,SDL2_ttf,gc,pcre2} libtool
+
+# Install libvterm from source (nvim branch with text reflow support)
+./scripts/install-libvterm.sh
+
+# Install rlottie from source (optional, for Lottie animations)
+./scripts/install-rlottie.sh
+```
+
+Both scripts install static libraries to `/usr/local`, which CMake detects automatically.
+
+#### Manual Installation
+
+**Option 1: Build libvterm from Source (Recommended for full features)**
+
+```bash
+# Install dependencies first
 pacman -S mingw-w64-ucrt-x86_64-SDL2 \
           mingw-w64-ucrt-x86_64-SDL2_ttf \
           mingw-w64-ucrt-x86_64-gc \
-          mingw-w64-ucrt-x86_64-pcre2
+          mingw-w64-ucrt-x86_64-pcre2 \
+          libtool
 
-# Build and install libvterm to /usr/local (checked first by CMake)
-git clone https://github.com/neovim/libvterm.git
+# Use the install script (handles Windows/MSYS2 quirks automatically)
+./scripts/install-libvterm.sh
+
+# Or build manually:
+git clone -b nvim https://github.com/neovim/libvterm.git
 cd libvterm
 make
-make install  # Installs to /usr/local
+make install-inc install-lib PREFIX=/usr/local  # Skip binaries (need termios.h)
 ```
 
 **Option 2: Use Distribution Package (Limited features)**
@@ -66,10 +90,28 @@ pacman -S mingw-w64-ucrt-x86_64-SDL2 \
 CMake automatically detects libvterm capabilities at build time:
 
 - **Distribution packages (v0.3.3 and older)**: Basic scrollback only
-- **Upstream source (post-2024)**: Full text reflow when terminal resizes
+- **Upstream source (nvim branch)**: Full text reflow when terminal resizes
 - **CMake priority**: Checks /usr/local first, then falls back to system packages
 
 If CMake detects v0.3.3 or older, it will suggest building from upstream source.
+
+#### Install Script Options
+
+**libvterm:**
+
+```bash
+./scripts/install-libvterm.sh              # Default: nvim branch to /usr/local
+./scripts/install-libvterm.sh --prefix /path  # Custom install location
+./scripts/install-libvterm.sh --branch master # Different branch
+```
+
+**rlottie:**
+
+```bash
+./scripts/install-rlottie.sh              # Default: static library to /usr/local
+./scripts/install-rlottie.sh --shared     # Build shared library instead
+./scripts/install-rlottie.sh --prefix /path  # Custom install location
+```
 
 ## Build
 
@@ -857,6 +899,15 @@ If you get a segmentation fault:
 - Ensure all dependencies are UCRT64-compatible (no MINGW64 or MSYS)
 - Check that libvterm is installed (MSYS2 package in `/ucrt64` or source build in `/usr/local`)
 - Verify `PKG_CONFIG_PATH` includes libvterm's pkgconfig directory (CMakeLists.txt auto-detects both locations)
+- **libvterm build fails on Windows**: Use the install script which handles MSYS2 quirks:
+  ```bash
+  ./scripts/install-libvterm.sh
+  ```
+- **rlottie not found**: rlottie is not in MSYS2 pacman repositories. Use the install script:
+  ```bash
+  ./scripts/install-rlottie.sh
+  ```
+- **rlottie linking errors on Windows**: The install script builds a static library and patches headers for `RLOTTIE_STATIC` support. CMake auto-detects static vs dynamic linking.
 
 ## Development
 
