@@ -32,6 +32,11 @@
 #include "ansi_sequences.h"
 #include "dynamic_buffer.h"
 #include "path_utils.h"
+#if HAVE_RLOTTIE
+#include "animation.h"
+/* Forward declaration for renderer animation functions */
+void renderer_set_animation(Animation *anim);
+#endif
 #include "../../telnet-lisp/include/lisp.h"
 #include "../../telnet-lisp/include/file_utils.h"
 
@@ -1031,6 +1036,11 @@ int main(int argc, char **argv) {
     /* Register window with Lisp bridge for terminal-info builtin */
     lisp_x_register_window(win);
 
+#if HAVE_RLOTTIE
+    /* Register SDL renderer with Lisp for animation creation */
+    lisp_x_register_renderer(renderer);
+#endif
+
     /* Wire telnet to terminal for output buffering */
     terminal_set_telnet(term, telnet);
 
@@ -1841,12 +1851,31 @@ int main(int argc, char **argv) {
             /* Input area updates vterm which triggers terminal_needs_redraw */
         }
 
+#if HAVE_RLOTTIE
+        /* Update animation timing */
+        Animation *active_anim = lisp_x_get_active_animation();
+        if (active_anim && animation_is_loaded(active_anim) && animation_is_playing(active_anim)) {
+            animation_update(active_anim, 16.0f); /* ~60fps = 16ms per frame */
+        }
+        /* Update renderer's animation pointer */
+        renderer_set_animation(active_anim);
+#endif
+
         /* Render if needed */
         int window_width, window_height;
         window_get_size(win, &window_width, &window_height);
         int needs_render = 0;
 
-        if (terminal_needs_redraw(term) || terminal_selection.active) {
+#if HAVE_RLOTTIE
+        /* Force redraw when animation is playing */
+        Animation *anim_for_redraw = lisp_x_get_active_animation();
+        int animation_needs_redraw =
+            anim_for_redraw && animation_is_loaded(anim_for_redraw) && animation_is_playing(anim_for_redraw);
+#else
+        int animation_needs_redraw = 0;
+#endif
+
+        if (terminal_needs_redraw(term) || terminal_selection.active || animation_needs_redraw) {
             /* Clear back buffer before rendering */
             int bg_r, bg_g, bg_b;
             lisp_x_get_terminal_bg_color(&bg_r, &bg_g, &bg_b);
@@ -1883,6 +1912,7 @@ int main(int argc, char **argv) {
     }
 
     /* Cleanup */
+    /* Animation objects are GC-managed and cleaned up automatically */
     telnet_destroy(telnet);
     terminal_destroy(term);
     renderer_destroy(rend);

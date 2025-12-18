@@ -23,6 +23,14 @@ The `telnet-gui` application provides a graphical interface for connecting to te
 - **Boehm GC**: Garbage collector for Lisp backend (`mingw-w64-ucrt-x86_64-gc`)
 - **PCRE2**: Regular expression support (`mingw-w64-ucrt-x86_64-pcre2`)
 
+### Optional Libraries
+
+- **rlottie**: Lottie animation support for background animations
+  - Linux: `apt install librlottie-dev`
+  - MSYS2: `pacman -S mingw-w64-ucrt-x86_64-rlottie`
+  - macOS: `brew install rlottie`
+  - If not installed, the build continues without animation support
+
 ### Installation (MSYS2 UCRT64)
 
 #### libvterm Installation Priority
@@ -355,6 +363,70 @@ The telnet-gui supports TinTin++ scripting features including aliases, variables
 
 **Full documentation:** See [TINTIN.md](TINTIN.md) for complete usage guide, examples, and implementation details
 
+### Background Animations (Lottie)
+
+The telnet-gui supports Lottie vector animations rendered behind the terminal text. This feature requires the optional rlottie library.
+
+**Features:**
+
+- **Lottie JSON format** - Industry standard from Airbnb/After Effects
+- **Background rendering** - Animation renders behind terminal text
+- **Lisp scripting control** - Full playback control from Lisp
+- **Visibility modes** - Configurable dim overlay or transparent terminal backgrounds
+- **Thousands of free animations** - Available at [lottiefiles.com](https://lottiefiles.com)
+
+**Basic Usage:**
+
+```lisp
+;; Load and play an animation
+(animation-load "path/to/animation.json")
+(animation-set-loop t)
+(animation-play)
+```
+
+**Visibility Modes:**
+
+```lisp
+;; Option 1: Dim mode (default) - dark overlay on animation
+(animation-set-dim-mode 0.7)  ; 70% overlay opacity (30% animation visible)
+
+;; Option 2: Transparent mode - see-through terminal backgrounds
+(animation-set-transparent-mode 0.85)  ; 85% terminal background opacity
+```
+
+**Playback Control:**
+
+```lisp
+(animation-play)           ; Start playback
+(animation-pause)          ; Pause
+(animation-stop)           ; Stop and reset to beginning
+(animation-set-speed 0.5)  ; Half speed (range: 0.0-10.0)
+(animation-set-loop t)     ; Enable looping
+(animation-seek 0.5)       ; Jump to middle (0.0-1.0)
+```
+
+**State Queries:**
+
+```lisp
+(animation-playing?)   ; => t or nil
+(animation-loaded?)    ; => t or nil
+(animation-position)   ; => 0.0-1.0 (current position)
+(animation-duration)   ; => seconds (total duration)
+```
+
+**Sample Animation:**
+
+A sample fireworks animation is included in `animations/fireworks.json`. Try it with:
+
+```lisp
+(animation-load "animations/fireworks.json")
+(animation-set-loop t)
+(animation-play)
+(animation-set-dim-mode 0.8)  ; Adjust visibility as needed
+```
+
+**Note:** Animation support is optional. If rlottie is not installed, the animation functions will not be available and the build continues normally.
+
 ## Testing Lisp Configuration Files
 
 The telnet-gui directory contains Lisp scripts that can be loaded and tested independently:
@@ -636,6 +708,7 @@ vterm_check_version(0, 3);
 - **telnet.c**: Telnet protocol client implementation
 - **commands.c**: Slash command processor (/help, /connect, /disconnect, /test)
 - **lisp.c**: Lisp scripting integration (hooks, colors, configuration)
+- **animation.c**: Lottie animation support via rlottie (optional, requires rlottie library)
 
 ### Backend Architecture
 

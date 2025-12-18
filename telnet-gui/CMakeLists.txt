@@ -64,6 +64,12 @@ set(TEST_HELPERS_DST "${CMAKE_CURRENT_BINARY_DIR}/test-helpers.lisp")
 set(LOG2HTML_SRC "${CMAKE_CURRENT_SOURCE_DIR}/scripts/telnet-gui-log2html.py")
 set(LOG2HTML_DST "${CMAKE_CURRENT_BINARY_DIR}/telnet-gui-log2html.py")
 
+# Copy sample animation files to build directory
+set(ANIM_FIREWORKS_SRC "${CMAKE_CURRENT_SOURCE_DIR}/animations/fireworks.json")
+set(ANIM_FIREWORKS_DST "${CMAKE_CURRENT_BINARY_DIR}/animations/fireworks.json")
+set(ANIM_LICENSE_SRC "${CMAKE_CURRENT_SOURCE_DIR}/animations/LICENSE.md")
+set(ANIM_LICENSE_DST "${CMAKE_CURRENT_BINARY_DIR}/animations/LICENSE.md")
+
 # Create fonts directory in build directory
 add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/fonts"
@@ -81,6 +87,9 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${BOOTSTRAP_TEST_SRC}" "${BOOTSTRAP_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TEST_HELPERS_SRC}" "${TEST_HELPERS_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LOG2HTML_SRC}" "${LOG2HTML_DST}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/animations"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_FIREWORKS_SRC}" "${ANIM_FIREWORKS_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_LICENSE_SRC}" "${ANIM_LICENSE_DST}"
     COMMENT "Copying resources to build directory"
 )
 
@@ -134,6 +143,14 @@ install(FILES
     COMPONENT Runtime
 )
 
+# Install sample animation files to share directory
+install(FILES
+    "${ANIM_FIREWORKS_SRC}"
+    "${ANIM_LICENSE_SRC}"
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/animations"
+    COMPONENT Runtime
+)
+
 # Install telnet-gui-log2html.py as telnet-gui-log2html (without .py extension)
 install(PROGRAMS "${LOG2HTML_SRC}"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
@@ -145,6 +162,21 @@ install(PROGRAMS "${LOG2HTML_SRC}"
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL2 REQUIRED sdl2)
 pkg_check_modules(SDL2_TTF REQUIRED SDL2_ttf)
+
+# Optional: rlottie for Lottie animation support
+pkg_check_modules(RLOTTIE rlottie)
+if(RLOTTIE_FOUND)
+    message(STATUS "Found rlottie ${RLOTTIE_VERSION} - Lottie animation support enabled")
+    target_compile_definitions(telnet-gui PRIVATE HAVE_RLOTTIE=1)
+    target_compile_definitions(telnet-gui PRIVATE RLOTTIE_VERSION="${RLOTTIE_VERSION}")
+    target_sources(telnet-gui PRIVATE src/animation.c)
+else()
+    message(STATUS "rlottie not found - Lottie animation support disabled")
+    message(STATUS "  Install: apt install librlottie-dev (Linux)")
+    message(STATUS "           pacman -S mingw-w64-ucrt-x86_64-rlottie (MSYS2)")
+    message(STATUS "           brew install rlottie (macOS)")
+    target_compile_definitions(telnet-gui PRIVATE HAVE_RLOTTIE=0)
+endif()
 
 # On Windows, prefer static linking for SDL libraries to avoid DLL dependencies
 if(WIN32)
@@ -904,6 +936,11 @@ target_link_libraries(telnet-gui PRIVATE
     ${PCRE2_LIBRARIES}
     m
 )
+# Link rlottie if available (must be after SDL2 since it uses the renderer)
+if(RLOTTIE_FOUND)
+    target_link_libraries(telnet-gui PRIVATE ${RLOTTIE_LIBRARIES})
+    target_include_directories(telnet-gui PRIVATE ${RLOTTIE_INCLUDE_DIRS})
+endif()
 if(WIN32)
     target_link_libraries(telnet-gui PRIVATE ws2_32)
 endif()

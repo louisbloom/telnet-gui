@@ -93,6 +93,16 @@ void lisp_x_register_glyph_cache(struct GlyphCache *cache);
 /* Register window pointer for terminal-info builtin */
 void lisp_x_register_window(struct Window *w);
 
+/* Forward declarations for animation support */
+struct Animation;
+struct SDL_Renderer;
+
+/* Register SDL renderer for animation creation (only if HAVE_RLOTTIE) */
+void lisp_x_register_renderer(struct SDL_Renderer *renderer);
+
+/* Get the active animation set via (animation-set-active) */
+struct Animation *lisp_x_get_active_animation(void);
+
 /* Get lisp environment (for accessing Lisp variables from C) */
 void *lisp_x_get_environment(void);
 

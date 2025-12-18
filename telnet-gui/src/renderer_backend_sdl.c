@@ -4,11 +4,27 @@
 #include "box_drawing.h"
 #include "glyph_cache.h"
 #include "lisp.h"
+#if HAVE_RLOTTIE
+#include "animation.h"
+#endif
 #include <SDL2/SDL.h>
 #include <vterm.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+
+/* Global animation pointer (registered from main.c) */
+#if HAVE_RLOTTIE
+static Animation *g_animation = NULL;
+
+void renderer_set_animation(Animation *anim) {
+    g_animation = anim;
+}
+
+Animation *renderer_get_animation(void) {
+    return g_animation;
+}
+#endif
 
 /* Padding around terminal area (including input area) - must match renderer.c */
 #define PADDING_X 8
@@ -173,6 +189,19 @@ static void sdl_begin_frame(void *vstate, int window_width, int window_height) {
     SDL_Rect terminal_area = {0, 0, actual_width, actual_height};
     SDL_RenderFillRect(state->sdl_renderer, &terminal_area);
 
+#if HAVE_RLOTTIE
+    /* Render animation behind terminal text (if loaded) */
+    if (g_animation && animation_is_loaded(g_animation)) {
+        /* Render animation to fill the window */
+        animation_render(g_animation, 0, 0, actual_width, actual_height);
+
+        /* Apply dim overlay if in DIM mode */
+        if (animation_get_visibility_mode(g_animation) == ANIMATION_VISIBILITY_DIM) {
+            animation_render_dim_overlay(g_animation, 0, 0, actual_width, actual_height);
+        }
+    }
+#endif
+
     /* Reset cached values at start of frame - will be recalculated on first cell render */
     state->cached_effective_cell_h = -1;
 }
@@ -206,6 +235,21 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
     }
     int vertical_offset = state->cached_vertical_offset;
 
+    /* Check if we need transparent backgrounds for animation */
+#if HAVE_RLOTTIE
+    int use_transparent_bg = 0;
+    Uint8 bg_alpha = 255;
+    if (g_animation && animation_is_loaded(g_animation)) {
+        if (animation_get_visibility_mode(g_animation) == ANIMATION_VISIBILITY_TRANSPARENT) {
+            /* Only make DEFAULT background transparent (cells with explicit bg stay opaque) */
+            if (cell->bg.type == TERM_COLOR_DEFAULT && !in_selection) {
+                use_transparent_bg = 1;
+                bg_alpha = (Uint8)(animation_get_terminal_bg_alpha(g_animation) * 255);
+            }
+        }
+    }
+#endif
+
     /* Draw background - use selection color if in selection, otherwise cell bg */
     if (in_selection) {
         /* Get selection background color from Lisp config */
@@ -214,7 +258,18 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
         SDL_SetRenderDrawColor(state->sdl_renderer, sel_bg_r, sel_bg_g, sel_bg_b, 255);
         SDL_Rect bg_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y, cell_w, cell_h};
         SDL_RenderFillRect(state->sdl_renderer, &bg_rect);
-    } else if (cell->bg.type != TERM_COLOR_DEFAULT) {
+    }
+#if HAVE_RLOTTIE
+    else if (use_transparent_bg) {
+        /* TRANSPARENT mode: draw semi-transparent background over animation */
+        int term_bg_r, term_bg_g, term_bg_b;
+        lisp_x_get_terminal_bg_color(&term_bg_r, &term_bg_g, &term_bg_b);
+        SDL_SetRenderDrawColor(state->sdl_renderer, term_bg_r, term_bg_g, term_bg_b, bg_alpha);
+        SDL_Rect bg_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y, cell_w, cell_h};
+        SDL_RenderFillRect(state->sdl_renderer, &bg_rect);
+    }
+#endif
+    else if (cell->bg.type != TERM_COLOR_DEFAULT) {
         /* Draw non-default background color */
         uint8_t bg_r, bg_g, bg_b;
 
@@ -241,9 +296,25 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
             bg_b = term_bg_b;
         }
 
-        SDL_SetRenderDrawColor(state->sdl_renderer, bg_r, bg_g, bg_b, 255);
-        SDL_Rect bg_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y, cell_w, cell_h};
-        SDL_RenderFillRect(state->sdl_renderer, &bg_rect);
+#if HAVE_RLOTTIE
+        /* In DIM mode, skip drawing backgrounds that match terminal default */
+        if (g_animation && animation_is_loaded(g_animation) &&
+            animation_get_visibility_mode(g_animation) == ANIMATION_VISIBILITY_DIM) {
+            int term_bg_r, term_bg_g, term_bg_b;
+            lisp_x_get_terminal_bg_color(&term_bg_r, &term_bg_g, &term_bg_b);
+            /* Only draw if background differs from terminal default */
+            if (bg_r != (uint8_t)term_bg_r || bg_g != (uint8_t)term_bg_g || bg_b != (uint8_t)term_bg_b) {
+                SDL_SetRenderDrawColor(state->sdl_renderer, bg_r, bg_g, bg_b, 255);
+                SDL_Rect bg_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y, cell_w, cell_h};
+                SDL_RenderFillRect(state->sdl_renderer, &bg_rect);
+            }
+        } else
+#endif
+        {
+            SDL_SetRenderDrawColor(state->sdl_renderer, bg_r, bg_g, bg_b, 255);
+            SDL_Rect bg_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y, cell_w, cell_h};
+            SDL_RenderFillRect(state->sdl_renderer, &bg_rect);
+        }
     }
 
     /* Draw foreground/characters */

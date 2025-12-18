@@ -8,6 +8,9 @@
 #include "window.h"
 #include "dynamic_buffer.h"
 #include "path_utils.h"
+#if HAVE_RLOTTIE
+#include "animation.h"
+#endif
 #include "../../telnet-lisp/include/lisp.h"
 #include "../../telnet-lisp/include/file_utils.h"
 #include <SDL2/SDL.h>
@@ -64,6 +67,38 @@ static Terminal *registered_terminal = NULL;
 static Telnet *registered_telnet = NULL;
 static GlyphCache *registered_glyph_cache = NULL;
 static Window *registered_window = NULL;
+#if HAVE_RLOTTIE
+static SDL_Renderer *registered_renderer = NULL;
+static Animation *active_animation = NULL; /* Animation currently being rendered */
+
+/* Animation type tag symbol for Lisp objects */
+static LispObject *sym_animation_type = NULL;
+
+/* Helper: Create a Lisp object wrapping an Animation pointer */
+static LispObject *make_animation_object(Animation *anim) {
+    if (!anim)
+        return NIL;
+    /* Store as (animation-type . <pointer-as-integer>) */
+    return lisp_make_cons(sym_animation_type, lisp_make_integer((intptr_t)anim));
+}
+
+/* Helper: Extract Animation pointer from a Lisp object */
+static Animation *get_animation_object(LispObject *obj) {
+    if (!obj || obj->type != LISP_CONS)
+        return NULL;
+    if (obj->value.cons.car != sym_animation_type)
+        return NULL;
+    LispObject *ptr_obj = obj->value.cons.cdr;
+    if (!ptr_obj || ptr_obj->type != LISP_INTEGER)
+        return NULL;
+    return (Animation *)(intptr_t)ptr_obj->value.integer;
+}
+
+/* Helper: Check if object is an Animation */
+static int is_animation_object(LispObject *obj) {
+    return get_animation_object(obj) != NULL;
+}
+#endif
 
 /* Static buffer for ANSI code stripping (pre-allocated at startup, freed on exit) */
 static char *ansi_strip_buffer = NULL;
@@ -573,6 +608,276 @@ static LispObject *builtin_version(LispObject *args, Environment *env) {
     return result;
 }
 
+/* Animation builtin functions */
+#if HAVE_RLOTTIE
+
+static LispObject *builtin_animation_load(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("animation-load requires 1 argument (path)");
+    }
+    LispObject *path_obj = lisp_car(args);
+    if (path_obj->type != LISP_STRING) {
+        return lisp_make_error("animation-load requires a string path");
+    }
+    if (!registered_renderer) {
+        return lisp_make_error("animation-load: no renderer registered");
+    }
+    /* Create a new Animation object */
+    Animation *anim = animation_create(registered_renderer);
+    if (!anim) {
+        return lisp_make_error("animation-load: failed to create animation");
+    }
+    /* Load the animation file */
+    int result = animation_load(anim, path_obj->value.string);
+    if (result != 0) {
+        return lisp_make_error("animation-load: failed to load file");
+    }
+    /* Return the Animation as a Lisp object */
+    return make_animation_object(anim);
+}
+
+static LispObject *builtin_animation_unload(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("animation-unload requires 1 argument (animation)");
+    }
+    Animation *anim = get_animation_object(lisp_car(args));
+    if (!anim) {
+        return lisp_make_error("animation-unload: first argument must be an animation object");
+    }
+    animation_unload(anim);
+    return NIL;
+}
+
+static LispObject *builtin_animation_play(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("animation-play requires 1 argument (animation)");
+    }
+    Animation *anim = get_animation_object(lisp_car(args));
+    if (!anim) {
+        return lisp_make_error("animation-play: first argument must be an animation object");
+    }
+    animation_play(anim);
+    return NIL;
+}
+
+static LispObject *builtin_animation_pause(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("animation-pause requires 1 argument (animation)");
+    }
+    Animation *anim = get_animation_object(lisp_car(args));
+    if (!anim) {
+        return lisp_make_error("animation-pause: first argument must be an animation object");
+    }
+    animation_pause(anim);
+    return NIL;
+}
+
+static LispObject *builtin_animation_stop(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("animation-stop requires 1 argument (animation)");
+    }
+    Animation *anim = get_animation_object(lisp_car(args));
+    if (!anim) {
+        return lisp_make_error("animation-stop: first argument must be an animation object");
+    }
+    animation_stop(anim);
+    return NIL;
+}
+
+static LispObject *builtin_animation_set_speed(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("animation-set-speed requires 2 arguments (animation speed)");
+    }
+    Animation *anim = get_animation_object(lisp_car(args));
+    if (!anim) {
+        return lisp_make_error("animation-set-speed: first argument must be an animation object");
+    }
+    LispObject *speed_obj = lisp_car(lisp_cdr(args));
+    float speed = 1.0f;
+    if (speed_obj->type == LISP_NUMBER) {
+        speed = (float)speed_obj->value.number;
+    } else if (speed_obj->type == LISP_INTEGER) {
+        speed = (float)speed_obj->value.integer;
+    } else {
+        return lisp_make_error("animation-set-speed: second argument must be a number");
+    }
+    animation_set_speed(anim, speed);
+    return NIL;
+}
+
+static LispObject *builtin_animation_set_loop(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("animation-set-loop requires 1-2 arguments (animation [loop])");
+    }
+    Animation *anim = get_animation_object(lisp_car(args));
+    if (!anim) {
+        return lisp_make_error("animation-set-loop: first argument must be an animation object");
+    }
+    int loop = 1; /* Default to true */
+    LispObject *rest = lisp_cdr(args);
+    if (rest != NIL) {
+        LispObject *loop_obj = lisp_car(rest);
+        loop = lisp_is_truthy(loop_obj) ? 1 : 0;
+    }
+    animation_set_loop(anim, loop);
+    return NIL;
+}
+
+static LispObject *builtin_animation_seek(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("animation-seek requires 2 arguments (animation position)");
+    }
+    Animation *anim = get_animation_object(lisp_car(args));
+    if (!anim) {
+        return lisp_make_error("animation-seek: first argument must be an animation object");
+    }
+    LispObject *pos_obj = lisp_car(lisp_cdr(args));
+    float pos = 0.0f;
+    if (pos_obj->type == LISP_NUMBER) {
+        pos = (float)pos_obj->value.number;
+    } else if (pos_obj->type == LISP_INTEGER) {
+        pos = (float)pos_obj->value.integer;
+    } else {
+        return lisp_make_error("animation-seek: second argument must be a number (0.0-1.0)");
+    }
+    animation_seek(anim, pos);
+    return NIL;
+}
+
+static LispObject *builtin_animation_playing_p(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("animation-playing? requires 1 argument (animation)");
+    }
+    Animation *anim = get_animation_object(lisp_car(args));
+    if (!anim) {
+        return lisp_make_error("animation-playing?: first argument must be an animation object");
+    }
+    if (animation_is_playing(anim)) {
+        return lisp_make_symbol("t");
+    }
+    return NIL;
+}
+
+static LispObject *builtin_animation_loaded_p(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("animation-loaded? requires 1 argument (animation)");
+    }
+    Animation *anim = get_animation_object(lisp_car(args));
+    if (!anim) {
+        return lisp_make_error("animation-loaded?: first argument must be an animation object");
+    }
+    if (animation_is_loaded(anim)) {
+        return lisp_make_symbol("t");
+    }
+    return NIL;
+}
+
+static LispObject *builtin_animation_position(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("animation-position requires 1 argument (animation)");
+    }
+    Animation *anim = get_animation_object(lisp_car(args));
+    if (!anim) {
+        return lisp_make_error("animation-position: first argument must be an animation object");
+    }
+    return lisp_make_number((double)animation_get_position(anim));
+}
+
+static LispObject *builtin_animation_duration(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("animation-duration requires 1 argument (animation)");
+    }
+    Animation *anim = get_animation_object(lisp_car(args));
+    if (!anim) {
+        return lisp_make_error("animation-duration: first argument must be an animation object");
+    }
+    return lisp_make_number((double)animation_get_duration(anim));
+}
+
+static LispObject *builtin_animation_set_dim_mode(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("animation-set-dim-mode requires 1-2 arguments (animation [alpha])");
+    }
+    Animation *anim = get_animation_object(lisp_car(args));
+    if (!anim) {
+        return lisp_make_error("animation-set-dim-mode: first argument must be an animation object");
+    }
+    float alpha = 0.7f; /* Default: 70% overlay opacity */
+    LispObject *rest = lisp_cdr(args);
+    if (rest != NIL) {
+        LispObject *alpha_obj = lisp_car(rest);
+        if (alpha_obj->type == LISP_NUMBER) {
+            alpha = (float)alpha_obj->value.number;
+        } else if (alpha_obj->type == LISP_INTEGER) {
+            alpha = (float)alpha_obj->value.integer;
+        }
+    }
+    animation_set_visibility_mode(anim, ANIMATION_VISIBILITY_DIM);
+    animation_set_dim_alpha(anim, alpha);
+    return NIL;
+}
+
+static LispObject *builtin_animation_set_transparent_mode(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("animation-set-transparent-mode requires 1-2 arguments (animation [alpha])");
+    }
+    Animation *anim = get_animation_object(lisp_car(args));
+    if (!anim) {
+        return lisp_make_error("animation-set-transparent-mode: first argument must be an animation object");
+    }
+    float alpha = 0.85f; /* Default: 85% terminal bg opacity */
+    LispObject *rest = lisp_cdr(args);
+    if (rest != NIL) {
+        LispObject *alpha_obj = lisp_car(rest);
+        if (alpha_obj->type == LISP_NUMBER) {
+            alpha = (float)alpha_obj->value.number;
+        } else if (alpha_obj->type == LISP_INTEGER) {
+            alpha = (float)alpha_obj->value.integer;
+        }
+    }
+    animation_set_visibility_mode(anim, ANIMATION_VISIBILITY_TRANSPARENT);
+    animation_set_terminal_alpha(anim, alpha);
+    return NIL;
+}
+
+/* Set the active animation for rendering */
+static LispObject *builtin_animation_set_active(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        /* Clear active animation */
+        active_animation = NULL;
+        return NIL;
+    }
+    /* Check for nil argument to clear active animation */
+    LispObject *arg = lisp_car(args);
+    if (arg == NIL) {
+        active_animation = NULL;
+        return NIL;
+    }
+    Animation *anim = get_animation_object(arg);
+    if (!anim) {
+        return lisp_make_error("animation-set-active: argument must be an animation object or nil");
+    }
+    active_animation = anim;
+    return arg; /* Return the animation object */
+}
+
+#endif /* HAVE_RLOTTIE */
+
 int lisp_x_init(void) {
     /* Initialize Lisp interpreter */
     if (lisp_init() < 0) {
@@ -893,6 +1198,68 @@ int lisp_x_init(void) {
         "```\n";
     LispObject *version_builtin = lisp_make_builtin(builtin_version, "version", version_doc);
     env_define(lisp_env, "version", version_builtin);
+
+#if HAVE_RLOTTIE
+    /* Initialize animation type symbol for Lisp object wrapping */
+    sym_animation_type = lisp_make_symbol("animation-type");
+
+    /* Register animation builtins */
+    env_define(lisp_env, "animation-load",
+               lisp_make_builtin(builtin_animation_load, "animation-load",
+                                 "Load a Lottie animation file.\n\n(animation-load path) => animation object"));
+    env_define(lisp_env, "animation-unload",
+               lisp_make_builtin(builtin_animation_unload, "animation-unload",
+                                 "Unload an animation.\n\n(animation-unload anim) => nil"));
+    env_define(lisp_env, "animation-play",
+               lisp_make_builtin(builtin_animation_play, "animation-play",
+                                 "Start playing an animation.\n\n(animation-play anim) => nil"));
+    env_define(lisp_env, "animation-pause",
+               lisp_make_builtin(builtin_animation_pause, "animation-pause",
+                                 "Pause an animation.\n\n(animation-pause anim) => nil"));
+    env_define(lisp_env, "animation-stop",
+               lisp_make_builtin(builtin_animation_stop, "animation-stop",
+                                 "Stop an animation and reset to beginning.\n\n(animation-stop anim) => nil"));
+    env_define(lisp_env, "animation-set-speed",
+               lisp_make_builtin(builtin_animation_set_speed, "animation-set-speed",
+                                 "Set animation playback speed.\n\n(animation-set-speed anim multiplier) => nil\n\n1.0 "
+                                 "= normal, 0.5 = half speed, 2.0 = double speed"));
+    env_define(lisp_env, "animation-set-loop",
+               lisp_make_builtin(builtin_animation_set_loop, "animation-set-loop",
+                                 "Enable or disable looping.\n\n(animation-set-loop anim [enabled]) => nil\n\nIf "
+                                 "enabled is truthy (default t), animation loops."));
+    env_define(lisp_env, "animation-seek",
+               lisp_make_builtin(builtin_animation_seek, "animation-seek",
+                                 "Seek to a position in the animation.\n\n(animation-seek anim position) => "
+                                 "nil\n\nPosition is 0.0 to 1.0 (start to end)."));
+    env_define(lisp_env, "animation-playing?",
+               lisp_make_builtin(builtin_animation_playing_p, "animation-playing?",
+                                 "Check if animation is currently playing.\n\n(animation-playing? anim) => t or nil"));
+    env_define(lisp_env, "animation-loaded?",
+               lisp_make_builtin(builtin_animation_loaded_p, "animation-loaded?",
+                                 "Check if an animation file is loaded.\n\n(animation-loaded? anim) => t or nil"));
+    env_define(lisp_env, "animation-position",
+               lisp_make_builtin(builtin_animation_position, "animation-position",
+                                 "Get current playback position.\n\n(animation-position anim) => number (0.0 to 1.0)"));
+    env_define(lisp_env, "animation-duration",
+               lisp_make_builtin(builtin_animation_duration, "animation-duration",
+                                 "Get animation duration in seconds.\n\n(animation-duration anim) => number"));
+    env_define(
+        lisp_env, "animation-set-dim-mode",
+        lisp_make_builtin(builtin_animation_set_dim_mode, "animation-set-dim-mode",
+                          "Set visibility to dim mode (overlay on animation).\n\n(animation-set-dim-mode anim [alpha]) "
+                          "=> nil\n\nAlpha is overlay opacity (0.0-1.0, default 0.7). Higher = more dim."));
+    env_define(lisp_env, "animation-set-transparent-mode",
+               lisp_make_builtin(
+                   builtin_animation_set_transparent_mode, "animation-set-transparent-mode",
+                   "Set visibility to transparent mode (see-through terminal).\n\n(animation-set-transparent-mode anim "
+                   "[alpha]) => nil\n\nAlpha is terminal background opacity (0.0-1.0, default 0.85)."));
+    env_define(
+        lisp_env, "animation-set-active",
+        lisp_make_builtin(
+            builtin_animation_set_active, "animation-set-active",
+            "Set the active animation for rendering.\n\n(animation-set-active anim) => anim\n(animation-set-active "
+            "nil) => nil\n\nThe active animation is rendered behind terminal text."));
+#endif
 
     return 0;
 }
@@ -1785,6 +2152,16 @@ void lisp_x_register_glyph_cache(GlyphCache *cache) {
 void lisp_x_register_window(Window *w) {
     registered_window = w;
 }
+
+#if HAVE_RLOTTIE
+void lisp_x_register_renderer(SDL_Renderer *renderer) {
+    registered_renderer = renderer;
+}
+
+Animation *lisp_x_get_active_animation(void) {
+    return active_animation;
+}
+#endif
 
 /* Evaluate Lisp code and build echo buffer (eval-mode style)
  * Uses preallocated DynamicBuffer
