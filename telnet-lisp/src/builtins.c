@@ -2543,178 +2543,179 @@ static const char *doc_terpri = "Print newline (terminate print).\n"
                                 "## Notes\n"
                                 "Useful for adding newlines between output.";
 
+/* Helper macro to register a builtin and set its symbol's docstring */
+#define REGISTER(name, func, doc)                                                                                      \
+    do {                                                                                                               \
+        LispObject *sym = lisp_intern(name);                                                                           \
+        if ((doc) != NULL)                                                                                             \
+            sym->value.symbol->docstring = (char *)(doc);                                                              \
+        env_define(env, name, lisp_make_builtin(func, name));                                                          \
+    } while (0)
+
 void register_builtins(Environment *env) {
-    env_define(env, "+", lisp_make_builtin(builtin_add, "+", doc_add));
-    env_define(env, "-", lisp_make_builtin(builtin_subtract, "-", doc_subtract));
-    env_define(env, "*", lisp_make_builtin(builtin_multiply, "*", doc_multiply));
-    env_define(env, "/", lisp_make_builtin(builtin_divide, "/", doc_divide));
+    REGISTER("+", builtin_add, doc_add);
+    REGISTER("-", builtin_subtract, doc_subtract);
+    REGISTER("*", builtin_multiply, doc_multiply);
+    REGISTER("/", builtin_divide, doc_divide);
 
-    env_define(env, ">", lisp_make_builtin(builtin_gt, ">", doc_gt));
-    env_define(env, "<", lisp_make_builtin(builtin_lt, "<", doc_lt));
-    env_define(env, "=", lisp_make_builtin(builtin_eq, "=", doc_eq));
-    env_define(env, ">=", lisp_make_builtin(builtin_gte, ">=", doc_gte));
-    env_define(env, "<=", lisp_make_builtin(builtin_lte, "<=", doc_lte));
+    REGISTER(">", builtin_gt, doc_gt);
+    REGISTER("<", builtin_lt, doc_lt);
+    REGISTER("=", builtin_eq, doc_eq);
+    REGISTER(">=", builtin_gte, doc_gte);
+    REGISTER("<=", builtin_lte, doc_lte);
 
-    env_define(env, "concat", lisp_make_builtin(builtin_concat, "concat", doc_concat));
+    REGISTER("concat", builtin_concat, doc_concat);
     /* Note: string-append is defined as an alias via defalias in stdlib */
-    env_define(env, "number->string",
-               lisp_make_builtin(builtin_number_to_string, "number->string", doc_number_to_string));
-    env_define(env, "string->number",
-               lisp_make_builtin(builtin_string_to_number, "string->number", doc_string_to_number));
-    env_define(env, "split", lisp_make_builtin(builtin_split, "split", doc_split));
-    env_define(env, "string<?", lisp_make_builtin(builtin_string_lt, "string<?", doc_string_lt));
-    env_define(env, "string>?", lisp_make_builtin(builtin_string_gt, "string>?", doc_string_gt));
-    env_define(env, "string<=?", lisp_make_builtin(builtin_string_lte, "string<=?", doc_string_lte));
-    env_define(env, "string>=?", lisp_make_builtin(builtin_string_gte, "string>=?", doc_string_gte));
-    env_define(env, "string-contains?",
-               lisp_make_builtin(builtin_string_contains, "string-contains?", doc_string_contains));
-    env_define(env, "string-index", lisp_make_builtin(builtin_string_index, "string-index", doc_string_index));
-    env_define(env, "string-match?", lisp_make_builtin(builtin_string_match, "string-match?", doc_string_match));
-    env_define(env, "string-length", lisp_make_builtin(builtin_string_length, "string-length", doc_string_length));
-    env_define(env, "substring", lisp_make_builtin(builtin_substring, "substring", doc_substring));
-    env_define(env, "string-ref", lisp_make_builtin(builtin_string_ref, "string-ref", doc_string_ref));
-    env_define(env, "string-prefix?",
-               lisp_make_builtin(builtin_string_prefix_question, "string-prefix?", doc_string_prefix));
-    env_define(env, "string-replace", lisp_make_builtin(builtin_string_replace, "string-replace", doc_string_replace));
-    env_define(env, "string-upcase", lisp_make_builtin(builtin_string_upcase, "string-upcase", doc_string_upcase));
-    env_define(env, "string-downcase",
-               lisp_make_builtin(builtin_string_downcase, "string-downcase", doc_string_downcase));
+    REGISTER("number->string", builtin_number_to_string, doc_number_to_string);
+    REGISTER("string->number", builtin_string_to_number, doc_string_to_number);
+    REGISTER("split", builtin_split, doc_split);
+    REGISTER("string<?", builtin_string_lt, doc_string_lt);
+    REGISTER("string>?", builtin_string_gt, doc_string_gt);
+    REGISTER("string<=?", builtin_string_lte, doc_string_lte);
+    REGISTER("string>=?", builtin_string_gte, doc_string_gte);
+    REGISTER("string-contains?", builtin_string_contains, doc_string_contains);
+    REGISTER("string-index", builtin_string_index, doc_string_index);
+    REGISTER("string-match?", builtin_string_match, doc_string_match);
+    REGISTER("string-length", builtin_string_length, doc_string_length);
+    REGISTER("substring", builtin_substring, doc_substring);
+    REGISTER("string-ref", builtin_string_ref, doc_string_ref);
+    REGISTER("string-prefix?", builtin_string_prefix_question, doc_string_prefix);
+    REGISTER("string-replace", builtin_string_replace, doc_string_replace);
+    REGISTER("string-upcase", builtin_string_upcase, doc_string_upcase);
+    REGISTER("string-downcase", builtin_string_downcase, doc_string_downcase);
 
     /* Character operations */
-    env_define(env, "char?", lisp_make_builtin(builtin_char_question, "char?", NULL));
-    env_define(env, "char-code", lisp_make_builtin(builtin_char_code, "char-code", NULL));
-    env_define(env, "code-char", lisp_make_builtin(builtin_code_char, "code-char", NULL));
-    env_define(env, "char->string", lisp_make_builtin(builtin_char_to_string, "char->string", NULL));
-    env_define(env, "string->char", lisp_make_builtin(builtin_string_to_char, "string->char", NULL));
-    env_define(env, "char=?", lisp_make_builtin(builtin_char_eq, "char=?", NULL));
-    env_define(env, "char<?", lisp_make_builtin(builtin_char_lt, "char<?", NULL));
-    env_define(env, "char>?", lisp_make_builtin(builtin_char_gt, "char>?", NULL));
-    env_define(env, "char<=?", lisp_make_builtin(builtin_char_lte, "char<=?", NULL));
-    env_define(env, "char>=?", lisp_make_builtin(builtin_char_gte, "char>=?", NULL));
-    env_define(env, "char-upcase", lisp_make_builtin(builtin_char_upcase, "char-upcase", NULL));
-    env_define(env, "char-downcase", lisp_make_builtin(builtin_char_downcase, "char-downcase", NULL));
-    env_define(env, "char-alphabetic?", lisp_make_builtin(builtin_char_alphabetic, "char-alphabetic?", NULL));
-    env_define(env, "char-numeric?", lisp_make_builtin(builtin_char_numeric, "char-numeric?", NULL));
-    env_define(env, "char-whitespace?", lisp_make_builtin(builtin_char_whitespace, "char-whitespace?", NULL));
+    REGISTER("char?", builtin_char_question, NULL);
+    REGISTER("char-code", builtin_char_code, NULL);
+    REGISTER("code-char", builtin_code_char, NULL);
+    REGISTER("char->string", builtin_char_to_string, NULL);
+    REGISTER("string->char", builtin_string_to_char, NULL);
+    REGISTER("char=?", builtin_char_eq, NULL);
+    REGISTER("char<?", builtin_char_lt, NULL);
+    REGISTER("char>?", builtin_char_gt, NULL);
+    REGISTER("char<=?", builtin_char_lte, NULL);
+    REGISTER("char>=?", builtin_char_gte, NULL);
+    REGISTER("char-upcase", builtin_char_upcase, NULL);
+    REGISTER("char-downcase", builtin_char_downcase, NULL);
+    REGISTER("char-alphabetic?", builtin_char_alphabetic, NULL);
+    REGISTER("char-numeric?", builtin_char_numeric, NULL);
+    REGISTER("char-whitespace?", builtin_char_whitespace, NULL);
 
-    env_define(env, "not", lisp_make_builtin(builtin_not, "not", doc_not));
+    REGISTER("not", builtin_not, doc_not);
 
-    env_define(env, "car", lisp_make_builtin(builtin_car, "car", doc_car));
-    env_define(env, "cdr", lisp_make_builtin(builtin_cdr, "cdr", doc_cdr));
-    env_define(env, "cons", lisp_make_builtin(builtin_cons, "cons", doc_cons));
-    env_define(env, "list", lisp_make_builtin(builtin_list, "list", doc_list));
-    env_define(env, "list-length", lisp_make_builtin(builtin_list_length, "list-length", doc_list_length));
-    env_define(env, "list-ref", lisp_make_builtin(builtin_list_ref, "list-ref", doc_list_ref));
-    env_define(env, "reverse", lisp_make_builtin(builtin_reverse, "reverse", doc_reverse));
-    env_define(env, "append", lisp_make_builtin(builtin_append, "append", doc_append));
+    REGISTER("car", builtin_car, doc_car);
+    REGISTER("cdr", builtin_cdr, doc_cdr);
+    REGISTER("cons", builtin_cons, doc_cons);
+    REGISTER("list", builtin_list, doc_list);
+    REGISTER("list-length", builtin_list_length, doc_list_length);
+    REGISTER("list-ref", builtin_list_ref, doc_list_ref);
+    REGISTER("reverse", builtin_reverse, doc_reverse);
+    REGISTER("append", builtin_append, doc_append);
 
     /* Alist operations */
-    env_define(env, "assoc", lisp_make_builtin(builtin_assoc, "assoc", doc_assoc));
-    env_define(env, "assq", lisp_make_builtin(builtin_assq, "assq", doc_assq));
-    env_define(env, "assv", lisp_make_builtin(builtin_assv, "assv", doc_assv));
-    env_define(env, "alist-get", lisp_make_builtin(builtin_alist_get, "alist-get", doc_alist_get));
+    REGISTER("assoc", builtin_assoc, doc_assoc);
+    REGISTER("assq", builtin_assq, doc_assq);
+    REGISTER("assv", builtin_assv, doc_assv);
+    REGISTER("alist-get", builtin_alist_get, doc_alist_get);
 
     /* Equality predicates */
-    env_define(env, "eq?", lisp_make_builtin(builtin_eq_predicate, "eq?", doc_eq_predicate));
-    env_define(env, "equal?", lisp_make_builtin(builtin_equal_predicate, "equal?", doc_equal_predicate));
-    env_define(env, "string=?", lisp_make_builtin(builtin_string_eq_predicate, "string=?", doc_string_eq_predicate));
+    REGISTER("eq?", builtin_eq_predicate, doc_eq_predicate);
+    REGISTER("equal?", builtin_equal_predicate, doc_equal_predicate);
+    REGISTER("string=?", builtin_string_eq_predicate, doc_string_eq_predicate);
 
     /* Mapping operations */
-    env_define(env, "map", lisp_make_builtin(builtin_map, "map", doc_map));
-    env_define(env, "mapcar", lisp_make_builtin(builtin_mapcar, "mapcar", doc_map));
+    REGISTER("map", builtin_map, doc_map);
+    REGISTER("mapcar", builtin_mapcar, doc_map);
 
-    env_define(env, "null?", lisp_make_builtin(builtin_null_question, "null?", doc_null_question));
-    env_define(env, "atom?", lisp_make_builtin(builtin_atom_question, "atom?", doc_atom_question));
-    env_define(env, "pair?", lisp_make_builtin(builtin_pair_question, "pair?", doc_pair_question));
+    REGISTER("null?", builtin_null_question, doc_null_question);
+    REGISTER("atom?", builtin_atom_question, doc_atom_question);
+    REGISTER("pair?", builtin_pair_question, doc_pair_question);
 
-    env_define(env, "regex-match?", lisp_make_builtin(builtin_regex_match, "regex-match?", doc_regex_match));
-    env_define(env, "regex-find", lisp_make_builtin(builtin_regex_find, "regex-find", doc_regex_find));
-    env_define(env, "regex-find-all", lisp_make_builtin(builtin_regex_find_all, "regex-find-all", doc_regex_find_all));
-    env_define(env, "regex-extract", lisp_make_builtin(builtin_regex_extract, "regex-extract", doc_regex_extract));
-    env_define(env, "regex-replace", lisp_make_builtin(builtin_regex_replace, "regex-replace", doc_regex_replace));
-    env_define(env, "regex-replace-all",
-               lisp_make_builtin(builtin_regex_replace_all, "regex-replace-all", doc_regex_replace));
-    env_define(env, "regex-split", lisp_make_builtin(builtin_regex_split, "regex-split", doc_regex_split));
-    env_define(env, "regex-escape", lisp_make_builtin(builtin_regex_escape, "regex-escape", doc_regex_escape));
-    env_define(env, "regex-valid?", lisp_make_builtin(builtin_regex_valid, "regex-valid?", doc_regex_valid));
+    REGISTER("regex-match?", builtin_regex_match, doc_regex_match);
+    REGISTER("regex-find", builtin_regex_find, doc_regex_find);
+    REGISTER("regex-find-all", builtin_regex_find_all, doc_regex_find_all);
+    REGISTER("regex-extract", builtin_regex_extract, doc_regex_extract);
+    REGISTER("regex-replace", builtin_regex_replace, doc_regex_replace);
+    REGISTER("regex-replace-all", builtin_regex_replace_all, doc_regex_replace);
+    REGISTER("regex-split", builtin_regex_split, doc_regex_split);
+    REGISTER("regex-escape", builtin_regex_escape, doc_regex_escape);
+    REGISTER("regex-valid?", builtin_regex_valid, doc_regex_valid);
 
     /* File I/O functions */
-    env_define(env, "open", lisp_make_builtin(builtin_open, "open", doc_open));
-    env_define(env, "close", lisp_make_builtin(builtin_close, "close", doc_close));
-    env_define(env, "read-line", lisp_make_builtin(builtin_read_line, "read-line", doc_read_line));
-    env_define(env, "write-line", lisp_make_builtin(builtin_write_line, "write-line", doc_write_line));
-    env_define(env, "read-sexp", lisp_make_builtin(builtin_read_sexp, "read-sexp", doc_read_sexp));
-    env_define(env, "read-json", lisp_make_builtin(builtin_read_json, "read-json", doc_read_json));
-    env_define(env, "delete-file", lisp_make_builtin(builtin_delete_file, "delete-file", doc_delete_file));
-    env_define(env, "load", lisp_make_builtin(builtin_load, "load", doc_load));
+    REGISTER("open", builtin_open, doc_open);
+    REGISTER("close", builtin_close, doc_close);
+    REGISTER("read-line", builtin_read_line, doc_read_line);
+    REGISTER("write-line", builtin_write_line, doc_write_line);
+    REGISTER("read-sexp", builtin_read_sexp, doc_read_sexp);
+    REGISTER("read-json", builtin_read_json, doc_read_json);
+    REGISTER("delete-file", builtin_delete_file, doc_delete_file);
+    REGISTER("load", builtin_load, doc_load);
 
     /* Path expansion functions */
-    env_define(env, "home-directory", lisp_make_builtin(builtin_home_directory, "home-directory", doc_home_directory));
-    env_define(env, "expand-path", lisp_make_builtin(builtin_expand_path, "expand-path", doc_expand_path));
+    REGISTER("home-directory", builtin_home_directory, doc_home_directory);
+    REGISTER("expand-path", builtin_expand_path, doc_expand_path);
 
     /* Common Lisp printing functions */
-    env_define(env, "princ", lisp_make_builtin(builtin_princ, "princ", doc_princ));
-    env_define(env, "prin1", lisp_make_builtin(builtin_prin1, "prin1", doc_prin1));
-    env_define(env, "print", lisp_make_builtin(builtin_print_cl, "print", doc_print));
-    env_define(env, "format", lisp_make_builtin(builtin_format, "format", doc_format));
-    env_define(env, "terpri", lisp_make_builtin(builtin_terpri, "terpri", doc_terpri));
+    REGISTER("princ", builtin_princ, doc_princ);
+    REGISTER("prin1", builtin_prin1, doc_prin1);
+    REGISTER("print", builtin_print_cl, doc_print);
+    REGISTER("format", builtin_format, doc_format);
+    REGISTER("terpri", builtin_terpri, doc_terpri);
 
     /* Type predicates */
-    env_define(env, "integer?", lisp_make_builtin(builtin_integer_question, "integer?", doc_integer_question));
-    env_define(env, "boolean?", lisp_make_builtin(builtin_boolean_question, "boolean?", doc_boolean_question));
-    env_define(env, "number?", lisp_make_builtin(builtin_number_question, "number?", doc_number_question));
-    env_define(env, "vector?", lisp_make_builtin(builtin_vector_question, "vector?", doc_vector_question));
-    env_define(env, "hash-table?",
-               lisp_make_builtin(builtin_hash_table_question, "hash-table?", doc_hash_table_question));
-    env_define(env, "string?", lisp_make_builtin(builtin_string_question, "string?", doc_string_question));
-    env_define(env, "symbol?", lisp_make_builtin(builtin_symbol_question, "symbol?", doc_symbol_question));
-    env_define(env, "list?", lisp_make_builtin(builtin_list_question, "list?", doc_list_question));
+    REGISTER("integer?", builtin_integer_question, doc_integer_question);
+    REGISTER("boolean?", builtin_boolean_question, doc_boolean_question);
+    REGISTER("number?", builtin_number_question, doc_number_question);
+    REGISTER("vector?", builtin_vector_question, doc_vector_question);
+    REGISTER("hash-table?", builtin_hash_table_question, doc_hash_table_question);
+    REGISTER("string?", builtin_string_question, doc_string_question);
+    REGISTER("symbol?", builtin_symbol_question, doc_symbol_question);
+    REGISTER("list?", builtin_list_question, doc_list_question);
 
     /* Symbol operations */
-    env_define(env, "symbol->string",
-               lisp_make_builtin(builtin_symbol_to_string, "symbol->string", doc_symbol_to_string));
+    REGISTER("symbol->string", builtin_symbol_to_string, doc_symbol_to_string);
 
     /* Vector operations */
-    env_define(env, "make-vector", lisp_make_builtin(builtin_make_vector, "make-vector", doc_make_vector));
-    env_define(env, "vector-ref", lisp_make_builtin(builtin_vector_ref, "vector-ref", doc_vector_ref));
-    env_define(env, "vector-set!", lisp_make_builtin(builtin_vector_set_bang, "vector-set!", doc_vector_set_bang));
-    env_define(env, "vector-length", lisp_make_builtin(builtin_vector_length, "vector-length", doc_vector_length));
-    env_define(env, "vector-push!", lisp_make_builtin(builtin_vector_push_bang, "vector-push!", doc_vector_push_bang));
-    env_define(env, "vector-pop!", lisp_make_builtin(builtin_vector_pop_bang, "vector-pop!", doc_vector_pop_bang));
+    REGISTER("make-vector", builtin_make_vector, doc_make_vector);
+    REGISTER("vector-ref", builtin_vector_ref, doc_vector_ref);
+    REGISTER("vector-set!", builtin_vector_set_bang, doc_vector_set_bang);
+    REGISTER("vector-length", builtin_vector_length, doc_vector_length);
+    REGISTER("vector-push!", builtin_vector_push_bang, doc_vector_push_bang);
+    REGISTER("vector-pop!", builtin_vector_pop_bang, doc_vector_pop_bang);
 
     /* Integer operations */
-    env_define(env, "quotient", lisp_make_builtin(builtin_quotient, "quotient", doc_quotient));
-    env_define(env, "remainder", lisp_make_builtin(builtin_remainder, "remainder", doc_remainder));
-    env_define(env, "even?", lisp_make_builtin(builtin_even_question, "even?", doc_even_question));
-    env_define(env, "odd?", lisp_make_builtin(builtin_odd_question, "odd?", doc_odd_question));
+    REGISTER("quotient", builtin_quotient, doc_quotient);
+    REGISTER("remainder", builtin_remainder, doc_remainder);
+    REGISTER("even?", builtin_even_question, doc_even_question);
+    REGISTER("odd?", builtin_odd_question, doc_odd_question);
 
     /* Hash table operations */
-    env_define(env, "make-hash-table",
-               lisp_make_builtin(builtin_make_hash_table, "make-hash-table", doc_make_hash_table));
-    env_define(env, "hash-ref", lisp_make_builtin(builtin_hash_ref, "hash-ref", doc_hash_ref));
-    env_define(env, "hash-set!", lisp_make_builtin(builtin_hash_set_bang, "hash-set!", doc_hash_set_bang));
-    env_define(env, "hash-remove!", lisp_make_builtin(builtin_hash_remove_bang, "hash-remove!", doc_hash_remove_bang));
-    env_define(env, "hash-clear!", lisp_make_builtin(builtin_hash_clear_bang, "hash-clear!", doc_hash_clear_bang));
-    env_define(env, "hash-count", lisp_make_builtin(builtin_hash_count, "hash-count", doc_hash_count));
-    env_define(env, "hash-keys", lisp_make_builtin(builtin_hash_keys, "hash-keys", doc_hash_keys));
-    env_define(env, "hash-values", lisp_make_builtin(builtin_hash_values, "hash-values", doc_hash_values));
-    env_define(env, "hash-entries", lisp_make_builtin(builtin_hash_entries, "hash-entries", doc_hash_entries));
+    REGISTER("make-hash-table", builtin_make_hash_table, doc_make_hash_table);
+    REGISTER("hash-ref", builtin_hash_ref, doc_hash_ref);
+    REGISTER("hash-set!", builtin_hash_set_bang, doc_hash_set_bang);
+    REGISTER("hash-remove!", builtin_hash_remove_bang, doc_hash_remove_bang);
+    REGISTER("hash-clear!", builtin_hash_clear_bang, doc_hash_clear_bang);
+    REGISTER("hash-count", builtin_hash_count, doc_hash_count);
+    REGISTER("hash-keys", builtin_hash_keys, doc_hash_keys);
+    REGISTER("hash-values", builtin_hash_values, doc_hash_values);
+    REGISTER("hash-entries", builtin_hash_entries, doc_hash_entries);
 
     /* Error introspection and handling */
-    env_define(env, "error?", lisp_make_builtin(builtin_error_question, "error?", doc_error_question));
-    env_define(env, "error-type", lisp_make_builtin(builtin_error_type, "error-type", doc_error_type));
-    env_define(env, "error-message", lisp_make_builtin(builtin_error_message, "error-message", doc_error_message));
-    env_define(env, "error-stack", lisp_make_builtin(builtin_error_stack, "error-stack", doc_error_stack));
-    env_define(env, "error-data", lisp_make_builtin(builtin_error_data, "error-data", doc_error_data));
-    env_define(env, "signal", lisp_make_builtin(builtin_signal, "signal", doc_signal));
-    env_define(env, "error", lisp_make_builtin(builtin_error, "error", doc_error));
+    REGISTER("error?", builtin_error_question, doc_error_question);
+    REGISTER("error-type", builtin_error_type, doc_error_type);
+    REGISTER("error-message", builtin_error_message, doc_error_message);
+    REGISTER("error-stack", builtin_error_stack, doc_error_stack);
+    REGISTER("error-data", builtin_error_data, doc_error_data);
+    REGISTER("signal", builtin_signal, doc_signal);
+    REGISTER("error", builtin_error, doc_error);
 
     /* Docstring introspection functions */
-    env_define(env, "documentation", lisp_make_builtin(builtin_documentation, "documentation", doc_documentation));
-    env_define(env, "bound?", lisp_make_builtin(builtin_bound_p, "bound?", doc_bound_p));
-    env_define(env, "set-documentation!",
-               lisp_make_builtin(builtin_set_documentation, "set-documentation!", doc_set_documentation));
+    REGISTER("documentation", builtin_documentation, doc_documentation);
+    REGISTER("bound?", builtin_bound_p, doc_bound_p);
+    REGISTER("set-documentation!", builtin_set_documentation, doc_set_documentation);
 }
+
+#undef REGISTER
 
 /* Helper function to get numeric value */
 static double get_numeric_value(LispObject *obj, int *is_integer) {
@@ -6401,6 +6402,8 @@ static LispObject *builtin_error(LispObject *args, Environment *env) {
  * Similar to Emacs Lisp's documentation function.
  */
 static LispObject *builtin_documentation(LispObject *args, Environment *env) {
+    (void)env; /* Docstrings are on symbols, not looked up in env */
+
     if (args == NIL) {
         return lisp_make_error("documentation requires at least 1 argument");
     }
@@ -6411,35 +6414,9 @@ static LispObject *builtin_documentation(LispObject *args, Environment *env) {
         return lisp_make_error("documentation requires a symbol");
     }
 
-    /* First check for symbol's own docstring (set by define or set-documentation!) */
+    /* Docstrings are stored on the symbol (set by REGISTER, define, or set-documentation!) */
     if (symbol->value.symbol->docstring != NULL) {
         return lisp_make_string(symbol->value.symbol->docstring);
-    }
-
-    /* Look up the symbol's value to check for value's docstring */
-    LispObject *value = env_lookup(env, symbol->value.symbol->name);
-
-    if (value == NULL) {
-        /* Symbol has no docstring and no binding */
-        return NIL;
-    }
-
-    /* Fall back to value's docstring (lambda/macro/builtin) */
-    if (value->type == LISP_LAMBDA) {
-        if (value->value.lambda.docstring == NULL) {
-            return NIL;
-        }
-        return lisp_make_string(value->value.lambda.docstring);
-    } else if (value->type == LISP_MACRO) {
-        if (value->value.macro.docstring == NULL) {
-            return NIL;
-        }
-        return lisp_make_string(value->value.macro.docstring);
-    } else if (value->type == LISP_BUILTIN) {
-        if (value->value.builtin.docstring == NULL) {
-            return NIL;
-        }
-        return lisp_make_string(value->value.builtin.docstring);
     }
 
     return NIL;

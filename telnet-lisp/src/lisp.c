@@ -155,12 +155,11 @@ LispObject *lisp_attach_stack_trace(LispObject *error, Environment *env) {
     return error;
 }
 
-LispObject *lisp_make_builtin(BuiltinFunc func, const char *name, const char *docstring) {
+LispObject *lisp_make_builtin(BuiltinFunc func, const char *name) {
     LispObject *obj = GC_malloc(sizeof(LispObject));
     obj->type = LISP_BUILTIN;
     obj->value.builtin.func = func;
     obj->value.builtin.name = name;
-    obj->value.builtin.docstring = docstring;
     return obj;
 }
 

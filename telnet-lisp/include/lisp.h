@@ -76,7 +76,6 @@ struct LispObject {
         struct {
             BuiltinFunc func;
             const char *name;
-            const char *docstring;  /* Documentation string (CommonMark format) */
         } builtin;
         struct {
             LispObject *params;            /* Full parameter list (for display) */
@@ -165,7 +164,7 @@ LispObject *lisp_make_symbol(const char *name);
 LispObject *lisp_make_boolean(int value);
 LispObject *lisp_make_cons(LispObject *car, LispObject *cdr);
 LispObject *lisp_make_error(const char *message);
-LispObject *lisp_make_builtin(BuiltinFunc func, const char *name, const char *docstring);
+LispObject *lisp_make_builtin(BuiltinFunc func, const char *name);
 LispObject *lisp_make_lambda(LispObject *params, LispObject *body, Environment *closure, const char *name);
 LispObject *lisp_make_lambda_ext(LispObject *params, LispObject *required_params, LispObject *optional_params,
                                   LispObject *rest_param, int required_count, int optional_count,

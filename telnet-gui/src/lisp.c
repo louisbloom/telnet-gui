@@ -956,6 +956,15 @@ int lisp_x_init(void) {
         return -1;
     }
 
+/* Helper macro to register a builtin and set its symbol's docstring */
+#define REGISTER_BUILTIN(name, func, doc)                                                                              \
+    do {                                                                                                               \
+        LispObject *sym = lisp_intern(name);                                                                           \
+        if ((doc) != NULL)                                                                                             \
+            sym->value.symbol->docstring = (char *)(doc);                                                              \
+        env_define(lisp_env, name, lisp_make_builtin(func, name));                                                     \
+    } while (0)
+
     /* Register terminal-echo builtin */
     const char *terminal_echo_doc = "Output text to terminal display (local echo).\n"
                                     "\n"
@@ -991,8 +1000,7 @@ int lisp_x_init(void) {
                                     "## See Also\n"
                                     "- `telnet-send` - Send text to server\n"
                                     "- `terminal-info` - Get terminal dimensions and info";
-    LispObject *terminal_echo_builtin = lisp_make_builtin(builtin_terminal_echo, "terminal-echo", terminal_echo_doc);
-    env_define(lisp_env, "terminal-echo", terminal_echo_builtin);
+    REGISTER_BUILTIN("terminal-echo", builtin_terminal_echo, terminal_echo_doc);
 
     /* Register telnet-send builtin */
     const char *telnet_send_doc = "Send text to telnet server.\n"
@@ -1038,8 +1046,7 @@ int lisp_x_init(void) {
                                   "## See Also\n"
                                   "- `terminal-echo` - Echo text locally\n"
                                   "- `user-input-hook` - Hook that uses this for command sending";
-    LispObject *telnet_send_builtin = lisp_make_builtin(builtin_telnet_send, "telnet-send", telnet_send_doc);
-    env_define(lisp_env, "telnet-send", telnet_send_builtin);
+    REGISTER_BUILTIN("telnet-send", builtin_telnet_send, telnet_send_doc);
 
     /* Register terminal-info builtin */
     const char *terminal_info_doc =
@@ -1118,8 +1125,7 @@ int lisp_x_init(void) {
         "## See Also\n"
         "- `tintin-calculate-optimal-widths` - Uses terminal width for table layout\n"
         "- `tintin-print-table` - Uses this for responsive table formatting";
-    LispObject *terminal_info_builtin = lisp_make_builtin(builtin_terminal_info, "terminal-info", terminal_info_doc);
-    env_define(lisp_env, "terminal-info", terminal_info_builtin);
+    REGISTER_BUILTIN("terminal-info", builtin_terminal_info, terminal_info_doc);
 
     /* version: Return version information for all dependencies */
     const char *version_doc =
@@ -1149,8 +1155,7 @@ int lisp_x_init(void) {
         "(cdr (assoc 'libvterm (version)))\n"
         "; => \"0.3.3+pushline4\"\n"
         "```\n";
-    LispObject *version_builtin = lisp_make_builtin(builtin_version, "version", version_doc);
-    env_define(lisp_env, "version", version_builtin);
+    REGISTER_BUILTIN("version", builtin_version, version_doc);
 
     /* terminal-scroll-locked?: Check if terminal scroll is locked */
     const char *terminal_scroll_locked_doc = "Check if terminal scroll is locked (user scrolled back from bottom).\n"
@@ -1169,72 +1174,54 @@ int lisp_x_init(void) {
                                              "    (terminal-echo \"[Scroll locked]\\r\\n\")\n"
                                              "    (terminal-echo \"[At live output]\\r\\n\"))\n"
                                              "```\n";
-    LispObject *terminal_scroll_locked_builtin =
-        lisp_make_builtin(builtin_terminal_scroll_locked_p, "terminal-scroll-locked?", terminal_scroll_locked_doc);
-    env_define(lisp_env, "terminal-scroll-locked?", terminal_scroll_locked_builtin);
+    REGISTER_BUILTIN("terminal-scroll-locked?", builtin_terminal_scroll_locked_p, terminal_scroll_locked_doc);
 
 #if HAVE_RLOTTIE
     /* Initialize animation type symbol for Lisp object wrapping */
     sym_animation_type = lisp_make_symbol("animation-type");
 
     /* Register animation builtins */
-    env_define(lisp_env, "animation-load",
-               lisp_make_builtin(builtin_animation_load, "animation-load",
-                                 "Load a Lottie animation file.\n\n(animation-load path) => animation object"));
-    env_define(lisp_env, "animation-unload",
-               lisp_make_builtin(builtin_animation_unload, "animation-unload",
-                                 "Unload an animation.\n\n(animation-unload anim) => nil"));
-    env_define(lisp_env, "animation-play",
-               lisp_make_builtin(builtin_animation_play, "animation-play",
-                                 "Start playing an animation and set it as active.\n\n(animation-play anim) => nil\n\n"
-                                 "Automatically sets the animation as the active background animation."));
-    env_define(lisp_env, "animation-pause",
-               lisp_make_builtin(builtin_animation_pause, "animation-pause",
-                                 "Pause an animation.\n\n(animation-pause anim) => nil"));
-    env_define(lisp_env, "animation-stop",
-               lisp_make_builtin(builtin_animation_stop, "animation-stop",
-                                 "Stop an animation and reset to beginning.\n\n(animation-stop anim) => nil"));
-    env_define(lisp_env, "animation-set-speed",
-               lisp_make_builtin(builtin_animation_set_speed, "animation-set-speed",
-                                 "Set animation playback speed.\n\n(animation-set-speed anim multiplier) => nil\n\n1.0 "
-                                 "= normal, 0.5 = half speed, 2.0 = double speed"));
-    env_define(lisp_env, "animation-set-loop",
-               lisp_make_builtin(builtin_animation_set_loop, "animation-set-loop",
-                                 "Enable or disable looping.\n\n(animation-set-loop anim [enabled]) => nil\n\nIf "
-                                 "enabled is truthy (default t), animation loops."));
-    env_define(lisp_env, "animation-seek",
-               lisp_make_builtin(builtin_animation_seek, "animation-seek",
-                                 "Seek to a position in the animation.\n\n(animation-seek anim position) => "
-                                 "nil\n\nPosition is 0.0 to 1.0 (start to end)."));
-    env_define(lisp_env, "animation-playing?",
-               lisp_make_builtin(builtin_animation_playing_p, "animation-playing?",
-                                 "Check if animation is currently playing.\n\n(animation-playing? anim) => t or nil"));
-    env_define(lisp_env, "animation-loaded?",
-               lisp_make_builtin(builtin_animation_loaded_p, "animation-loaded?",
-                                 "Check if an animation file is loaded.\n\n(animation-loaded? anim) => t or nil"));
-    env_define(lisp_env, "animation-position",
-               lisp_make_builtin(builtin_animation_position, "animation-position",
-                                 "Get current playback position.\n\n(animation-position anim) => number (0.0 to 1.0)"));
-    env_define(lisp_env, "animation-duration",
-               lisp_make_builtin(builtin_animation_duration, "animation-duration",
-                                 "Get animation duration in seconds.\n\n(animation-duration anim) => number"));
-    env_define(
-        lisp_env, "animation-set-dim-mode",
-        lisp_make_builtin(builtin_animation_set_dim_mode, "animation-set-dim-mode",
-                          "Set visibility to dim mode (overlay on animation).\n\n(animation-set-dim-mode anim [alpha]) "
-                          "=> nil\n\nAlpha is overlay opacity (0.0-1.0, default 0.7). Higher = more dim."));
-    env_define(lisp_env, "animation-set-transparent-mode",
-               lisp_make_builtin(
-                   builtin_animation_set_transparent_mode, "animation-set-transparent-mode",
-                   "Set visibility to transparent mode (see-through terminal).\n\n(animation-set-transparent-mode anim "
-                   "[alpha]) => nil\n\nAlpha is terminal background opacity (0.0-1.0, default 0.85)."));
-    env_define(
-        lisp_env, "animation-set-active",
-        lisp_make_builtin(
-            builtin_animation_set_active, "animation-set-active",
-            "Set the active animation for rendering.\n\n(animation-set-active anim) => anim\n(animation-set-active "
-            "nil) => nil\n\nThe active animation is rendered behind terminal text."));
+    REGISTER_BUILTIN("animation-load", builtin_animation_load,
+                     "Load a Lottie animation file.\n\n(animation-load path) => animation object");
+    REGISTER_BUILTIN("animation-unload", builtin_animation_unload,
+                     "Unload an animation.\n\n(animation-unload anim) => nil");
+    REGISTER_BUILTIN("animation-play", builtin_animation_play,
+                     "Start playing an animation and set it as active.\n\n(animation-play anim) => nil\n\n"
+                     "Automatically sets the animation as the active background animation.");
+    REGISTER_BUILTIN("animation-pause", builtin_animation_pause,
+                     "Pause an animation.\n\n(animation-pause anim) => nil");
+    REGISTER_BUILTIN("animation-stop", builtin_animation_stop,
+                     "Stop an animation and reset to beginning.\n\n(animation-stop anim) => nil");
+    REGISTER_BUILTIN("animation-set-speed", builtin_animation_set_speed,
+                     "Set animation playback speed.\n\n(animation-set-speed anim multiplier) => nil\n\n1.0 "
+                     "= normal, 0.5 = half speed, 2.0 = double speed");
+    REGISTER_BUILTIN("animation-set-loop", builtin_animation_set_loop,
+                     "Enable or disable looping.\n\n(animation-set-loop anim [enabled]) => nil\n\nIf "
+                     "enabled is truthy (default t), animation loops.");
+    REGISTER_BUILTIN("animation-seek", builtin_animation_seek,
+                     "Seek to a position in the animation.\n\n(animation-seek anim position) => "
+                     "nil\n\nPosition is 0.0 to 1.0 (start to end).");
+    REGISTER_BUILTIN("animation-playing?", builtin_animation_playing_p,
+                     "Check if animation is currently playing.\n\n(animation-playing? anim) => t or nil");
+    REGISTER_BUILTIN("animation-loaded?", builtin_animation_loaded_p,
+                     "Check if an animation file is loaded.\n\n(animation-loaded? anim) => t or nil");
+    REGISTER_BUILTIN("animation-position", builtin_animation_position,
+                     "Get current playback position.\n\n(animation-position anim) => number (0.0 to 1.0)");
+    REGISTER_BUILTIN("animation-duration", builtin_animation_duration,
+                     "Get animation duration in seconds.\n\n(animation-duration anim) => number");
+    REGISTER_BUILTIN("animation-set-dim-mode", builtin_animation_set_dim_mode,
+                     "Set visibility to dim mode (overlay on animation).\n\n(animation-set-dim-mode anim [alpha]) "
+                     "=> nil\n\nAlpha is overlay opacity (0.0-1.0, default 0.7). Higher = more dim.");
+    REGISTER_BUILTIN("animation-set-transparent-mode", builtin_animation_set_transparent_mode,
+                     "Set visibility to transparent mode (see-through terminal).\n\n(animation-set-transparent-mode "
+                     "anim [alpha]) => nil\n\nAlpha is terminal background opacity (0.0-1.0, default 0.85).");
+    REGISTER_BUILTIN("animation-set-active", builtin_animation_set_active,
+                     "Set the active animation for rendering.\n\n(animation-set-active anim) => "
+                     "anim\n(animation-set-active nil) => nil\n\nThe active animation is rendered behind terminal "
+                     "text.");
 #endif
+
+#undef REGISTER_BUILTIN
 
     /* Load bootstrap file - MUST be after all builtins are registered */
     if (!load_bootstrap_file()) {
