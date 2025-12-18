@@ -94,10 +94,6 @@ static Animation *get_animation_object(LispObject *obj) {
     return (Animation *)(intptr_t)ptr_obj->value.integer;
 }
 
-/* Helper: Check if object is an Animation */
-static int is_animation_object(LispObject *obj) {
-    return get_animation_object(obj) != NULL;
-}
 #endif
 
 /* Static buffer for ANSI code stripping (pre-allocated at startup, freed on exit) */
@@ -606,6 +602,21 @@ static LispObject *builtin_version(LispObject *args, Environment *env) {
 #undef ADD_PAIR
 
     return result;
+}
+
+/* Built-in: terminal-scroll-locked?
+ * Returns t if terminal scroll is locked (user scrolled back), nil otherwise.
+ */
+static LispObject *builtin_terminal_scroll_locked_p(LispObject *args, Environment *env) {
+    (void)args;
+    (void)env;
+    if (!registered_terminal) {
+        return NIL; /* No terminal = not locked */
+    }
+    if (terminal_is_scroll_locked(registered_terminal)) {
+        return LISP_TRUE;
+    }
+    return NIL;
 }
 
 /* Animation builtin functions */
@@ -1198,6 +1209,27 @@ int lisp_x_init(void) {
         "```\n";
     LispObject *version_builtin = lisp_make_builtin(builtin_version, "version", version_doc);
     env_define(lisp_env, "version", version_builtin);
+
+    /* terminal-scroll-locked?: Check if terminal scroll is locked */
+    const char *terminal_scroll_locked_doc = "Check if terminal scroll is locked (user scrolled back from bottom).\n"
+                                             "\n"
+                                             "## Returns\n"
+                                             "`t` if scroll locked, `nil` if at bottom\n"
+                                             "\n"
+                                             "## Description\n"
+                                             "Returns true when the user has scrolled up from the current position,\n"
+                                             "preventing auto-scroll. Returns nil when viewing the live terminal\n"
+                                             "output at the bottom of the scrollback.\n"
+                                             "\n"
+                                             "## Examples\n"
+                                             "```lisp\n"
+                                             "(if (terminal-scroll-locked?)\n"
+                                             "    (terminal-echo \"[Scroll locked]\\r\\n\")\n"
+                                             "    (terminal-echo \"[At live output]\\r\\n\"))\n"
+                                             "```\n";
+    LispObject *terminal_scroll_locked_builtin =
+        lisp_make_builtin(builtin_terminal_scroll_locked_p, "terminal-scroll-locked?", terminal_scroll_locked_doc);
+    env_define(lisp_env, "terminal-scroll-locked?", terminal_scroll_locked_builtin);
 
 #if HAVE_RLOTTIE
     /* Initialize animation type symbol for Lisp object wrapping */

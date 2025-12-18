@@ -776,8 +776,11 @@
   - `completion-hook` - Uses word store for tab completion
   - `telnet-input-filter-hook` - For modifying ANSI output before display
   - `collect-words-from-text` - Internal word extraction function
-  - `add-word-to-store` - Adds individual words to completion store"
-  (collect-words-from-text text))
+  - `add-word-to-store` - Adds individual words to completion store
+  - `maybe-play-scroll-lock-notification` - Scroll-lock notification animation"
+  (progn
+    (collect-words-from-text text)
+    (maybe-play-scroll-lock-notification)))
 
 ;; ============================================================================
 ;; TELNET INPUT FILTER HOOK CONFIGURATION
@@ -1569,3 +1572,65 @@ server output.
 ;;       coordinate conversion, but does not stretch glyphs (they maintain their
 ;;       original size from the font).
 (define *terminal-line-height* 1.2)
+
+;; ============================================================================
+;; SCROLL-LOCK NOTIFICATION ANIMATION
+;; ============================================================================
+;; When the terminal is in scroll-lock mode (user scrolled back from live output)
+;; and new telnet data arrives, play a subtle notification animation to alert
+;; the user that new content is available.
+
+;; Enable/disable scroll-lock notification animation
+(define *scroll-lock-notification-enabled* #t)
+
+;; Animation object (nil until loaded)
+(define *scroll-lock-notification-animation* nil)
+
+;; Load the scroll-lock notification animation
+;; Called once during bootstrap to initialize the animation
+(defun load-scroll-lock-notification ()
+  "Load the scroll-lock notification animation if enabled and rlottie available.
+
+  ## Description
+  Loads the notification.json animation file and configures it for single-play
+  (no loop) with a high dim overlay (0.85) for subtlety. Called during bootstrap.
+
+  ## Returns
+  The animation object if loaded successfully, nil otherwise."
+  (if (and *scroll-lock-notification-enabled*
+        (not *scroll-lock-notification-animation*))
+    (let ((anim (animation-load "notification.json")))
+      (if (and anim (animation-loaded? anim))
+        (progn
+          (animation-set-loop anim nil)      ; Play once, don't loop
+          (animation-set-dim-mode anim 0.85) ; Subtle overlay
+          (set! *scroll-lock-notification-animation* anim)
+          anim)
+        nil))
+    nil))
+
+;; Check and play scroll-lock notification if conditions are met
+(defun maybe-play-scroll-lock-notification ()
+  "Play notification animation if scroll-locked and not already playing.
+
+  ## Description
+  Called from telnet-input-hook when new data arrives. Checks if:
+  1. Notifications are enabled
+  2. Animation is loaded
+  3. Terminal is in scroll-lock mode
+  4. Animation is not already playing
+
+  If all conditions are met, sets the animation as active and plays it once."
+  (if (and *scroll-lock-notification-enabled*
+        *scroll-lock-notification-animation*
+        (terminal-scroll-locked?)
+        (not (animation-playing? *scroll-lock-notification-animation*)))
+    (progn
+      (animation-set-active *scroll-lock-notification-animation*)
+      (animation-play *scroll-lock-notification-animation*))))
+
+;; ============================================================================
+;; BOOTSTRAP INITIALIZATION
+;; ============================================================================
+;; Load scroll-lock notification animation (fails silently if rlottie not available)
+(load-scroll-lock-notification)
