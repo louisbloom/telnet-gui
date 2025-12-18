@@ -5,12 +5,14 @@
  */
 
 #include "animation.h"
+#include "path_utils.h"
 #include "../../telnet-lisp/include/file_utils.h"
 
 #if HAVE_RLOTTIE
 #include <rlottie_capi.h>
 #endif
 
+#include <SDL2/SDL.h>
 #include <gc.h>
 #include <stdlib.h>
 #include <string.h>
@@ -161,23 +163,60 @@ int animation_load(Animation *anim, const char *path) {
     animation_unload(anim);
 
     /* Try multiple paths to find the animation file */
-    const char *try_paths[4];
+    const char *try_paths[8];
     int path_count = 0;
-    char exe_relative_path[1024] = {0};
+    char installed_path[TELNET_MAX_PATH] = {0};
+    char exe_relative_path[TELNET_MAX_PATH] = {0};
+    char source_tree_path[TELNET_MAX_PATH] = {0};
+    char source_tree_nested_path[TELNET_MAX_PATH] = {0};
 
-    /* Path 1: Executable-relative path (for build directory) */
+    /* Get base path for path resolution */
     char *base_path = SDL_GetBasePath();
+    int is_installed = base_path && path_is_installed_bin_directory(base_path);
+
+    /* Extract just the filename from path if it contains directories */
+    const char *filename = strrchr(path, '/');
+    if (!filename)
+        filename = strrchr(path, '\\');
+    if (!filename)
+        filename = path;
+    else
+        filename++; /* Skip the separator */
+
+    /* Path 1: Current directory (raw path as provided) */
+    try_paths[path_count++] = path;
+
+    /* Path 2: Installed data directory (share/telnet-gui/animations/) */
     if (base_path) {
+        char data_dir[TELNET_MAX_PATH];
+        if (path_construct_data_directory(base_path, data_dir, sizeof(data_dir))) {
+            /* Use just the filename to avoid double directories like animations/animations/ */
+            snprintf(installed_path, sizeof(installed_path), "%s/animations/%s", data_dir, filename);
+            path_normalize_for_platform(installed_path);
+            try_paths[path_count++] = installed_path;
+        }
+    }
+
+    /* Path 3: Executable-relative path (for build directory) */
+    if (base_path && !is_installed) {
         size_t base_len = strlen(base_path);
         const char *sep =
             (base_len > 0 && (base_path[base_len - 1] == '/' || base_path[base_len - 1] == '\\')) ? "" : "/";
         snprintf(exe_relative_path, sizeof(exe_relative_path), "%s%s%s", base_path, sep, path);
         try_paths[path_count++] = exe_relative_path;
-        SDL_free(base_path);
     }
 
-    /* Path 2: Raw path as provided (current directory relative or absolute) */
-    try_paths[path_count++] = path;
+    /* Path 4: Source tree path (telnet-gui/animations/filename for build from root) */
+    snprintf(source_tree_path, sizeof(source_tree_path), "telnet-gui/animations/%s", filename);
+    try_paths[path_count++] = source_tree_path;
+
+    /* Path 5: Nested build directory (../../telnet-gui/animations/filename) */
+    snprintf(source_tree_nested_path, sizeof(source_tree_nested_path), "../../telnet-gui/animations/%s", filename);
+    try_paths[path_count++] = source_tree_nested_path;
+
+    if (base_path) {
+        SDL_free(base_path);
+    }
 
     /* Find the first path that exists */
     const char *found_path = NULL;
