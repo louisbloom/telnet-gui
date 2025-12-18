@@ -370,48 +370,73 @@ The telnet-gui supports Lottie vector animations rendered behind the terminal te
 **Features:**
 
 - **Lottie JSON format** - Industry standard from Airbnb/After Effects
-- **Background rendering** - Animation renders behind terminal text
-- **Lisp scripting control** - Full playback control from Lisp
+- **First-class Lisp objects** - Animations are GC-managed objects you can store in variables
+- **Multiple animations** - Load several animations and switch between them
+- **Background rendering** - Active animation renders behind terminal text
 - **Visibility modes** - Configurable dim overlay or transparent terminal backgrounds
 - **Thousands of free animations** - Available at [lottiefiles.com](https://lottiefiles.com)
 
 **Basic Usage:**
 
 ```lisp
-;; Load and play an animation
-(animation-load "path/to/animation.json")
-(animation-set-loop t)
-(animation-play)
+;; Load animation (returns animation object)
+(define anim (animation-load "path/to/animation.json"))
+
+;; Set as active (renders behind terminal)
+(animation-set-active anim)
+
+;; Configure and play
+(animation-set-loop anim t)
+(animation-play anim)
+```
+
+**Multiple Animations:**
+
+```lisp
+;; Load multiple animations
+(define fireworks (animation-load "animations/fireworks.json"))
+(define loading (animation-load "animations/loading.json"))
+
+;; Switch between them
+(animation-set-active fireworks)
+(animation-play fireworks)
+
+;; Later, switch to another
+(animation-set-active loading)
+(animation-play loading)
+
+;; Clear background animation
+(animation-set-active nil)
 ```
 
 **Visibility Modes:**
 
 ```lisp
 ;; Option 1: Dim mode (default) - dark overlay on animation
-(animation-set-dim-mode 0.7)  ; 70% overlay opacity (30% animation visible)
+(animation-set-dim-mode anim 0.7)  ; 70% overlay opacity (30% animation visible)
 
 ;; Option 2: Transparent mode - see-through terminal backgrounds
-(animation-set-transparent-mode 0.85)  ; 85% terminal background opacity
+(animation-set-transparent-mode anim 0.85)  ; 85% terminal background opacity
 ```
 
 **Playback Control:**
 
 ```lisp
-(animation-play)           ; Start playback
-(animation-pause)          ; Pause
-(animation-stop)           ; Stop and reset to beginning
-(animation-set-speed 0.5)  ; Half speed (range: 0.0-10.0)
-(animation-set-loop t)     ; Enable looping
-(animation-seek 0.5)       ; Jump to middle (0.0-1.0)
+(animation-play anim)           ; Start playback
+(animation-pause anim)          ; Pause
+(animation-stop anim)           ; Stop and reset to beginning
+(animation-set-speed anim 0.5)  ; Half speed (range: 0.0-10.0)
+(animation-set-loop anim t)     ; Enable looping
+(animation-seek anim 0.5)       ; Jump to middle (0.0-1.0)
 ```
 
 **State Queries:**
 
 ```lisp
-(animation-playing?)   ; => t or nil
-(animation-loaded?)    ; => t or nil
-(animation-position)   ; => 0.0-1.0 (current position)
-(animation-duration)   ; => seconds (total duration)
+(animation-playing? anim)   ; => t or nil
+(animation-loaded? anim)    ; => t or nil
+(animation-position anim)   ; => 0.0-1.0 (current position)
+(animation-duration anim)   ; => seconds (total duration)
 ```
 
 **Sample Animation:**
@@ -419,10 +444,11 @@ The telnet-gui supports Lottie vector animations rendered behind the terminal te
 A sample fireworks animation is included in `animations/fireworks.json`. Try it with:
 
 ```lisp
-(animation-load "animations/fireworks.json")
-(animation-set-loop t)
-(animation-play)
-(animation-set-dim-mode 0.8)  ; Adjust visibility as needed
+(define anim (animation-load "animations/fireworks.json"))
+(animation-set-active anim)
+(animation-set-loop anim t)
+(animation-play anim)
+(animation-set-dim-mode anim 0.8)  ; Adjust visibility as needed
 ```
 
 **Note:** Animation support is optional. If rlottie is not installed, the animation functions will not be available and the build continues normally.
