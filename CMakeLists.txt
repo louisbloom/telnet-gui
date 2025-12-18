@@ -398,6 +398,20 @@ set(CPACK_PACKAGE_VENDOR "Telnet Lisp Project")
 include(CPack)
 
 # Format target for clang-format and shell scripts
+
+# Find nvm/fnm node bin directories dynamically (for prettier)
+set(NODE_VERSION_MANAGERS_BIN_PATHS "")
+if(DEFINED ENV{HOME})
+    # Find nvm node versions
+    file(GLOB NVM_NODE_BINS "$ENV{HOME}/.nvm/versions/node/*/bin")
+    list(APPEND NODE_VERSION_MANAGERS_BIN_PATHS ${NVM_NODE_BINS})
+    # Find fnm node versions (stable location, not the volatile multishell paths)
+    file(GLOB FNM_NODE_BINS "$ENV{HOME}/.local/share/fnm/node-versions/*/installation/bin")
+    list(APPEND NODE_VERSION_MANAGERS_BIN_PATHS ${FNM_NODE_BINS})
+    file(GLOB FNM_NODE_BINS_ALT "$ENV{HOME}/.fnm/node-versions/*/installation/bin")
+    list(APPEND NODE_VERSION_MANAGERS_BIN_PATHS ${FNM_NODE_BINS_ALT})
+endif()
+
 find_program(CLANG_FORMAT
     NAMES clang-format
     PATHS
@@ -435,9 +449,16 @@ find_program(PRETTIER
         /usr/local/bin
         /usr/local/share/npm/bin
         $ENV{APPDATA}/npm
+        # Common GNU/Linux npm installation paths
+        $ENV{HOME}/.npm-global/bin
+        $ENV{HOME}/.local/bin
+        $ENV{HOME}/node_modules/.bin
+        $ENV{HOME}/.yarn/bin
+        /usr/local/lib/node_modules/.bin
+        # nvm/fnm node versions (dynamically discovered)
+        ${NODE_VERSION_MANAGERS_BIN_PATHS}
     NO_DEFAULT_PATH
 )
-find_program(PRETTIER NAMES prettier)
 
 find_program(BLACK
     NAMES black
