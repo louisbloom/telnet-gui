@@ -702,82 +702,7 @@
 ;;   (defun telnet-input-hook (text)
 ;;     (collect-words-from-text text))
 (defun telnet-input-hook (text)
-  "Process incoming telnet server output for word collection (side-effect only).
-
-  ## Parameters
-  - `text` - Plain text from server (ANSI escape codes already stripped)
-
-  ## Returns
-  `nil` - This hook is side-effect only; return value is ignored by C code.
-
-  ## Description
-  Called automatically when text arrives from the telnet server, AFTER ANSI
-  escape codes have been removed. The default implementation extracts words
-  from server output and adds them to the completion word store for tab
-  completion support.
-
-  **Default Behavior:**
-  - Extracts words by splitting on whitespace
-  - Strips punctuation from word boundaries
-  - Only stores words >= 3 characters
-  - Uses circular buffer with FIFO eviction (bounded by `*completion-word-store-size*`)
-  - Preserves newest-first ordering for completion results
-
-  **Word Extraction Rules:**
-  - Split text on whitespace (spaces, tabs, newlines)
-  - Remove leading/trailing punctuation: `.,!?;:()[]{}'\"'-`
-  - Minimum word length: 3 characters
-  - Case-preserved in store (matching is case-insensitive)
-
-  ## Examples
-  ```lisp
-  ; Default implementation (collects words for completion)
-  (defun telnet-input-hook (text)
-    (collect-words-from-text text))
-
-  ; Custom: Log all server output to file
-  (defun telnet-input-hook (text)
-    (progn
-      (collect-words-from-text text)  ; Keep default word collection
-      (let ((file (open \"server.log\" \"a\")))
-        (write-line file text)
-        (close file))))
-
-  ; Custom: Check for alerts and trigger actions
-  (defun telnet-input-hook (text)
-    (progn
-      (collect-words-from-text text)
-      (if (string-contains? text \"You have new mail\")
-        (terminal-echo \"\\r\\n*** ALERT: New mail received ***\\r\\n\"))))
-
-  ; Custom: Silent (no word collection)
-  (defun telnet-input-hook (text)
-    ())
-  ```
-
-  ## Important Notes
-  - **Side-effect only**: Return value is ignored by C code
-  - **Cannot modify data flow**: Text is already processed before hook
-  - **ANSI codes removed**: Text is plain (for filtering ANSI, use `telnet-input-filter-hook`)
-  - **Synchronous**: Called during telnet processing (avoid long operations)
-  - **Called frequently**: Invoked for every chunk of server output
-
-  ## Use Cases
-  - Word collection for tab completion (default)
-  - Logging server output to files
-  - Triggering alerts on specific patterns
-  - Updating UI elements based on server state
-  - Statistical analysis of game output
-
-  ## Configuration Variables
-  - `*completion-word-store-size*` - Max words in store (default: 1000)
-
-  ## See Also
-  - `completion-hook` - Uses word store for tab completion
-  - `telnet-input-filter-hook` - For modifying ANSI output before display
-  - `collect-words-from-text` - Internal word extraction function
-  - `add-word-to-store` - Adds individual words to completion store
-  - `maybe-play-scroll-lock-notification` - Scroll-lock notification animation"
+  "Process incoming telnet server output for word collection (side-effect only)."
   (progn
     (collect-words-from-text text)
     (maybe-play-scroll-lock-notification)))
@@ -1599,8 +1524,10 @@ server output.
   The animation object if loaded successfully, nil otherwise."
   (if (and *scroll-lock-notification-enabled*
         (not *scroll-lock-notification-animation*))
-    (let ((anim (animation-load "ripple-nudge.json")))
-      (if (and anim (animation-loaded? anim))
+    (let ((anim (animation-load "notification.json")))
+      (if (and anim
+            (not (error? anim))
+            (animation-loaded? anim))
         (progn
           (animation-set-loop anim nil)      ; Play once, don't loop
           (animation-set-dim-mode anim 0.85) ; Subtle overlay
@@ -1616,21 +1543,24 @@ server output.
   ## Description
   Called from telnet-input-hook when new data arrives. Checks if:
   1. Notifications are enabled
-  2. Animation is loaded
-  3. Terminal is in scroll-lock mode
+  2. Terminal is in scroll-lock mode
+  3. Animation is loaded (lazy-loads on first use)
   4. Animation is not already playing
 
   If all conditions are met, sets the animation as active and plays it once."
   (if (and *scroll-lock-notification-enabled*
-        *scroll-lock-notification-animation*
-        (terminal-scroll-locked?)
-        (not (animation-playing? *scroll-lock-notification-animation*)))
+        (terminal-scroll-locked?))
     (progn
-      (animation-set-active *scroll-lock-notification-animation*)
-      (animation-play *scroll-lock-notification-animation*))))
+      ;; Lazy-load animation on first use (renderer not available at bootstrap)
+      (if (not *scroll-lock-notification-animation*)
+        (load-scroll-lock-notification))
+      ;; Play if loaded and not already playing (animation-play auto-sets active)
+      (if (and *scroll-lock-notification-animation*
+            (not (animation-playing? *scroll-lock-notification-animation*)))
+        (animation-play *scroll-lock-notification-animation*)))))
 
 ;; ============================================================================
 ;; BOOTSTRAP INITIALIZATION
 ;; ============================================================================
-;; Load scroll-lock notification animation (fails silently if rlottie not available)
-(load-scroll-lock-notification)
+;; Note: Scroll-lock notification animation is lazy-loaded on first use
+;; (renderer not available during bootstrap)

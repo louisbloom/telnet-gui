@@ -238,6 +238,12 @@ static int sb_pushline(int cols, const VTermScreenCell *cells, void *user) {
     line->continuation = false;
 
     state->scrollback_size++;
+
+    /* If scroll-locked, adjust viewport to keep viewing the same content */
+    if (state->scroll_locked && state->viewport_offset > 0) {
+        state->viewport_offset++;
+    }
+
     return 1;
 }
 
@@ -288,6 +294,12 @@ static int sb_pushline4(int cols, const VTermScreenCell *cells, bool continuatio
     line->continuation = continuation;
 
     state->scrollback_size++;
+
+    /* If scroll-locked, adjust viewport to keep viewing the same content */
+    if (state->scroll_locked && state->viewport_offset > 0) {
+        state->viewport_offset++;
+    }
+
     return 1;
 }
 #endif /* HAVE_VTERM_PUSHLINE4 */
@@ -444,6 +456,7 @@ static void *vterm_create(int rows, int cols) {
     state->scrollback_capacity = 0;
     state->max_scrollback_lines = 0;
     state->viewport_offset = 0;
+    state->scroll_locked = 0;
 
     /* Initialize cursor tracking */
     state->cursor_row = 0;

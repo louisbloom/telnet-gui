@@ -103,6 +103,9 @@ void lisp_x_register_renderer(struct SDL_Renderer *renderer);
 /* Get the active animation set via (animation-set-active) */
 struct Animation *lisp_x_get_active_animation(void);
 
+/* Clear the active animation (e.g., when animation finishes) */
+void lisp_x_clear_active_animation(void);
+
 /* Get lisp environment (for accessing Lisp variables from C) */
 void *lisp_x_get_environment(void);
 

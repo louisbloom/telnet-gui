@@ -342,6 +342,9 @@ void animation_unload(Animation *anim) {
 void animation_play(Animation *anim) {
     if (!anim)
         return;
+    /* Reset to beginning when starting playback */
+    anim->current_time = 0.0;
+    anim->last_rendered_frame = (size_t)-1; /* Force re-render */
     anim->playing = 1;
 }
 

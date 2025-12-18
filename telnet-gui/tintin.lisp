@@ -5541,12 +5541,19 @@
 ;; Install telnet-input-filter-hook
 (define telnet-input-filter-hook tintin-telnet-input-filter)
 
-;; Override telnet-input-hook to add action triggering + word collection
+;; Save the existing telnet-input-hook before overriding
+;; This preserves bootstrap.lisp's behavior (word collection, scroll-lock notification, etc.)
+;; Use bound? to handle case where bootstrap.lisp wasn't loaded (e.g., in tests)
+(define *tintin-original-telnet-input-hook*
+  (if (bound? 'telnet-input-hook) telnet-input-hook nil))
+
+;; Extend telnet-input-hook to add action triggering
 ;; This hook is called when data arrives from the telnet server
 ;; It sees stripped text (no ANSI codes), better for pattern matching
 (defun telnet-input-hook (text)
-  ;; Step 1: Collect words for completions (preserve default behavior from bootstrap.lisp)
-  (collect-words-from-text text)
+  ;; Step 1: Call original hook (preserves all bootstrap.lisp behavior)
+  (if *tintin-original-telnet-input-hook*
+    (*tintin-original-telnet-input-hook* text))
 
   ;; Step 2: Trigger actions (if TinTin++ enabled)
   (if (and *tintin-enabled*

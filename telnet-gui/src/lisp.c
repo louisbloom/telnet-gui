@@ -670,6 +670,8 @@ static LispObject *builtin_animation_play(LispObject *args, Environment *env) {
     if (!anim) {
         return lisp_make_error("animation-play: first argument must be an animation object");
     }
+    /* Automatically set as active animation when playing */
+    active_animation = anim;
     animation_play(anim);
     return NIL;
 }
@@ -954,66 +956,6 @@ int lisp_x_init(void) {
         return -1;
     }
 
-    /* Load bootstrap file */
-    if (!load_bootstrap_file()) {
-        fprintf(stderr, "Warning: Failed to load bootstrap file, continuing with defaults\n");
-        /* Initialize default completion variables if bootstrap failed */
-        LispObject *pattern = lisp_make_string("\\S+$");
-        env_define(lisp_env, "*completion-pattern*", pattern);
-
-        /* Default completion hook returns empty list */
-        char default_hook_code[] = "(lambda (text) ())";
-        LispObject *hook_expr = lisp_eval_string(default_hook_code, lisp_env);
-        if (hook_expr && hook_expr->type != LISP_ERROR) {
-            env_define(lisp_env, "completion-hook", hook_expr);
-        } else {
-            fprintf(stderr, "Warning: Failed to initialize default completion hook\n");
-        }
-
-        /* Initialize default telnet-input-hook */
-        char default_telnet_hook_code[] = "(lambda (text) ())";
-        LispObject *telnet_hook_expr = lisp_eval_string(default_telnet_hook_code, lisp_env);
-        if (telnet_hook_expr && telnet_hook_expr->type != LISP_ERROR) {
-            env_define(lisp_env, "telnet-input-hook", telnet_hook_expr);
-        } else {
-            fprintf(stderr, "Warning: Failed to initialize default telnet-input-hook\n");
-        }
-
-        /* Initialize default user-input-hook */
-        char default_user_input_hook_code[] = "(lambda (text cursor-pos) text)";
-        LispObject *user_input_hook_expr = lisp_eval_string(default_user_input_hook_code, lisp_env);
-        if (user_input_hook_expr && user_input_hook_expr->type != LISP_ERROR) {
-            env_define(lisp_env, "user-input-hook", user_input_hook_expr);
-        } else {
-            fprintf(stderr, "Warning: Failed to initialize default user-input-hook\n");
-        }
-
-        /* Initialize default telnet-input-filter-hook */
-        char default_telnet_filter_code[] = "(lambda (text) text)";
-        LispObject *telnet_filter_expr = lisp_eval_string(default_telnet_filter_code, lisp_env);
-        if (telnet_filter_expr && telnet_filter_expr->type != LISP_ERROR) {
-            env_define(lisp_env, "telnet-input-filter-hook", telnet_filter_expr);
-        } else {
-            fprintf(stderr, "Warning: Failed to initialize default telnet-input-filter-hook\n");
-        }
-
-        /* Initialize default scroll config variables if bootstrap failed */
-        LispObject *scroll_lines = lisp_make_integer(3);
-        env_define(lisp_env, "*scroll-lines-per-click*", scroll_lines);
-
-        LispObject *smooth_scrolling = lisp_make_boolean(1); /* true */
-        env_define(lisp_env, "*smooth-scrolling-enabled*", smooth_scrolling);
-
-        LispObject *max_scrollback = lisp_make_integer(0); /* 0 = unbounded */
-        env_define(lisp_env, "*max-scrollback-lines*", max_scrollback);
-
-        LispObject *scroll_on_user_input = lisp_make_boolean(1); /* true */
-        env_define(lisp_env, "*scroll-to-bottom-on-user-input*", scroll_on_user_input);
-
-        LispObject *scroll_on_telnet_input = lisp_make_boolean(0); /* false */
-        env_define(lisp_env, "*scroll-to-bottom-on-telnet-input*", scroll_on_telnet_input);
-    }
-
     /* Register terminal-echo builtin */
     const char *terminal_echo_doc = "Output text to terminal display (local echo).\n"
                                     "\n"
@@ -1244,7 +1186,8 @@ int lisp_x_init(void) {
                                  "Unload an animation.\n\n(animation-unload anim) => nil"));
     env_define(lisp_env, "animation-play",
                lisp_make_builtin(builtin_animation_play, "animation-play",
-                                 "Start playing an animation.\n\n(animation-play anim) => nil"));
+                                 "Start playing an animation and set it as active.\n\n(animation-play anim) => nil\n\n"
+                                 "Automatically sets the animation as the active background animation."));
     env_define(lisp_env, "animation-pause",
                lisp_make_builtin(builtin_animation_pause, "animation-pause",
                                  "Pause an animation.\n\n(animation-pause anim) => nil"));
@@ -1292,6 +1235,63 @@ int lisp_x_init(void) {
             "Set the active animation for rendering.\n\n(animation-set-active anim) => anim\n(animation-set-active "
             "nil) => nil\n\nThe active animation is rendered behind terminal text."));
 #endif
+
+    /* Load bootstrap file - MUST be after all builtins are registered */
+    if (!load_bootstrap_file()) {
+        fprintf(stderr, "Warning: Failed to load bootstrap file, continuing with defaults\n");
+        /* Initialize default completion variables if bootstrap failed */
+        LispObject *pattern = lisp_make_string("\\S+$");
+        env_define(lisp_env, "*completion-pattern*", pattern);
+
+        /* Default completion hook returns empty list */
+        char default_hook_code[] = "(lambda (text) ())";
+        LispObject *hook_expr = lisp_eval_string(default_hook_code, lisp_env);
+        if (hook_expr && hook_expr->type != LISP_ERROR) {
+            env_define(lisp_env, "completion-hook", hook_expr);
+        } else {
+            fprintf(stderr, "Warning: Failed to initialize default completion hook\n");
+        }
+
+        /* Initialize default telnet-input-hook */
+        char default_telnet_hook_code[] = "(lambda (text) ())";
+        LispObject *telnet_hook_expr = lisp_eval_string(default_telnet_hook_code, lisp_env);
+        if (telnet_hook_expr && telnet_hook_expr->type != LISP_ERROR) {
+            env_define(lisp_env, "telnet-input-hook", telnet_hook_expr);
+        } else {
+            fprintf(stderr, "Warning: Failed to initialize default telnet-input-hook\n");
+        }
+
+        /* Initialize default user-input-hook */
+        char default_user_input_hook_code[] = "(lambda (text cursor-pos) text)";
+        LispObject *user_input_hook_expr = lisp_eval_string(default_user_input_hook_code, lisp_env);
+        if (user_input_hook_expr && user_input_hook_expr->type != LISP_ERROR) {
+            env_define(lisp_env, "user-input-hook", user_input_hook_expr);
+        } else {
+            fprintf(stderr, "Warning: Failed to initialize default user-input-hook\n");
+        }
+
+        /* Initialize default telnet-input-filter-hook */
+        char default_telnet_filter_code[] = "(lambda (text) text)";
+        LispObject *telnet_filter_expr = lisp_eval_string(default_telnet_filter_code, lisp_env);
+        if (telnet_filter_expr && telnet_filter_expr->type != LISP_ERROR) {
+            env_define(lisp_env, "telnet-input-filter-hook", telnet_filter_expr);
+        } else {
+            fprintf(stderr, "Warning: Failed to initialize default telnet-input-filter-hook\n");
+        }
+
+        /* Initialize default scroll config variables if bootstrap failed */
+        LispObject *scroll_lines = lisp_make_integer(3);
+        env_define(lisp_env, "*scroll-lines-per-click*", scroll_lines);
+
+        LispObject *smooth_scrolling = lisp_make_boolean(1); /* true */
+        env_define(lisp_env, "*smooth-scrolling-enabled*", smooth_scrolling);
+
+        LispObject *max_scrollback = lisp_make_integer(0); /* 0 = unbounded */
+        env_define(lisp_env, "*max-scrollback-lines*", max_scrollback);
+
+        LispObject *scroll_on_user_input = lisp_make_boolean(1); /* true */
+        env_define(lisp_env, "*scroll-to-bottom-on-user-input*", scroll_on_user_input);
+    }
 
     return 0;
 }
@@ -2192,6 +2192,10 @@ void lisp_x_register_renderer(SDL_Renderer *renderer) {
 
 Animation *lisp_x_get_active_animation(void) {
     return active_animation;
+}
+
+void lisp_x_clear_active_animation(void) {
+    active_animation = NULL;
 }
 #endif
 

@@ -1853,9 +1853,19 @@ int main(int argc, char **argv) {
 
 #if HAVE_RLOTTIE
         /* Update animation timing */
+        int animation_just_finished = 0;
         Animation *active_anim = lisp_x_get_active_animation();
-        if (active_anim && animation_is_loaded(active_anim) && animation_is_playing(active_anim)) {
-            animation_update(active_anim, 16.0f); /* ~60fps = 16ms per frame */
+        if (active_anim && animation_is_loaded(active_anim)) {
+            int was_playing = animation_is_playing(active_anim);
+            if (was_playing) {
+                animation_update(active_anim, 16.0f); /* ~60fps = 16ms per frame */
+            }
+            /* Clear active animation when it finishes (non-looping animation stopped) */
+            if (was_playing && !animation_is_playing(active_anim)) {
+                lisp_x_clear_active_animation();
+                active_anim = NULL;
+                animation_just_finished = 1; /* Force redraw to clear last frame */
+            }
         }
         /* Update renderer's animation pointer */
         renderer_set_animation(active_anim);
@@ -1867,10 +1877,11 @@ int main(int argc, char **argv) {
         int needs_render = 0;
 
 #if HAVE_RLOTTIE
-        /* Force redraw when animation is playing */
+        /* Force redraw when animation is playing or just finished */
         Animation *anim_for_redraw = lisp_x_get_active_animation();
         int animation_needs_redraw =
-            anim_for_redraw && animation_is_loaded(anim_for_redraw) && animation_is_playing(anim_for_redraw);
+            animation_just_finished ||
+            (anim_for_redraw && animation_is_loaded(anim_for_redraw) && animation_is_playing(anim_for_redraw));
 #else
         int animation_needs_redraw = 0;
 #endif
