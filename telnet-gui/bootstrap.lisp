@@ -1599,7 +1599,7 @@ server output.
   The animation object if loaded successfully, nil otherwise."
   (if (and *scroll-lock-notification-enabled*
         (not *scroll-lock-notification-animation*))
-    (let ((anim (animation-load "notification.json")))
+    (let ((anim (animation-load "ripple-nudge.json")))
       (if (and anim (animation-loaded? anim))
         (progn
           (animation-set-loop anim nil)      ; Play once, don't loop
