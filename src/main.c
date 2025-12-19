@@ -1843,16 +1843,9 @@ int main(int argc, char **argv) {
             terminal_get_size(term, &term_rows, &term_cols);
         }
 
-        /* Render input area to vterm if it needs redraw */
-        /* This must happen AFTER terminal resize so cursor is positioned correctly */
-        if (input_area_needs_redraw(&input_area)) {
-            terminal_render_input_area(term, &input_area, term_cols);
-            input_area_mark_drawn(&input_area);
-            /* Input area updates vterm which triggers terminal_needs_redraw */
-        }
-
 #if HAVE_RLOTTIE
-        /* Update animation timing */
+        /* Update animation divider mode indicator BEFORE input area render */
+        /* This ensures the indicator is visible on the first frame */
         static int animation_mode_was_playing = 0; /* Track for divider mode */
         int animation_just_finished = 0;
         Animation *active_anim = lisp_x_get_active_animation();
@@ -1863,6 +1856,7 @@ int main(int argc, char **argv) {
             if (is_playing && !animation_mode_was_playing) {
                 /* Animation started - show play button */
                 lisp_x_set_divider_mode("animation", "\xE2\x96\xB6", 90); /* ▶ U+25B6 */
+                input_area_request_redraw(&input_area); /* Redraw divider with new mode */
             }
 
             if (is_playing) {
@@ -1875,18 +1869,28 @@ int main(int argc, char **argv) {
                 animation_just_finished = 1; /* Force redraw to clear last frame */
                 /* Animation stopped - remove play button */
                 lisp_x_remove_divider_mode("animation");
+                input_area_request_redraw(&input_area); /* Redraw divider without mode */
             }
             animation_mode_was_playing = animation_is_playing(active_anim);
         } else {
             /* No active animation - ensure mode is removed */
             if (animation_mode_was_playing) {
                 lisp_x_remove_divider_mode("animation");
+                input_area_request_redraw(&input_area); /* Redraw divider without mode */
                 animation_mode_was_playing = 0;
             }
         }
         /* Update renderer's animation pointer */
         renderer_set_animation(active_anim);
 #endif
+
+        /* Render input area to vterm if it needs redraw */
+        /* This must happen AFTER terminal resize so cursor is positioned correctly */
+        if (input_area_needs_redraw(&input_area)) {
+            terminal_render_input_area(term, &input_area, term_cols);
+            input_area_mark_drawn(&input_area);
+            /* Input area updates vterm which triggers terminal_needs_redraw */
+        }
 
         /* Render if needed */
         int window_width, window_height;
