@@ -1123,6 +1123,7 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
     if (modes != NIL) {
         /* Calculate total width of all mode indicators */
         int total_width = 0;
+        int indicator_count = 0;
         LispObject *m = modes;
         while (m != NIL && m->type == LISP_CONS) {
             LispObject *entry = lisp_car(m);
@@ -1133,12 +1134,15 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
                     LispObject *display = lisp_cdr(sym_display);
                     if (display != NIL && display->type == LISP_STRING) {
                         total_width += utf8_display_width(display->value.string);
-                        total_width += 1; /* Space before each indicator */
+                        indicator_count++;
                     }
                 }
             }
             m = lisp_cdr(m);
         }
+        /* Add spaces between indicators (not before first) */
+        if (indicator_count > 1)
+            total_width += indicator_count - 1;
 
         /* Only render if terminal is wide enough (need space for indicators + margin) */
         int right_margin = 2; /* Leave some divider visible after indicators */
@@ -1154,6 +1158,7 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
             dynamic_buffer_append_str(buf, color_buf);
 
             /* Render each mode indicator */
+            int first = 1;
             m = modes;
             while (m != NIL && m->type == LISP_CONS) {
                 LispObject *entry = lisp_car(m);
@@ -1162,7 +1167,9 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
                     if (sym_display != NIL && sym_display->type == LISP_CONS) {
                         LispObject *display = lisp_cdr(sym_display);
                         if (display != NIL && display->type == LISP_STRING) {
-                            dynamic_buffer_append_str(buf, " ");
+                            if (!first)
+                                dynamic_buffer_append_str(buf, " ");
+                            first = 0;
                             dynamic_buffer_append_str(buf, display->value.string);
                         }
                     }
