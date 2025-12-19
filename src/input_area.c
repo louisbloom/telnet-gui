@@ -6,6 +6,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 /* Helper: Reset history prefix search (call when user edits text) */
 static void reset_history_search(InputArea *area) {

@@ -2168,11 +2168,13 @@ void lisp_x_set_divider_mode(const char *symbol_name, const char *display, int p
     if (!func || (func->type != LISP_LAMBDA && func->type != LISP_BUILTIN))
         return;
 
-    /* Build argument list: (symbol display priority) */
+    /* Build argument list: ('symbol display priority) */
+    /* The symbol must be quoted so it evaluates to itself, not looked up as a variable */
     LispObject *sym_arg = lisp_make_symbol(symbol_name);
+    LispObject *quoted_sym = lisp_make_cons(lisp_make_symbol("quote"), lisp_make_cons(sym_arg, NIL));
     LispObject *display_arg = lisp_make_string(display);
     LispObject *priority_arg = lisp_make_integer(priority);
-    LispObject *args = lisp_make_cons(sym_arg, lisp_make_cons(display_arg, lisp_make_cons(priority_arg, NIL)));
+    LispObject *args = lisp_make_cons(quoted_sym, lisp_make_cons(display_arg, lisp_make_cons(priority_arg, NIL)));
 
     /* Call: (divider-mode-set 'symbol "display" priority) */
     LispObject *call_expr = lisp_make_cons(func, args);
@@ -2189,9 +2191,11 @@ void lisp_x_remove_divider_mode(const char *symbol_name) {
     if (!func || (func->type != LISP_LAMBDA && func->type != LISP_BUILTIN))
         return;
 
-    /* Build argument list: (symbol) */
+    /* Build argument list: ('symbol) */
+    /* The symbol must be quoted so it evaluates to itself, not looked up as a variable */
     LispObject *sym_arg = lisp_make_symbol(symbol_name);
-    LispObject *args = lisp_make_cons(sym_arg, NIL);
+    LispObject *quoted_sym = lisp_make_cons(lisp_make_symbol("quote"), lisp_make_cons(sym_arg, NIL));
+    LispObject *args = lisp_make_cons(quoted_sym, NIL);
 
     /* Call: (divider-mode-remove 'symbol) */
     LispObject *call_expr = lisp_make_cons(func, args);
