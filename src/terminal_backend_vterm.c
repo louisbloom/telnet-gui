@@ -1157,7 +1157,7 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
             ansi_format_bg_color_rgb(color_buf, sizeof(color_buf), term_bg_r, term_bg_g, term_bg_b);
             dynamic_buffer_append_str(buf, color_buf);
 
-            /* Render each mode indicator */
+            /* Render each mode indicator separated by divider character */
             int first = 1;
             m = modes;
             while (m != NIL && m->type == LISP_CONS) {
@@ -1168,7 +1168,7 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
                         LispObject *display = lisp_cdr(sym_display);
                         if (display != NIL && display->type == LISP_STRING) {
                             if (!first)
-                                dynamic_buffer_append_str(buf, " ");
+                                dynamic_buffer_append(buf, box_char, 3); /* ─ divider between indicators */
                             first = 0;
                             dynamic_buffer_append_str(buf, display->value.string);
                         }
