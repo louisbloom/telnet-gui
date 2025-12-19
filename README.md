@@ -156,6 +156,18 @@ cmake --install build --prefix ~/.local
 
 Features aliases, variables, speedwalking, and command chaining. See [TINTIN.md](TINTIN.md) for full documentation.
 
+**Emoji Support:**
+
+The terminal supports color emoji rendering via system emoji fonts (e.g., NotoColorEmoji). Most emoji render correctly at 2-cell width, but some emoji with variation selectors (like 🗡️ ⚔️ ▶️) are reported as 1-cell by the terminal emulator. These need an extra space after them to prevent overlap:
+
+```lisp
+;; These need extra space after them
+(tintin-echo "🗡️ ⚔️ Text")  ; Space after dagger and swords
+
+;; These work without extra space
+(tintin-echo "✨🎮🏰🐉🔮 Text")  ; No extra space needed
+```
+
 **Background Animations:**
 
 ```lisp

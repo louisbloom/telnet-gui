@@ -30,6 +30,49 @@ Animation *renderer_get_animation(void) {
 #define PADDING_X 8
 #define PADDING_Y 8
 
+/* Calculate scaled destination rectangle for glyphs */
+/* For regular text: only scales down if significantly oversized (>1.5x) */
+/* For emoji (scale_to_fit=1): always scales to fill the cell */
+static SDL_Rect calc_scaled_glyph_rect(int dst_x, int dst_y, int tex_w, int tex_h, int cell_w, int cell_h,
+                                       int scale_to_fit) {
+    int final_w = tex_w;
+    int final_h = tex_h;
+    int final_x = dst_x;
+    int final_y = dst_y;
+
+    if (scale_to_fit) {
+        /* Scale emoji to fill height, maintain aspect ratio, center horizontally */
+        float scale = (float)cell_h / tex_h;
+
+        final_w = (int)(tex_w * scale);
+        final_h = (int)(tex_h * scale);
+
+        /* Center within cell */
+        final_x = dst_x + (cell_w - final_w) / 2;
+        final_y = dst_y + (cell_h - final_h) / 2;
+    } else {
+        /* Only scale regular glyphs that are significantly oversized (>1.5x cell size) */
+        /* This avoids scaling regular glyphs that are just slightly taller due to font metrics */
+        int threshold_w = cell_w + cell_w / 2; /* 1.5x cell width */
+        int threshold_h = cell_h + cell_h / 2; /* 1.5x cell height */
+
+        if (tex_w > threshold_w || tex_h > threshold_h) {
+            float scale_x = (float)cell_w / tex_w;
+            float scale_y = (float)cell_h / tex_h;
+            float scale = (scale_x < scale_y) ? scale_x : scale_y;
+
+            final_w = (int)(tex_w * scale);
+            final_h = (int)(tex_h * scale);
+
+            /* Center within cell */
+            final_x = dst_x + (cell_w - final_w) / 2;
+            final_y = dst_y + (cell_h - final_h) / 2;
+        }
+    }
+
+    return (SDL_Rect){final_x, final_y, final_w, final_h};
+}
+
 /* Draw a filled rounded rectangle with given corner radius */
 static void sdl_render_rounded_rect(SDL_Renderer *renderer, SDL_Rect *rect, int radius) {
     if (radius <= 0) {
@@ -410,18 +453,42 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
             render_box_drawing_char(state->sdl_renderer, cell->chars[0], dst_x, dst_y, cell_w, state->actual_cell_h,
                                     fg_color);
         } else {
+            /* Detect emoji characters:
+             * 1. Variation selector U+FE0F present, OR
+             * 2. Codepoint is in emoji ranges (inherently emoji, no selector needed)
+             */
+            uint32_t cp = cell->chars[0];
+            int is_emoji = (cell->chars[1] == 0xFE0F) ||       /* Emoji variation selector */
+                           (cp >= 0x1F300 && cp <= 0x1F9FF) || /* Misc Symbols, Emoticons, etc. */
+                           (cp >= 0x2600 && cp <= 0x26FF) ||   /* Misc Symbols */
+                           (cp >= 0x2700 && cp <= 0x27BF) ||   /* Dingbats */
+                           (cp >= 0x1F600 && cp <= 0x1F64F) || /* Emoticons */
+                           (cp >= 0x1F680 && cp <= 0x1F6FF) || /* Transport/Map */
+                           (cp >= 0x1FA00 && cp <= 0x1FAFF);   /* Chess, symbols */
+
             SDL_Texture *glyph = glyph_cache_get(state->glyph_cache, cell->chars[0], fg_color, bg_color,
-                                                 cell->attrs.bold, cell->attrs.italic);
+                                                 cell->attrs.bold, cell->attrs.italic, is_emoji);
             if (glyph) {
                 /* Get actual texture size */
                 int tex_w, tex_h;
                 SDL_QueryTexture(glyph, NULL, NULL, &tex_w, &tex_h);
 
-                /* Position glyph vertically centered within line height */
+                /* Position glyph - emoji fills full cell, text is vertically centered */
                 int dst_x = col * cell_w + PADDING_X;
-                int dst_y = row * cell_h + PADDING_Y + vertical_offset;
-                SDL_Rect dst = {dst_x, dst_y, tex_w, tex_h};
+                int dst_y = row * cell_h + PADDING_Y + (is_emoji ? 0 : vertical_offset);
 
+                /* Use cell width from vterm (1 or 2) for scaling */
+                /* Exception: if variation selector U+FE0F is present, force width=2 */
+                /* (variation selector explicitly requests emoji presentation) */
+                /* Use full cell_h for emoji to fill vertical space */
+                int char_width = (cell->width > 0) ? cell->width : 1;
+                if (cell->chars[1] == 0xFE0F && char_width < 2) {
+                    char_width = 2;
+                }
+                int scale_height = is_emoji ? cell_h : state->actual_cell_h;
+
+                SDL_Rect dst =
+                    calc_scaled_glyph_rect(dst_x, dst_y, tex_w, tex_h, cell_w * char_width, scale_height, is_emoji);
                 SDL_RenderCopy(state->sdl_renderer, glyph, NULL, &dst);
             }
         }
@@ -469,7 +536,7 @@ static void sdl_render_cursor(void *vstate, int row, int col, uint32_t cursor_ch
                                     fg_color);
         } else {
             /* Use glyph cache for rendering */
-            SDL_Texture *glyph = glyph_cache_get(state->glyph_cache, cursor_char, fg_color, bg_color, 0, 0);
+            SDL_Texture *glyph = glyph_cache_get(state->glyph_cache, cursor_char, fg_color, bg_color, 0, 0, 0);
             if (glyph) {
                 /* Get actual texture size */
                 int tex_w, tex_h;
@@ -478,8 +545,8 @@ static void sdl_render_cursor(void *vstate, int row, int col, uint32_t cursor_ch
                 /* Position glyph vertically centered within line height */
                 int dst_x = col * cell_w + PADDING_X;
                 int dst_y = row * cell_h + PADDING_Y + vertical_offset;
-                SDL_Rect dst = {dst_x, dst_y, tex_w, tex_h};
 
+                SDL_Rect dst = calc_scaled_glyph_rect(dst_x, dst_y, tex_w, tex_h, cell_w, state->actual_cell_h, 0);
                 SDL_RenderCopy(state->sdl_renderer, glyph, NULL, &dst);
             }
         }

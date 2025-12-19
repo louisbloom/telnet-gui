@@ -15,6 +15,9 @@ typedef struct TermCell {
     /* Character content - up to 6 UTF-32 codepoints for combining characters */
     uint32_t chars[6];
 
+    /* Character width in cells (1 for normal, 2 for wide chars like emoji) */
+    char width;
+
     /* Text attributes */
     struct {
         unsigned int bold : 1;

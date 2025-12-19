@@ -16,8 +16,9 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
                                 int font_size, int hinting_mode, SDL_ScaleMode scale_mode, int hdpi, int vdpi);
 
 /* Get a cached texture for a glyph */
+/* is_emoji: if true and fallback font available, use emoji font even if main font has the glyph */
 SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg_color, SDL_Color bg_color, int bold,
-                             int italic);
+                             int italic, int is_emoji);
 
 /* Get cell dimensions (width and height) */
 void glyph_cache_get_cell_size(GlyphCache *cache, int *cell_w, int *cell_h);

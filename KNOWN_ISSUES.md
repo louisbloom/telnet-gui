@@ -54,3 +54,47 @@ Potential solutions that were not attempted:
 - Investigating SDL2 version-specific behavior
 
 This issue may be resolved in future SDL2 versions or with different renderer configurations.
+
+## Emoji with Variation Selectors Need Extra Spacing
+
+**Platform:** All
+**Status:** Known Limitation
+**Severity:** Minor Visual Issue
+
+### Description
+
+Some emoji that use variation selectors (U+FE0F) to request emoji presentation are reported as 1-cell width by libvterm, but visually render as 2-cell width. This causes the emoji to overlap with the following character.
+
+Affected emoji include:
+
+- 🗡️ (U+1F5E1 + U+FE0F) - Dagger
+- ⚔️ (U+2694 + U+FE0F) - Crossed Swords
+- ▶️ (U+25B6 + U+FE0F) - Play Button
+
+Unaffected emoji (inherently 2-cell width):
+
+- ✨ (U+2728) - Sparkles
+- 🎮 (U+1F3AE) - Game Controller
+- 🏰 (U+1F3F0) - Castle
+- 🐉 (U+1F409) - Dragon
+- 🔮 (U+1F52E) - Crystal Ball
+
+### Root Cause
+
+The base characters (U+1F5E1, U+2694, U+25B6) are classified as narrow or ambiguous width in Unicode's East Asian Width property. The variation selector U+FE0F requests emoji presentation but doesn't change the width classification used by terminal emulators.
+
+### Workaround
+
+Add an extra space after affected emoji:
+
+```lisp
+;; Incorrect - will overlap
+(tintin-echo "🗡️⚔️Text")
+
+;; Correct - add space after each affected emoji
+(tintin-echo "🗡️ ⚔️ Text")
+```
+
+### Technical Details
+
+The renderer detects variation selectors and renders affected emoji at 2-cell width for proper appearance, but cannot change the terminal's text layout which already allocated only 1 cell.

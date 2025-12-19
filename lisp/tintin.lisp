@@ -5557,4 +5557,4 @@ Maps attribute names to their ANSI SGR codes.")
         (tintin-trigger-actions-for-line (list-ref lines i))))))
 
 ;; Announce activation (terminal is ready when this file loads via -l)
-(tintin-echo "TinTin++ loaded and activated\r\n")
+(tintin-echo "✨🎮🗡️ ⚔️ 🏰🐉🔮 TinTin++ loaded and activated\r\n")

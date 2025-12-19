@@ -119,6 +119,8 @@ static void vterm_color_to_term_color(const VTermColor *vcolor, GenericColor *tc
 static void vterm_cell_to_term_cell(const VTermScreenCell *vcell, TermCell *tcell) {
     memcpy(tcell->chars, vcell->chars, sizeof(tcell->chars));
 
+    tcell->width = vcell->width;
+
     tcell->attrs.bold = vcell->attrs.bold;
     tcell->attrs.italic = vcell->attrs.italic;
     tcell->attrs.underline = vcell->attrs.underline;
