@@ -1197,8 +1197,16 @@ if(WIN32 AND DEFINED UCRT64_ROOT)
     list(APPEND VTERM_TEST_INCLUDES "${UCRT64_ROOT}/include")
 endif()
 
+# Set up libraries for vterm test - use full path to library if VTERM_LIBDIR is set
+set(VTERM_TEST_LIBRARIES "")
+if(VTERM_LIBDIR AND EXISTS "${VTERM_LIBDIR}/libvterm.a")
+    list(APPEND VTERM_TEST_LIBRARIES "${VTERM_LIBDIR}/libvterm.a")
+else()
+    list(APPEND VTERM_TEST_LIBRARIES ${VTERM_LIBRARIES})
+endif()
+
 set(CMAKE_REQUIRED_INCLUDES ${VTERM_TEST_INCLUDES})
-set(CMAKE_REQUIRED_LIBRARIES ${VTERM_LIBRARIES})
+set(CMAKE_REQUIRED_LIBRARIES ${VTERM_TEST_LIBRARIES})
 
 check_c_source_compiles("
     #include <vterm.h>
@@ -1209,6 +1217,16 @@ check_c_source_compiles("
         return 0;
     }
 " HAVE_VTERM_REFLOW)
+
+# Check for libvterm pushline4 support (nvim branch feature for text reflow)
+check_c_source_compiles("
+    #include <vterm.h>
+    int main() {
+        VTermScreen *screen = NULL;
+        vterm_screen_callbacks_has_pushline4(screen);
+        return 0;
+    }
+" HAVE_VTERM_PUSHLINE4)
 
 # Restore previous values
 set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_SAVE})
@@ -1445,8 +1463,14 @@ else()
     message(STATUS "SDL_ttf DPI support: not available (SDL_ttf < 2.20.0)")
 endif()
 
-# HAVE_VTERM_PUSHLINE4 is deprecated, always set to 0
-target_compile_definitions(telnet-gui PRIVATE HAVE_VTERM_PUSHLINE4=0)
+# libvterm pushline4 support for text reflow
+if(HAVE_VTERM_PUSHLINE4)
+    target_compile_definitions(telnet-gui PRIVATE HAVE_VTERM_PUSHLINE4=1)
+    message(STATUS "libvterm pushline4 support: available (text reflow enabled)")
+else()
+    target_compile_definitions(telnet-gui PRIVATE HAVE_VTERM_PUSHLINE4=0)
+    message(STATUS "libvterm pushline4 support: not available")
+endif()
 
 # Install telnet-gui executable
 install(TARGETS telnet-gui
