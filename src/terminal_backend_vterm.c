@@ -1140,9 +1140,10 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
             m = lisp_cdr(m);
         }
 
-        /* Only render if terminal is wide enough */
-        if (total_width > 0 && actual_cols >= total_width + 2) {
-            int indicator_col = actual_cols - total_width + 1;
+        /* Only render if terminal is wide enough (need space for indicators + margin) */
+        int right_margin = 2; /* Leave some divider visible after indicators */
+        if (total_width > 0 && actual_cols >= total_width + right_margin + 2) {
+            int indicator_col = actual_cols - total_width - right_margin + 1;
             ansi_format_cursor_pos(cursor_buf, sizeof(cursor_buf), top_divider_row, indicator_col);
             dynamic_buffer_append_str(buf, cursor_buf);
 
