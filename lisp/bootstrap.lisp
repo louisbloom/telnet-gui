@@ -5,47 +5,49 @@
 ;; ============================================================================
 ;; COMPLETION PATTERN CONFIGURATION
 ;; ============================================================================
-;; *completion-pattern*: PCRE2 regex pattern that matches the text to complete
-;;
-;; The pattern is applied to the current line, and the matched text is passed
-;; to the completion-hook function. The pattern should match the word or
-;; command prefix that the user wants to complete.
-;;
-;; Examples:
-;;   "\\S+$"          - Match any non-whitespace characters at end of line
-;;                      (default: completes any word at cursor position)
-;;   "[a-zA-Z_][a-zA-Z0-9_]*$" - Match identifiers (letters, digits, underscore)
-;;                      (good for command completion)
-;;   "[^\\s]+$"       - Match any non-space characters at end of line
-;;                      (similar to default but excludes tabs)
-;;   "\\w+$"          - Match word characters (letters, digits, underscore)
-;;                      (simpler than identifier pattern)
-;;
-;; Pattern matching details:
-;;   - The pattern is anchored to the end of the line ($)
-;;   - Only the matched portion is passed to completion-hook
-;;   - Use capturing groups if you need to extract specific parts
-;;   - PCRE2 syntax: \\S = non-whitespace, \\w = word char, \\s = whitespace
-(define *completion-pattern* "\\S+$")
+
+(defvar *completion-pattern* "\\S+$"
+  "PCRE2 regex pattern that matches the text to complete.
+
+The pattern is applied to the current line, and the matched text is passed
+to the completion-hook function. The pattern should match the word or
+command prefix that the user wants to complete.
+
+## Examples
+- `\\\\S+$` - Match any non-whitespace characters at end of line
+  (default: completes any word at cursor position)
+- `[a-zA-Z_][a-zA-Z0-9_]*$` - Match identifiers (letters, digits, underscore)
+  (good for command completion)
+- `[^\\\\s]+$` - Match any non-space characters at end of line
+  (similar to default but excludes tabs)
+- `\\\\w+$` - Match word characters (letters, digits, underscore)
+  (simpler than identifier pattern)
+
+## Pattern Matching Details
+- The pattern is anchored to the end of the line ($)
+- Only the matched portion is passed to completion-hook
+- Use capturing groups if you need to extract specific parts
+- PCRE2 syntax: `\\\\S` = non-whitespace, `\\\\w` = word char, `\\\\s` = whitespace")
 
 ;; ============================================================================
 ;; WORD STORE CONFIGURATION
 ;; ============================================================================
-;; *completion-word-store-size*: Maximum number of words to store for completions
-;;
-;; This controls the maximum size of the word store used for completion
-;; suggestions. When the store reaches this limit, older words are removed
-;; to make room for new ones (FIFO - First In, First Out).
-;;
-;; Examples:
-;;   500  - Small store, good for limited memory
-;;   1000 - Default, balanced for most use cases
-;;   5000 - Large store, good for extensive word collection
-;;   10000 - Very large store, may use more memory
-(define *completion-word-store-size* 10000)
 
-;; Max number of completion candidates to return per prefix
-(define *completion-max-results* 64)
+(defvar *completion-word-store-size* 10000
+  "Maximum number of words to store for completions.
+
+This controls the maximum size of the word store used for completion
+suggestions. When the store reaches this limit, older words are removed
+to make room for new ones (FIFO - First In, First Out).
+
+## Examples
+- 500 - Small store, good for limited memory
+- 1000 - Balanced for most use cases
+- 5000 - Large store, good for extensive word collection
+- 10000 - Very large store (default), may use more memory")
+
+(defvar *completion-max-results* 64
+  "Maximum number of completion candidates to return per prefix.")
 
 ;; Initialize word store (hash table for fast lookups)
 (define *completion-word-store* (make-hash-table))
@@ -61,12 +63,12 @@
 ;; TELNET I/O LOGGING CONFIGURATION
 ;; ============================================================================
 
-;; Enable/disable telnet I/O logging (both send and receive)
-(define *enable-telnet-logging* #t)
+(defvar *enable-telnet-logging* #t
+  "Enable/disable telnet I/O logging (both send and receive).")
 
-;; Directory for telnet log files (supports ~/ expansion)
-;; Log filename format: telnet-<host>-<port>-<timestamp>.log
-(define *telnet-log-directory* "~/telnet-logs")
+(defvar *telnet-log-directory* "~/telnet-logs"
+  "Directory for telnet log files (supports ~/ expansion).
+Log filename format: telnet-<host>-<port>-<timestamp>.log")
 
 ;; ============================================================================
 ;; WORD STORE HELPER FUNCTIONS
@@ -1020,114 +1022,117 @@
 ;; ============================================================================
 ;; MOUSE WHEEL SCROLLING CONFIGURATION
 ;; ============================================================================
-;; *scroll-lines-per-click*: Number of terminal lines to scroll per mouse wheel click
-;;
-;; This controls how much the terminal scrolls when you use the mouse wheel.
-;; Higher values scroll more per click, lower values provide finer control.
-;;
-;; Examples:
-;;   1  - Very fine control, one line at a time (good for precise reading)
-;;   3  - Default, balanced scrolling (good for most users)
-;;   5  - Faster scrolling, good for long documents
-;;   10 - Very fast scrolling, good for quickly jumping through output
-;;
-;; Note: This only affects discrete wheel clicks. For smooth scrolling
-;;       (trackpads), see *smooth-scrolling-enabled* below.
-(define *scroll-lines-per-click* 3)
+
+(defvar *scroll-lines-per-click* 3
+  "Number of terminal lines to scroll per mouse wheel click.
+
+This controls how much the terminal scrolls when you use the mouse wheel.
+Higher values scroll more per click, lower values provide finer control.
+
+## Examples
+- 1 - Very fine control, one line at a time (good for precise reading)
+- 3 - Default, balanced scrolling (good for most users)
+- 5 - Faster scrolling, good for long documents
+- 10 - Very fast scrolling, good for quickly jumping through output
+
+Note: This only affects discrete wheel clicks. For smooth scrolling
+(trackpads), see `*smooth-scrolling-enabled*`.")
 
 ;; ============================================================================
 ;; SMOOTH SCROLLING CONFIGURATION
 ;; ============================================================================
-;; *smooth-scrolling-enabled*: Enable smooth scrolling for high-resolution trackpads
-;;
-;; When enabled (#t), the terminal uses smooth pixel-based scrolling that
-;; responds to trackpad gestures with sub-line precision. This provides a
-;; natural, fluid scrolling experience similar to modern text editors.
-;;
-;; When disabled (#f), the terminal uses discrete line-based scrolling that
-;; jumps by whole lines. This is more traditional and may be preferred for
-;; some use cases.
-;;
-;; Examples:
-;;   #t - Enable smooth scrolling (default, recommended for trackpads)
-;;   #f - Disable smooth scrolling (use discrete line jumps)
-;;
-;; Use cases:
-;;   - Enable (#t) if you have a trackpad or high-resolution mouse
-;;   - Enable (#t) for a modern, fluid user experience
-;;   - Disable (#f) if you prefer traditional terminal scrolling
-;;   - Disable (#f) if smooth scrolling feels laggy on your system
-(define *smooth-scrolling-enabled* #t)
+
+(defvar *smooth-scrolling-enabled* #t
+  "Enable smooth scrolling for high-resolution trackpads.
+
+When enabled (`#t`), the terminal uses smooth pixel-based scrolling that
+responds to trackpad gestures with sub-line precision. This provides a
+natural, fluid scrolling experience similar to modern text editors.
+
+When disabled (`#f`), the terminal uses discrete line-based scrolling that
+jumps by whole lines. This is more traditional and may be preferred for
+some use cases.
+
+## Use Cases
+- Enable (`#t`) if you have a trackpad or high-resolution mouse
+- Enable (`#t`) for a modern, fluid user experience
+- Disable (`#f`) if you prefer traditional terminal scrolling
+- Disable (`#f`) if smooth scrolling feels laggy on your system")
 
 ;; ============================================================================
 ;; SCROLLBACK BUFFER CONFIGURATION
 ;; ============================================================================
-;; *max-scrollback-lines*: Maximum number of scrollback lines to keep in memory
-;;
-;; This controls how many lines of terminal output history are retained for
-;; scrolling back through past output. When the buffer is full, oldest lines
-;; are automatically evicted to make room for new output (FIFO circular buffer).
-;;
-;; Values:
-;;   0     - Unbounded (default, limited to 10000 lines for safety)
-;;   1000  - Small buffer, uses less memory
-;;   5000  - Medium buffer, good balance
-;;   10000 - Large buffer, maximum scrollback
-;;
-;; Note: Set to 0 for unbounded scrollback (limited by SCROLLBACK_MAX_LINES = 10000
-;;       in code for safety). Setting a smaller value can reduce memory usage for
-;;       very long sessions with lots of output.
-;;
-;; Memory usage: Each line uses ~100-500 bytes depending on content
-;;   1000 lines  ≈ 100KB - 500KB
-;;   5000 lines  ≈ 500KB - 2.5MB
-;;   10000 lines ≈ 1MB - 5MB
-(define *max-scrollback-lines* 0)
+
+(defvar *max-scrollback-lines* 0
+  "Maximum number of scrollback lines to keep in memory.
+
+This controls how many lines of terminal output history are retained for
+scrolling back through past output. When the buffer is full, oldest lines
+are automatically evicted to make room for new output (FIFO circular buffer).
+
+## Values
+- 0 - Unbounded (default, limited to 10000 lines for safety)
+- 1000 - Small buffer, uses less memory
+- 5000 - Medium buffer, good balance
+- 10000 - Large buffer, maximum scrollback
+
+Note: Set to 0 for unbounded scrollback (limited by SCROLLBACK_MAX_LINES = 10000
+in code for safety). Setting a smaller value can reduce memory usage for
+very long sessions with lots of output.
+
+## Memory Usage
+Each line uses ~100-500 bytes depending on content:
+- 1000 lines ≈ 100KB - 500KB
+- 5000 lines ≈ 500KB - 2.5MB
+- 10000 lines ≈ 1MB - 5MB")
 
 ;; ============================================================================
 ;; AUTO-SCROLL TO BOTTOM CONFIGURATION
 ;; ============================================================================
-;; *scroll-to-bottom-on-user-input*: Auto-scroll to bottom when user sends input
-;;
-;; When enabled (#t), the terminal automatically scrolls to the bottom (current
-;; output) whenever you send a command or text to the server. This ensures you
-;; always see the response to your commands.
-;;
-;; Values:
-;;   #t - Auto-scroll on user input (default, recommended)
-;;   #f - Don't auto-scroll, stay at current scroll position
-;;
-;; Use cases:
-;;   - Enable (#t) for normal interactive use (default)
-;;   - Disable (#f) if you want to read scrollback while typing commands
-(define *scroll-to-bottom-on-user-input* #t)
+
+(defvar *scroll-to-bottom-on-user-input* #t
+  "Auto-scroll to bottom when user sends input.
+
+When enabled (`#t`), the terminal automatically scrolls to the bottom (current
+output) whenever you send a command or text to the server. This ensures you
+always see the response to your commands.
+
+## Values
+- `#t` - Auto-scroll on user input (default, recommended)
+- `#f` - Don't auto-scroll, stay at current scroll position
+
+## Use Cases
+- Enable (`#t`) for normal interactive use (default)
+- Disable (`#f`) if you want to read scrollback while typing commands")
 
 ;; ============================================================================
 ;; INPUT HISTORY CONFIGURATION
 ;; ============================================================================
-;; *input-history-size*: Maximum number of input history entries to keep
-;;
-;; This controls how many previous input commands are stored in history
-;; that you can navigate through with Up/Down arrow keys. When the buffer
-;; is full, oldest entries are automatically removed to make room for new
-;; commands (FIFO circular buffer).
-;;
-;; Values:
-;;   10   - Minimal history, uses very little memory
-;;   50   - Small history, good for simple sessions
-;;   100  - Medium history, default and recommended
-;;   200  - Large history, good for complex sessions
-;;   500  - Very large history, maximum recommended
-;;
-;; Memory usage: Each entry uses INPUT_AREA_MAX_LENGTH bytes
-;;   50 entries  ≈ 100KB (assuming 2KB per entry)
-;;   100 entries ≈ 200KB
-;;   200 entries ≈ 400KB
-;;   500 entries ≈ 1MB
-;;
-;; Note: Very large history sizes may impact performance when navigating
-;;       through history, especially on slower systems.
-(define *input-history-size* 100)
+
+(defvar *input-history-size* 100
+  "Maximum number of input history entries to keep.
+
+This controls how many previous input commands are stored in history
+that you can navigate through with Up/Down arrow keys. When the buffer
+is full, oldest entries are automatically removed to make room for new
+commands (FIFO circular buffer).
+
+## Values
+- 10 - Minimal history, uses very little memory
+- 50 - Small history, good for simple sessions
+- 100 - Medium history, default and recommended
+- 200 - Large history, good for complex sessions
+- 500 - Very large history, maximum recommended
+
+## Memory Usage
+Each entry uses INPUT_AREA_MAX_LENGTH bytes:
+- 50 entries ≈ 100KB (assuming 2KB per entry)
+- 100 entries ≈ 200KB
+- 200 entries ≈ 400KB
+- 500 entries ≈ 1MB
+
+Note: Very large history sizes may impact performance when navigating
+through history, especially on slower systems.")
 
 ;; ============================================================================
 ;; UTILITY FUNCTIONS
@@ -1177,7 +1182,11 @@
   "Generate ANSI bold + true color foreground escape sequence."
   (concat "\033[1;38;2;" (number->string r) ";" (number->string g) ";" (number->string b) "m"))
 
-(define *ansi-reset* "\033[0m")
+(defconst *ansi-reset* "\033[0m"
+  "ANSI escape sequence to reset all text attributes.
+
+Resets foreground color, background color, bold, underline, and all other
+ANSI text attributes to terminal defaults.")
 
 (defun pretty-print-alist (alist)
   "Pretty-print an association list to the terminal with ANSI true color formatting.
@@ -1293,8 +1302,8 @@
 ;; Terminal Default Colors
 ;; ----------------------------------------------------------------------------
 
-(define *terminal-fg-color* '(255 255 255))
-"Default terminal foreground (text) color.
+(defvar *terminal-fg-color* '(255 255 255)
+  "Default terminal foreground (text) color.
 
 ## Format
 RGB list: (R G B) where each component is 0-255.
@@ -1311,10 +1320,10 @@ with ANSI color codes will override this for specific text.
 (define *terminal-fg-color* '(255 255 255))  ; White (default)
 (define *terminal-fg-color* '(200 200 200))  ; Light gray
 (define *terminal-fg-color* '(0 255 0))      ; Green (retro terminal)
-```"
+```")
 
-(define *terminal-bg-color* '(0 0 0))
-"Default terminal background color.
+(defvar *terminal-bg-color* '(0 0 0)
+  "Default terminal background color.
 
 ## Format
 RGB list: (R G B) where each component is 0-255.
@@ -1331,14 +1340,14 @@ Server output with ANSI background colors will override this for specific cells.
 (define *terminal-bg-color* '(0 0 0))        ; Black (default)
 (define *terminal-bg-color* '(30 30 30))     ; Dark gray
 (define *terminal-bg-color* '(0 0 40))       ; Dark blue
-```"
+```")
 
 ;; ----------------------------------------------------------------------------
 ;; Text Selection Colors
 ;; ----------------------------------------------------------------------------
 
-(define *selection-fg-color* '(0 0 0))
-"Foreground (text) color for selected text.
+(defvar *selection-fg-color* '(0 0 0)
+  "Foreground (text) color for selected text.
 
 ## Format
 RGB list: (R G B) where each component is 0-255.
@@ -1354,10 +1363,10 @@ Text color when cells are selected/highlighted. Should contrast well with
 ```lisp
 (define *selection-fg-color* '(0 0 0))        ; Black (default)
 (define *selection-fg-color* '(255 255 255))  ; White
-```"
+```")
 
-(define *selection-bg-color* '(0 180 180))
-"Background color for selected text.
+(defvar *selection-bg-color* '(0 180 180)
+  "Background color for selected text.
 
 ## Format
 RGB list: (R G B) where each component is 0-255.
@@ -1374,14 +1383,14 @@ Background color of selected text regions. Should contrast well with
 (define *selection-bg-color* '(0 180 180))    ; Cyan (default)
 (define *selection-bg-color* '(255 140 0))    ; Orange
 (define *selection-bg-color* '(100 149 237))  ; Cornflower blue
-```"
+```")
 
 ;; ----------------------------------------------------------------------------
 ;; Cursor Color
 ;; ----------------------------------------------------------------------------
 
-(define *terminal-cursor-color* '(140 120 150))
-"Cursor (caret) background color in input area.
+(defvar *terminal-cursor-color* '(140 120 150)
+  "Cursor (caret) background color in input area.
 
 ## Format
 RGB list: (R G B) where each component is 0-255.
@@ -1398,14 +1407,14 @@ under the cursor is rendered with this background color.
 (define *terminal-cursor-color* '(140 120 150))  ; Muted purple (default)
 (define *terminal-cursor-color* '(150 140 120))  ; Warm gray
 (define *terminal-cursor-color* '(255 255 255))  ; White block cursor
-```"
+```")
 
 ;; ----------------------------------------------------------------------------
 ;; Divider Colors
 ;; ----------------------------------------------------------------------------
 
-(define *divider-connected-color* '(128 150 150))
-"Divider line color when connected to server.
+(defvar *divider-connected-color* '(128 150 150)
+  "Divider line color when connected to server.
 
 ## Format
 RGB list: (R G B) where each component is 0-255.
@@ -1422,10 +1431,10 @@ a telnet connection is active. Provides visual feedback of connection status.
 (define *divider-connected-color* '(128 150 150))  ; Gray with green/blue tint (default)
 (define *divider-connected-color* '(80 200 120))   ; Saturated green
 (define *divider-connected-color* '(0 180 180))    ; Cyan (match theme)
-```"
+```")
 
-(define *divider-disconnected-color* '(128 128 128))
-"Divider line color when disconnected from server.
+(defvar *divider-disconnected-color* '(128 128 128)
+  "Divider line color when disconnected from server.
 
 ## Format
 RGB list: (R G B) where each component is 0-255.
@@ -1442,14 +1451,14 @@ A neutral color indicating disconnected state.
 (define *divider-disconnected-color* '(128 128 128))  ; Gray (default)
 (define *divider-disconnected-color* '(100 100 100))  ; Darker gray
 (define *divider-disconnected-color* '(255 100 100))  ; Red (warning)
-```"
+```")
 
 ;; ----------------------------------------------------------------------------
 ;; User Input Echo Color
 ;; ----------------------------------------------------------------------------
 
-(define *user-input-echo-color* '(255 215 0))
-"Color for echoing user input to terminal.
+(defvar *user-input-echo-color* '(255 215 0)
+  "Color for echoing user input to terminal.
 
 ## Format
 RGB list: (R G B) where each component is 0-255.
@@ -1468,45 +1477,51 @@ server output.
 (define *user-input-echo-color* '(255 220 100))  ; Light yellow
 (define *user-input-echo-color* '(0 255 255))    ; Cyan
 (define *user-input-echo-color* '(255 255 255))  ; White (same as terminal)
-```"
+```")
 
 ;; ============================================================================
 ;; TERMINAL LINE HEIGHT CONFIGURATION
 ;; ============================================================================
-;; *terminal-line-height*: Multiplier for terminal line spacing
-;;
-;; This controls the vertical spacing between terminal lines. The value is a
-;; multiplier applied to the base cell height calculated from the font metrics.
-;;
-;; Values:
-;;   1.2  - Default spacing (20% more than font metrics, better readability)
-;;   1.0  - Normal spacing (matches font metrics)
-;;   1.5  - 50% more spacing between lines
-;;   2.0  - Double spacing
-;;   0.5  - Half spacing (tighter, minimum recommended)
-;;
-;; Examples:
-;;   1.2  - Default, comfortable spacing for readability
-;;   1.0  - Compact terminal appearance (matches font metrics)
-;;   1.25 - Slightly more spacing for readability
-;;   1.5  - Comfortable spacing for long reading sessions
-;;   2.0  - Very loose spacing, maximum recommended
-;;
-;; Note: Values are clamped to 0.5-3.0 range for safety. The multiplier affects
-;;       vertical spacing between rows, window height calculations, and mouse
-;;       coordinate conversion, but does not stretch glyphs (they maintain their
-;;       original size from the font).
-(define *terminal-line-height* 1.2)
+
+(defvar *terminal-line-height* 1.2
+  "Multiplier for terminal line spacing.
+
+This controls the vertical spacing between terminal lines. The value is a
+multiplier applied to the base cell height calculated from the font metrics.
+
+## Values
+- 1.2 - Default spacing (20% more than font metrics, better readability)
+- 1.0 - Normal spacing (matches font metrics)
+- 1.5 - 50% more spacing between lines
+- 2.0 - Double spacing
+- 0.5 - Half spacing (tighter, minimum recommended)
+
+## Examples
+- 1.2 - Default, comfortable spacing for readability
+- 1.0 - Compact terminal appearance (matches font metrics)
+- 1.25 - Slightly more spacing for readability
+- 1.5 - Comfortable spacing for long reading sessions
+- 2.0 - Very loose spacing, maximum recommended
+
+Note: Values are clamped to 0.5-3.0 range for safety. The multiplier affects
+vertical spacing between rows, window height calculations, and mouse
+coordinate conversion, but does not stretch glyphs (they maintain their
+original size from the font).")
 
 ;; ============================================================================
 ;; SCROLL-LOCK NOTIFICATION ANIMATION
 ;; ============================================================================
-;; When the terminal is in scroll-lock mode (user scrolled back from live output)
-;; and new telnet data arrives, play a subtle notification animation to alert
-;; the user that new content is available.
 
-;; Enable/disable scroll-lock notification animation
-(define *scroll-lock-notification-enabled* #t)
+(defvar *scroll-lock-notification-enabled* #t
+  "Enable/disable scroll-lock notification animation.
+
+When the terminal is in scroll-lock mode (user scrolled back from live output)
+and new telnet data arrives, play a subtle notification animation to alert
+the user that new content is available.
+
+## Values
+- `#t` - Enable notification animation (default)
+- `#f` - Disable notification animation")
 
 ;; Animation object (nil until loaded)
 (define *scroll-lock-notification-animation* nil)
