@@ -32,7 +32,7 @@ Animation *renderer_get_animation(void) {
 
 /* Calculate scaled destination rectangle for glyphs */
 /* For regular text: only scales down if significantly oversized (>1.5x) */
-/* For emoji (scale_to_fit=1): always scales to fill the cell */
+/* For emoji (scale_to_fit=1): always scales to fill the cell width */
 static SDL_Rect calc_scaled_glyph_rect(int dst_x, int dst_y, int tex_w, int tex_h, int cell_w, int cell_h,
                                        int scale_to_fit) {
     int final_w = tex_w;
@@ -41,8 +41,22 @@ static SDL_Rect calc_scaled_glyph_rect(int dst_x, int dst_y, int tex_w, int tex_
     int final_y = dst_y;
 
     if (scale_to_fit) {
-        /* Scale emoji to fill height, maintain aspect ratio, center horizontally */
-        float scale = (float)cell_h / tex_h;
+        /* Scale emoji to fill width, maintain aspect ratio, center vertically */
+        /* This ensures emoji always span their full cell allocation (typically 2 cells) */
+        /* Height may be clipped if emoji is taller than cell_h after width scaling */
+        float scale_x = (float)cell_w / tex_w;
+        float scale_y = (float)cell_h / tex_h;
+
+        /* Use the smaller scale to fit within both dimensions while maintaining aspect ratio */
+        /* But prefer filling width - if scaling by width still fits height, use that */
+        float scale;
+        if (tex_h * scale_x <= cell_h) {
+            /* Scaling to fill width still fits within height - use width scale */
+            scale = scale_x;
+        } else {
+            /* Scaling to fill width would overflow height - use height scale instead */
+            scale = scale_y;
+        }
 
         final_w = (int)(tex_w * scale);
         final_h = (int)(tex_h * scale);
@@ -264,6 +278,26 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
 
     if (!state || !cell)
         return;
+
+    /* Skip continuation cells - these are the "second half" of wide characters */
+    /* The wide character in the previous cell will render across both cells */
+    /* VTerm marks continuation cells with chars[0] = 0xFFFFFFFF (or width=0 on some platforms) */
+    /* 0x10FFFF is the maximum valid Unicode codepoint */
+    if (cell->width == 0 || cell->chars[0] > 0x10FFFF)
+        return;
+
+    /* Also skip cells that follow an emoji with variation selector (U+FE0F) */
+    /* These emoji have width=1 in vterm but we render them as width=2 */
+    /* Without this check, this cell's background would overwrite the emoji's right half */
+    if (col > 0) {
+        TermCell prev_cell;
+        if (terminal_get_cell_at(term, row, col - 1, &prev_cell)) {
+            if (prev_cell.chars[1] == 0xFE0F && prev_cell.width == 1) {
+                /* Previous cell was an emoji with variation selector that we rendered as 2-wide */
+                return;
+            }
+        }
+    }
 
     /* Get vterm screen for color conversion */
     VTermScreen *screen = terminal_get_screen(term);
