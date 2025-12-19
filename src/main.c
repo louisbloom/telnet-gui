@@ -1853,18 +1853,35 @@ int main(int argc, char **argv) {
 
 #if HAVE_RLOTTIE
         /* Update animation timing */
+        static int animation_mode_was_playing = 0; /* Track for divider mode */
         int animation_just_finished = 0;
         Animation *active_anim = lisp_x_get_active_animation();
         if (active_anim && animation_is_loaded(active_anim)) {
-            int was_playing = animation_is_playing(active_anim);
-            if (was_playing) {
+            int is_playing = animation_is_playing(active_anim);
+
+            /* Auto-manage animation divider mode indicator */
+            if (is_playing && !animation_mode_was_playing) {
+                /* Animation started - show play button */
+                lisp_x_set_divider_mode("animation", "\xE2\x96\xB6", 90); /* ▶ U+25B6 */
+            }
+
+            if (is_playing) {
                 animation_update(active_anim, 16.0f); /* ~60fps = 16ms per frame */
             }
             /* Clear active animation when it finishes (non-looping animation stopped) */
-            if (was_playing && !animation_is_playing(active_anim)) {
+            if (animation_mode_was_playing && !animation_is_playing(active_anim)) {
                 lisp_x_clear_active_animation();
                 active_anim = NULL;
                 animation_just_finished = 1; /* Force redraw to clear last frame */
+                /* Animation stopped - remove play button */
+                lisp_x_remove_divider_mode("animation");
+            }
+            animation_mode_was_playing = animation_is_playing(active_anim);
+        } else {
+            /* No active animation - ensure mode is removed */
+            if (animation_mode_was_playing) {
+                lisp_x_remove_divider_mode("animation");
+                animation_mode_was_playing = 0;
             }
         }
         /* Update renderer's animation pointer */

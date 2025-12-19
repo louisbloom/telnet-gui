@@ -7,6 +7,8 @@
 #include "dynamic_buffer.h"
 #include "ansi_sequences.h"
 #include "lisp.h"
+#include "../../telnet-lisp/include/lisp.h"
+#include "../../telnet-lisp/include/utf8.h"
 #include <vterm.h>
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -1116,14 +1118,31 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
         dynamic_buffer_append(buf, box_char, 3);
     }
 
-    /* Add [EVAL] indicator if in eval mode */
-    if (input_area_get_mode(input_area) == INPUT_AREA_MODE_EVAL) {
-        const char *eval_text = " [EVAL] ";
-        int eval_len = 8;
+    /* Render divider mode indicators from *divider-modes* alist */
+    LispObject *modes = lisp_x_get_divider_modes();
+    if (modes != NIL) {
+        /* Calculate total width of all mode indicators */
+        int total_width = 0;
+        LispObject *m = modes;
+        while (m != NIL && m->type == LISP_CONS) {
+            LispObject *entry = lisp_car(m);
+            /* Entry format: (priority . (symbol . "display")) */
+            if (entry != NIL && entry->type == LISP_CONS) {
+                LispObject *sym_display = lisp_cdr(entry);
+                if (sym_display != NIL && sym_display->type == LISP_CONS) {
+                    LispObject *display = lisp_cdr(sym_display);
+                    if (display != NIL && display->type == LISP_STRING) {
+                        total_width += utf8_display_width(display->value.string);
+                        total_width += 1; /* Space before each indicator */
+                    }
+                }
+            }
+            m = lisp_cdr(m);
+        }
 
-        /* Only show if wide enough */
-        if (actual_cols >= 10) {
-            int indicator_col = actual_cols - eval_len + 1;
+        /* Only render if terminal is wide enough */
+        if (total_width > 0 && actual_cols >= total_width + 2) {
+            int indicator_col = actual_cols - total_width + 1;
             ansi_format_cursor_pos(cursor_buf, sizeof(cursor_buf), top_divider_row, indicator_col);
             dynamic_buffer_append_str(buf, cursor_buf);
 
@@ -1133,7 +1152,22 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
             ansi_format_bg_color_rgb(color_buf, sizeof(color_buf), term_bg_r, term_bg_g, term_bg_b);
             dynamic_buffer_append_str(buf, color_buf);
 
-            dynamic_buffer_append_str(buf, eval_text);
+            /* Render each mode indicator */
+            m = modes;
+            while (m != NIL && m->type == LISP_CONS) {
+                LispObject *entry = lisp_car(m);
+                if (entry != NIL && entry->type == LISP_CONS) {
+                    LispObject *sym_display = lisp_cdr(entry);
+                    if (sym_display != NIL && sym_display->type == LISP_CONS) {
+                        LispObject *display = lisp_cdr(sym_display);
+                        if (display != NIL && display->type == LISP_STRING) {
+                            dynamic_buffer_append_str(buf, " ");
+                            dynamic_buffer_append_str(buf, display->value.string);
+                        }
+                    }
+                }
+                m = lisp_cdr(m);
+            }
         }
     }
 

@@ -1575,6 +1575,106 @@ the user that new content is available.
         (animation-play *scroll-lock-notification-animation*)))))
 
 ;; ============================================================================
+;; DIVIDER MODE INDICATORS
+;; ============================================================================
+;; Mode indicators displayed on the divider line (e.g., ⚡ for eval mode)
+;; Modes are stored as an alist: ((priority . (symbol . "display")) ...)
+;; Lower priority = displayed first (leftmost)
+
+(defvar *divider-modes* '()
+  "Association list of divider mode indicators.
+
+Format: ((priority . (symbol . \"display\")) ...)
+- priority: Integer, lower values displayed first (leftmost)
+- symbol: Mode identifier (e.g., 'eval, 'animation)
+- display: String to show on divider (e.g., \"⚡\", \"▶\")
+
+## Built-in Modes
+- eval (priority 10): ⚡ - Shown when in Lisp eval mode (Shift+Tab)
+- animation (priority 90): ▶ - Shown when animation is playing
+
+## Example
+```lisp
+*divider-modes*
+; => ((10 . (eval . \"⚡\")) (90 . (animation . \"▶\")))
+```")
+
+(defun divider-mode-set (sym display &optional priority)
+  "Set a divider mode indicator.
+
+## Parameters
+- `sym` - Mode identifier symbol (e.g., 'eval, 'animation)
+- `display` - Display string (e.g., \"⚡\", \"▶\")
+- `priority` - Optional integer, lower = displayed first (default: 50)
+
+## Returns
+`nil`
+
+## Description
+Adds or updates a mode indicator on the divider line. If a mode with the
+same symbol already exists, it is replaced. Modes are displayed in priority
+order (lowest first).
+
+## Examples
+```lisp
+(divider-mode-set 'eval \"⚡\" 10)      ; High priority (leftmost)
+(divider-mode-set 'animation \"▶\" 90)  ; Low priority (rightmost)
+(divider-mode-set 'custom \"★\")        ; Default priority 50
+```
+
+## See Also
+- `divider-mode-remove` - Remove a mode indicator
+- `*divider-modes*` - The mode alist"
+  (let ((prio (if (and priority (number? priority)) priority 50)))
+    ;; Remove existing entry for this symbol
+    (divider-mode-remove sym)
+    ;; Create new entry: (priority . (symbol . display))
+    (let ((entry (cons prio (cons sym display)))
+           (result '())
+           (inserted #f))
+      ;; Insert in sorted order by priority
+      (do ((modes *divider-modes* (cdr modes)))
+        ((null? modes)
+          (set! *divider-modes*
+            (reverse (if inserted result (cons entry result)))))
+        (if (and (not inserted) (< prio (car (car modes))))
+          (progn
+            (set! inserted #t)
+            (set! result (cons (car modes) (cons entry result))))
+          (set! result (cons (car modes) result)))))))
+
+(defun divider-mode-remove (sym)
+  "Remove a divider mode indicator.
+
+## Parameters
+- `sym` - Mode identifier symbol to remove
+
+## Returns
+`nil`
+
+## Description
+Removes the mode indicator with the given symbol from the divider.
+Does nothing if the mode doesn't exist.
+
+## Examples
+```lisp
+(divider-mode-remove 'eval)
+(divider-mode-remove 'custom)
+```
+
+## See Also
+- `divider-mode-set` - Set a mode indicator
+- `*divider-modes*` - The mode alist"
+  (let ((result '()))
+    (do ((modes *divider-modes* (cdr modes)))
+      ((null? modes)
+        (set! *divider-modes* (reverse result)))
+      ;; Entry format: (priority . (symbol . display))
+      ;; Skip if symbol matches, otherwise keep
+      (if (not (eq? (car (cdr (car modes))) sym))
+        (set! result (cons (car modes) result))))))
+
+;; ============================================================================
 ;; BOOTSTRAP INITIALIZATION
 ;; ============================================================================
 ;; Note: Scroll-lock notification animation is lazy-loaded on first use

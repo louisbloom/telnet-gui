@@ -698,8 +698,18 @@ void input_area_set_mode(InputArea *area, InputAreaMode mode) {
         return;
 
     if (area->mode != mode) {
+        InputAreaMode old_mode = area->mode;
         area->mode = mode;
         area->needs_redraw = 1;
+
+        /* Auto-manage eval divider mode indicator */
+        if (mode == INPUT_AREA_MODE_EVAL && old_mode != INPUT_AREA_MODE_EVAL) {
+            /* Entering eval mode - show lightning bolt */
+            lisp_x_set_divider_mode("eval", "\xE2\x9A\xA1", 10); /* ⚡ U+26A1 */
+        } else if (mode != INPUT_AREA_MODE_EVAL && old_mode == INPUT_AREA_MODE_EVAL) {
+            /* Leaving eval mode - remove indicator */
+            lisp_x_remove_divider_mode("eval");
+        }
     }
 }
 

@@ -1221,6 +1221,8 @@ int lisp_x_init(void) {
                      "text.");
 #endif
 
+    /* Note: divider-mode-set and divider-mode-remove are defined in bootstrap.lisp */
+
 #undef REGISTER_BUILTIN
 
     /* Load bootstrap file - MUST be after all builtins are registered */
@@ -2148,6 +2150,52 @@ void lisp_x_get_divider_connected_color(int *r, int *g, int *b) {
 
 void lisp_x_get_divider_disconnected_color(int *r, int *g, int *b) {
     get_color_from_lisp("*divider-disconnected-color*", r, g, b, 128, 128, 128); /* Gray */
+}
+
+/* Get divider modes alist for rendering */
+LispObject *lisp_x_get_divider_modes(void) {
+    LispObject *modes = env_lookup(lisp_env, "*divider-modes*");
+    return (modes != NULL) ? modes : NIL;
+}
+
+/* C helper: Set a divider mode (calls Lisp function) */
+void lisp_x_set_divider_mode(const char *symbol_name, const char *display, int priority) {
+    if (!lisp_env || !symbol_name || !display)
+        return;
+
+    /* Look up divider-mode-set function */
+    LispObject *func = env_lookup(lisp_env, "divider-mode-set");
+    if (!func || (func->type != LISP_LAMBDA && func->type != LISP_BUILTIN))
+        return;
+
+    /* Build argument list: (symbol display priority) */
+    LispObject *sym_arg = lisp_make_symbol(symbol_name);
+    LispObject *display_arg = lisp_make_string(display);
+    LispObject *priority_arg = lisp_make_integer(priority);
+    LispObject *args = lisp_make_cons(sym_arg, lisp_make_cons(display_arg, lisp_make_cons(priority_arg, NIL)));
+
+    /* Call: (divider-mode-set 'symbol "display" priority) */
+    LispObject *call_expr = lisp_make_cons(func, args);
+    lisp_eval(call_expr, lisp_env);
+}
+
+/* C helper: Remove a divider mode (calls Lisp function) */
+void lisp_x_remove_divider_mode(const char *symbol_name) {
+    if (!lisp_env || !symbol_name)
+        return;
+
+    /* Look up divider-mode-remove function */
+    LispObject *func = env_lookup(lisp_env, "divider-mode-remove");
+    if (!func || (func->type != LISP_LAMBDA && func->type != LISP_BUILTIN))
+        return;
+
+    /* Build argument list: (symbol) */
+    LispObject *sym_arg = lisp_make_symbol(symbol_name);
+    LispObject *args = lisp_make_cons(sym_arg, NIL);
+
+    /* Call: (divider-mode-remove 'symbol) */
+    LispObject *call_expr = lisp_make_cons(func, args);
+    lisp_eval(call_expr, lisp_env);
 }
 
 /* User input echo color */

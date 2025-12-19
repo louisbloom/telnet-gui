@@ -71,6 +71,25 @@ void lisp_x_get_terminal_bg_color(int *r, int *g, int *b);
 void lisp_x_get_divider_connected_color(int *r, int *g, int *b);
 void lisp_x_get_divider_disconnected_color(int *r, int *g, int *b);
 
+/* Forward declaration for LispObject (defined in telnet-lisp) */
+struct LispObject;
+
+/* Get divider modes alist for rendering
+ * Returns Lisp alist: ((priority . (symbol . "display")) ...)
+ * Sorted by priority (lower = first). Returns NIL if no modes set.
+ */
+struct LispObject *lisp_x_get_divider_modes(void);
+
+/* Set a divider mode indicator from C
+ * symbol_name: identifier (e.g., "eval", "animation")
+ * display: display string (e.g., "⚡", "▶")
+ * priority: lower = displayed first (eval=10, animation=90)
+ */
+void lisp_x_set_divider_mode(const char *symbol_name, const char *display, int priority);
+
+/* Remove a divider mode indicator from C */
+void lisp_x_remove_divider_mode(const char *symbol_name);
+
 /* User input echo color */
 void lisp_x_get_user_input_echo_color(int *r, int *g, int *b);
 
