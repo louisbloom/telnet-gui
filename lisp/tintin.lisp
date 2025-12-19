@@ -1,59 +1,11 @@
-;; TinTin++ Implementation - Test-Driven Development
-;; Building incrementally, one test at a time
+;; TinTin++ Implementation
+;;
+;; Load this file to enable TinTin++ scripting in telnet-gui:
+;;
+;;    ./telnet-gui -l lisp/tintin.lisp <host> <port>
+;;
+;; TinTin++ automatically activates when loaded. See TINTIN.md for documentation.
 
-;; ============================================================================
-;; USAGE AS USER-INPUT-HOOK
-;; ============================================================================
-;;
-;; To use TinTin++ in telnet-gui, simply load this file:
-;;
-;;    ./build/telnet-gui/telnet-gui.exe -l telnet-gui/tintin.lisp <host> <port>
-;;
-;; TinTin++ automatically activates when loaded! You can use:
-;;    - Command separation: n;s;e;w
-;;    - Speedwalk: 3n2e (expands to n;n;n;e;e)
-;;    - Aliases: #alias {k} {kill %1}
-;;    - Variables: #variable {target} {orc}
-;;    - Pattern matching: #alias {attack %1 with %2} {kill %1;wield %2}
-;;    - Partial matching: #al {k} {kill %1} or #var {target} {orc}
-;;    - Case-insensitive: #ALIAS, #Alias, #alias all work
-;;
-;; All # commands support:
-;;    - Partial prefix matching (e.g., #al → #alias, #v → #variable)
-;;    - Case-insensitive matching (e.g., #ALIAS, #Alias, #alias)
-;;    - Error messages for unknown commands (never sent to telnet server)
-;;
-;; Toggle TinTin++ on/off:
-;;    (tintin-toggle!)   ; Toggle on/off
-;;    (tintin-enable!)   ; Enable
-;;    (tintin-disable!)  ; Disable
-;;
-;; Example configuration file (save as my-config.lisp):
-;;
-;;   ;; Load TinTin++ (automatically activates)
-;;   (load "tintin.lisp")
-;;
-;;   ;; Pre-define common directional aliases
-;;   (tintin-process-command "#alias {n} {north}")
-;;   (tintin-process-command "#alias {s} {south}")
-;;   (tintin-process-command "#alias {e} {east}")
-;;   (tintin-process-command "#alias {w} {west}")
-;;   (tintin-process-command "#alias {u} {up}")
-;;   (tintin-process-command "#alias {d} {down}")
-;;
-;;   ;; Set up combat aliases
-;;   (tintin-process-command "#alias {k} {kill %1}")
-;;   (tintin-process-command "#alias {ka} {kill all.%1}")
-;;
-;;   ;; Set up variables
-;;   (tintin-process-command "#variable {target} {orc}")
-;;   (tintin-process-command "#variable {weapon} {sword}")
-;;
-;;   ;; Print confirmation
-;;   (terminal-echo "TinTin++ configuration loaded!\r\n")
-;;
-;; Then run: ./telnet-gui.exe -l my-config.lisp <host> <port>
-;;
 ;; ============================================================================
 ;; DATA STRUCTURES
 ;; ============================================================================
@@ -120,28 +72,6 @@ is exceeded, alias expansion stops and remaining text is sent as-is.
 ;; Each entry: (handler-fn arg-count syntax-help)
 ;; Registry is populated after handlers are defined (see COMMAND HANDLERS section)
 (define *tintin-commands* (make-hash-table))
-
-;; ============================================================================
-;; STUB DEFINITIONS (for standalone use in lisp-repl)
-;; ============================================================================
-
-;; Define terminal-echo as printing to stdout if not already defined
-(if (not (condition-case err
-           (progn terminal-echo #t)
-           (error #f)))
-  (define terminal-echo (lambda (text) (print text) nil)))
-
-;; Define telnet-send as printing to stderr if not already defined
-(if (not (condition-case err
-           (progn telnet-send #t)
-           (error #f)))
-  (define telnet-send (lambda (text) (eprint text) nil)))
-
-;; ============================================================================
-;; UTILITY FUNCTIONS
-;; NOTE: string->number and reverse are now native built-in functions
-;; ============================================================================
-
 
 ;; ============================================================================
 ;; HIGHLIGHT COLOR PARSING SYSTEM
