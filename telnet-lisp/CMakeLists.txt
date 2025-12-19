@@ -66,3 +66,13 @@ install(TARGETS lisp
 install(FILES include/lisp.h include/utf8.h include/file_utils.h
     DESTINATION include
 )
+
+# REPL executable
+add_executable(lisp-repl repl/main.c)
+target_link_libraries(lisp-repl lisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
+target_include_directories(lisp-repl PRIVATE include)
+
+# Install REPL
+install(TARGETS lisp-repl
+    RUNTIME DESTINATION bin
+)

@@ -1,35 +1,17 @@
-# Telnet Lisp Repository
+# Telnet GUI
 
-A multi-project repository focused on **telnet-lisp** integration. This repository contains independent projects that share a common theme: integration with the telnet-lisp Lisp interpreter library.
+A graphical telnet client with terminal emulation, built using SDL2 and libvterm, powered by an embedded Lisp interpreter for scripting and automation.
 
-## Repository Overview
+## Overview
 
-This repository is organized around **telnet-lisp**, the core embeddable Lisp interpreter library. All projects in this repository integrate with or use telnet-lisp in various ways:
+Telnet GUI provides a feature-rich graphical interface for telnet connections with:
 
-- **telnet-lisp** - The core library: A minimal, embeddable Lisp interpreter written in C with automatic garbage collection, regex support, and UTF-8 handling
-- **telnet-gui** - GUI application: A graphical telnet client that integrates telnet-lisp for scriptable automation and command processing
-
-While these projects are independent and can be built separately, they share the common foundation of telnet-lisp integration.
-
-## Repository Structure
-
-```
-telnet-lisp/
-├── telnet-lisp/    # Core Lisp interpreter library (foundation)
-│   ├── include/       # Public headers (lisp.h, utf8.h)
-│   ├── src/          # Library source files
-│   ├── repl/         # REPL application
-│   ├── tests/        # Test suite
-│   ├── CMakeLists.txt
-│   ├── README.md     # Library documentation
-│   └── PACKAGING.md  # Integration guide
-├── telnet-gui/       # GUI application (integrates telnet-lisp)
-│   ├── src/          # GUI source files
-│   ├── CMakeLists.txt
-│   └── README.md     # GUI-specific documentation
-├── CMakeLists.txt    # Root build configuration
-└── build/            # Build directory (generated)
-```
+- **Terminal Emulation**: Full VT100-compatible terminal emulation using libvterm
+- **Lisp Scripting**: Embedded Lisp interpreter for automation, scripting, and configuration
+- **Native Window Controls**: Standard OS titlebar with native close/minimize/maximize buttons
+- **Graphical Interface**: SDL2-based rendering with font caching and efficient screen updates
+- **TinTin++ Support**: MUD client scripting with aliases, variables, and speedwalking
+- **Lottie Animations**: Optional background animations via rlottie
 
 ## Quick Start
 
@@ -37,7 +19,7 @@ telnet-lisp/
 
 **Windows (MSYS2 UCRT64):**
 
-First, launch the UCRT64 shell to run pacman commands:
+First, launch the UCRT64 shell:
 
 ```bash
 # Standard MSYS2 installation
@@ -50,80 +32,155 @@ C:\Users\<username>\scoop\apps\msys2\current\msys2_shell.cmd -defterm -here -no-
 Then install dependencies:
 
 ```bash
-# Core build dependencies (required for all projects)
-pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,gc,pcre2}
+# All dependencies
+pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,gc,pcre2,SDL2,SDL2_ttf} libtool
 
-# GUI project dependencies (optional, only for telnet-gui)
-pacman -S mingw-w64-ucrt-x86_64-{SDL2,SDL2_ttf,libvterm}
+# Install libvterm from source (recommended for full features)
+./scripts/install-libvterm.sh
 
-# Development dependencies (optional, for code formatting)
-pacman -S mingw-w64-ucrt-x86_64-clang-tools-extra  # Provides clang-format
+# Optional: Install rlottie for Lottie animations
+./scripts/install-rlottie.sh
 ```
-
-**Note:** MSYS2 upgrades may remove installed packages. If packages are missing after an upgrade, reinstall them using the commands above.
 
 **Linux:**
 
 ```bash
-# Core build dependencies
-sudo apt install build-essential cmake ninja-build pkg-config libgc-dev libpcre2-dev
+# Core dependencies
+sudo apt install build-essential cmake ninja-build pkg-config libgc-dev libpcre2-dev libsdl2-dev libsdl2-ttf-dev
 
-# GUI project dependencies (optional)
-sudo apt install libsdl2-dev libsdl2-ttf-dev
-# libvterm: package may not be available, install from source (see telnet-gui/README.md)
+# libvterm: install from source for full features
+./scripts/install-libvterm.sh
 
-# Development dependencies (optional, for code formatting)
-sudo apt install clang-format
+# Optional: rlottie
+sudo apt install librlottie-dev
 ```
 
 **macOS:**
 
 ```bash
-# Core build dependencies
-brew install cmake ninja pkg-config bdw-gc pcre2
+# Core dependencies
+brew install cmake ninja pkg-config bdw-gc pcre2 sdl2 sdl2_ttf
 
-# GUI project dependencies (optional)
-brew install sdl2 sdl2_ttf
-# libvterm: package may not be available, install from source (see telnet-gui/README.md)
+# libvterm: install from source for full features
+./scripts/install-libvterm.sh
 
-# Development dependencies (optional, for code formatting)
-brew install clang-format
+# Optional: rlottie
+brew install rlottie
 ```
 
 ### Building
 
-Build all projects from the repository root:
-
-**From UCRT64 shell (Windows):**
-
 ```bash
+# Configure and build
 cmake -B build -G Ninja
 cmake --build build
 
 # Or build specific targets
-cmake --build build --target liblisp      # Core library only
-cmake --build build --target lisp-repl    # REPL application
-cmake --build build --target telnet-gui   # GUI application (requires GUI deps)
+cmake --build build --target telnet-gui   # GUI application
+cmake --build build --target lisp-repl    # Lisp REPL
 ```
 
-**Notes for Windows:**
-
-- UCRT64 toolchain required (not MINGW64/MSYS/MSVC)
-- Ninja generator recommended for faster builds
-
-### Running the REPL
+### Running
 
 ```bash
-# From build directory
-./lisp-repl
+# Connect to a server
+./build/telnet-gui <hostname> <port>
 
-# Or from project root
-./build/lisp-repl
+# Example
+./build/telnet-gui telnet-server 4449
+
+# Start in unconnected mode
+./build/telnet-gui
 ```
 
-Try some Lisp:
+### Installation
+
+```bash
+# Install to ~/telnet-gui (default)
+cmake --install build
+
+# Or custom location
+cmake --install build --prefix ~/.local
+```
+
+## Usage
+
+### Command-Line Options
+
+```bash
+./telnet-gui [OPTIONS] [hostname] [port]
+```
+
+**Font Options:**
+
+- `-f, --font-size SIZE` - Set font size in points (default: 12)
+- `-F<letter>` - Select font: s=System, m=Cascadia, i=Inconsolata, p=Plex, d=DejaVu, c=Courier
+- `--font <name>` - Select font by name
+- `-H, --hinting MODE` - Font hinting: none (default), light, normal, mono
+- `-a, --antialiasing MODE` - Anti-aliasing: linear (default), nearest
+
+**Terminal Options:**
+
+- `-g, --geometry COLSxROWS` - Set terminal size (default: 80x40)
+- `-L, --line-height HEIGHT` - Line height multiplier (default: 1.2)
+
+**Other Options:**
+
+- `-l, --lisp-file FILE` - Load Lisp configuration file
+- `-t, --test FILE` - Run Lisp test file in headless mode
+- `-h, --help` - Show help message
+
+### Built-in Features
+
+**Word Completion:** Press TAB to complete words from server output.
+
+**Input Modes** (Shift+Tab to toggle):
+
+- Normal mode - Input sent to telnet server
+- Eval mode - Input evaluated as Lisp code
+
+**Colon Commands:**
+
+- `:help` - Show available commands
+- `:connect <server> <port>` - Connect to server
+- `:disconnect` - Disconnect from server
+- `:load <filepath>` - Load Lisp file
+- `:repl <code>` - Evaluate Lisp code and show result
+- `:quit` - Exit application
+
+**TinTin++ Scripting:**
+
+```bash
+./telnet-gui -l lisp/tintin.lisp <host> <port>
+```
+
+Features aliases, variables, speedwalking, and command chaining. See [TINTIN.md](TINTIN.md) for full documentation.
+
+**Background Animations:**
 
 ```lisp
+(define anim (animation-load "animations/fireworks.json"))
+(animation-set-loop anim t)
+(animation-play anim)  ; automatically sets as active
+```
+
+## Embedded Lisp Interpreter
+
+Telnet GUI includes **telnet-lisp**, a complete embeddable Lisp interpreter with:
+
+- Lexical scoping, closures, and first-class functions
+- Rich data types: numbers, strings (UTF-8), lists, vectors, hash tables
+- PCRE2 regex support with Unicode
+- Automatic memory management with Boehm GC
+- 150+ built-in functions
+
+For complete language documentation, see **[telnet-lisp/README.md](telnet-lisp/README.md)**.
+
+### Interactive REPL
+
+```bash
+./build/telnet-lisp/lisp-repl
+
 >>> (+ 1 2 3)
 6
 >>> (define square (lambda (x) (* x x)))
@@ -133,233 +190,102 @@ Try some Lisp:
 >>> :quit
 ```
 
-### Installing
+## Dependencies
 
-Install to system directories or custom location:
+### Required
 
-**Default installation (user-local, no admin privileges):**
+- **SDL2**: Graphics and windowing
+- **SDL2_ttf**: TrueType font rendering
+- **libvterm**: Terminal emulation (source build recommended for text reflow)
+- **Boehm GC**: Garbage collector
+- **PCRE2**: Regular expressions
 
-```bash
-# Install to ~/telnet-lisp (Windows) or ~/telnet-lisp (Linux/macOS)
-cmake --build build
-cmake --install build
-```
+### Optional
 
-**Custom installation prefix:**
+- **rlottie**: Lottie animation support
 
-```bash
-# Install to ~/.local
-cmake --install build --prefix ~/.local
+### libvterm Installation
 
-# Or install to /usr/local (may require sudo on Linux/macOS)
-cmake --install build --prefix /usr/local
-
-# Or any custom location
-cmake --install build --prefix /opt/telnet
-```
-
-**Installation structure (POSIX-compliant):**
-
-```
-$PREFIX/
-├── bin/                     # Executables
-│   ├── telnet-gui
-│   ├── lisp-repl
-│   └── telnet-gui-log2html
-├── lib/                     # Libraries
-│   └── liblisp.a
-├── include/                 # Headers
-│   ├── lisp.h
-│   └── utf8.h
-└── share/telnet-gui/        # Application data
-    ├── fonts/               # Embedded fonts
-    ├── lisp/                # Lisp scripts
-    └── icons/               # Application icons
-```
-
-The application automatically finds resources in installed locations using runtime path resolution.
-
-## Core Library: telnet-lisp
-
-**telnet-lisp** is the core embeddable Lisp interpreter library that serves as the foundation for all projects in this repository. It provides a complete Lisp implementation with modern features, designed for integration into applications.
-
-### Key Features
-
-- **Complete Lisp implementation** with lexical scoping, closures, and first-class functions
-- **Rich data types**: Numbers, integers, strings (UTF-8), lists, vectors, hash tables, booleans
-- **PCRE2 regex support** with UTF-8 and Unicode character properties
-- **Automatic memory management** with Boehm GC
-- **File I/O** with cross-platform line ending support
-- **REPL** for interactive development
-- **Built-in functions**: Arithmetic, string operations, list/vector manipulation, regex matching
-
-### Quick Example
-
-```lisp
-; Define a function
-(define square (lambda (x) (* x x)))
-(square 5)         ; => 25
-
-; String operations with UTF-8 support
-(string-length "Hello, 世界!")  ; => 11
-
-; Regex pattern matching
-(regex-match? "\\d+" "hello123")  ; => 1
-```
-
-### Documentation
-
-For complete documentation including:
-
-- All available functions and special forms
-- Detailed API reference
-- Examples and usage patterns
-- Embedding guide
-
-See **[telnet-lisp/README.md](telnet-lisp/README.md)**.
-
-To integrate telnet-lisp into your project, see **[telnet-lisp/PACKAGING.md](telnet-lisp/PACKAGING.md)**.
-
-## Projects
-
-### telnet-gui
-
-A graphical telnet client with terminal emulation, built using SDL2 and libvterm. This project integrates with **telnet-lisp** to provide scriptable automation and command processing capabilities.
-
-**Integration with telnet-lisp:**
-
-- Uses telnet-lisp for Lisp-based automation and scripting
-- Provides a GUI interface for telnet connections
-- Enables Lisp scripting within the telnet client
-
-**Key Features:**
-
-- Full VT100-compatible terminal emulation using libvterm
-- SDL2-based graphical interface with font rendering
-- Real-time rendering with efficient screen updates and glyph caching
-- Keyboard and mouse input support
-
-**Dependencies:**
-
-- SDL2 (windowing and rendering)
-- SDL2_ttf (font rendering)
-- libvterm (terminal emulation) - MSYS2 package or source build
-- **telnet-lisp** (core library - included)
-
-**Building:**
+**Distribution packages (v0.3.3)**: Basic scrollback only
+**Source build (nvim branch)**: Full text reflow support
 
 ```bash
-# Install GUI dependencies (MSYS2 UCRT64)
-pacman -S mingw-w64-ucrt-x86_64-SDL2
-pacman -S mingw-w64-ucrt-x86_64-SDL2_ttf
-pacman -S mingw-w64-ucrt-x86_64-libvterm
+# Use the install script (recommended)
+./scripts/install-libvterm.sh
 
-# Build from repository root
-cmake --preset default           # or: cmake -B build -G Ninja
-cmake --build build --target telnet-gui
+# Or manually
+git clone -b nvim https://github.com/neovim/libvterm.git
+cd libvterm && make && make install PREFIX=/usr/local
 ```
 
-**Usage:**
+## Repository Structure
 
-```bash
-./build/telnet-gui/telnet-gui.exe <hostname> <port>
+```
+telnet-gui/
+├── telnet-lisp/          # Embedded Lisp interpreter
+│   ├── src/              # Interpreter source
+│   ├── include/          # Public headers
+│   ├── repl/             # REPL application
+│   ├── tests/            # Test suite
+│   └── README.md         # Language documentation
+├── src/                  # GUI source files
+├── lisp/                 # Lisp scripts (bootstrap, tintin)
+├── fonts/                # Bundled fonts
+├── animations/           # Sample Lottie animations
+├── icons/                # Application icons
+├── scripts/              # Install scripts
+├── docs/                 # Technical documentation
+├── TINTIN.md             # TinTin++ scripting guide
+├── KNOWN_ISSUES.md       # Known bugs and limitations
+└── CMakeLists.txt        # Build configuration
 ```
 
-**Documentation:** See [`telnet-gui/README.md`](telnet-gui/README.md) for detailed documentation, including libvterm integration notes and troubleshooting.
+## Build Targets
 
-## CMake Targets
-
-Repository-level targets:
-
-- `liblisp` - Static library (core)
-- `lisp-repl` - REPL application (uses telnet-lisp)
-- `telnet-gui` - GUI application (uses telnet-lisp)
+- `telnet-gui` - GUI application
+- `lisp-repl` - Interactive Lisp REPL
+- `lisp` - Static Lisp library
 - `format` - Format all source files
 - `test` - Run test suite
-- `install` - Install to system directories
 
-View all targets:
+## Platform Support
 
-```bash
-cmake --preset default              # or: cmake -B build -G Ninja
-cmake --build build --target help
-```
+- **Windows**: MSYS2 UCRT64 (GCC) - requires UCRT64, not MINGW64/MSVC
+- **Linux**: GCC with standard libraries
+- **macOS**: Clang/GCC with Homebrew
 
-## Formatting Code
+## Documentation
 
-**IMPORTANT:** Always format code before committing:
+- **[telnet-lisp/README.md](telnet-lisp/README.md)** - Lisp language documentation
+- **[telnet-lisp/LANGUAGE_REFERENCE.md](telnet-lisp/LANGUAGE_REFERENCE.md)** - Complete language specification
+- **[TINTIN.md](TINTIN.md)** - TinTin++ scripting guide
+- **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** - Known bugs and limitations
+- **[docs/](docs/)** - Technical documentation (ANSI sequences, terminal emulation)
+
+## Development
+
+### Code Formatting
 
 ```bash
 cmake --build build --target format
 ```
 
-This formats all sources (C, shell scripts, Lisp files, Markdown, Python) using:
+Formats C, shell, Lisp, Markdown, and Python files.
 
-- `clang-format` for C code
-- `shfmt` for shell scripts
-- `emacs` for Lisp files
-- `prettier` for Markdown files
-- `black` for Python files
-
-**Troubleshooting:**
-
-If the format target fails with "unknown target 'format'", install clang-format:
+### Testing
 
 ```bash
-# Windows (MSYS2 UCRT64)
-pacman -S mingw-w64-ucrt-x86_64-clang-tools-extra
-
-# Linux
-sudo apt install clang-format
-
-# macOS
-brew install clang-format
-
-# Then reconfigure CMake
-cmake -B build -G Ninja
+cd build && ctest
 ```
-
-## Platform Support
-
-- **Windows**: MSYS2 UCRT64 (GCC)
-- **Linux**: GCC with standard libraries
-- **macOS**: Clang/GCC with Homebrew
-
-## Development
-
-### Build System
-
-The repository uses **CMake** as the primary build system, providing:
-
-- Cross-platform support
-- Multiple generator support (Ninja, Makefiles, etc.)
-- CMake Presets for simplified configuration (CMakePresets.json)
-- Automatic UCRT64 toolchain detection on Windows
-- Integrated testing with CTest
-- Code formatting with clang-format
-- Install targets for system integration
 
 ### IDE Support
 
-The project generates `compile_commands.json` for clangd and other LSP servers. After building, copy it from the build directory:
+The build generates `compile_commands.json` for clangd:
 
 ```bash
 cp build/compile_commands.json .
 ```
 
-## Documentation
-
-### Repository Documentation
-
-- **[telnet-lisp/README.md](telnet-lisp/README.md)** - Complete library documentation with all features, API reference, and examples
-- **[telnet-lisp/PACKAGING.md](telnet-lisp/PACKAGING.md)** - Integration guide for embedding telnet-lisp
-- **[telnet-lisp/tests/README.md](telnet-lisp/tests/README.md)** - Test documentation
-- **[telnet-gui/README.md](telnet-gui/README.md)** - GUI application documentation, libvterm integration notes
-
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
-
-## Contributing
-
-See the library documentation in `telnet-lisp/README.md` for API reference and examples. All projects in this repository integrate with the core **telnet-lisp** library.

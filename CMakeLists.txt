@@ -65,7 +65,7 @@ if(WIN32 AND NOT CMAKE_C_COMPILER)
     endif()
 endif()
 
-project(TelnetLisp VERSION 1.0.0 LANGUAGES C)
+project(TelnetGui VERSION 1.0.0 LANGUAGES C)
 
 # Use GNUInstallDirs for POSIX-compliant installation paths
 include(GNUInstallDirs)
@@ -73,9 +73,9 @@ include(GNUInstallDirs)
 # Default to user install directory (no admin privileges required)
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     if(WIN32)
-        set(CMAKE_INSTALL_PREFIX "$ENV{USERPROFILE}/telnet-lisp" CACHE PATH "Install path prefix" FORCE)
+        set(CMAKE_INSTALL_PREFIX "$ENV{USERPROFILE}/telnet-gui" CACHE PATH "Install path prefix" FORCE)
     else()
-        set(CMAKE_INSTALL_PREFIX "$ENV{HOME}/telnet-lisp" CACHE PATH "Install path prefix" FORCE)
+        set(CMAKE_INSTALL_PREFIX "$ENV{HOME}/telnet-gui" CACHE PATH "Install path prefix" FORCE)
     endif()
 endif()
 
@@ -260,40 +260,129 @@ if(WIN32)
     endif()
 endif()
 
-# Add library subdirectory
+# Add library subdirectory (includes lisp-repl)
 add_subdirectory(telnet-lisp)
 
-# Telnet GUI executable
-add_subdirectory(telnet-gui)
+# ============================================================================
+# Telnet GUI Application
+# ============================================================================
 
-# REPL executable (default application)
-add_executable(lisp-repl telnet-lisp/repl/main.c)
-target_link_libraries(lisp-repl lisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
+# Application sources
+set(GUI_SOURCES
+    src/main.c
+    src/commands.c
+    src/telnet.c
+    src/terminal.c
+    src/terminal_backend_vterm.c
+    src/window.c
+    src/renderer.c
+    src/renderer_backend_sdl.c
+    src/glyph_cache.c
+    src/box_drawing.c
+    src/input.c
+    src/input_area.c
+    src/lisp.c
+    src/path_utils.c
+    src/dynamic_buffer.c
+    src/ansi_sequences.c
+)
 
-# On Windows, copy required UCRT64 runtime DLLs to build directory and include in distribution
-if(WIN32 AND UCRT64_ROOT)
+# Add Windows resource file for icon
+if(WIN32)
+    list(APPEND GUI_SOURCES telnet-gui.rc)
+endif()
+
+# Create telnet-gui executable
+add_executable(telnet-gui ${GUI_SOURCES})
+
+# Copy font files to build directory
+set(FONT_INCONSOLATA_SRC "${CMAKE_SOURCE_DIR}/fonts/Inconsolata-Regular.ttf")
+set(FONT_INCONSOLATA_DST "${CMAKE_BINARY_DIR}/fonts/Inconsolata-Regular.ttf")
+set(FONT_PLEX_SRC "${CMAKE_SOURCE_DIR}/fonts/IBMPlexMono-Regular.ttf")
+set(FONT_PLEX_DST "${CMAKE_BINARY_DIR}/fonts/IBMPlexMono-Regular.ttf")
+set(FONT_DEJAVU_SRC "${CMAKE_SOURCE_DIR}/fonts/DejaVuSansMono.ttf")
+set(FONT_DEJAVU_DST "${CMAKE_BINARY_DIR}/fonts/DejaVuSansMono.ttf")
+set(FONT_DEJAVU_BOLD_SRC "${CMAKE_SOURCE_DIR}/fonts/DejaVuSansMono-Bold.ttf")
+set(FONT_DEJAVU_BOLD_DST "${CMAKE_BINARY_DIR}/fonts/DejaVuSansMono-Bold.ttf")
+set(FONT_COURIER_SRC "${CMAKE_SOURCE_DIR}/fonts/CourierPrime-Regular.ttf")
+set(FONT_COURIER_DST "${CMAKE_BINARY_DIR}/fonts/CourierPrime-Regular.ttf")
+set(FONT_CASCADIA_SRC "${CMAKE_SOURCE_DIR}/fonts/CascadiaMono-Regular.ttf")
+set(FONT_CASCADIA_DST "${CMAKE_BINARY_DIR}/fonts/CascadiaMono-Regular.ttf")
+set(FONT_CASCADIA_CODE_SRC "${CMAKE_SOURCE_DIR}/fonts/CascadiaCode-Regular.ttf")
+set(FONT_CASCADIA_CODE_DST "${CMAKE_BINARY_DIR}/fonts/CascadiaCode-Regular.ttf")
+
+# Copy bootstrap Lisp file to build directory
+set(BOOTSTRAP_SRC "${CMAKE_SOURCE_DIR}/lisp/bootstrap.lisp")
+set(BOOTSTRAP_DST "${CMAKE_BINARY_DIR}/lisp/bootstrap.lisp")
+
+# Copy test-related Lisp files to build directory
+set(TINTIN_SRC "${CMAKE_SOURCE_DIR}/lisp/tintin.lisp")
+set(TINTIN_DST "${CMAKE_BINARY_DIR}/lisp/tintin.lisp")
+set(TINTIN_TEST_SRC "${CMAKE_SOURCE_DIR}/lisp/tintin-test.lisp")
+set(TINTIN_TEST_DST "${CMAKE_BINARY_DIR}/lisp/tintin-test.lisp")
+set(COMPLETION_TEST_SRC "${CMAKE_SOURCE_DIR}/lisp/completion-test.lisp")
+set(COMPLETION_TEST_DST "${CMAKE_BINARY_DIR}/lisp/completion-test.lisp")
+set(BOOTSTRAP_TEST_SRC "${CMAKE_SOURCE_DIR}/lisp/bootstrap-test.lisp")
+set(BOOTSTRAP_TEST_DST "${CMAKE_BINARY_DIR}/lisp/bootstrap-test.lisp")
+set(TEST_HELPERS_SRC "${CMAKE_SOURCE_DIR}/lisp/test-helpers.lisp")
+set(TEST_HELPERS_DST "${CMAKE_BINARY_DIR}/lisp/test-helpers.lisp")
+
+# Copy telnet-gui-log2html.py script to build directory
+set(LOG2HTML_SRC "${CMAKE_SOURCE_DIR}/scripts/telnet-gui-log2html.py")
+set(LOG2HTML_DST "${CMAKE_BINARY_DIR}/telnet-gui-log2html.py")
+
+# Copy sample animation files to build directory
+set(ANIM_FIREWORKS_SRC "${CMAKE_SOURCE_DIR}/animations/fireworks.json")
+set(ANIM_FIREWORKS_DST "${CMAKE_BINARY_DIR}/animations/fireworks.json")
+set(ANIM_NOTIFICATION_ICON_SRC "${CMAKE_SOURCE_DIR}/animations/notification-icon.json")
+set(ANIM_NOTIFICATION_ICON_DST "${CMAKE_BINARY_DIR}/animations/notification-icon.json")
+set(ANIM_LICENSE_SRC "${CMAKE_SOURCE_DIR}/animations/LICENSE.md")
+set(ANIM_LICENSE_DST "${CMAKE_BINARY_DIR}/animations/LICENSE.md")
+
+# Create directories and copy resources to build directory
+add_custom_command(TARGET telnet-gui POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/fonts"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_INCONSOLATA_SRC}" "${FONT_INCONSOLATA_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_PLEX_SRC}" "${FONT_PLEX_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_DEJAVU_SRC}" "${FONT_DEJAVU_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_DEJAVU_BOLD_SRC}" "${FONT_DEJAVU_BOLD_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_COURIER_SRC}" "${FONT_COURIER_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_CASCADIA_SRC}" "${FONT_CASCADIA_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_CASCADIA_CODE_SRC}" "${FONT_CASCADIA_CODE_DST}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/lisp"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${BOOTSTRAP_SRC}" "${BOOTSTRAP_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_SRC}" "${TINTIN_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_TEST_SRC}" "${TINTIN_TEST_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${COMPLETION_TEST_SRC}" "${COMPLETION_TEST_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${BOOTSTRAP_TEST_SRC}" "${BOOTSTRAP_TEST_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TEST_HELPERS_SRC}" "${TEST_HELPERS_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LOG2HTML_SRC}" "${LOG2HTML_DST}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/animations"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_FIREWORKS_SRC}" "${ANIM_FIREWORKS_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_NOTIFICATION_ICON_SRC}" "${ANIM_NOTIFICATION_ICON_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_LICENSE_SRC}" "${ANIM_LICENSE_DST}"
+    COMMENT "Copying resources to build directory"
+)
+
+# On Windows, copy required UCRT64 runtime DLLs to build directory
+if(WIN32 AND DEFINED UCRT64_ROOT)
     set(REQUIRED_DLLS
         "${UCRT64_ROOT}/bin/libpcre2-8-0.dll"
         "${UCRT64_ROOT}/bin/libwinpthread-1.dll"
     )
-
-    # Copy DLLs to build directory for testing
     foreach(DLL_FILE ${REQUIRED_DLLS})
         if(EXISTS "${DLL_FILE}")
             get_filename_component(DLL_NAME "${DLL_FILE}" NAME)
-            # Copy to root build directory for lisp-repl.exe
-            add_custom_command(TARGET lisp-repl POST_BUILD
+            add_custom_command(TARGET telnet-gui POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     "${DLL_FILE}"
                     "${CMAKE_BINARY_DIR}/${DLL_NAME}"
                 COMMENT "Copying ${DLL_NAME} to build directory"
             )
-            message(STATUS "Will bundle runtime DLL: ${DLL_NAME}")
         endif()
     endforeach()
 
     # Install DLLs alongside executables
-    # Normalize paths for install() command to avoid escape character issues
     set(NORMALIZED_DLLS "")
     foreach(DLL_FILE ${REQUIRED_DLLS})
         if(EXISTS "${DLL_FILE}")
@@ -301,56 +390,124 @@ if(WIN32 AND UCRT64_ROOT)
             list(APPEND NORMALIZED_DLLS "${NORMALIZED_DLL}")
         endif()
     endforeach()
-
     install(FILES ${NORMALIZED_DLLS}
         DESTINATION bin
         COMPONENT Runtime
     )
 endif()
 
-# Add include directories for REPL
-target_include_directories(lisp-repl PRIVATE telnet-lisp/include)
-
-# Add UCRT64 system include paths for REPL executable on Windows
-if(WIN32 AND EXISTS "${UCRT64_ROOT}/include")
-    target_include_directories(lisp-repl SYSTEM PRIVATE "${UCRT64_ROOT}/include")
-
-    # Add GCC include paths if available
-    file(GLOB GCC_VERSIONS "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/*")
-    if(GCC_VERSIONS)
-        list(SORT GCC_VERSIONS)
-        list(REVERSE GCC_VERSIONS)
-        get_filename_component(GCC_VERSION "${GCC_VERSIONS}" NAME)
-        target_include_directories(lisp-repl SYSTEM PRIVATE
-            "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/${GCC_VERSION}/include")
-        if(EXISTS "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/${GCC_VERSION}/include-fixed")
-            target_include_directories(lisp-repl SYSTEM PRIVATE
-                "${UCRT64_ROOT}/lib/gcc/x86_64-w64-mingw32/${GCC_VERSION}/include-fixed")
-        endif()
-    endif()
-endif()
-
-# Installation
-install(TARGETS lisp-repl lisp
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+# Install font files to share directory (POSIX-compliant)
+install(FILES
+    "${FONT_INCONSOLATA_SRC}"
+    "${FONT_PLEX_SRC}"
+    "${FONT_DEJAVU_SRC}"
+    "${FONT_DEJAVU_BOLD_SRC}"
+    "${FONT_COURIER_SRC}"
+    "${FONT_CASCADIA_SRC}"
+    "${FONT_CASCADIA_CODE_SRC}"
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/fonts"
+    COMPONENT Runtime
 )
 
-# Install telnet-gui with Runtime component (includes bootstrap.lisp and assets)
+# Install icon files to share directory
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/icons/"
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/icons"
+    COMPONENT Runtime
+    FILES_MATCHING
+    PATTERN "*.png"
+    PATTERN "*.ico"
+)
+
+# Install Lisp files to share directory (POSIX-compliant)
+install(FILES
+    "${BOOTSTRAP_SRC}"
+    "${TINTIN_SRC}"
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/lisp"
+    COMPONENT Runtime
+)
+
+# Install sample animation files to share directory
+install(FILES
+    "${ANIM_FIREWORKS_SRC}"
+    "${ANIM_NOTIFICATION_ICON_SRC}"
+    "${ANIM_LICENSE_SRC}"
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/animations"
+    COMPONENT Runtime
+)
+
+# Install telnet-gui-log2html.py as telnet-gui-log2html (without .py extension)
+install(PROGRAMS "${LOG2HTML_SRC}"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME "telnet-gui-log2html"
+    COMPONENT Runtime
+)
+
+# Find required packages for telnet-gui
+pkg_check_modules(SDL2 REQUIRED sdl2)
+pkg_check_modules(SDL2_TTF REQUIRED SDL2_ttf)
+
+# Include the rest of telnet-gui configuration from the original file
+# (rlottie, libvterm, SDL static linking, etc.)
+include(telnet-gui/cmake/telnet-gui-config.cmake OPTIONAL)
+
+# If the config file doesn't exist, use minimal configuration
+if(NOT EXISTS "${CMAKE_SOURCE_DIR}/telnet-gui/cmake/telnet-gui-config.cmake")
+    # Minimal libvterm configuration
+    set(VTERM_FOUND TRUE)
+    set(VTERM_LIBRARIES vterm)
+
+    # Link directories
+    target_link_directories(telnet-gui PRIVATE "/usr/local/lib")
+
+    # Link libraries
+    target_link_libraries(telnet-gui PRIVATE
+        ${SDL2_LIBRARIES}
+        ${SDL2_TTF_LIBRARIES}
+        ${VTERM_LIBRARIES}
+        lisp
+        ${GC_LIBRARIES}
+        ${PCRE2_LIBRARIES}
+        m
+    )
+    if(WIN32)
+        target_link_libraries(telnet-gui PRIVATE ws2_32)
+    endif()
+
+    # Include directories
+    target_include_directories(telnet-gui PRIVATE
+        src
+        telnet-lisp/include
+    )
+    target_include_directories(telnet-gui SYSTEM PRIVATE "/usr/local/include")
+
+    # Pass version macros
+    target_compile_definitions(telnet-gui PRIVATE
+        PROJECT_VERSION="${CMAKE_PROJECT_VERSION}"
+        HAVE_RLOTTIE=0
+        HAVE_VTERM_PUSHLINE4=0
+        HAVE_VTERM_REFLOW=0
+        LIBVTERM_VERSION="unknown"
+        SDL2_VERSION="unknown"
+        SDL2_TTF_VERSION="unknown"
+        GC_VERSION="unknown"
+        PCRE2_VERSION="unknown"
+        CMAKE_VERSION="${CMAKE_VERSION}"
+        SYSTEM_NAME="${CMAKE_SYSTEM_NAME}"
+        SYSTEM_PROCESSOR="${CMAKE_SYSTEM_PROCESSOR}"
+        TOOLCHAIN="${CMAKE_C_COMPILER_ID} ${CMAKE_C_COMPILER_VERSION}"
+        HAVE_SDL_TTF_DPI=0
+    )
+endif()
+
+# Install telnet-gui executable
 install(TARGETS telnet-gui
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     COMPONENT Runtime
 )
 
+# Installation for headers
 install(FILES telnet-lisp/include/lisp.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
-
-# Install telnet-gui-clean-small-logs.sh script
-install(PROGRAMS telnet-gui/scripts/telnet-gui-clean-small-logs.sh
-    DESTINATION ${CMAKE_INSTALL_BINDIR}
-    RENAME "telnet-gui-clean-small-logs.sh"
 )
 
 # Testing
@@ -376,24 +533,24 @@ endforeach()
 # Tests use assert-* macros that abort on failure via (error ...)
 add_test(NAME gui_tintin-test
     COMMAND $<TARGET_FILE:lisp-repl> tintin-test.lisp
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/telnet-gui
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/lisp
 )
 
 add_test(NAME gui_completion-test
     COMMAND $<TARGET_FILE:lisp-repl> completion-test.lisp
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/telnet-gui
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/lisp
 )
 
 add_test(NAME gui_bootstrap-test
     COMMAND $<TARGET_FILE:telnet-gui> -t bootstrap-test.lisp
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/telnet-gui
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/lisp
 )
 
 # Package configuration
-set(CPACK_PACKAGE_NAME "TelnetLisp")
+set(CPACK_PACKAGE_NAME "TelnetGui")
 set(CPACK_PACKAGE_VERSION "1.0.0")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Telnet Lisp Interpreter")
-set(CPACK_PACKAGE_VENDOR "Telnet Lisp Project")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Telnet GUI - Graphical telnet client with Lisp scripting")
+set(CPACK_PACKAGE_VENDOR "Telnet GUI Project")
 
 include(CPack)
 
@@ -476,17 +633,18 @@ if(CLANG_FORMAT)
     # Collect all C source files
     file(GLOB_RECURSE LIB_SOURCES "telnet-lisp/src/*.c")
     file(GLOB_RECURSE REPL_SOURCES "telnet-lisp/repl/*.c")
-    file(GLOB_RECURSE GUI_SOURCES "telnet-gui/src/*.c")
+    file(GLOB_RECURSE GUI_SOURCES "src/*.c")
 
     # Collect all shell scripts
     file(GLOB SHELL_SCRIPTS
         "*.sh"
         "telnet-lisp/*.sh"
+        "scripts/*.sh"
     )
 
     # Collect all Lisp source files (excluding build directory)
     file(GLOB_RECURSE LISP_SOURCES
-        "telnet-gui/*.lisp"
+        "lisp/*.lisp"
         "telnet-lisp/*.lisp"
         "telnet-lisp/tests/**/*.lisp"
     )
@@ -495,7 +653,7 @@ if(CLANG_FORMAT)
     # Collect all Markdown files (excluding build directory and node_modules)
     file(GLOB_RECURSE MARKDOWN_FILES
         "*.md"
-        "telnet-gui/*.md"
+        "docs/*.md"
         "telnet-lisp/*.md"
     )
     list(FILTER MARKDOWN_FILES EXCLUDE REGEX ".*/build/.*")
@@ -504,7 +662,7 @@ if(CLANG_FORMAT)
     # Collect all Python files (excluding build directory)
     file(GLOB_RECURSE PYTHON_FILES
         "*.py"
-        "telnet-gui/*.py"
+        "scripts/*.py"
         "telnet-lisp/*.py"
     )
     list(FILTER PYTHON_FILES EXCLUDE REGEX ".*/build/.*")
