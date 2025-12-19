@@ -69,7 +69,7 @@ See [Building from Source](#building-from-source) for installation instructions.
 The divider line between terminal and input area displays status indicators:
 
 - ⚡ - Eval mode active (Lisp evaluation)
-- ▶ - Animation playing
+- ▶️ - Animation playing
 
 **Colon Commands:**
 
@@ -153,7 +153,7 @@ Indicators are controllable from Lisp:
 
 ;; View current modes
 *divider-modes*
-;; => ((10 . (eval . "⚡")) (50 . (custom . "★")) (90 . (animation . "▶")))
+;; => ((10 . (eval . "⚡")) (50 . (custom . "★")) (90 . (animation . "▶️")))
 ```
 
 ## Building from Source

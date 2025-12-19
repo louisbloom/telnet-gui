@@ -1855,7 +1855,7 @@ int main(int argc, char **argv) {
             /* Auto-manage animation divider mode indicator */
             if (is_playing && !animation_mode_was_playing) {
                 /* Animation started - show play button */
-                lisp_x_set_divider_mode("animation", "\xE2\x96\xB6", 90); /* ▶ U+25B6 */
+                lisp_x_set_divider_mode("animation", "\xE2\x96\xB6\xEF\xB8\x8F", 90); /* ▶️ U+25B6 U+FE0F */
                 input_area_request_redraw(&input_area); /* Redraw divider with new mode */
             }
 
