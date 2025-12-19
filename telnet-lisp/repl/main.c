@@ -5,7 +5,7 @@
 #include <string.h>
 #include <locale.h>
 
-#define MAX_INPUT 4096
+#define REPL_INPUT_SIZE 4096
 
 static void print_welcome(void) {
     printf("Telnet Lisp Interpreter v1.0\n");
@@ -198,7 +198,7 @@ int main(int argc, char **argv) {
     /* REPL */
     print_welcome();
 
-    char input[MAX_INPUT];
+    char input[REPL_INPUT_SIZE];
 
     /* Buffer for multi-line expressions */
     static char expr_buffer[8192] = {0};
