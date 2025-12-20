@@ -22,7 +22,7 @@
 (load "test-helpers.lisp")  ; ignore
 
 ;; Load TinTin++ implementation
-(load "tintin.lisp")  ; ignore
+(load "../lisp/tintin.lisp")  ; ignore
 
 ;; CRITICAL: Verify tintin.lisp loaded successfully
 ;; Ensures tests fail immediately if there are parse/runtime errors
