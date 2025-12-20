@@ -18,7 +18,7 @@
   (lambda ()
     '((cols . 80) (rows . 24))))  ; ignore
 
-;; Load test helper macros
+;; Load test helper macros (includes mock hook system)
 (load "test-helpers.lisp")  ; ignore
 
 ;; Load TinTin++ implementation
@@ -184,37 +184,47 @@
 (assert-true *tintin-enabled*
   "TinTin should be enabled by default")
 
-;; Disable should turn off processing (returns original text)
+;; Disable should turn off processing (hook returns nil, doesn't handle)
 (tintin-disable!)
 (assert-false *tintin-enabled*
   "TinTin should be disabled after tintin-disable!")
-(assert-equal (tintin-user-input-hook "k orc" 0) "k orc"
-  "Hook should return original text when disabled (k orc)")
-(assert-equal (tintin-user-input-hook "3n" 0) "3n"
-  "Hook should return original text when disabled (3n)")
-(assert-equal (tintin-user-input-hook "hello" 0) "hello"
-  "Hook should return original text when disabled (hello)")
+(set! *user-input-handled* nil)
+(tintin-user-input-hook "k orc" 0)
+(assert-false *user-input-handled*
+  "Hook should not handle input when disabled (k orc)")
+(set! *user-input-handled* nil)
+(tintin-user-input-hook "3n" 0)
+(assert-false *user-input-handled*
+  "Hook should not handle input when disabled (3n)")
 
-;; Enable should turn on processing (returns nil)
+;; Enable should turn on processing (hook handles input)
 (tintin-enable!)
 (assert-true *tintin-enabled*
   "TinTin should be enabled after tintin-enable!")
-(assert-true (null? (tintin-user-input-hook "k orc" 0))
-  "Hook should return nil when enabled (k orc)")
-(assert-true (null? (tintin-user-input-hook "3n" 0))
-  "Hook should return nil when enabled (3n)")
+(set! *user-input-handled* nil)
+(tintin-user-input-hook "k orc" 0)
+(assert-true *user-input-handled*
+  "Hook should handle input when enabled (k orc)")
+(set! *user-input-handled* nil)
+(tintin-user-input-hook "3n" 0)
+(assert-true *user-input-handled*
+  "Hook should handle input when enabled (3n)")
 
 ;; Toggle should switch state
 (tintin-toggle!)
 (assert-false *tintin-enabled*
   "TinTin should be disabled after toggle")
-(assert-equal (tintin-user-input-hook "test" 0) "test"
-  "Hook should return original text after toggle to disabled")
+(set! *user-input-handled* nil)
+(tintin-user-input-hook "test" 0)
+(assert-false *user-input-handled*
+  "Hook should not handle input after toggle to disabled")
 (tintin-toggle!)
 (assert-true *tintin-enabled*
   "TinTin should be enabled after second toggle")
-(assert-true (null? (tintin-user-input-hook "test" 0))
-  "Hook should return nil after toggle to enabled")
+(set! *user-input-handled* nil)
+(tintin-user-input-hook "test" 0)
+(assert-true *user-input-handled*
+  "Hook should handle input after toggle to enabled")
 
 ;; ============================================================================
 ;; Test 12: Edge Cases Through Hook
@@ -225,16 +235,22 @@
 (assert-true (null? (tintin-user-input-hook "" 0))
   "Hook should return nil for empty string when enabled")
 
-;; Whitespace only (when enabled, returns nil)
-(assert-true (null? (tintin-user-input-hook "   " 0))
-  "Hook should return nil for whitespace when enabled")
+;; Whitespace only (when enabled, handles)
+(set! *user-input-handled* nil)
+(tintin-user-input-hook "   " 0)
+(assert-true *user-input-handled*
+  "Hook should handle whitespace when enabled")
 
-;; Hook should work when disabled (pass-through)
+;; Hook should not handle when disabled (let other hooks process)
 (tintin-disable!)
-(assert-equal (tintin-user-input-hook "anything" 0) "anything"
-  "Hook should pass through when disabled (anything)")
-(assert-equal (tintin-user-input-hook "" 0) ""
-  "Hook should pass through empty string when disabled")
+(set! *user-input-handled* nil)
+(tintin-user-input-hook "anything" 0)
+(assert-false *user-input-handled*
+  "Hook should not handle when disabled (anything)")
+(set! *user-input-handled* nil)
+(tintin-user-input-hook "" 0)
+(assert-false *user-input-handled*
+  "Hook should not handle empty string when disabled")
 (tintin-enable!)
 
 ;; ============================================================================

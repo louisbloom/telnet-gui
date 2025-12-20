@@ -1,0 +1,408 @@
+;; Slash command tests
+;; Tests the slash.lisp script (slash commands including /practice mode)
+(load "test-helpers.lisp")
+
+;; ============================================================================
+;; Additional mock bootstrap.lisp functions (hooks in test-helpers.lisp)
+;; ============================================================================
+
+;; Mock timer system
+(define *timer-list* '())
+(define *timer-next-id* 1)
+
+(defun run-at-time (time repeat fn &rest args)
+  "Mock run-at-time: create a fake timer."
+  (let ((timer (list *timer-next-id* 0 (if repeat repeat 0) fn args)))
+    (set! *timer-next-id* (+ *timer-next-id* 1))
+    (set! *timer-list* (cons timer *timer-list*))
+    timer))
+
+(defun cancel-timer (timer)
+  "Mock cancel-timer: remove from list."
+  (let ((id (car timer)))
+    (set! *timer-list* (filter (lambda (t) (not (= (car t) id))) *timer-list*))
+    #t))
+
+;; Helper for filter (may not exist in minimal env)
+(defun filter (pred lst)
+  (if (null? lst)
+    '()
+    (if (pred (car lst))
+      (cons (car lst) (filter pred (cdr lst)))
+      (filter pred (cdr lst)))))
+
+;; Helper for member (may not exist in minimal env)
+(defun member (item lst)
+  (if (null? lst)
+    nil
+    (if (equal? item (car lst))
+      lst
+      (member item (cdr lst)))))
+
+;; Mock regex-extract - simplified for mana pattern matching
+;; Pattern: (\d+)%m - extract mana percentage from prompt
+(defun regex-extract (pattern text)
+  "Mock regex-extract: handles the mana pattern specially.
+   Returns list of capture groups."
+  ;; Simple mock: look for digits followed by %m
+  (let ((pos (string-index text "%m")))
+    (if (not pos)
+      nil
+      ;; Extract digits before %m
+      (let ((num-str (extract-digits-before text pos)))
+        (if num-str
+          (list num-str)  ; List of capture groups
+          nil)))))
+
+;; Helper: extract consecutive digits before position
+(defun extract-digits-before (text pos)
+  (if (<= pos 0)
+    nil
+    (let ((start (find-digit-start text (- pos 1))))
+      (if start
+        (substring text start pos)
+        nil))))
+
+(defun find-digit-start (text pos)
+  (if (< pos 0)
+    nil
+    (let ((ch (substring text pos (+ pos 1))))
+      (if (digit-char? ch)
+        (let ((prev (find-digit-start text (- pos 1))))
+          (if prev prev pos))
+        (if (= pos (string-length text))
+          nil
+          (+ pos 1))))))
+
+(defun digit-char? (ch)
+  (or (string=? ch "0") (string=? ch "1") (string=? ch "2")
+      (string=? ch "3") (string=? ch "4") (string=? ch "5")
+      (string=? ch "6") (string=? ch "7") (string=? ch "8")
+      (string=? ch "9")))
+
+;; ============================================================================
+;; Mock GUI functions - capture calls instead of performing real actions
+;; ============================================================================
+
+(define *mock-telnet-sends* '())
+(define *mock-terminal-echoes* '())
+(define *mock-divider-modes* '())
+
+(defun telnet-send (text)
+  "Mock telnet-send: record the sent text."
+  (set! *mock-telnet-sends* (append *mock-telnet-sends* (list text)))
+  nil)
+
+(defun terminal-echo (text)
+  "Mock terminal-echo: record the echoed text."
+  (set! *mock-terminal-echoes* (append *mock-terminal-echoes* (list text)))
+  nil)
+
+(defun divider-mode-set (sym display &rest args)
+  "Mock divider-mode-set: record the mode change."
+  (set! *mock-divider-modes* (append *mock-divider-modes* (list (list 'set sym display))))
+  nil)
+
+(defun divider-mode-remove (sym)
+  "Mock divider-mode-remove: record the removal."
+  (set! *mock-divider-modes* (append *mock-divider-modes* (list (list 'remove sym))))
+  nil)
+
+;; Mock user-input-hook (will be saved by practice.lisp)
+(defun user-input-hook (text cursor-pos)
+  "Mock original user-input-hook: just return text."
+  text)
+
+;; Reset all mocks
+(defun reset-mocks ()
+  (set! *mock-telnet-sends* '())
+  (set! *mock-terminal-echoes* '())
+  (set! *mock-divider-modes* '()))
+
+;; ============================================================================
+;; Load slash.lisp
+;; ============================================================================
+
+(load "../lisp/slash.lisp")
+
+;; ============================================================================
+;; Test practice-command? helper function
+;; ============================================================================
+
+(reset-mocks)
+
+;; Test full command
+(assert-equal (practice-command? "/practice c lightb") "c lightb"
+  "practice-command? parses /practice with args")
+
+;; Test partial prefixes
+(assert-equal (practice-command? "/p c lightb") "c lightb"
+  "practice-command? parses /p with args")
+(assert-equal (practice-command? "/pr test") "test"
+  "practice-command? parses /pr with args")
+(assert-equal (practice-command? "/prac foo bar") "foo bar"
+  "practice-command? parses /prac with args")
+
+;; Test bare command (no args)
+(assert-equal (practice-command? "/p") ""
+  "practice-command? returns empty string for bare /p")
+(assert-equal (practice-command? "/practice") ""
+  "practice-command? returns empty string for bare /practice")
+
+;; Test non-matching commands
+(assert-false (practice-command? "look")
+  "practice-command? returns nil for non-slash command")
+(assert-false (practice-command? "/other command")
+  "practice-command? returns nil for different slash command")
+(assert-false (practice-command? "/px test")
+  "practice-command? returns nil for non-prefix like /px")
+
+;; ============================================================================
+;; Test practice-matches-any-pattern? helper
+;; ============================================================================
+
+(assert-true (practice-matches-any-pattern? "You failed." '("You failed." "You lost"))
+  "matches first pattern in list")
+(assert-true (practice-matches-any-pattern? "You lost your concentration." '("You failed." "You lost"))
+  "matches second pattern (partial)")
+(assert-false (practice-matches-any-pattern? "Success!" '("You failed." "You lost"))
+  "returns nil when no pattern matches")
+(assert-false (practice-matches-any-pattern? "anything" '())
+  "returns nil for empty pattern list")
+
+;; ============================================================================
+;; Test practice-extract-mana helper
+;; ============================================================================
+
+(assert-equal (practice-extract-mana "<100%hp 100%m 100%mv>") 100
+  "extracts 100% mana from prompt")
+(assert-equal (practice-extract-mana "<100%hp 28%m 100%mv>") 28
+  "extracts 28% mana from prompt")
+(assert-equal (practice-extract-mana "civilized <100%hp 5%m 100%mv 2667tnl>") 5
+  "extracts 5% mana from full prompt")
+(assert-false (practice-extract-mana "no mana here")
+  "returns nil when no mana pattern found")
+
+;; ============================================================================
+;; Test practice-start
+;; ============================================================================
+
+(reset-mocks)
+;; Reset state
+(set! *practice-mode* nil)
+(set! *practice-command* nil)
+(set! *practice-sleep-mode* nil)
+(set! *practice-sleep-timer* nil)
+
+(practice-start "c lightb")
+
+(assert-true *practice-mode* "practice-start sets *practice-mode* to true")
+(assert-equal *practice-command* "c lightb" "practice-start stores the command")
+(assert-false *practice-sleep-mode* "practice-start clears sleep mode")
+(assert-true (member "c lightb" *mock-telnet-sends*)
+  "practice-start sends the command via telnet")
+(assert-true (member '(set practice "P") *mock-divider-modes*)
+  "practice-start sets divider mode to P")
+
+;; ============================================================================
+;; Test practice-start when already practicing
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "existing")
+
+(practice-start "new command")
+
+(assert-equal *practice-command* "existing"
+  "practice-start does not change command when already practicing")
+(assert-false (member "new command" *mock-telnet-sends*)
+  "practice-start does not send new command when already practicing")
+
+;; ============================================================================
+;; Test practice-stop
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* nil)
+(set! *practice-sleep-timer* nil)
+
+(practice-stop)
+
+(assert-false *practice-mode* "practice-stop clears *practice-mode*")
+(assert-false *practice-command* "practice-stop clears *practice-command*")
+(assert-true (member '(remove practice) *mock-divider-modes*)
+  "practice-stop removes divider mode")
+
+;; ============================================================================
+;; Test practice-enter-sleep
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* nil)
+(set! *practice-sleep-timer* nil)
+
+(practice-enter-sleep)
+
+(assert-true *practice-sleep-mode* "practice-enter-sleep sets sleep mode")
+(assert-true *practice-sleep-timer* "practice-enter-sleep creates timer")
+(assert-true (member "sleep" *mock-telnet-sends*)
+  "practice-enter-sleep sends sleep command")
+(assert-true (member '(set practice "Z") *mock-divider-modes*)
+  "practice-enter-sleep sets divider mode to Z")
+
+;; Cancel the timer we created
+(if *practice-sleep-timer* (cancel-timer *practice-sleep-timer*))
+
+;; ============================================================================
+;; Test practice-exit-sleep
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* #t)
+(set! *practice-sleep-timer* (run-at-time 9999 9999 (lambda () nil)))
+
+(practice-exit-sleep)
+
+(assert-false *practice-sleep-mode* "practice-exit-sleep clears sleep mode")
+(assert-false *practice-sleep-timer* "practice-exit-sleep clears timer reference")
+(assert-true (member "stand" *mock-telnet-sends*)
+  "practice-exit-sleep sends stand command")
+(assert-true (member "c lightb" *mock-telnet-sends*)
+  "practice-exit-sleep resumes with practice command")
+(assert-true (member '(set practice "P") *mock-divider-modes*)
+  "practice-exit-sleep restores divider mode to P")
+
+;; ============================================================================
+;; Test practice-telnet-hook - failure pattern detection
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* nil)
+(set! *practice-sleep-timer* nil)
+
+(practice-telnet-hook "You failed.\r\n")
+
+(assert-true (member "c lightb" *mock-telnet-sends*)
+  "telnet hook retries command on 'You failed.'")
+
+(reset-mocks)
+(practice-telnet-hook "You lost your concentration.\r\n")
+
+(assert-true (member "c lightb" *mock-telnet-sends*)
+  "telnet hook retries command on 'You lost your concentration.'")
+
+;; ============================================================================
+;; Test practice-telnet-hook - mana exhaustion detection
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* nil)
+(set! *practice-sleep-timer* nil)
+
+(practice-telnet-hook "You don't have enough mana.\r\n")
+
+(assert-true *practice-sleep-mode* "telnet hook enters sleep mode on mana exhaustion")
+(assert-true (member "sleep" *mock-telnet-sends*)
+  "telnet hook sends sleep on mana exhaustion")
+
+;; Cleanup timer
+(if *practice-sleep-timer* (cancel-timer *practice-sleep-timer*))
+
+;; ============================================================================
+;; Test practice-telnet-hook - mana restoration detection
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* #t)
+(set! *practice-sleep-timer* (run-at-time 9999 9999 (lambda () nil)))
+
+(practice-telnet-hook "civilized <100%hp 100%m 100%mv>\r\n")
+
+(assert-false *practice-sleep-mode* "telnet hook exits sleep mode on 100% mana")
+(assert-true (member "stand" *mock-telnet-sends*)
+  "telnet hook sends stand on mana restoration")
+(assert-true (member "c lightb" *mock-telnet-sends*)
+  "telnet hook resumes practice on mana restoration")
+
+;; ============================================================================
+;; Test practice-telnet-hook - partial mana (stays in sleep)
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* #t)
+(set! *practice-sleep-timer* (run-at-time 9999 9999 (lambda () nil)))
+
+(practice-telnet-hook "civilized <100%hp 50%m 100%mv>\r\n")
+
+(assert-true *practice-sleep-mode* "telnet hook stays in sleep mode on partial mana")
+(assert-false (member "stand" *mock-telnet-sends*)
+  "telnet hook does not send stand on partial mana")
+
+;; Cleanup timer
+(if *practice-sleep-timer* (cancel-timer *practice-sleep-timer*))
+
+;; ============================================================================
+;; Test practice-telnet-hook - inactive when not in practice mode
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-mode* nil)
+
+(practice-telnet-hook "You failed.\r\n")
+
+(assert-equal *mock-telnet-sends* '()
+  "telnet hook does nothing when practice mode is inactive")
+
+;; ============================================================================
+;; Test practice-user-input-hook integration (via add-hook system)
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-mode* nil)
+(set! *practice-command* nil)
+(set! *user-input-handled* nil)
+(set! *user-input-result* nil)
+
+;; Test /p start - call practice-user-input-hook directly (simulating hook dispatch)
+(practice-user-input-hook "/p c lightb" 0)
+(assert-true *user-input-handled* "practice-user-input-hook sets *user-input-handled*")
+(assert-true *practice-mode* "practice-user-input-hook /p starts practice mode")
+(assert-equal *practice-command* "c lightb" "practice-user-input-hook /p stores command")
+
+;; Test /p stop
+(reset-mocks)
+(set! *user-input-handled* nil)
+(practice-user-input-hook "/p stop" 0)
+(assert-true *user-input-handled* "practice-user-input-hook sets *user-input-handled* on stop")
+(assert-false *practice-mode* "practice-user-input-hook /p stop stops practice mode")
+
+;; Test non-matching command (should not handle)
+(reset-mocks)
+(set! *user-input-handled* nil)
+(set! *practice-mode* nil)
+(practice-user-input-hook "look" 0)
+(assert-false *user-input-handled* "practice-user-input-hook does not handle non-practice commands")
+
+;; Cleanup any remaining timers
+(set! *timer-list* '())
+
+;; ============================================================================
+;; All tests passed
+;; ============================================================================
+
+(princ "All slash command tests passed!\n")

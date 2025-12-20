@@ -36,3 +36,24 @@
        (error (format nil "Assertion failed: ~A (expected falsy, got: ~S)"
                 ,message result))
        nil)))  ; Success: silent
+
+;; ============================================================================
+;; Mock hook system (for tests that load code using add-hook)
+;; ============================================================================
+
+(define *hooks* '())
+(defvar *user-input-handled* nil)
+(defvar *user-input-result* nil)
+
+(defun add-hook (hook-name fn)
+  "Mock add-hook: record but don't execute."
+  (set! *hooks* (cons (cons hook-name fn) *hooks*))
+  nil)
+
+(defun remove-hook (hook-name fn)
+  "Mock remove-hook: do nothing."
+  nil)
+
+(defun run-hook (hook-name &rest args)
+  "Mock run-hook: do nothing."
+  nil)

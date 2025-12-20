@@ -678,6 +678,77 @@ If the hook doesn't exist or has no functions, does nothing.
   nil)
 
 ;; ============================================================================
+;; TELNET-GUI HOOK IMPLEMENTATIONS
+;; ============================================================================
+;; These hooks are called by C code at specific points. The C code defines
+;; no-op stubs which are overridden here with implementations that dispatch
+;; to the extensible hook system.
+
+(defun telnet-input-hook (text)
+  "Process telnet server output through registered hooks.
+
+## Parameters
+- `text` - Plain text from server (ANSI codes already stripped)
+
+## Returns
+`nil` (side-effect only hook)
+
+## Description
+Called by C code when text is received from the telnet server. Dispatches
+to all functions registered with `(add-hook 'telnet-input-hook ...)`.
+
+This hook is for side effects only (logging, word collection, etc.).
+To transform the data before display, use `telnet-input-filter-hook`.
+
+## See Also
+- `add-hook` - Register a handler
+- `telnet-input-filter-hook` - Transform data before display"
+  (run-hook 'telnet-input-hook text)
+  nil)
+
+;; User input hook state variables
+(defvar *user-input-handled* nil
+  "Set to #t by a user-input-hook handler to indicate it handled the input.")
+
+(defvar *user-input-result* nil
+  "Result to return when *user-input-handled* is #t.")
+
+(defun run-user-input-hooks (text cursor-pos)
+  "Run all functions in 'user-input-hook. First hook to set *user-input-handled* wins."
+  (let ((entry (assoc 'user-input-hook *hooks*)))
+    (when entry
+      (do ((fns (cdr entry) (cdr fns)))
+        ((or (null? fns) *user-input-handled*))
+        ((car fns) text cursor-pos)))))
+
+(defun user-input-hook (text cursor-pos)
+  "Transform user input before sending to telnet server.
+
+## Parameters
+- `text` - The text user typed in input area
+- `cursor-pos` - Cursor position in input area (integer)
+
+## Returns
+- String: C code echoes and sends the returned text
+- `nil` or empty string: Hook handled everything (no further action)
+
+## Description
+Called by C code when user presses Enter. Dispatches to all functions
+registered with `(add-hook 'user-input-hook ...)`.
+
+Handlers can set `*user-input-handled*` to `#t` and `*user-input-result*`
+to control the return value. First handler to set these wins.
+
+## See Also
+- `add-hook` - Register a handler
+- `*user-input-handled*` - Flag to indicate input was handled
+- `*user-input-result*` - Result when handled"
+  (set! *user-input-handled* nil)
+  (set! *user-input-result* nil)
+  (run-user-input-hooks text cursor-pos)
+  (if *user-input-handled* *user-input-result* text))
+
+;; ============================================================================
 ;; COMPLETION HOOK CONFIGURATION
 ;; ============================================================================
 ;; completion-hook: Function called when user requests tab completion
@@ -856,9 +927,9 @@ If the hook doesn't exist or has no functions, does nothing.
 ;;   (add-hook 'telnet-input-hook
 ;;     (lambda (text) (collect-words-from-text text)))
 ;;
-;; NOTE: telnet-input-hook now uses the extensible hook system.
-;; Multiple handlers can be added via add-hook. The C code calls
-;; (run-hook 'telnet-input-hook text) instead of calling a single function.
+;; NOTE: telnet-input-hook is defined above (in TELNET-GUI HOOK IMPLEMENTATIONS)
+;; and dispatches to the extensible hook system. Multiple handlers can be added
+;; via add-hook. The C code calls (telnet-input-hook text).
 
 ;; Default handler: Collect words for tab completion
 (add-hook 'telnet-input-hook
@@ -1072,111 +1143,11 @@ If the hook doesn't exist or has no functions, does nothing.
 ;;       (if (string-prefix? "password " text)
 ;;           ()  ; nil - hook handles it (or suppresses it)
 ;;           text)))
-(defun user-input-hook (text cursor-pos)
-  "Transform user input before sending to telnet server.
-
-  ## Parameters
-  - `text` - Text user typed in input area
-  - `cursor-pos` - Cursor position in input area (integer, 0-based)
-
-  ## Returns
-  - String: C code echoes and sends this text (with CRLF appended)
-  - `nil` or non-string: Hook handled echo/send itself (proper way)
-  - Empty string `\"\"`: Same as `nil` (hook handled everything)
-
-  ## Description
-  Called BEFORE sending text to the telnet server, allowing transformation,
-  filtering, or replacement of user input. You can either:
-  1. Return transformed string for C code to echo/send
-  2. Return `nil` after handling echo/send yourself (via `terminal-echo`/`telnet-send`)
-
-  **Default Behavior:**
-  - Pass-through: Returns text unchanged
-
-  **Hook Contract:**
-  - If you call `terminal-echo` and `telnet-send` yourself, return `nil`
-  - If you return a string, C code handles echo/send
-  - Called for every Enter keypress (even empty input)
-
-  ## Examples
-  ```lisp
-  ; Default (no transformation)
-  (defun user-input-hook (text cursor-pos)
-    text)
-
-  ; Convert to uppercase
-  (defun user-input-hook (text cursor-pos)
-    (string-upcase text))
-
-  ; Command aliases (simple)
-  (defun user-input-hook (text cursor-pos)
-    (cond
-      ((string=? text \"n\") \"north\")
-      ((string=? text \"s\") \"south\")
-      ((string=? text \"e\") \"east\")
-      ((string=? text \"w\") \"west\")
-      (#t text)))
-
-  ; Cursor position aware (only transform if cursor at end)
-  (defun user-input-hook (text cursor-pos)
-    (if (= cursor-pos (string-length text))
-      (string-upcase text)  ; Cursor at end - transform
-      text))  ; Cursor in middle - don't transform
-
-  ; Add prefix to all commands
-  (defun user-input-hook (text cursor-pos)
-    (concat \">\" text))
-
-  ; Suppress specific commands (handle manually)
-  (defun user-input-hook (text cursor-pos)
-    (if (string-prefix? \"password \" text)
-      (progn
-        ; Don't echo password, just send it
-        (telnet-send (concat text \"\\r\\n\"))
-        ())  ; Return nil - we handled it
-      text))  ; Normal commands - let C code handle
-
-  ; TinTin++ integration (command expansion)
-  (defun user-input-hook (text cursor-pos)
-    (progn
-      ; Echo original input
-      (terminal-echo (concat text \"\\r\\n\"))
-      ; Process through TinTin++ (expands aliases, speedwalk)
-      (let ((processed (tintin-process-input text)))
-        (if (string? processed)
-          (progn
-            ; Echo expanded command if different
-            (if (not (string=? text processed))
-              (terminal-echo (concat processed \"\\r\\n\")))
-            ; Send to server
-            (telnet-send (concat processed \"\\r\\n\"))
-            ())  ; Return nil - we handled it
-          ()))))  ; TinTin++ handled it
-  ```
-
-  ## Important Notes
-  - **Proper way to handle everything**: Return `nil` (not empty string)
-  - **If you call terminal-echo/telnet-send**: You MUST return `nil`
-  - **Called for every Enter press**: Even on empty input
-  - **Cursor position useful**: Check if user is at end or editing middle
-  - **Synchronous**: Avoid long operations (blocks input)
-
-  ## Use Cases
-  - Command aliases and shortcuts
-  - Input transformation (uppercase, prefix, etc.)
-  - TinTin++ scripting integration
-  - Password handling (no echo)
-  - Input validation and filtering
-  - Command history manipulation
-  - Cursor-aware transformations
-
-  ## See Also
-  - `terminal-echo` - Echo text to terminal (for manual handling)
-  - `telnet-send` - Send text to server (for manual handling)
-  - `tintin-process-input` - TinTin++ command processing
-  - `telnet-input-filter-hook` - Transform server output
-  - `telnet-input-hook` - Process server output (side-effects)"
-  text)
+;;
+;; NOTE: user-input-hook is defined above (in TELNET-GUI HOOK IMPLEMENTATIONS)
+;; and dispatches to the extensible hook system. Handlers can set
+;; *user-input-handled* and *user-input-result* to control the return value.
+;; The C code calls (user-input-hook text cursor-pos).
 
 ;; ============================================================================
 ;; MOUSE WHEEL SCROLLING CONFIGURATION

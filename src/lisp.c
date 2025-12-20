@@ -74,10 +74,6 @@ static Animation *active_animation = NULL; /* Animation currently being rendered
 /* Animation type tag symbol for Lisp objects */
 static LispObject *sym_animation_type = NULL;
 
-/* Cached symbols for telnet-input-hook calls (avoid repeated allocation) */
-static LispObject *sym_run_hook = NULL;
-static LispObject *quoted_telnet_input_hook = NULL;
-
 /* Helper: Create a Lisp object wrapping an Animation pointer */
 static LispObject *make_animation_object(Animation *anim) {
     if (!anim)
@@ -962,10 +958,16 @@ int lisp_x_init(void) {
         env_define(lisp_env, name, lisp_make_builtin(func, name));                                                     \
     } while (0)
 
-    /* Initialize cached symbols for hook calls (avoid repeated allocation) */
-    sym_run_hook = lisp_make_symbol("run-hook");
-    LispObject *hook_sym = lisp_make_symbol("telnet-input-hook");
-    quoted_telnet_input_hook = lisp_make_cons(sym_quote, lisp_make_cons(hook_sym, NIL));
+/* Helper macro to register a hook (Lisp lambda) with docstring */
+#define REGISTER_HOOK(name, lambda_code, doc)                                                                          \
+    do {                                                                                                               \
+        LispObject *sym = lisp_intern(name);                                                                           \
+        if ((doc) != NULL)                                                                                             \
+            sym->value.symbol->docstring = (char *)(doc);                                                              \
+        LispObject *hook = lisp_eval_string(lambda_code, lisp_env);                                                    \
+        if (hook && hook->type != LISP_ERROR)                                                                          \
+            env_define(lisp_env, name, hook);                                                                          \
+    } while (0)
 
     /* Register terminal-echo builtin */
     const char *terminal_echo_doc = "Output text to terminal display (local echo).\n"
@@ -1248,61 +1250,109 @@ int lisp_x_init(void) {
 
 #undef REGISTER_BUILTIN
 
-    /* Load bootstrap file - MUST be after all builtins are registered */
+    /* Define hook stubs - no-op implementations overridden by bootstrap.lisp
+     * These establish the C contract: telnet-gui calls these hooks at specific points.
+     * bootstrap.lisp redefines them with actual implementations using run-hook. */
+    const char *telnet_input_hook_doc = "Process telnet server output through registered hooks.\n"
+                                        "\n"
+                                        "## Parameters\n"
+                                        "- `text` - Plain text from server (ANSI codes already stripped)\n"
+                                        "\n"
+                                        "## Returns\n"
+                                        "`nil` (side-effect only hook)\n"
+                                        "\n"
+                                        "## Description\n"
+                                        "Called by C code when text is received from the telnet server. Dispatches\n"
+                                        "to all functions registered with `(add-hook 'telnet-input-hook ...)`.\n"
+                                        "\n"
+                                        "This hook is for side effects only (logging, word collection, etc.).\n"
+                                        "To transform the data before display, use `telnet-input-filter-hook`.\n"
+                                        "\n"
+                                        "## Default Handlers\n"
+                                        "- Word collection for tab completion\n"
+                                        "- Scroll-lock notification animation\n"
+                                        "\n"
+                                        "## See Also\n"
+                                        "- `add-hook` - Register a handler\n"
+                                        "- `telnet-input-filter-hook` - Transform data before display";
+    REGISTER_HOOK("telnet-input-hook", "(lambda (text) nil)", telnet_input_hook_doc);
+
+    const char *user_input_hook_doc = "Transform user input before sending to telnet server.\n"
+                                      "\n"
+                                      "## Parameters\n"
+                                      "- `text` - The text user typed in input area\n"
+                                      "- `cursor-pos` - Cursor position in input area (integer)\n"
+                                      "\n"
+                                      "## Returns\n"
+                                      "- String: C code echoes and sends the returned text\n"
+                                      "- `nil` or empty string: Hook handled everything (no further action)\n"
+                                      "\n"
+                                      "## Description\n"
+                                      "Called by C code when user presses Enter. Dispatches to all functions\n"
+                                      "registered with `(add-hook 'user-input-hook ...)`.\n"
+                                      "\n"
+                                      "Handlers can set `*user-input-handled*` to `#t` and `*user-input-result*`\n"
+                                      "to control the return value. First handler to set these wins.\n"
+                                      "\n"
+                                      "## See Also\n"
+                                      "- `add-hook` - Register a handler\n"
+                                      "- `*user-input-handled*` - Flag to indicate input was handled\n"
+                                      "- `*user-input-result*` - Result when handled";
+    REGISTER_HOOK("user-input-hook", "(lambda (text cursor-pos) text)", user_input_hook_doc);
+
+    const char *telnet_input_filter_hook_doc =
+        "Transform telnet server output before displaying in terminal.\n"
+        "\n"
+        "## Parameters\n"
+        "- `text` - Raw telnet data from server (includes ANSI escape codes)\n"
+        "\n"
+        "## Returns\n"
+        "String to display in terminal. If non-string returned, original text is used.\n"
+        "\n"
+        "## Description\n"
+        "Called BEFORE displaying text in the terminal, allowing transformation,\n"
+        "filtering, or replacement of telnet server output. The returned string is\n"
+        "what actually gets displayed.\n"
+        "\n"
+        "Unlike `telnet-input-hook`, this hook TRANSFORMS the data flow.\n"
+        "\n"
+        "## See Also\n"
+        "- `telnet-input-hook` - Side-effect hook (word collection, logging)";
+    REGISTER_HOOK("telnet-input-filter-hook", "(lambda (text) text)", telnet_input_filter_hook_doc);
+
+    const char *completion_hook_doc = "Provide tab completion candidates for partial text.\n"
+                                      "\n"
+                                      "## Parameters\n"
+                                      "- `text` - Partial text to complete (matched by `*completion-pattern*`)\n"
+                                      "\n"
+                                      "## Returns\n"
+                                      "List of completion candidate strings, or empty list `()` if no matches.\n"
+                                      "\n"
+                                      "## Description\n"
+                                      "Called by C code when user presses TAB. Searches the word store for\n"
+                                      "words matching the given prefix (case-insensitive). Results returned\n"
+                                      "in newest-first order.\n"
+                                      "\n"
+                                      "## See Also\n"
+                                      "- `*completion-pattern*` - Regex for matching partial text\n"
+                                      "- `get-completions-from-store` - Internal search function";
+    REGISTER_HOOK("completion-hook", "(lambda (text) ())", completion_hook_doc);
+
+#undef REGISTER_HOOK
+
+    /* Define configuration variables accessed from C (bootstrap.lisp documents with defvar) */
+    env_define(lisp_env, "*scroll-lines-per-click*", lisp_make_integer(3));
+    env_define(lisp_env, "*smooth-scrolling-enabled*", lisp_make_boolean(1));
+    env_define(lisp_env, "*max-scrollback-lines*", lisp_make_integer(0));
+    env_define(lisp_env, "*scroll-to-bottom-on-user-input*", lisp_make_boolean(1));
+    env_define(lisp_env, "*input-history-size*", lisp_make_integer(100));
+    env_define(lisp_env, "*terminal-line-height*", lisp_make_number(1.2));
+    env_define(lisp_env, "*divider-modes*", NIL);
+
+    /* Load bootstrap file - redefines hooks with actual implementations.
+     * Hooks and variables are already defined above, so app works even if bootstrap fails. */
     if (!load_bootstrap_file()) {
         fprintf(stderr, "Warning: Failed to load bootstrap file, continuing with defaults\n");
-        /* Initialize default completion variables if bootstrap failed */
-        LispObject *pattern = lisp_make_string("\\S+$");
-        env_define(lisp_env, "*completion-pattern*", pattern);
-
-        /* Default completion hook returns empty list */
-        char default_hook_code[] = "(lambda (text) ())";
-        LispObject *hook_expr = lisp_eval_string(default_hook_code, lisp_env);
-        if (hook_expr && hook_expr->type != LISP_ERROR) {
-            env_define(lisp_env, "completion-hook", hook_expr);
-        } else {
-            fprintf(stderr, "Warning: Failed to initialize default completion hook\n");
-        }
-
-        /* Initialize default telnet-input-hook */
-        char default_telnet_hook_code[] = "(lambda (text) ())";
-        LispObject *telnet_hook_expr = lisp_eval_string(default_telnet_hook_code, lisp_env);
-        if (telnet_hook_expr && telnet_hook_expr->type != LISP_ERROR) {
-            env_define(lisp_env, "telnet-input-hook", telnet_hook_expr);
-        } else {
-            fprintf(stderr, "Warning: Failed to initialize default telnet-input-hook\n");
-        }
-
-        /* Initialize default user-input-hook */
-        char default_user_input_hook_code[] = "(lambda (text cursor-pos) text)";
-        LispObject *user_input_hook_expr = lisp_eval_string(default_user_input_hook_code, lisp_env);
-        if (user_input_hook_expr && user_input_hook_expr->type != LISP_ERROR) {
-            env_define(lisp_env, "user-input-hook", user_input_hook_expr);
-        } else {
-            fprintf(stderr, "Warning: Failed to initialize default user-input-hook\n");
-        }
-
-        /* Initialize default telnet-input-filter-hook */
-        char default_telnet_filter_code[] = "(lambda (text) text)";
-        LispObject *telnet_filter_expr = lisp_eval_string(default_telnet_filter_code, lisp_env);
-        if (telnet_filter_expr && telnet_filter_expr->type != LISP_ERROR) {
-            env_define(lisp_env, "telnet-input-filter-hook", telnet_filter_expr);
-        } else {
-            fprintf(stderr, "Warning: Failed to initialize default telnet-input-filter-hook\n");
-        }
-
-        /* Initialize default scroll config variables if bootstrap failed */
-        LispObject *scroll_lines = lisp_make_integer(3);
-        env_define(lisp_env, "*scroll-lines-per-click*", scroll_lines);
-
-        LispObject *smooth_scrolling = lisp_make_boolean(1); /* true */
-        env_define(lisp_env, "*smooth-scrolling-enabled*", smooth_scrolling);
-
-        LispObject *max_scrollback = lisp_make_integer(0); /* 0 = unbounded */
-        env_define(lisp_env, "*max-scrollback-lines*", max_scrollback);
-
-        LispObject *scroll_on_user_input = lisp_make_boolean(1); /* true */
-        env_define(lisp_env, "*scroll-to-bottom-on-user-input*", scroll_on_user_input);
     }
 
     return 0;
@@ -1862,16 +1912,23 @@ void lisp_x_call_telnet_input_hook(const char *text, size_t len) {
         return; /* Nothing to process after stripping */
     }
 
+    /* Look up telnet-input-hook function */
+    LispObject *hook = env_lookup(lisp_env, "telnet-input-hook");
+    if (!hook || (hook->type != LISP_LAMBDA && hook->type != LISP_BUILTIN)) {
+        return; /* Hook not found */
+    }
+
     /* Create Lisp string from stripped text */
     LispObject *text_arg = lisp_make_string(stripped_text);
     if (!text_arg || text_arg->type == LISP_ERROR) {
         return; /* Failed to create string */
     }
 
-    /* Build: (run-hook 'telnet-input-hook "stripped-text")
-     * Uses cached symbols to avoid repeated allocation */
-    LispObject *args = lisp_make_cons(quoted_telnet_input_hook, lisp_make_cons(text_arg, NIL));
-    LispObject *call_expr = lisp_make_cons(sym_run_hook, args);
+    /* Create argument list: (text) */
+    LispObject *args = lisp_make_cons(text_arg, NIL);
+
+    /* Create function call: (telnet-input-hook "stripped-text") */
+    LispObject *call_expr = lisp_make_cons(hook, args);
 
     /* Evaluate the function call */
     LispObject *result = lisp_eval(call_expr, lisp_env);
