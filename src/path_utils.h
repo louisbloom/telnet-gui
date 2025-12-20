@@ -40,4 +40,16 @@ int path_construct_data_directory(const char *base_path, char *out_path, size_t 
  */
 int path_construct_exe_relative(const char *base_path, const char *filename, char *out_path, size_t out_path_size);
 
+/* Check if a file exists at the given path.
+ * Returns: 1 if exists, 0 if not
+ */
+int file_exists(const char *path);
+
+/* Construct installed resource path: ${DATA_DIR}/${subdir}/${filename}
+ * Handles SDL_GetBasePath(), data directory construction, and normalization.
+ * Returns: 1 if path constructed (exe is in bin/), 0 if not installed
+ * Note: Caller must NOT free the returned path - it uses a static buffer.
+ */
+int path_construct_installed_resource(const char *subdir, const char *filename, char *out_path, size_t out_path_size);
+
 #endif /* PATH_UTILS_H */

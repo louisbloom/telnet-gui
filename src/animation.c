@@ -21,15 +21,7 @@
 /* Forward declaration for finalizer */
 static void animation_gc_finalizer(void *obj, void *client_data);
 
-/* Helper: check if file exists using file_open */
-static int file_exists(const char *path) {
-    FILE *f = file_open(path, "r");
-    if (f) {
-        fclose(f);
-        return 1;
-    }
-    return 0;
-}
+/* file_exists() is now in path_utils.h */
 
 /* Helper: read entire file into malloc'd buffer, returns NULL on failure */
 static char *read_file_contents(const char *path, size_t *out_size) {
@@ -167,12 +159,7 @@ int animation_load(Animation *anim, const char *path) {
     int path_count = 0;
     char installed_path[TELNET_MAX_PATH] = {0};
     char exe_relative_path[TELNET_MAX_PATH] = {0};
-    char source_tree_path[TELNET_MAX_PATH] = {0};
-    char source_tree_nested_path[TELNET_MAX_PATH] = {0};
-
-    /* Get base path for path resolution */
-    char *base_path = SDL_GetBasePath();
-    int is_installed = base_path && path_is_installed_bin_directory(base_path);
+    char animations_subdir_path[TELNET_MAX_PATH] = {0};
 
     /* Extract just the filename from path if it contains directories */
     const char *filename = strrchr(path, '/');
@@ -187,36 +174,22 @@ int animation_load(Animation *anim, const char *path) {
     try_paths[path_count++] = path;
 
     /* Path 2: Installed data directory (share/telnet-gui/animations/) */
-    if (base_path) {
-        char data_dir[TELNET_MAX_PATH];
-        if (path_construct_data_directory(base_path, data_dir, sizeof(data_dir))) {
-            /* Use just the filename to avoid double directories like animations/animations/ */
-            snprintf(installed_path, sizeof(installed_path), "%s/animations/%s", data_dir, filename);
-            path_normalize_for_platform(installed_path);
-            try_paths[path_count++] = installed_path;
-        }
+    if (path_construct_installed_resource("animations", filename, installed_path, sizeof(installed_path))) {
+        try_paths[path_count++] = installed_path;
     }
 
     /* Path 3: Executable-relative path (for build directory) */
-    if (base_path && !is_installed) {
-        size_t base_len = strlen(base_path);
-        const char *sep =
-            (base_len > 0 && (base_path[base_len - 1] == '/' || base_path[base_len - 1] == '\\')) ? "" : "/";
-        snprintf(exe_relative_path, sizeof(exe_relative_path), "%s%s%s", base_path, sep, path);
-        try_paths[path_count++] = exe_relative_path;
-    }
-
-    /* Path 4: Source tree path (telnet-gui/animations/filename for build from root) */
-    snprintf(source_tree_path, sizeof(source_tree_path), "telnet-gui/animations/%s", filename);
-    try_paths[path_count++] = source_tree_path;
-
-    /* Path 5: Nested build directory (../../telnet-gui/animations/filename) */
-    snprintf(source_tree_nested_path, sizeof(source_tree_nested_path), "../../telnet-gui/animations/%s", filename);
-    try_paths[path_count++] = source_tree_nested_path;
-
+    char *base_path = SDL_GetBasePath();
     if (base_path) {
+        if (path_construct_exe_relative(base_path, path, exe_relative_path, sizeof(exe_relative_path))) {
+            try_paths[path_count++] = exe_relative_path;
+        }
         SDL_free(base_path);
     }
+
+    /* Path 4: animations subdirectory (relative to CWD) */
+    snprintf(animations_subdir_path, sizeof(animations_subdir_path), "animations/%s", filename);
+    try_paths[path_count++] = animations_subdir_path;
 
     /* Find the first path that exists */
     const char *found_path = NULL;

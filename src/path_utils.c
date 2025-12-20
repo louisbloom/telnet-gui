@@ -1,6 +1,8 @@
 /* Path utilities for cross-platform path handling */
 
 #include "path_utils.h"
+#include "../../telnet-lisp/include/file_utils.h"
+#include <SDL2/SDL.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -102,6 +104,45 @@ int path_construct_exe_relative(const char *base_path, const char *filename, cha
     snprintf(out_path, out_path_size, "%s%s%s", base_path, sep, filename);
 
     // Normalize for platform at the end
+    path_normalize_for_platform(out_path);
+
+    return 1;
+}
+
+/* Check if a file exists at the given path.
+ * Returns: 1 if exists, 0 if not
+ */
+int file_exists(const char *path) {
+    FILE *f = file_open(path, "r");
+    if (f) {
+        fclose(f);
+        return 1;
+    }
+    return 0;
+}
+
+/* Construct installed resource path: ${DATA_DIR}/${subdir}/${filename}
+ * Handles SDL_GetBasePath(), data directory construction, and normalization.
+ * Returns: 1 if path constructed (exe is in bin/), 0 if not installed
+ */
+int path_construct_installed_resource(const char *subdir, const char *filename, char *out_path, size_t out_path_size) {
+    if (!subdir || !filename || !out_path || out_path_size == 0) {
+        return 0;
+    }
+
+    char *base_path = SDL_GetBasePath();
+    if (!base_path) {
+        return 0;
+    }
+
+    char data_dir[TELNET_MAX_PATH];
+    if (!path_construct_data_directory(base_path, data_dir, sizeof(data_dir))) {
+        SDL_free(base_path);
+        return 0;
+    }
+    SDL_free(base_path);
+
+    snprintf(out_path, out_path_size, "%s/%s/%s", data_dir, subdir, filename);
     path_normalize_for_platform(out_path);
 
     return 1;

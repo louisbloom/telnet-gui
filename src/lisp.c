@@ -352,30 +352,17 @@ static int load_bootstrap_file(void) {
 
     /* Add source tree paths for development */
     bootstrap_paths[bootstrap_path_count] = "lisp/bootstrap.lisp";
-    bootstrap_path_labels[bootstrap_path_count++] = "current directory relative (lisp/ subdirectory)";
-    bootstrap_paths[bootstrap_path_count] = "bootstrap.lisp";
-    bootstrap_path_labels[bootstrap_path_count++] = "current directory relative (flat)";
+    bootstrap_path_labels[bootstrap_path_count++] = "lisp subdirectory relative";
     bootstrap_paths[bootstrap_path_count] = "../lisp/bootstrap.lisp";
-    bootstrap_path_labels[bootstrap_path_count++] = "parent directory relative (lisp/ subdirectory)";
+    bootstrap_path_labels[bootstrap_path_count++] = "parent lisp subdirectory";
 
     /* PRIORITY 2: Installed path (fallback for installed builds) */
-    /* Compute POSIX data directory from executable path at runtime */
-    base_path = SDL_GetBasePath();
-    if (base_path) {
-        static char data_dir_path[TELNET_MAX_PATH];
-        if (path_construct_data_directory(base_path, data_dir_path, sizeof(data_dir_path))) {
-            static char installed_bootstrap_path[TELNET_MAX_PATH];
-            snprintf(installed_bootstrap_path, sizeof(installed_bootstrap_path), "%s/lisp/bootstrap.lisp",
-                     data_dir_path);
-            path_normalize_for_platform(installed_bootstrap_path);
-
-            bootstrap_paths[bootstrap_path_count] = installed_bootstrap_path;
-            bootstrap_path_labels[bootstrap_path_count] = "installed data directory (POSIX, runtime-resolved)";
-            bootstrap_path_count++;
-            fprintf(stderr, "Bootstrap file resolution: Computed data directory: %s\n", data_dir_path);
-            fprintf(stderr, "Bootstrap file resolution: Installed path available: %s\n", installed_bootstrap_path);
-        }
-        SDL_free(base_path);
+    static char installed_bootstrap_path[TELNET_MAX_PATH];
+    if (path_construct_installed_resource("lisp", "bootstrap.lisp", installed_bootstrap_path,
+                                          sizeof(installed_bootstrap_path))) {
+        bootstrap_paths[bootstrap_path_count] = installed_bootstrap_path;
+        bootstrap_path_labels[bootstrap_path_count++] = "installed data directory";
+        fprintf(stderr, "Bootstrap file resolution: Installed path available: %s\n", installed_bootstrap_path);
     }
 
     bootstrap_paths[bootstrap_path_count] = NULL;
@@ -1321,15 +1308,7 @@ int lisp_x_init(void) {
     return 0;
 }
 
-/* Helper: Check if a file exists */
-static int file_exists(const char *path) {
-    FILE *f = file_open(path, "r");
-    if (f) {
-        fclose(f);
-        return 1;
-    }
-    return 0;
-}
+/* file_exists() is now in path_utils.h */
 
 int lisp_x_load_file(const char *filepath) {
     if (!lisp_env || !filepath) {
@@ -1399,35 +1378,32 @@ int lisp_x_load_file(const char *filepath) {
         fprintf(stderr, "Lisp file resolution: Warning - SDL_GetBasePath() returned NULL\n");
     }
 
-    /* Path 2: Current directory */
-    search_paths[search_count] = filepath;
-    search_labels[search_count] = "current directory";
+    /* Path 2: lisp subdirectory (consistent with bootstrap) */
+    static char lisp_subdir_path[256];
+    snprintf(lisp_subdir_path, sizeof(lisp_subdir_path), "lisp/%s", filepath);
+    search_paths[search_count] = lisp_subdir_path;
+    search_labels[search_count] = "lisp subdirectory relative";
     search_count++;
 
-    /* Path 3: Parent directory */
-    static char parent_path[256];
-    snprintf(parent_path, sizeof(parent_path), "../%s", filepath);
-    search_paths[search_count] = parent_path;
-    search_labels[search_count] = "parent directory";
+    /* Path 3: Parent's lisp subdirectory (for nested builds) */
+    static char parent_lisp_path[256];
+    snprintf(parent_lisp_path, sizeof(parent_lisp_path), "../lisp/%s", filepath);
+    search_paths[search_count] = parent_lisp_path;
+    search_labels[search_count] = "parent lisp subdirectory";
+    search_count++;
+
+    /* Path 4: Current working directory (for custom user scripts) */
+    search_paths[search_count] = filepath;
+    search_labels[search_count] = "current working directory";
     search_count++;
 
     /* PRIORITY 2: Installed path (fallback for installed builds) */
-    /* Compute POSIX data directory from executable path at runtime */
-    base_path = SDL_GetBasePath();
-    if (base_path) {
-        static char data_dir_path[TELNET_MAX_PATH];
-        if (path_construct_data_directory(base_path, data_dir_path, sizeof(data_dir_path))) {
-            static char installed_lisp_path[TELNET_MAX_PATH];
-            snprintf(installed_lisp_path, sizeof(installed_lisp_path), "%s/lisp/%s", data_dir_path, filepath);
-            path_normalize_for_platform(installed_lisp_path);
-
-            search_paths[search_count] = installed_lisp_path;
-            search_labels[search_count] = "installed lisp directory (POSIX, runtime-resolved)";
-            search_count++;
-            fprintf(stderr, "Lisp file resolution: Computed data directory: %s\n", data_dir_path);
-            fprintf(stderr, "Lisp file resolution: Installed path available: %s\n", installed_lisp_path);
-        }
-        SDL_free(base_path);
+    static char installed_lisp_path[TELNET_MAX_PATH];
+    if (path_construct_installed_resource("lisp", filepath, installed_lisp_path, sizeof(installed_lisp_path))) {
+        search_paths[search_count] = installed_lisp_path;
+        search_labels[search_count] = "installed data directory";
+        search_count++;
+        fprintf(stderr, "Lisp file resolution: Installed path available: %s\n", installed_lisp_path);
     }
 
     /* Try each path in order */

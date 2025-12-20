@@ -1994,10 +1994,10 @@ Do not call this function directly."
       (do ((remaining *timer-list* (cdr remaining)))
         ((null? remaining))
         (let* ((timer (car remaining))
-		(fire-time (list-ref timer 1))
-		(repeat-ms (list-ref timer 2))
-		(callback (list-ref timer 3))
-		(args (list-ref timer 4)))
+                (fire-time (list-ref timer 1))
+                (repeat-ms (list-ref timer 2))
+                (callback (list-ref timer 3))
+                (args (list-ref timer 4)))
           (if (>= now fire-time)
             (progn
               ;; Timer is due - call it

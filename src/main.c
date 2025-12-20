@@ -777,16 +777,12 @@ int main(int argc, char **argv) {
     }
 
     /* Priority path for installed builds (POSIX-compliant, runtime-resolved) */
-    if (font_choice != 's' && base_path) {
-        static char data_dir_path[TELNET_MAX_PATH];
-        if (path_construct_data_directory(base_path, data_dir_path, sizeof(data_dir_path))) {
-            static char installed_font_path[TELNET_MAX_PATH];
-            snprintf(installed_font_path, sizeof(installed_font_path), "%s/fonts/%s", data_dir_path, font_filename);
-            path_normalize_for_platform(installed_font_path);
-
+    if (font_choice != 's') {
+        static char installed_font_path[TELNET_MAX_PATH];
+        if (path_construct_installed_resource("fonts", font_filename, installed_font_path,
+                                              sizeof(installed_font_path))) {
             font_paths[font_path_count] = installed_font_path;
             font_path_labels[font_path_count++] = "installed data directory (POSIX, runtime-resolved)";
-            fprintf(stderr, "Font resolution: Computed data directory: %s\n", data_dir_path);
             fprintf(stderr, "Font resolution: Trying installed path: %s\n", installed_font_path);
         }
     }
