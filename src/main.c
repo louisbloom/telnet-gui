@@ -1761,6 +1761,9 @@ int main(int argc, char **argv) {
             }
         }
 
+        /* Run timer callbacks */
+        lisp_x_run_timers();
+
         /* Read from socket (if connected) */
         if (connected_mode) {
             /* Use select() to check if data is available (avoid unnecessary recv() calls) */

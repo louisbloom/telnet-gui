@@ -63,6 +63,8 @@ static LispObject *builtin_not(LispObject *args, Environment *env);
 /* List operations */
 static LispObject *builtin_car(LispObject *args, Environment *env);
 static LispObject *builtin_cdr(LispObject *args, Environment *env);
+static LispObject *builtin_set_car_bang(LispObject *args, Environment *env);
+static LispObject *builtin_set_cdr_bang(LispObject *args, Environment *env);
 static LispObject *builtin_cons(LispObject *args, Environment *env);
 static LispObject *builtin_list(LispObject *args, Environment *env);
 static LispObject *builtin_list_length(LispObject *args, Environment *env);
@@ -762,6 +764,54 @@ static const char *doc_cdr =
     "## See Also\n"
     "- `car` - Get the first element of a list\n"
     "- `cons` - Construct a new list cell";
+
+static const char *doc_set_car_bang = "Set the first element of a cons cell (mutating).\n"
+                                      "\n"
+                                      "## Parameters\n"
+                                      "- `pair` - A cons cell to modify\n"
+                                      "- `value` - The new value for the car\n"
+                                      "\n"
+                                      "## Returns\n"
+                                      "The new value.\n"
+                                      "\n"
+                                      "## Examples\n"
+                                      "```lisp\n"
+                                      "(define x '(1 2 3))\n"
+                                      "(set-car! x 99)          ; => 99\n"
+                                      "x                        ; => (99 2 3)\n"
+                                      "\n"
+                                      "(define y (cons 'a 'b))\n"
+                                      "(set-car! y 'z)          ; => z\n"
+                                      "y                        ; => (z . b)\n"
+                                      "```\n"
+                                      "\n"
+                                      "## See Also\n"
+                                      "- `set-cdr!` - Set the rest of a cons cell\n"
+                                      "- `car` - Get the first element";
+
+static const char *doc_set_cdr_bang = "Set the rest of a cons cell (mutating).\n"
+                                      "\n"
+                                      "## Parameters\n"
+                                      "- `pair` - A cons cell to modify\n"
+                                      "- `value` - The new value for the cdr\n"
+                                      "\n"
+                                      "## Returns\n"
+                                      "The new value.\n"
+                                      "\n"
+                                      "## Examples\n"
+                                      "```lisp\n"
+                                      "(define x '(1 2 3))\n"
+                                      "(set-cdr! x '(99))       ; => (99)\n"
+                                      "x                        ; => (1 99)\n"
+                                      "\n"
+                                      "(define y (cons 'a 'b))\n"
+                                      "(set-cdr! y 'z)          ; => z\n"
+                                      "y                        ; => (a . z)\n"
+                                      "```\n"
+                                      "\n"
+                                      "## See Also\n"
+                                      "- `set-car!` - Set the first element of a cons cell\n"
+                                      "- `cdr` - Get the rest of a list";
 
 static const char *doc_cons = "Construct a new list cell (cons cell).\n"
                               "\n"
@@ -2643,6 +2693,8 @@ void register_builtins(Environment *env) {
 
     REGISTER("car", builtin_car, doc_car);
     REGISTER("cdr", builtin_cdr, doc_cdr);
+    REGISTER("set-car!", builtin_set_car_bang, doc_set_car_bang);
+    REGISTER("set-cdr!", builtin_set_cdr_bang, doc_set_cdr_bang);
     REGISTER("cons", builtin_cons, doc_cons);
     REGISTER("list", builtin_list, doc_list);
     REGISTER("list-length", builtin_list_length, doc_list_length);
@@ -4141,6 +4193,40 @@ static LispObject *builtin_cdr(LispObject *args, Environment *env) {
     }
 
     return arg->value.cons.cdr;
+}
+
+static LispObject *builtin_set_car_bang(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("set-car! requires 2 arguments");
+    }
+
+    LispObject *pair = lisp_car(args);
+    LispObject *value = lisp_car(lisp_cdr(args));
+
+    if (pair == NIL || pair->type != LISP_CONS) {
+        return lisp_make_error("set-car! requires a cons cell as first argument");
+    }
+
+    pair->value.cons.car = value;
+    return value;
+}
+
+static LispObject *builtin_set_cdr_bang(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("set-cdr! requires 2 arguments");
+    }
+
+    LispObject *pair = lisp_car(args);
+    LispObject *value = lisp_car(lisp_cdr(args));
+
+    if (pair == NIL || pair->type != LISP_CONS) {
+        return lisp_make_error("set-cdr! requires a cons cell as first argument");
+    }
+
+    pair->value.cons.cdr = value;
+    return value;
 }
 
 static LispObject *builtin_cons(LispObject *args, Environment *env) {

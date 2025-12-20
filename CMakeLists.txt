@@ -327,6 +327,8 @@ set(COMPLETION_TEST_SRC "${CMAKE_SOURCE_DIR}/lisp/completion-test.lisp")
 set(COMPLETION_TEST_DST "${CMAKE_BINARY_DIR}/lisp/completion-test.lisp")
 set(BOOTSTRAP_TEST_SRC "${CMAKE_SOURCE_DIR}/lisp/bootstrap-test.lisp")
 set(BOOTSTRAP_TEST_DST "${CMAKE_BINARY_DIR}/lisp/bootstrap-test.lisp")
+set(TIMER_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/timer-test.lisp")
+set(TIMER_TEST_DST "${CMAKE_BINARY_DIR}/lisp/timer-test.lisp")
 set(TEST_HELPERS_SRC "${CMAKE_SOURCE_DIR}/lisp/test-helpers.lisp")
 set(TEST_HELPERS_DST "${CMAKE_BINARY_DIR}/lisp/test-helpers.lisp")
 
@@ -362,6 +364,7 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_TEST_SRC}" "${TINTIN_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${COMPLETION_TEST_SRC}" "${COMPLETION_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${BOOTSTRAP_TEST_SRC}" "${BOOTSTRAP_TEST_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TIMER_TEST_SRC}" "${TIMER_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TEST_HELPERS_SRC}" "${TEST_HELPERS_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LOG2HTML_SRC}" "${LOG2HTML_DST}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/animations"
@@ -1516,6 +1519,11 @@ add_test(NAME gui_completion-test
 
 add_test(NAME gui_bootstrap-test
     COMMAND $<TARGET_FILE:telnet-gui> -t bootstrap-test.lisp
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/lisp
+)
+
+add_test(NAME gui_timer-test
+    COMMAND $<TARGET_FILE:telnet-gui> -t timer-test.lisp
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/lisp
 )
 

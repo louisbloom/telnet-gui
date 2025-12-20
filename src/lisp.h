@@ -52,6 +52,9 @@ void lisp_x_set_terminal_line_height(float line_height);
 /* Call telnet-input-hook with telnet data (stripped of ANSI codes) */
 void lisp_x_call_telnet_input_hook(const char *text, size_t len);
 
+/* Run all due timers - calls (run-timers) in Lisp each frame */
+void lisp_x_run_timers(void);
+
 /* Call telnet-input-filter-hook with telnet data (with ANSI codes) before displaying in terminal (returns transformed text or original) */
 const char *lisp_x_call_telnet_input_filter_hook(const char *text, size_t len, size_t *out_len);
 

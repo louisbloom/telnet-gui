@@ -1834,6 +1834,183 @@ Does nothing if the mode doesn't exist.
         (set! result (cons (car modes) result))))))
 
 ;; ============================================================================
+;; TIMER SYSTEM
+;; ============================================================================
+;; Emacs-style timer system for scheduling Lisp code to run after delays.
+;;
+;; API:
+;;   (run-at-time TIME REPEAT FUNCTION &rest ARGS) - Schedule a timer
+;;   (cancel-timer TIMER) - Cancel a timer
+;;   (cancel-function-timers FUNCTION) - Cancel all timers for a function
+;;   (list-timers) - List all active timers
+;;
+;; Example:
+;;   (run-at-time 5 nil (lambda () (terminal-echo "Hello!\r\n")))  ; after 5 sec
+;;   (run-at-time 60 60 (lambda () (telnet-send "PING")))  ; every 60 sec
+
+(defvar *timer-list* '()
+  "List of active timers. Each timer is a list:
+   (id fire-time-ms repeat-ms callback args)")
+
+(defvar *timer-next-id* 1
+  "Next timer ID to assign.")
+
+(defun run-at-time (time repeat function &rest args)
+  "Schedule FUNCTION to run after TIME seconds.
+
+## Parameters
+- `time` - Seconds until first execution (number)
+- `repeat` - Seconds between executions, or nil for one-shot
+- `function` - Callback function to invoke
+- `args` - Optional arguments passed to callback
+
+## Returns
+Timer object (vector) for use with `cancel-timer`.
+
+## Description
+Creates a timer that will call FUNCTION after TIME seconds. If REPEAT
+is non-nil, the timer will repeat every REPEAT seconds after the first
+execution.
+
+## Examples
+```lisp
+;; One-shot timer after 2 seconds
+(run-at-time 2 nil (lambda () (terminal-echo \"Hello!\\r\\n\")))
+
+;; Repeating timer every 60 seconds
+(define keepalive (run-at-time 60 60 (lambda () (telnet-send \"PING\"))))
+
+;; Timer with arguments
+(run-at-time 5 nil (lambda (msg) (terminal-echo msg)) \"Delayed!\\r\\n\")
+```
+
+## See Also
+- `cancel-timer` - Cancel a timer
+- `cancel-function-timers` - Cancel all timers for a function
+- `list-timers` - List active timers"
+  (let* ((delay-ms (* time 1000))
+          (repeat-ms (if repeat (* repeat 1000) 0))
+          (fire-time (+ (current-time-ms) delay-ms))
+          (id *timer-next-id*)
+          (timer (list id fire-time repeat-ms function args)))
+    (set! *timer-next-id* (+ *timer-next-id* 1))
+    (set! *timer-list* (cons timer *timer-list*))
+    timer))
+
+(defun cancel-timer (timer)
+  "Cancel TIMER.
+
+## Parameters
+- `timer` - Timer object returned by `run-at-time`
+
+## Returns
+`#t` if timer was found and cancelled, `nil` otherwise.
+
+## Examples
+```lisp
+(define my-timer (run-at-time 60 nil my-callback))
+(cancel-timer my-timer)  ; => #t
+(cancel-timer my-timer)  ; => nil (already cancelled)
+```
+
+## See Also
+- `run-at-time` - Create a timer
+- `cancel-function-timers` - Cancel by function"
+  (let ((found #f))
+    (set! *timer-list*
+      (filter (lambda (t)
+                (if (eq? t timer)
+                  (progn (set! found #t) #f)
+                  #t))
+        *timer-list*))
+    found))
+
+(defun cancel-function-timers (function)
+  "Cancel all timers with FUNCTION as callback.
+
+## Parameters
+- `function` - Function whose timers to cancel
+
+## Returns
+Number of timers cancelled.
+
+## Description
+Useful when you've lost the timer reference but know the callback function.
+
+## Examples
+```lisp
+(defun my-ping () (telnet-send \"PING\"))
+(run-at-time 30 30 my-ping)
+(run-at-time 60 60 my-ping)
+(cancel-function-timers my-ping)  ; => 2
+```
+
+## See Also
+- `cancel-timer` - Cancel by timer object
+- `list-timers` - View active timers"
+  (let ((count 0))
+    (set! *timer-list*
+      (filter (lambda (t)
+                (if (eq? (list-ref t 3) function)
+                  (progn (set! count (+ count 1)) #f)
+                  #t))
+        *timer-list*))
+    count))
+
+(defun list-timers ()
+  "Return list of active timers.
+
+## Returns
+List of timer lists, each containing:
+  - [0] id - Timer ID
+  - [1] fire-time-ms - When timer fires (milliseconds)
+  - [2] repeat-ms - Repeat interval (0 for one-shot)
+  - [3] callback - Function to call
+  - [4] args - Arguments for callback
+
+## Examples
+```lisp
+(list-timers)
+; => ((1 45000 0 #<lambda> ()) (2 60000 60000 #<lambda> ()))
+```
+
+## See Also
+- `run-at-time` - Create timers
+- `cancel-timer` - Cancel timers"
+  *timer-list*)
+
+(defun run-timers ()
+  "Run all due timers. Called each frame by C code.
+
+## Description
+This function is called automatically by the main event loop.
+It checks all timers in `*timer-list*` and fires any that are due.
+Recurring timers are rescheduled; one-shot timers are removed.
+
+Do not call this function directly."
+  (when (not (null? *timer-list*))
+    (let ((now (current-time-ms))
+           (new-list '()))
+      (do ((remaining *timer-list* (cdr remaining)))
+        ((null? remaining))
+        (let* ((timer (car remaining))
+		(fire-time (list-ref timer 1))
+		(repeat-ms (list-ref timer 2))
+		(callback (list-ref timer 3))
+		(args (list-ref timer 4)))
+          (if (>= now fire-time)
+            (progn
+              ;; Timer is due - call it
+              (apply callback args)
+              ;; Reschedule if recurring (mutate fire-time in place to preserve identity)
+              (when (> repeat-ms 0)
+                (set-car! (cdr timer) (+ now repeat-ms))
+                (set! new-list (cons timer new-list))))
+            ;; Not due yet - keep it
+            (set! new-list (cons timer new-list)))))
+      (set! *timer-list* new-list))))
+
+;; ============================================================================
 ;; BOOTSTRAP INITIALIZATION
 ;; ============================================================================
 ;; Note: Scroll-lock notification animation is lazy-loaded on first use

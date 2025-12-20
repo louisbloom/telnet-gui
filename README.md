@@ -187,6 +187,42 @@ Indicators are controllable from Lisp:
 ;; => ((10 . (eval . "⚡")) (50 . (custom . "★")) (90 . (animation . "▶️")))
 ```
 
+### Timer System
+
+Emacs-style timers for scheduling Lisp code:
+
+```lisp
+;; Run once after 5 seconds
+(run-at-time 5 nil (lambda () (terminal-echo "Hello!\r\n")))
+
+;; Run every 60 seconds (first run after 60s)
+(define keepalive (run-at-time 60 60 (lambda () (telnet-send "PING"))))
+
+;; Cancel a timer
+(cancel-timer keepalive)
+
+;; Pass arguments to callback
+(run-at-time 10 nil (lambda (msg) (terminal-echo msg)) "Delayed!\r\n")
+
+;; Cancel all timers for a function
+(defun my-ping () (telnet-send "PING"))
+(run-at-time 30 30 my-ping)
+(run-at-time 60 60 my-ping)
+(cancel-function-timers my-ping)  ; => 2
+
+;; Inspect active timers
+(list-timers)
+```
+
+**Timer functions:**
+
+| Function                                   | Description                                        |
+| ------------------------------------------ | -------------------------------------------------- |
+| `(run-at-time delay repeat fn &rest args)` | Schedule fn after delay seconds; repeat if non-nil |
+| `(cancel-timer timer)`                     | Cancel a timer, returns `#t` if found              |
+| `(cancel-function-timers fn)`              | Cancel all timers for fn, returns count            |
+| `(list-timers)`                            | Return list of active timers                       |
+
 ## Building from Source
 
 ### Prerequisites

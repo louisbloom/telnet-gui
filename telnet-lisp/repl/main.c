@@ -24,15 +24,15 @@ static void print_help(void) {
     printf("\n");
     printf("Usage:\n");
     printf("  lisp-repl                 Start interactive REPL\n");
-    printf("  lisp-repl -c \"CODE\"       Execute CODE and exit\n");
-    printf("  lisp-repl FILE [FILE...] Execute FILE(s) and exit\n");
+    printf("  lisp-repl -e \"CODE\"       Execute CODE and exit\n");
+    printf("  lisp-repl FILE [FILE...]  Execute FILE(s) and exit\n");
     printf("  lisp-repl -h, --help      Show this help message\n");
     printf("\n");
     printf("Examples:\n");
     printf("  lisp-repl                           # Start REPL\n");
-    printf("  lisp-repl -c \"(+ 1 2 3)\"            # Execute code\n");
+    printf("  lisp-repl -e \"(+ 1 2 3)\"            # Execute code\n");
     printf("  lisp-repl script.lisp               # Run file\n");
-    printf("  lisp-repl -c \"(define x 10) (* x 5)\" # Multiple expressions\n");
+    printf("  lisp-repl -e \"(define x 10) (* x 5)\" # Multiple expressions\n");
     printf("\n");
     printf("REPL Commands:\n");
     printf("  :quit             Exit the REPL\n");
@@ -96,8 +96,8 @@ int main(int argc, char **argv) {
     lisp_init();
     Environment *env = env_create_global();
 
-    /* Handle -c flag for executing code from command line */
-    if (argc > 2 && strcmp(argv[1], "-c") == 0) {
+    /* Handle -e/--eval/-c flag for executing code from command line */
+    if (argc > 2 && (strcmp(argv[1], "-e") == 0 || strcmp(argv[1], "--eval") == 0 || strcmp(argv[1], "-c") == 0)) {
         const char *code = argv[2];
         const char *input = code;
 

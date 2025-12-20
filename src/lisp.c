@@ -351,16 +351,16 @@ static int load_bootstrap_file(void) {
     }
 
     /* Add source tree paths for development */
+    bootstrap_paths[bootstrap_path_count] = "lisp/bootstrap.lisp";
+    bootstrap_path_labels[bootstrap_path_count++] = "current directory relative (lisp/ subdirectory)";
     bootstrap_paths[bootstrap_path_count] = "bootstrap.lisp";
-    bootstrap_path_labels[bootstrap_path_count++] = "current directory relative (build/development)";
-    bootstrap_paths[bootstrap_path_count] = "telnet-gui/bootstrap.lisp";
+    bootstrap_path_labels[bootstrap_path_count++] = "current directory relative (flat)";
+    bootstrap_paths[bootstrap_path_count] = "telnet-gui/lisp/bootstrap.lisp";
     bootstrap_path_labels[bootstrap_path_count++] = "source tree path (from build root)";
-    bootstrap_paths[bootstrap_path_count] = "../telnet-gui/bootstrap.lisp";
-    bootstrap_path_labels[bootstrap_path_count++] = "source tree path (parent dir)";
-    bootstrap_paths[bootstrap_path_count] = "../../telnet-gui/bootstrap.lisp";
-    bootstrap_path_labels[bootstrap_path_count++] = "source tree path (nested build dir)";
+    bootstrap_paths[bootstrap_path_count] = "../lisp/bootstrap.lisp";
+    bootstrap_path_labels[bootstrap_path_count++] = "parent directory relative (lisp/ subdirectory)";
     bootstrap_paths[bootstrap_path_count] = "../bootstrap.lisp";
-    bootstrap_path_labels[bootstrap_path_count++] = "parent directory relative";
+    bootstrap_path_labels[bootstrap_path_count++] = "parent directory relative (flat)";
 
     /* PRIORITY 2: Installed path (fallback for installed builds) */
     /* Compute POSIX data directory from executable path at runtime */
@@ -621,6 +621,16 @@ static LispObject *builtin_terminal_scroll_locked_p(LispObject *args, Environmen
         return LISP_TRUE;
     }
     return NIL;
+}
+
+/**
+ * current-time-ms: Return current time in milliseconds
+ * Returns the value of SDL_GetTicks() for timer support.
+ */
+static LispObject *builtin_current_time_ms(LispObject *args, Environment *env) {
+    (void)args;
+    (void)env;
+    return lisp_make_integer((long long)SDL_GetTicks());
 }
 
 /* Animation builtin functions */
@@ -1184,6 +1194,27 @@ int lisp_x_init(void) {
                                              "    (terminal-echo \"[At live output]\\r\\n\"))\n"
                                              "```\n";
     REGISTER_BUILTIN("terminal-scroll-locked?", builtin_terminal_scroll_locked_p, terminal_scroll_locked_doc);
+
+    /* current-time-ms: Return current time in milliseconds for timer support */
+    const char *current_time_ms_doc = "Return current time in milliseconds.\n"
+                                      "\n"
+                                      "## Returns\n"
+                                      "Integer - milliseconds since application start (from SDL_GetTicks)\n"
+                                      "\n"
+                                      "## Description\n"
+                                      "Returns the number of milliseconds since the SDL library was initialized.\n"
+                                      "Used by the timer system to track when timers should fire.\n"
+                                      "\n"
+                                      "## Examples\n"
+                                      "```lisp\n"
+                                      "(current-time-ms)\n"
+                                      "; => 45230  (45.23 seconds since start)\n"
+                                      "```\n"
+                                      "\n"
+                                      "## See Also\n"
+                                      "- `run-at-time` - Schedule a timer\n"
+                                      "- `run-timers` - Execute due timers";
+    REGISTER_BUILTIN("current-time-ms", builtin_current_time_ms, current_time_ms_doc);
 
 #if HAVE_RLOTTIE
     /* Initialize animation type symbol for Lisp object wrapping */
@@ -1895,6 +1926,29 @@ void lisp_x_call_telnet_input_hook(const char *text, size_t len) {
         }
     }
     /* Ignore return value - hook is side-effect only */
+}
+
+/* Run all due timers - calls (run-timers) in Lisp */
+void lisp_x_run_timers(void) {
+    if (!lisp_env)
+        return;
+
+    /* Look up run-timers function */
+    LispObject *fn = env_lookup(lisp_env, "run-timers");
+    if (!fn || (fn->type != LISP_LAMBDA && fn->type != LISP_BUILTIN))
+        return;
+
+    /* Call (run-timers) */
+    LispObject *call = lisp_make_cons(fn, NIL);
+    LispObject *result = lisp_eval(call, lisp_env);
+
+    /* Log errors but don't crash */
+    if (result && result->type == LISP_ERROR) {
+        char *err_str = lisp_print(result);
+        if (err_str) {
+            fprintf(stderr, "Error in run-timers: %s\n", err_str);
+        }
+    }
 }
 
 const char *lisp_x_call_user_input_hook(const char *text, int cursor_pos) {
