@@ -526,6 +526,158 @@ Log filename format: telnet-<host>-<port>-<timestamp>.log")
         (scan-hash-keys *completion-word-store* p seen acc count *completion-max-results*)))))
 
 ;; ============================================================================
+;; EXTENSIBLE HOOK SYSTEM
+;; ============================================================================
+;; Emacs-style hook system allowing multiple functions per hook.
+;; Hooks are stored as alists: ((hook-name . (fn1 fn2 fn3 ...)) ...)
+
+(defvar *hooks* '()
+  "Global registry of hooks.
+
+Format: ((hook-name . (fn1 fn2 fn3 ...)) ...)
+
+Each hook name maps to a list of functions that will be called in order
+when the hook is run.
+
+## Example
+```lisp
+*hooks*
+; => ((telnet-input-hook . (#<lambda> #<lambda>))
+;     (user-input-hook . (#<lambda>)))
+```
+
+## See Also
+- `add-hook` - Add a function to a hook
+- `remove-hook` - Remove a function from a hook
+- `run-hook` - Run all functions in a hook")
+
+(defun add-hook (hook-name fn)
+  "Add a function to a hook.
+
+## Parameters
+- `hook-name` - Symbol identifying the hook (e.g., 'telnet-input-hook)
+- `fn` - Function to add (lambda or named function)
+
+## Returns
+`nil`
+
+## Description
+Appends the function to the hook's function list. If the hook doesn't exist,
+creates it. Functions are called in the order they were added when the hook
+is run.
+
+**Note:** The same function can be added multiple times (will be called
+multiple times). Use `remove-hook` to remove.
+
+## Examples
+```lisp
+;; Add word collector to telnet-input-hook
+(add-hook 'telnet-input-hook
+  (lambda (text) (collect-words-from-text text)))
+
+;; Add logger
+(add-hook 'telnet-input-hook
+  (lambda (text) (log-to-file text)))
+
+;; Both functions called when telnet data arrives
+```
+
+## See Also
+- `remove-hook` - Remove a function from a hook
+- `run-hook` - Run all functions in a hook"
+  (let ((entry (assoc hook-name *hooks*)))
+    (if entry
+      ;; Hook exists - rebuild *hooks* with updated function list
+      (set! *hooks*
+        (map (lambda (e)
+               (if (eq? (car e) hook-name)
+                 (cons hook-name (append (cdr e) (list fn)))
+                 e))
+          *hooks*))
+      ;; New hook - create entry
+      (set! *hooks* (cons (cons hook-name (list fn)) *hooks*))))
+  nil)
+
+(defun remove-hook (hook-name fn)
+  "Remove a function from a hook.
+
+## Parameters
+- `hook-name` - Symbol identifying the hook
+- `fn` - Function to remove (must be `eq?` to original)
+
+## Returns
+`nil`
+
+## Description
+Removes the first occurrence of the function from the hook. Uses `eq?` for
+comparison, so the exact same function object must be passed.
+
+**Note:** Only removes one occurrence. If the same function was added
+multiple times, call `remove-hook` multiple times to remove all.
+
+## Examples
+```lisp
+;; Define a named function so we can remove it later
+(define my-logger (lambda (text) (log-to-file text)))
+
+;; Add it
+(add-hook 'telnet-input-hook my-logger)
+
+;; Later, remove it
+(remove-hook 'telnet-input-hook my-logger)
+```
+
+## See Also
+- `add-hook` - Add a function to a hook
+- `run-hook` - Run all functions in a hook"
+  (let ((entry (assoc hook-name *hooks*)))
+    (when entry
+      ;; Rebuild *hooks* with the function removed from this hook's list
+      (set! *hooks*
+        (map (lambda (e)
+               (if (eq? (car e) hook-name)
+                 (cons hook-name (filter (lambda (f) (not (eq? f fn))) (cdr e)))
+                 e))
+          *hooks*))))
+  nil)
+
+(defun run-hook (hook-name &rest args)
+  "Run all functions in a hook with given arguments.
+
+## Parameters
+- `hook-name` - Symbol identifying the hook
+- `args` - Arguments to pass to each function
+
+## Returns
+`nil` (side-effects only)
+
+## Description
+Calls each function in the hook's list with the provided arguments.
+Functions are called in the order they were added. Return values are
+ignored - this is for side-effect-only hooks like `telnet-input-hook`.
+
+If the hook doesn't exist or has no functions, does nothing.
+
+## Examples
+```lisp
+;; Manually run a hook (normally called by C code)
+(run-hook 'telnet-input-hook \"Hello from server\")
+
+;; Multiple arguments
+(run-hook 'user-input-hook \"hello\" 5)
+```
+
+## See Also
+- `add-hook` - Add a function to a hook
+- `remove-hook` - Remove a function from a hook"
+  (let ((entry (assoc hook-name *hooks*)))
+    (when entry
+      (do ((fns (cdr entry) (cdr fns)))
+        ((null? fns))
+        (apply (car fns) args))))
+  nil)
+
+;; ============================================================================
 ;; COMPLETION HOOK CONFIGURATION
 ;; ============================================================================
 ;; completion-hook: Function called when user requests tab completion
@@ -701,13 +853,20 @@ Log filename format: telnet-<host>-<port>-<timestamp>.log")
 ;;   (define telnet-input-hook (lambda (text) ()))
 ;;
 ;; Word collection for completions (DEFAULT - collects words for tab completion):
-;;   (defun telnet-input-hook (text)
-;;     (collect-words-from-text text))
-(defun telnet-input-hook (text)
-  "Process incoming telnet server output for word collection (side-effect only)."
-  (progn
-    (collect-words-from-text text)
-    (maybe-play-scroll-lock-notification)))
+;;   (add-hook 'telnet-input-hook
+;;     (lambda (text) (collect-words-from-text text)))
+;;
+;; NOTE: telnet-input-hook now uses the extensible hook system.
+;; Multiple handlers can be added via add-hook. The C code calls
+;; (run-hook 'telnet-input-hook text) instead of calling a single function.
+
+;; Default handler: Collect words for tab completion
+(add-hook 'telnet-input-hook
+  (lambda (text) (collect-words-from-text text)))
+
+;; Default handler: Play notification animation when scroll-locked
+(add-hook 'telnet-input-hook
+  (lambda (text) (maybe-play-scroll-lock-notification)))
 
 ;; ============================================================================
 ;; TELNET INPUT FILTER HOOK CONFIGURATION

@@ -140,6 +140,37 @@ For complete language documentation, see **[telnet-lisp/README.md](telnet-lisp/R
 >>> :quit
 ```
 
+### Hook System
+
+Telnet GUI uses an Emacs-style hook system for extensibility. Hooks allow multiple handler functions to respond to events:
+
+```lisp
+;; Add a handler to a hook
+(add-hook 'telnet-input-hook
+  (lambda (text)
+    (princ "[LOG] ")
+    (princ text)))
+
+;; Remove a handler (must be the same function object)
+(define my-handler (lambda (text) (princ text)))
+(add-hook 'telnet-input-hook my-handler)
+(remove-hook 'telnet-input-hook my-handler)
+
+;; Run all handlers in a hook
+(run-hook 'telnet-input-hook "Hello from server")
+```
+
+**Built-in hooks:**
+
+| Hook                | Arguments | Description                                           |
+| ------------------- | --------- | ----------------------------------------------------- |
+| `telnet-input-hook` | `(text)`  | Called when data received from server (ANSI stripped) |
+
+**Default handlers on `telnet-input-hook`:**
+
+- Word collection for tab completion
+- Scroll-lock notification animation
+
 ### Divider Mode Indicators
 
 Indicators are controllable from Lisp:

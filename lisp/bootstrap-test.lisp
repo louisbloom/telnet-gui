@@ -333,12 +333,12 @@
 (assert-equal hook-invalid '() "Should return empty list for nil")
 
 ;; ============================================================================
-;; TEST: telnet-input-hook function
+;; TEST: telnet-input-hook (hook system)
 ;; ============================================================================
 
 (print "")
 (print "====================================================================")
-(print "TESTING telnet-input-hook FUNCTION")
+(print "TESTING telnet-input-hook (HOOK SYSTEM)")
 (print "====================================================================")
 
 (print "Test: Hook processes text...")
@@ -347,7 +347,8 @@
 (set! *completion-word-order-index* 0)  ; ignore
 (set! *completion-word-order* (make-vector *completion-word-store-size* nil))  ; ignore
 
-(define hook-result (telnet-input-hook "The dragon guards the treasure!"))
+;; telnet-input-hook is now a hook system - use run-hook to call it
+(define hook-result (run-hook 'telnet-input-hook "The dragon guards the treasure!"))
 (assert-false hook-result "Should return nil (side-effect only)")
 
 (print "Test: Words are collected...")

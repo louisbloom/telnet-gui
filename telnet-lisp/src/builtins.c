@@ -514,6 +514,8 @@ static LispObject *builtin_assv(LispObject *args, Environment *env);
 static LispObject *builtin_alist_get(LispObject *args, Environment *env);
 static LispObject *builtin_map(LispObject *args, Environment *env);
 static LispObject *builtin_mapcar(LispObject *args, Environment *env);
+static LispObject *builtin_filter(LispObject *args, Environment *env);
+static LispObject *builtin_apply(LispObject *args, Environment *env);
 
 /* Error introspection and handling */
 static LispObject *builtin_error_question(LispObject *args, Environment *env);
@@ -1423,6 +1425,42 @@ static const char *doc_map = "Apply function to each element of list, return new
                              "(map car '((1 . 2) (3 . 4) (5 . 6)))     ; => (1 3 5)\n"
                              "(map string-upcase '(\"a\" \"b\" \"c\"))      ; => (\"A\" \"B\" \"C\")\n"
                              "```";
+
+static const char *doc_filter = "Filter list elements that satisfy a predicate function.\n"
+                                "\n"
+                                "## Parameters\n"
+                                "- `predicate` - Function that returns true/false for each element\n"
+                                "- `list` - List to filter\n"
+                                "\n"
+                                "## Returns\n"
+                                "New list containing only elements for which `predicate` returns non-nil.\n"
+                                "\n"
+                                "## Examples\n"
+                                "```lisp\n"
+                                "(filter (lambda (x) (> x 0)) '(1 -2 3 -4 5))  ; => (1 3 5)\n"
+                                "(filter even? '(1 2 3 4 5 6))                 ; => (2 4 6)\n"
+                                "(filter string? '(1 \"a\" 2 \"b\"))              ; => (\"a\" \"b\")\n"
+                                "```";
+
+static const char *doc_apply = "Apply a function to a list of arguments.\n"
+                               "\n"
+                               "## Parameters\n"
+                               "- `function` - Function to call\n"
+                               "- `args` - List of arguments to pass to the function\n"
+                               "\n"
+                               "## Returns\n"
+                               "Result of calling `function` with the elements of `args` as arguments.\n"
+                               "\n"
+                               "## Examples\n"
+                               "```lisp\n"
+                               "(apply + '(1 2 3 4))        ; => 10\n"
+                               "(apply list '(a b c))       ; => (a b c)\n"
+                               "(apply max '(3 1 4 1 5))    ; => 5\n"
+                               "\n"
+                               ";; Useful for calling functions with dynamic argument lists\n"
+                               "(define args '(1 2 3))\n"
+                               "(apply + args)              ; => 6\n"
+                               "```";
 
 static const char *doc_list_length = "Get the number of elements in a list.\n"
                                      "\n"
@@ -2626,6 +2664,8 @@ void register_builtins(Environment *env) {
     /* Mapping operations */
     REGISTER("map", builtin_map, doc_map);
     REGISTER("mapcar", builtin_mapcar, doc_map);
+    REGISTER("filter", builtin_filter, doc_filter);
+    REGISTER("apply", builtin_apply, doc_apply);
 
     REGISTER("null?", builtin_null_question, doc_null_question);
     REGISTER("atom?", builtin_atom_question, doc_atom_question);
@@ -6275,6 +6315,182 @@ static LispObject *builtin_map(LispObject *args, Environment *env) {
 static LispObject *builtin_mapcar(LispObject *args, Environment *env) {
     /* mapcar is the same as map in this implementation */
     return builtin_map(args, env);
+}
+
+static LispObject *builtin_filter(LispObject *args, Environment *env) {
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("filter requires 2 arguments");
+    }
+
+    LispObject *func = lisp_car(args);
+    LispObject *list = lisp_car(lisp_cdr(args));
+
+    if (func->type != LISP_BUILTIN && func->type != LISP_LAMBDA) {
+        return lisp_make_error("filter requires a function as first argument");
+    }
+
+    LispObject *result = NIL;
+    LispObject *tail = NULL;
+
+    while (list != NIL && list != NULL) {
+        if (list->type != LISP_CONS) {
+            return lisp_make_error("filter requires a list");
+        }
+
+        LispObject *item = lisp_car(list);
+        LispObject *func_args = lisp_make_cons(item, NIL);
+
+        LispObject *predicate_result;
+        if (func->type == LISP_BUILTIN) {
+            predicate_result = func->value.builtin.func(func_args, env);
+        } else {
+            /* Lambda function - manually apply it */
+            Environment *lambda_env = env_create(func->value.lambda.closure);
+
+            /* Bind parameter to argument */
+            LispObject *params = func->value.lambda.params;
+            if (params == NIL || params->type != LISP_CONS) {
+                return lisp_make_error("filter: lambda must have at least one parameter");
+            }
+
+            LispObject *param = lisp_car(params);
+            if (param->type != LISP_SYMBOL) {
+                return lisp_make_error("filter: lambda parameter must be a symbol");
+            }
+
+            /* Bind the parameter to the item */
+            env_define(lambda_env, param->value.symbol->name, item);
+
+            /* Evaluate lambda body */
+            LispObject *body = func->value.lambda.body;
+            predicate_result = NIL;
+            while (body != NIL && body != NULL) {
+                predicate_result = lisp_eval(lisp_car(body), lambda_env);
+                if (predicate_result->type == LISP_ERROR) {
+                    env_free(lambda_env);
+                    return predicate_result;
+                }
+                body = lisp_cdr(body);
+            }
+
+            env_free(lambda_env);
+        }
+
+        if (predicate_result->type == LISP_ERROR) {
+            return predicate_result;
+        }
+
+        /* If predicate returned non-nil (truthy), include this item */
+        if (predicate_result != NIL &&
+            !(predicate_result->type == LISP_BOOLEAN && predicate_result->value.boolean == 0)) {
+            LispObject *new_cons = lisp_make_cons(item, NIL);
+            if (result == NIL) {
+                result = new_cons;
+                tail = new_cons;
+            } else {
+                tail->value.cons.cdr = new_cons;
+                tail = new_cons;
+            }
+        }
+
+        list = lisp_cdr(list);
+    }
+
+    return result;
+}
+
+static LispObject *builtin_apply(LispObject *args, Environment *env) {
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("apply requires 2 arguments");
+    }
+
+    LispObject *func = lisp_car(args);
+    LispObject *func_args = lisp_car(lisp_cdr(args));
+
+    if (func->type != LISP_BUILTIN && func->type != LISP_LAMBDA) {
+        return lisp_make_error("apply requires a function as first argument");
+    }
+
+    if (func_args != NIL && func_args->type != LISP_CONS) {
+        return lisp_make_error("apply requires a list as second argument");
+    }
+
+    /* Call function directly without re-evaluating arguments */
+    if (func->type == LISP_BUILTIN) {
+        return func->value.builtin.func(func_args, env);
+    }
+
+    /* Lambda: create new environment and bind parameters */
+    Environment *lambda_env = env_create(func->value.lambda.closure);
+
+    /* Bind parameters to arguments */
+    LispObject *params = func->value.lambda.params;
+    LispObject *arg_list = func_args;
+
+    while (params != NIL && params != NULL && params->type == LISP_CONS) {
+        LispObject *param = lisp_car(params);
+
+        /* Check for &optional (use interned symbol for fast pointer comparison) */
+        if (param == sym_optional) {
+            params = lisp_cdr(params);
+            /* Bind remaining optional parameters */
+            while (params != NIL && params != NULL && params->type == LISP_CONS) {
+                param = lisp_car(params);
+                if (param == sym_rest) {
+                    break;
+                }
+                if (param->type == LISP_SYMBOL) {
+                    if (arg_list != NIL && arg_list != NULL && arg_list->type == LISP_CONS) {
+                        env_define(lambda_env, param->value.symbol->name, lisp_car(arg_list));
+                        arg_list = lisp_cdr(arg_list);
+                    } else {
+                        env_define(lambda_env, param->value.symbol->name, NIL);
+                    }
+                }
+                params = lisp_cdr(params);
+            }
+            continue;
+        }
+
+        /* Check for &rest (use interned symbol for fast pointer comparison) */
+        if (param == sym_rest) {
+            params = lisp_cdr(params);
+            if (params != NIL && params->type == LISP_CONS) {
+                LispObject *rest_param = lisp_car(params);
+                if (rest_param->type == LISP_SYMBOL) {
+                    env_define(lambda_env, rest_param->value.symbol->name, arg_list);
+                }
+            }
+            break;
+        }
+
+        /* Regular required parameter */
+        if (param->type == LISP_SYMBOL) {
+            if (arg_list == NIL || arg_list == NULL) {
+                env_free(lambda_env);
+                return lisp_make_error("apply: too few arguments");
+            }
+            env_define(lambda_env, param->value.symbol->name, lisp_car(arg_list));
+            arg_list = lisp_cdr(arg_list);
+        }
+
+        params = lisp_cdr(params);
+    }
+
+    /* Evaluate lambda body */
+    LispObject *body = func->value.lambda.body;
+    LispObject *result = NIL;
+    while (body != NIL && body != NULL) {
+        result = lisp_eval(lisp_car(body), lambda_env);
+        if (result->type == LISP_ERROR) {
+            env_free(lambda_env);
+            return result;
+        }
+        body = lisp_cdr(body);
+    }
+
+    env_free(lambda_env);
+    return result;
 }
 
 /* Error introspection and handling functions */

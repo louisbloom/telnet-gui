@@ -74,6 +74,10 @@ static Animation *active_animation = NULL; /* Animation currently being rendered
 /* Animation type tag symbol for Lisp objects */
 static LispObject *sym_animation_type = NULL;
 
+/* Cached symbols for telnet-input-hook calls (avoid repeated allocation) */
+static LispObject *sym_run_hook = NULL;
+static LispObject *quoted_telnet_input_hook = NULL;
+
 /* Helper: Create a Lisp object wrapping an Animation pointer */
 static LispObject *make_animation_object(Animation *anim) {
     if (!anim)
@@ -775,7 +779,7 @@ static LispObject *builtin_animation_playing_p(LispObject *args, Environment *en
         return lisp_make_error("animation-playing?: first argument must be an animation object");
     }
     if (animation_is_playing(anim)) {
-        return lisp_make_symbol("t");
+        return LISP_TRUE;
     }
     return NIL;
 }
@@ -790,7 +794,7 @@ static LispObject *builtin_animation_loaded_p(LispObject *args, Environment *env
         return lisp_make_error("animation-loaded?: first argument must be an animation object");
     }
     if (animation_is_loaded(anim)) {
-        return lisp_make_symbol("t");
+        return LISP_TRUE;
     }
     return NIL;
 }
@@ -964,6 +968,11 @@ int lisp_x_init(void) {
             sym->value.symbol->docstring = (char *)(doc);                                                              \
         env_define(lisp_env, name, lisp_make_builtin(func, name));                                                     \
     } while (0)
+
+    /* Initialize cached symbols for hook calls (avoid repeated allocation) */
+    sym_run_hook = lisp_make_symbol("run-hook");
+    LispObject *hook_sym = lisp_make_symbol("telnet-input-hook");
+    quoted_telnet_input_hook = lisp_make_cons(sym_quote, lisp_make_cons(hook_sym, NIL));
 
     /* Register terminal-echo builtin */
     const char *terminal_echo_doc = "Output text to terminal display (local echo).\n"
@@ -1857,12 +1866,6 @@ void lisp_x_call_telnet_input_hook(const char *text, size_t len) {
         return;
     }
 
-    /* Look up telnet-input-hook */
-    LispObject *hook = env_lookup(lisp_env, "telnet-input-hook");
-    if (!hook || (hook->type != LISP_LAMBDA && hook->type != LISP_BUILTIN)) {
-        return; /* Hook not found or wrong type - silently do nothing */
-    }
-
     /* Strip ANSI codes from input text */
     size_t stripped_len = 0;
     char *stripped_text = strip_ansi_codes(text, len, &stripped_len);
@@ -1871,16 +1874,15 @@ void lisp_x_call_telnet_input_hook(const char *text, size_t len) {
     }
 
     /* Create Lisp string from stripped text */
-    LispObject *arg = lisp_make_string(stripped_text);
-    if (!arg || arg->type == LISP_ERROR) {
+    LispObject *text_arg = lisp_make_string(stripped_text);
+    if (!text_arg || text_arg->type == LISP_ERROR) {
         return; /* Failed to create string */
     }
 
-    /* Create argument list */
-    LispObject *args = lisp_make_cons(arg, NIL);
-
-    /* Create function call: (telnet-input-hook "stripped-text") */
-    LispObject *call_expr = lisp_make_cons(hook, args);
+    /* Build: (run-hook 'telnet-input-hook "stripped-text")
+     * Uses cached symbols to avoid repeated allocation */
+    LispObject *args = lisp_make_cons(quoted_telnet_input_hook, lisp_make_cons(text_arg, NIL));
+    LispObject *call_expr = lisp_make_cons(sym_run_hook, args);
 
     /* Evaluate the function call */
     LispObject *result = lisp_eval(call_expr, lisp_env);
@@ -2171,7 +2173,7 @@ void lisp_x_set_divider_mode(const char *symbol_name, const char *display, int p
     /* Build argument list: ('symbol display priority) */
     /* The symbol must be quoted so it evaluates to itself, not looked up as a variable */
     LispObject *sym_arg = lisp_make_symbol(symbol_name);
-    LispObject *quoted_sym = lisp_make_cons(lisp_make_symbol("quote"), lisp_make_cons(sym_arg, NIL));
+    LispObject *quoted_sym = lisp_make_cons(sym_quote, lisp_make_cons(sym_arg, NIL));
     LispObject *display_arg = lisp_make_string(display);
     LispObject *priority_arg = lisp_make_integer(priority);
     LispObject *args = lisp_make_cons(quoted_sym, lisp_make_cons(display_arg, lisp_make_cons(priority_arg, NIL)));
@@ -2194,7 +2196,7 @@ void lisp_x_remove_divider_mode(const char *symbol_name) {
     /* Build argument list: ('symbol) */
     /* The symbol must be quoted so it evaluates to itself, not looked up as a variable */
     LispObject *sym_arg = lisp_make_symbol(symbol_name);
-    LispObject *quoted_sym = lisp_make_cons(lisp_make_symbol("quote"), lisp_make_cons(sym_arg, NIL));
+    LispObject *quoted_sym = lisp_make_cons(sym_quote, lisp_make_cons(sym_arg, NIL));
     LispObject *args = lisp_make_cons(quoted_sym, NIL);
 
     /* Call: (divider-mode-remove 'symbol) */
