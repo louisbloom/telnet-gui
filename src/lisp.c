@@ -355,12 +355,8 @@ static int load_bootstrap_file(void) {
     bootstrap_path_labels[bootstrap_path_count++] = "current directory relative (lisp/ subdirectory)";
     bootstrap_paths[bootstrap_path_count] = "bootstrap.lisp";
     bootstrap_path_labels[bootstrap_path_count++] = "current directory relative (flat)";
-    bootstrap_paths[bootstrap_path_count] = "telnet-gui/lisp/bootstrap.lisp";
-    bootstrap_path_labels[bootstrap_path_count++] = "source tree path (from build root)";
     bootstrap_paths[bootstrap_path_count] = "../lisp/bootstrap.lisp";
     bootstrap_path_labels[bootstrap_path_count++] = "parent directory relative (lisp/ subdirectory)";
-    bootstrap_paths[bootstrap_path_count] = "../bootstrap.lisp";
-    bootstrap_path_labels[bootstrap_path_count++] = "parent directory relative (flat)";
 
     /* PRIORITY 2: Installed path (fallback for installed builds) */
     /* Compute POSIX data directory from executable path at runtime */
@@ -1408,25 +1404,11 @@ int lisp_x_load_file(const char *filepath) {
     search_labels[search_count] = "current directory";
     search_count++;
 
-    /* Path 3: Source tree from build root */
-    static char src_path1[256];
-    snprintf(src_path1, sizeof(src_path1), "telnet-gui/%s", filepath);
-    search_paths[search_count] = src_path1;
-    search_labels[search_count] = "source tree (from build root)";
-    search_count++;
-
-    /* Path 4: Parent directory */
+    /* Path 3: Parent directory */
     static char parent_path[256];
     snprintf(parent_path, sizeof(parent_path), "../%s", filepath);
     search_paths[search_count] = parent_path;
     search_labels[search_count] = "parent directory";
-    search_count++;
-
-    /* Path 5: Source tree from nested build dir */
-    static char src_path2[256];
-    snprintf(src_path2, sizeof(src_path2), "../../telnet-gui/%s", filepath);
-    search_paths[search_count] = src_path2;
-    search_labels[search_count] = "source tree (nested build dir)";
     search_count++;
 
     /* PRIORITY 2: Installed path (fallback for installed builds) */
