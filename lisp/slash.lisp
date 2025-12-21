@@ -153,10 +153,10 @@
         (progn
           (cancel-timer *practice-sleep-timer*)
           (set! *practice-sleep-timer* nil)))
+      ;; Restore indicator FIRST (immediate visual feedback)
+      (divider-mode-set 'practice "P" 20)
       ;; Clear sleep mode
       (set! *practice-sleep-mode* nil)
-      ;; Restore indicator
-      (divider-mode-set 'practice "P" 20)
       (practice-echo "Waking up (mana restored)...")
       ;; Stand up and resume practicing
       (practice-send "stand")
