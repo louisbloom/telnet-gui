@@ -313,90 +313,91 @@ static LispObject *call_completion_hook(const char *partial_text) {
     return result ? result : NIL;
 }
 
-/* Load bootstrap Lisp file */
-static int load_bootstrap_file(void) {
-    if (!lisp_env) {
+/* Load a Lisp file from standard search paths (init.lisp, init-post.lisp, etc.)
+ * Returns 1 on success, 0 on failure */
+static int load_lisp_system_file(const char *filename) {
+    if (!lisp_env || !filename) {
         return 0;
     }
 
     /* Get executable base path using SDL */
     char *base_path = SDL_GetBasePath();
-    char bootstrap_path[1024] = {0};
-    const char *bootstrap_paths[10];
-    const char *bootstrap_path_labels[10];
-    int bootstrap_path_count = 0;
+    char exe_relative_path[1024] = {0};
+    char lisp_subdir_path[256];
+    char parent_lisp_path[256];
+    const char *search_paths[10];
+    const char *search_labels[10];
+    int path_count = 0;
 
-    fprintf(stderr, "Bootstrap file resolution: Starting search...\n");
+    fprintf(stderr, "Lisp file resolution (%s): Starting search...\n", filename);
 
     /* PRIORITY 1: Build/development paths (checked first for development workflow) */
-    /* Try bootstrap.lisp relative to executable (build directory during development) */
+    /* Try file relative to executable (build directory during development) */
     /* Skip if executable is in a bin directory (installed location) - .lisp files aren't in bin */
     if (base_path) {
-        if (path_construct_exe_relative(base_path, "bootstrap.lisp", bootstrap_path, sizeof(bootstrap_path))) {
-            bootstrap_paths[bootstrap_path_count] = bootstrap_path;
-            bootstrap_path_labels[bootstrap_path_count] = "executable-relative (build/development)";
-            bootstrap_path_count++;
-            fprintf(stderr, "Bootstrap file resolution: Executable base path: %s\n", base_path);
-            fprintf(stderr, "Bootstrap file resolution: Constructed bootstrap path: %s\n", bootstrap_path);
+        if (path_construct_exe_relative(base_path, filename, exe_relative_path, sizeof(exe_relative_path))) {
+            search_paths[path_count] = exe_relative_path;
+            search_labels[path_count] = "executable-relative (build/development)";
+            path_count++;
+            fprintf(stderr, "Lisp file resolution (%s): Executable base path: %s\n", filename, base_path);
+            fprintf(stderr, "Lisp file resolution (%s): Constructed path: %s\n", filename, exe_relative_path);
         } else {
             fprintf(stderr,
-                    "Bootstrap file resolution: Executable in bin directory (installed), skipping bin path check\n");
+                    "Lisp file resolution (%s): Executable in bin directory (installed), skipping bin path check\n",
+                    filename);
         }
         SDL_free(base_path);
     } else {
-        fprintf(stderr, "Bootstrap file resolution: Warning - SDL_GetBasePath() returned NULL\n");
+        fprintf(stderr, "Lisp file resolution (%s): Warning - SDL_GetBasePath() returned NULL\n", filename);
     }
 
     /* Add source tree paths for development */
-    bootstrap_paths[bootstrap_path_count] = "lisp/bootstrap.lisp";
-    bootstrap_path_labels[bootstrap_path_count++] = "lisp subdirectory relative";
-    bootstrap_paths[bootstrap_path_count] = "../lisp/bootstrap.lisp";
-    bootstrap_path_labels[bootstrap_path_count++] = "parent lisp subdirectory";
+    snprintf(lisp_subdir_path, sizeof(lisp_subdir_path), "lisp/%s", filename);
+    search_paths[path_count] = lisp_subdir_path;
+    search_labels[path_count++] = "lisp subdirectory relative";
+
+    snprintf(parent_lisp_path, sizeof(parent_lisp_path), "../lisp/%s", filename);
+    search_paths[path_count] = parent_lisp_path;
+    search_labels[path_count++] = "parent lisp subdirectory";
 
     /* PRIORITY 2: Installed path (fallback for installed builds) */
-    static char installed_bootstrap_path[TELNET_MAX_PATH];
-    if (path_construct_installed_resource("lisp", "bootstrap.lisp", installed_bootstrap_path,
-                                          sizeof(installed_bootstrap_path))) {
-        bootstrap_paths[bootstrap_path_count] = installed_bootstrap_path;
-        bootstrap_path_labels[bootstrap_path_count++] = "installed data directory";
-        fprintf(stderr, "Bootstrap file resolution: Installed path available: %s\n", installed_bootstrap_path);
+    static char installed_path[TELNET_MAX_PATH];
+    if (path_construct_installed_resource("lisp", filename, installed_path, sizeof(installed_path))) {
+        search_paths[path_count] = installed_path;
+        search_labels[path_count++] = "installed data directory";
+        fprintf(stderr, "Lisp file resolution (%s): Installed path available: %s\n", filename, installed_path);
     }
 
-    bootstrap_paths[bootstrap_path_count] = NULL;
+    search_paths[path_count] = NULL;
 
-    const char *loaded_bootstrap_path = NULL;
-    const char *loaded_bootstrap_label = NULL;
-
-    for (int i = 0; bootstrap_paths[i] != NULL; i++) {
-        fprintf(stderr, "Bootstrap file resolution: Trying [%d] %s: %s\n", i + 1, bootstrap_path_labels[i],
-                bootstrap_paths[i]);
+    for (int i = 0; search_paths[i] != NULL; i++) {
+        fprintf(stderr, "Lisp file resolution (%s): Trying [%d] %s: %s\n", filename, i + 1, search_labels[i],
+                search_paths[i]);
 
         /* Check if file exists before trying to load */
-        FILE *test = file_open(bootstrap_paths[i], "rb");
+        FILE *test = file_open(search_paths[i], "rb");
         if (test) {
             fclose(test);
-            fprintf(stderr, "Bootstrap file resolution: File exists, attempting to load...\n");
+            fprintf(stderr, "Lisp file resolution (%s): File exists, attempting to load...\n", filename);
         } else {
-            fprintf(stderr, "Bootstrap file resolution: File does not exist, skipping...\n");
+            fprintf(stderr, "Lisp file resolution (%s): File does not exist, skipping...\n", filename);
             continue;
         }
 
-        LispObject *result = lisp_load_file(bootstrap_paths[i], lisp_env);
+        LispObject *result = lisp_load_file(search_paths[i], lisp_env);
         if (result && result->type == LISP_ERROR) {
             char *err_str = lisp_print(result);
-            fprintf(stderr, "Bootstrap file evaluation ERROR in %s:\n%s\n", bootstrap_paths[i], err_str);
+            fprintf(stderr, "Lisp file evaluation ERROR in %s:\n%s\n", search_paths[i], err_str);
             /* Continue trying other paths */
         } else {
-            loaded_bootstrap_path = bootstrap_paths[i];
-            loaded_bootstrap_label = bootstrap_path_labels[i];
-            fprintf(stderr, "Bootstrap file resolution: SUCCESS! Loaded bootstrap file from [%d] %s\n", i + 1,
-                    loaded_bootstrap_label);
-            fprintf(stderr, "Bootstrap file resolution: Bootstrap file path: %s\n", loaded_bootstrap_path);
+            fprintf(stderr, "Lisp file resolution (%s): SUCCESS! Loaded from [%d] %s\n", filename, i + 1,
+                    search_labels[i]);
+            fprintf(stderr, "Lisp file resolution (%s): Path: %s\n", filename, search_paths[i]);
             return 1;
         }
     }
 
-    fprintf(stderr, "Bootstrap file resolution: ERROR - Failed to load bootstrap file from all attempted paths\n");
+    fprintf(stderr, "Lisp file resolution (%s): ERROR - Failed to load from all attempted paths\n", filename);
     return 0;
 }
 
@@ -1476,13 +1477,13 @@ int lisp_x_init(void) {
                      "text.");
 #endif
 
-    /* Note: divider-mode-set and divider-mode-remove are defined in bootstrap.lisp */
+    /* Note: divider-mode-set and divider-mode-remove are C builtins that update *divider-modes* */
 
 #undef REGISTER_BUILTIN
 
-    /* Define hook stubs - no-op implementations overridden by bootstrap.lisp
+    /* Define hook stubs - no-op implementations overridden by init.lisp
      * These establish the C contract: telnet-gui calls these hooks at specific points.
-     * bootstrap.lisp redefines them with actual implementations using run-hook. */
+     * init.lisp redefines them with actual implementations using run-hook. */
     const char *telnet_input_hook_doc = "Process telnet server output through registered hooks.\n"
                                         "\n"
                                         "## Parameters\n"
@@ -1570,7 +1571,7 @@ int lisp_x_init(void) {
 
 #undef REGISTER_HOOK
 
-    /* Define configuration variables accessed from C (bootstrap.lisp documents with defvar) */
+    /* Define configuration variables accessed from C (init.lisp documents with defvar) */
     env_define(lisp_env, "*scroll-lines-per-click*", lisp_make_integer(3));
     env_define(lisp_env, "*smooth-scrolling-enabled*", lisp_make_boolean(1));
     env_define(lisp_env, "*max-scrollback-lines*", lisp_make_integer(0));
@@ -1579,10 +1580,10 @@ int lisp_x_init(void) {
     env_define(lisp_env, "*terminal-line-height*", lisp_make_number(1.2));
     env_define(lisp_env, "*divider-modes*", NIL);
 
-    /* Load bootstrap file - redefines hooks with actual implementations.
-     * Hooks and variables are already defined above, so app works even if bootstrap fails. */
-    if (!load_bootstrap_file()) {
-        fprintf(stderr, "Warning: Failed to load bootstrap file, continuing with defaults\n");
+    /* Load init file - redefines hooks with actual implementations.
+     * Hooks and variables are already defined above, so app works even if init fails. */
+    if (!load_lisp_system_file("init.lisp")) {
+        fprintf(stderr, "Warning: Failed to load init.lisp, continuing with defaults\n");
     }
 
     return 0;
@@ -2527,6 +2528,13 @@ void lisp_x_register_window(Window *w) {
 
 void lisp_x_register_input_area(InputArea *area) {
     registered_input_area = area;
+}
+
+/* Load init-post.lisp after SDL/GUI is initialized */
+void lisp_x_load_init_post(void) {
+    if (!load_lisp_system_file("init-post.lisp")) {
+        fprintf(stderr, "Warning: Failed to load init-post.lisp (optional)\n");
+    }
 }
 
 #if HAVE_RLOTTIE

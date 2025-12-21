@@ -314,15 +314,19 @@ set(FONT_CASCADIA_DST "${CMAKE_BINARY_DIR}/fonts/CascadiaMono-Regular.ttf")
 set(FONT_CASCADIA_CODE_SRC "${CMAKE_SOURCE_DIR}/fonts/CascadiaCode-Regular.ttf")
 set(FONT_CASCADIA_CODE_DST "${CMAKE_BINARY_DIR}/fonts/CascadiaCode-Regular.ttf")
 
-# Copy bootstrap Lisp file to build directory
-set(BOOTSTRAP_SRC "${CMAKE_SOURCE_DIR}/lisp/bootstrap.lisp")
-set(BOOTSTRAP_DST "${CMAKE_BINARY_DIR}/lisp/bootstrap.lisp")
+# Copy init Lisp files to build directory
+set(INIT_SRC "${CMAKE_SOURCE_DIR}/lisp/init.lisp")
+set(INIT_DST "${CMAKE_BINARY_DIR}/lisp/init.lisp")
+set(INIT_POST_SRC "${CMAKE_SOURCE_DIR}/lisp/init-post.lisp")
+set(INIT_POST_DST "${CMAKE_BINARY_DIR}/lisp/init-post.lisp")
 
 # Copy test-related Lisp files to build directory
 set(TINTIN_SRC "${CMAKE_SOURCE_DIR}/lisp/tintin.lisp")
 set(TINTIN_DST "${CMAKE_BINARY_DIR}/lisp/tintin.lisp")
-set(SLASH_SRC "${CMAKE_SOURCE_DIR}/lisp/slash.lisp")
-set(SLASH_DST "${CMAKE_BINARY_DIR}/lisp/slash.lisp")
+set(PRACTICE_SIMPLE_SRC "${CMAKE_SOURCE_DIR}/lisp/carrionfields.net/practice-simple.lisp")
+set(PRACTICE_SIMPLE_DST "${CMAKE_BINARY_DIR}/lisp/carrionfields.net/practice-simple.lisp")
+set(SEAPORT_SRC "${CMAKE_SOURCE_DIR}/lisp/carrionfields.net/seaport.lisp")
+set(SEAPORT_DST "${CMAKE_BINARY_DIR}/lisp/carrionfields.net/seaport.lisp")
 set(TINTIN_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/tintin-test.lisp")
 set(TINTIN_TEST_DST "${CMAKE_BINARY_DIR}/tests/tintin-test.lisp")
 set(COMPLETION_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/completion-test.lisp")
@@ -331,8 +335,8 @@ set(BOOTSTRAP_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/bootstrap-test.lisp")
 set(BOOTSTRAP_TEST_DST "${CMAKE_BINARY_DIR}/tests/bootstrap-test.lisp")
 set(TIMER_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/timer-test.lisp")
 set(TIMER_TEST_DST "${CMAKE_BINARY_DIR}/tests/timer-test.lisp")
-set(SLASH_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/slash-test.lisp")
-set(SLASH_TEST_DST "${CMAKE_BINARY_DIR}/tests/slash-test.lisp")
+set(PRACTICE_SIMPLE_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/practice-simple-test.lisp")
+set(PRACTICE_SIMPLE_TEST_DST "${CMAKE_BINARY_DIR}/tests/practice-simple-test.lisp")
 set(TEST_HELPERS_SRC "${CMAKE_SOURCE_DIR}/tests/test-helpers.lisp")
 set(TEST_HELPERS_DST "${CMAKE_BINARY_DIR}/tests/test-helpers.lisp")
 
@@ -363,15 +367,18 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_CASCADIA_SRC}" "${FONT_CASCADIA_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_CASCADIA_CODE_SRC}" "${FONT_CASCADIA_CODE_DST}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/lisp"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${BOOTSTRAP_SRC}" "${BOOTSTRAP_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${INIT_SRC}" "${INIT_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${INIT_POST_SRC}" "${INIT_POST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_SRC}" "${TINTIN_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SLASH_SRC}" "${SLASH_DST}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/lisp/carrionfields.net"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PRACTICE_SIMPLE_SRC}" "${PRACTICE_SIMPLE_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SEAPORT_SRC}" "${SEAPORT_DST}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/tests"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_TEST_SRC}" "${TINTIN_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${COMPLETION_TEST_SRC}" "${COMPLETION_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${BOOTSTRAP_TEST_SRC}" "${BOOTSTRAP_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TIMER_TEST_SRC}" "${TIMER_TEST_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SLASH_TEST_SRC}" "${SLASH_TEST_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PRACTICE_SIMPLE_TEST_SRC}" "${PRACTICE_SIMPLE_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TEST_HELPERS_SRC}" "${TEST_HELPERS_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LOG2HTML_SRC}" "${LOG2HTML_DST}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/animations"
@@ -439,7 +446,8 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/icons/"
 
 # Install Lisp files to share directory (POSIX-compliant)
 install(FILES
-    "${BOOTSTRAP_SRC}"
+    "${INIT_SRC}"
+    "${INIT_POST_SRC}"
     "${TINTIN_SRC}"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/lisp"
     COMPONENT Runtime
@@ -1534,8 +1542,8 @@ add_test(NAME gui_timer-test
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
 )
 
-add_test(NAME gui_slash-test
-    COMMAND $<TARGET_FILE:lisp-repl> slash-test.lisp
+add_test(NAME gui_practice-simple-test
+    COMMAND $<TARGET_FILE:lisp-repl> practice-simple-test.lisp
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
 )
 

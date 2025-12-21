@@ -1,9 +1,9 @@
-;; Slash command tests
-;; Tests the slash.lisp script (slash commands including /practice mode)
+;; Practice mode tests
+;; Tests the practice-simple.lisp script (/practice command)
 (load "test-helpers.lisp")
 
 ;; ============================================================================
-;; Additional mock bootstrap.lisp functions (hooks in test-helpers.lisp)
+;; Additional mock init.lisp functions (hooks in test-helpers.lisp)
 ;; ============================================================================
 
 ;; Mock timer system
@@ -99,7 +99,7 @@
 
 ;; Mock divider-mode-set and divider-mode-remove
 ;; These match the C builtin behavior in the real app - they update *divider-modes*
-;; The variable *divider-modes* is defined in bootstrap.lisp (or we define it here)
+;; The variable *divider-modes* is defined in init.lisp (or we define it here)
 (define *divider-modes* '())
 
 (defun divider-mode-set (sym display &rest args)
@@ -149,10 +149,10 @@
   (set! *divider-modes* '()))
 
 ;; ============================================================================
-;; Load slash.lisp
+;; Load practice-simple.lisp
 ;; ============================================================================
 
-(load "../lisp/slash.lisp")
+(load "../lisp/carrionfields.net/practice-simple.lisp")
 
 ;; ============================================================================
 ;; Test practice-command? helper function

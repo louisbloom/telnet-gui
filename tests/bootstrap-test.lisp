@@ -1,11 +1,11 @@
-;; Bootstrap Test Suite
+;; Init Test Suite
 ;;
-;; This test file tests functions from bootstrap.lisp.
+;; This test file tests functions from init.lisp.
 ;;
 ;; To run this test:
 ;;   telnet-gui.exe -t bootstrap-test.lisp
 ;;
-;; Note: bootstrap.lisp is automatically loaded by telnet-gui, so the functions
+;; Note: init.lisp is automatically loaded by telnet-gui, so the functions
 ;; are available when running tests through telnet-gui's test runner.
 
 ;; Load test helper macros

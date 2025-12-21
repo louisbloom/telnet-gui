@@ -1020,6 +1020,9 @@ int main(int argc, char **argv) {
     lisp_x_register_renderer(renderer);
 #endif
 
+    /* Load init-post.lisp now that SDL/GUI is initialized */
+    lisp_x_load_init_post();
+
     /* Wire telnet to terminal for output buffering */
     terminal_set_telnet(term, telnet);
 

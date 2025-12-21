@@ -119,6 +119,9 @@ void lisp_x_register_window(struct Window *w);
 struct InputArea;
 void lisp_x_register_input_area(struct InputArea *area);
 
+/* Load init-post.lisp after SDL/GUI is initialized */
+void lisp_x_load_init_post(void);
+
 /* Forward declarations for animation support */
 struct Animation;
 struct SDL_Renderer;
