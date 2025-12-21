@@ -331,8 +331,8 @@ set(TINTIN_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/tintin-test.lisp")
 set(TINTIN_TEST_DST "${CMAKE_BINARY_DIR}/tests/tintin-test.lisp")
 set(COMPLETION_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/completion-test.lisp")
 set(COMPLETION_TEST_DST "${CMAKE_BINARY_DIR}/tests/completion-test.lisp")
-set(BOOTSTRAP_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/bootstrap-test.lisp")
-set(BOOTSTRAP_TEST_DST "${CMAKE_BINARY_DIR}/tests/bootstrap-test.lisp")
+set(INIT_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/init-test.lisp")
+set(INIT_TEST_DST "${CMAKE_BINARY_DIR}/tests/init-test.lisp")
 set(TIMER_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/timer-test.lisp")
 set(TIMER_TEST_DST "${CMAKE_BINARY_DIR}/tests/timer-test.lisp")
 set(PRACTICE_SIMPLE_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/practice-simple-test.lisp")
@@ -374,7 +374,7 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/tests"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_TEST_SRC}" "${TINTIN_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${COMPLETION_TEST_SRC}" "${COMPLETION_TEST_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${BOOTSTRAP_TEST_SRC}" "${BOOTSTRAP_TEST_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${INIT_TEST_SRC}" "${INIT_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TIMER_TEST_SRC}" "${TIMER_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PRACTICE_SIMPLE_TEST_SRC}" "${PRACTICE_SIMPLE_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TEST_HELPERS_SRC}" "${TEST_HELPERS_DST}"
@@ -1516,8 +1516,9 @@ foreach(TEST_FILE ${TEST_FILES})
     )
 endforeach()
 
-# Register telnet-gui test files for direct execution (no test_runner.sh)
+# Register GUI test files for execution via lisp-repl
 # Tests use assert-* macros that abort on failure via (error ...)
+# test-helpers.lisp loads init.lisp to provide hook system and other functionality
 add_test(NAME gui_tintin-test
     COMMAND $<TARGET_FILE:lisp-repl> tintin-test.lisp
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
@@ -1528,13 +1529,13 @@ add_test(NAME gui_completion-test
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
 )
 
-add_test(NAME gui_bootstrap-test
-    COMMAND $<TARGET_FILE:telnet-gui> -t bootstrap-test.lisp
+add_test(NAME gui_init-test
+    COMMAND $<TARGET_FILE:lisp-repl> init-test.lisp
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
 )
 
 add_test(NAME gui_timer-test
-    COMMAND $<TARGET_FILE:telnet-gui> -t timer-test.lisp
+    COMMAND $<TARGET_FILE:lisp-repl> timer-test.lisp
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
 )
 

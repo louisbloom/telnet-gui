@@ -38,11 +38,8 @@
        nil)))  ; Success: silent
 
 ;; ============================================================================
-;; Hook system variables (init.lisp provides the actual implementation)
+;; Load init.lisp for hook system and other core functionality
 ;; ============================================================================
-;; Note: GUI tests run via telnet-gui which loads init.lisp automatically.
-;; Tests that don't use telnet-gui (like practice-simple-test) define their
-;; own mocks as needed.
-
-(defvar *user-input-handled* nil)
-(defvar *user-input-result* nil)
+;; Tests run via lisp-repl need init.lisp loaded for the hook system.
+;; Path is relative to build/tests/ directory where tests run.
+(load "../lisp/init.lisp")

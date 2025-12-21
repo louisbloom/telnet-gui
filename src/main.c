@@ -407,8 +407,6 @@ static void print_help(const char *program_name) {
     printf("                            Used to customize completion hooks and scroll settings\n");
     printf("    -L, --line-height HEIGHT Set line height multiplier (default: 1.2)\n");
     printf("                            HEIGHT can be 0.5 to 3.0 (e.g., 1.5 for 50%% more spacing)\n");
-    printf("    -t, --test FILE        Run a Lisp test file in headless mode and exit\n");
-    printf("                            Returns 0 on success, non-zero on failure\n");
     printf("    --debug-exit           Exit after initialization (for debug output)\n");
     printf("\n");
     printf("Arguments:\n");
@@ -438,8 +436,6 @@ static void print_help(const char *program_name) {
     printf("      Connect with 1.5x line height (50%% more spacing)\n");
     printf("  %s -l tintin.lisp -l myconfig.lisp server 4449\n", program_name);
     printf("      Load multiple Lisp files in order\n");
-    printf("  %s -t tintin_test_final.lisp\n", program_name);
-    printf("      Run a test file in headless mode\n");
     printf("\n");
     fflush(stdout);
 }
@@ -452,7 +448,6 @@ int main(int argc, char **argv) {
     int port = 0;
     const char *lisp_files[16]; /* Support up to 16 -l flags */
     int lisp_file_count = 0;
-    const char *test_file = NULL; /* Test file for headless mode */
     char font_choice = 's';       /* Font selection: s=System, m=Cascadia Mono, l=Cascadia Code, i=Inconsolata, p=Plex,
                                      d=DejaVu, c=Courier */
     int font_size = 12;           /* Default font size */
@@ -591,26 +586,10 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Error: Invalid line height '%s'. Must be between 0.5 and 3.0\n", argv[arg_idx]);
                 return 1;
             }
-        } else if (strcmp(argv[arg_idx], "-t") == 0 || strcmp(argv[arg_idx], "--test") == 0) {
-            if (arg_idx + 1 >= argc) {
-                fprintf(stderr, "Error: --test requires a file path\n");
-                return 1;
-            }
-            arg_idx++;
-            test_file = argv[arg_idx];
-            /* Skip further argument processing when test mode is enabled */
-            /* Exit the loop immediately to prevent processing the file path as a positional argument */
-            break;
         } else if (strcmp(argv[arg_idx], "--debug-exit") == 0) {
             debug_exit = 1;
         } else {
             /* Positional arguments: hostname and port */
-            /* Skip if test_file is already set (test mode) */
-            if (test_file != NULL) {
-                fprintf(stderr, "Error: Unexpected argument '%s' in test mode\n", argv[arg_idx]);
-                fprintf(stderr, "Use --help for usage information\n");
-                return 1;
-            }
             if (hostname == NULL) {
                 hostname = argv[arg_idx];
             } else if (port == 0) {
@@ -653,26 +632,6 @@ int main(int argc, char **argv) {
     /* Override line height from CLI if provided (before window creation) */
     if (cli_line_height > 0.0f) {
         lisp_x_set_terminal_line_height(cli_line_height);
-    }
-
-    /* If test mode, run test and exit (headless mode) */
-    if (test_file) {
-#ifdef _WIN32
-        /* Disable buffering for immediate output (console subsystem already has stdout/stderr) */
-        setvbuf(stdout, NULL, _IONBF, 0);
-        setvbuf(stderr, NULL, _IONBF, 0);
-#endif
-        printf("Running test: %s\n", test_file);
-        int result = lisp_x_load_file(test_file);
-        lisp_x_cleanup();
-        if (result < 0) {
-            fprintf(stderr, "Test failed: %s\n", test_file);
-            fflush(stderr);
-            return 1;
-        }
-        printf("Test completed successfully: %s\n", test_file);
-        fflush(stdout);
-        return 0;
     }
 
     /* Initialize SDL2 */

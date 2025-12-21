@@ -782,16 +782,6 @@ static LispObject *builtin_terminal_scroll_locked_p(LispObject *args, Environmen
     return NIL;
 }
 
-/**
- * current-time-ms: Return current time in milliseconds
- * Returns the value of SDL_GetTicks() for timer support.
- */
-static LispObject *builtin_current_time_ms(LispObject *args, Environment *env) {
-    (void)args;
-    (void)env;
-    return lisp_make_integer((long long)SDL_GetTicks());
-}
-
 /* Animation builtin functions */
 #if HAVE_RLOTTIE
 
@@ -1410,27 +1400,6 @@ int lisp_x_init(void) {
                                              "    (terminal-echo \"[At live output]\\r\\n\"))\n"
                                              "```\n";
     REGISTER_BUILTIN("terminal-scroll-locked?", builtin_terminal_scroll_locked_p, terminal_scroll_locked_doc);
-
-    /* current-time-ms: Return current time in milliseconds for timer support */
-    const char *current_time_ms_doc = "Return current time in milliseconds.\n"
-                                      "\n"
-                                      "## Returns\n"
-                                      "Integer - milliseconds since application start (from SDL_GetTicks)\n"
-                                      "\n"
-                                      "## Description\n"
-                                      "Returns the number of milliseconds since the SDL library was initialized.\n"
-                                      "Used by the timer system to track when timers should fire.\n"
-                                      "\n"
-                                      "## Examples\n"
-                                      "```lisp\n"
-                                      "(current-time-ms)\n"
-                                      "; => 45230  (45.23 seconds since start)\n"
-                                      "```\n"
-                                      "\n"
-                                      "## See Also\n"
-                                      "- `run-at-time` - Schedule a timer\n"
-                                      "- `run-timers` - Execute due timers";
-    REGISTER_BUILTIN("current-time-ms", builtin_current_time_ms, current_time_ms_doc);
 
 #if HAVE_RLOTTIE
     /* Initialize animation type symbol for Lisp object wrapping */

@@ -3,7 +3,7 @@
 ;; This test file tests functions from init.lisp.
 ;;
 ;; To run this test:
-;;   telnet-gui.exe -t bootstrap-test.lisp
+;;   telnet-gui.exe -t init-test.lisp
 ;;
 ;; Note: init.lisp is automatically loaded by telnet-gui, so the functions
 ;; are available when running tests through telnet-gui's test runner.

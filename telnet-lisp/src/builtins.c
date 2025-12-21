@@ -6,6 +6,10 @@
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
+#include <time.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 /* Arithmetic operations */
 static LispObject *builtin_add(LispObject *args, Environment *env);
@@ -535,6 +539,9 @@ static LispObject *builtin_set_documentation(LispObject *args, Environment *env)
 
 /* Eval */
 static LispObject *builtin_eval(LispObject *args, Environment *env);
+
+/* Time */
+static LispObject *builtin_current_time_ms(LispObject *args, Environment *env);
 
 /* Equality predicates */
 static LispObject *builtin_eq_predicate(LispObject *args, Environment *env);
@@ -2818,6 +2825,18 @@ void register_builtins(Environment *env) {
              "Examples:\n"
              "  (eval '(+ 1 2))     ; => 3\n"
              "  (eval 'my-function) ; => #<lambda my-function ...>\n");
+
+    /* Time */
+    REGISTER("current-time-ms", builtin_current_time_ms,
+             "Return current time in milliseconds.\n\n"
+             "(current-time-ms) => integer\n\n"
+             "Returns the current monotonic time in milliseconds since an arbitrary\n"
+             "epoch. Used for timer support and measuring elapsed time.\n\n"
+             "Examples:\n"
+             "  (current-time-ms)   ; => 1234567890\n"
+             "  (let ((start (current-time-ms)))\n"
+             "    (sleep 100)\n"
+             "    (- (current-time-ms) start)) ; => ~100\n");
 }
 
 #undef REGISTER
@@ -6763,6 +6782,25 @@ static LispObject *builtin_eval(LispObject *args, Environment *env) {
 
     /* Evaluate the expression in the current environment */
     return lisp_eval(expr, env);
+}
+
+static LispObject *builtin_current_time_ms(LispObject *args, Environment *env) {
+    (void)args;
+    (void)env;
+
+#ifdef _WIN32
+    /* Windows: use GetTickCount64 for millisecond precision */
+    return lisp_make_integer((long long)GetTickCount64());
+#else
+    /* POSIX: use clock_gettime with CLOCK_MONOTONIC */
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+        long long ms = (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+        return lisp_make_integer(ms);
+    }
+    /* Fallback to time() if clock_gettime fails (unlikely) */
+    return lisp_make_integer((long long)time(NULL) * 1000);
+#endif
 }
 
 static LispObject *builtin_set_documentation(LispObject *args, Environment *env) {
