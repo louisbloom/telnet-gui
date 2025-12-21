@@ -14,7 +14,7 @@
 ;; - Retries command on failure patterns ("You failed.", etc.)
 ;; - Enters sleep mode on "You don't have enough mana."
 ;; - Wakes and resumes when prompt shows 100% mana
-;; - Visual indicator on divider line (P = practicing, Z = sleeping)
+;; - Visual indicators on divider line: P when practicing, P+Z when sleeping
 ;;
 ;; Configuration (via eval mode, Shift+Tab):
 ;;   *practice-retry-patterns*   - List of patterns that retry the command
@@ -122,8 +122,9 @@
       (set! *practice-mode* nil)
       (set! *practice-command* nil)
       (set! *practice-sleep-mode* nil)
-      ;; Remove indicator
+      ;; Remove indicators
       (divider-mode-remove 'practice)
+      (divider-mode-remove 'practice-sleep)
       (practice-echo "Stopped"))))
 
 (defun practice-send-empty ()
@@ -135,8 +136,8 @@
   "Enter sleep sub-mode when out of mana."
   (if (not *practice-sleep-mode*)
     (progn
-      ;; Set indicator FIRST (immediate visual feedback)
-      (divider-mode-set 'practice "Z" 20)
+      ;; Add sleep indicator (P remains, Z added)
+      (divider-mode-set 'practice-sleep "Z" 21)
       (set! *practice-sleep-mode* #t)
       (practice-echo "Sleeping (low mana)...")
       (practice-send "sleep")
@@ -154,8 +155,8 @@
         (progn
           (cancel-timer *practice-sleep-timer*)
           (set! *practice-sleep-timer* nil)))
-      ;; Restore indicator FIRST (immediate visual feedback)
-      (divider-mode-set 'practice "P" 20)
+      ;; Remove sleep indicator (P remains)
+      (divider-mode-remove 'practice-sleep)
       ;; Clear sleep mode
       (set! *practice-sleep-mode* nil)
       (practice-echo "Waking up (mana restored)...")
