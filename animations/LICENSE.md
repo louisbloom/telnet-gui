@@ -7,6 +7,13 @@
 - **Source**: [LottieFiles](https://lottiefiles.com/animations/fireworks-Qa0DxeLqfw)
 - **License**: [Lottie Simple License](https://lottiefiles.com/page/license) - Free for personal and commercial use with attribution
 
+## notification.json
+
+- **Title**: Alert On
+- **Author**: Mr.Ratthatwit Arayapongpakdee
+- **Source**: [LottieFiles](https://lottiefiles.com/free-animation/alert-on-nt0TLe2mgk)
+- **License**: [Lottie Simple License](https://lottiefiles.com/page/license) - Free for personal and commercial use with attribution
+
 ## ripple-nudge.json
 
 - **Title**: Ripple nudge
