@@ -38,22 +38,11 @@
        nil)))  ; Success: silent
 
 ;; ============================================================================
-;; Mock hook system (for tests that load code using add-hook)
+;; Hook system variables (init.lisp provides the actual implementation)
 ;; ============================================================================
+;; Note: GUI tests run via telnet-gui which loads init.lisp automatically.
+;; Tests that don't use telnet-gui (like practice-simple-test) define their
+;; own mocks as needed.
 
-(define *hooks* '())
 (defvar *user-input-handled* nil)
 (defvar *user-input-result* nil)
-
-(defun add-hook (hook-name fn)
-  "Mock add-hook: record but don't execute."
-  (set! *hooks* (cons (cons hook-name fn) *hooks*))
-  nil)
-
-(defun remove-hook (hook-name fn)
-  "Mock remove-hook: do nothing."
-  nil)
-
-(defun run-hook (hook-name &rest args)
-  "Mock run-hook: do nothing."
-  nil)

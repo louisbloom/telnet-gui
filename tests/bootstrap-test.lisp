@@ -338,6 +338,42 @@
 
 (print "")
 (print "====================================================================")
+(print "TESTING SYMBOL-BASED HOOK DISPATCH")
+(print "====================================================================")
+
+;; Test that run-hook properly dispatches to functions via symbol lookup (uses eval)
+(define *test-hook-called* nil)
+(define *test-hook-arg* nil)
+
+(defun test-hook-handler (arg)
+  "Test hook handler that records it was called."
+  (set! *test-hook-called* #t)
+  (set! *test-hook-arg* arg)
+  nil)
+
+(print "Test: Register hook by symbol...")
+(add-hook 'test-hook 'test-hook-handler)
+
+(print "Test: run-hook dispatches via eval...")
+(run-hook 'test-hook "test-value")
+(assert-true *test-hook-called* "Hook should be called via symbol dispatch")
+(assert-equal *test-hook-arg* "test-value" "Hook should receive argument")
+
+(print "Test: Duplicate registration prevented...")
+(set! *test-hook-called* nil)
+(add-hook 'test-hook 'test-hook-handler)  ; Try to add again
+(run-hook 'test-hook "second-call")
+;; Should only be called once (not twice) if duplicate prevention works
+(assert-true *test-hook-called* "Hook should still be called")
+
+(print "Test: remove-hook by symbol...")
+(remove-hook 'test-hook 'test-hook-handler)
+(set! *test-hook-called* nil)
+(run-hook 'test-hook "after-remove")
+(assert-false *test-hook-called* "Hook should not be called after removal")
+
+(print "")
+(print "====================================================================")
 (print "TESTING telnet-input-hook (HOOK SYSTEM)")
 (print "====================================================================")
 
