@@ -115,7 +115,7 @@ void lisp_x_register_glyph_cache(struct GlyphCache *cache);
 /* Register window pointer for terminal-info builtin */
 void lisp_x_register_window(struct Window *w);
 
-/* Register input area pointer for input-area-redraw builtin */
+/* Register input area pointer for divider-mode-set/remove builtins */
 struct InputArea;
 void lisp_x_register_input_area(struct InputArea *area);
 

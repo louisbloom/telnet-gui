@@ -86,7 +86,6 @@
 
 (define *mock-telnet-sends* '())
 (define *mock-terminal-echoes* '())
-(define *mock-divider-modes* '())
 
 (defun telnet-send (text)
   "Mock telnet-send: record the sent text."
@@ -98,15 +97,44 @@
   (set! *mock-terminal-echoes* (append *mock-terminal-echoes* (list text)))
   nil)
 
+;; Mock divider-mode-set and divider-mode-remove
+;; These match the C builtin behavior in the real app - they update *divider-modes*
+;; The variable *divider-modes* is defined in bootstrap.lisp (or we define it here)
+(define *divider-modes* '())
+
 (defun divider-mode-set (sym display &rest args)
-  "Mock divider-mode-set: record the mode change."
-  (set! *mock-divider-modes* (append *mock-divider-modes* (list (list 'set sym display))))
+  "Mock divider-mode-set: update *divider-modes* directly."
+  (let ((priority (if (and args (not (null? args))) (car args) 50)))
+    ;; Remove existing entry for this symbol
+    (set! *divider-modes*
+      (filter (lambda (entry)
+                (not (eq? (car (cdr entry)) sym)))
+              *divider-modes*))
+    ;; Add new entry: (priority . (symbol . display))
+    (let ((new-entry (cons priority (cons sym display))))
+      (set! *divider-modes* (cons new-entry *divider-modes*))))
   nil)
 
 (defun divider-mode-remove (sym)
-  "Mock divider-mode-remove: record the removal."
-  (set! *mock-divider-modes* (append *mock-divider-modes* (list (list 'remove sym))))
+  "Mock divider-mode-remove: update *divider-modes* directly."
+  (set! *divider-modes*
+    (filter (lambda (entry)
+              (not (eq? (car (cdr entry)) sym)))
+            *divider-modes*))
   nil)
+
+;; Helper to check if a mode is set in *divider-modes*
+(defun divider-mode-has? (sym)
+  "Check if symbol is in *divider-modes* alist."
+  (let ((found nil))
+    (do ((modes *divider-modes* (cdr modes)))
+      ((or found (null? modes)) found)
+      (let ((entry (car modes)))
+        (if (and entry (pair? entry))
+          (let ((sym-display (cdr entry)))
+            (if (and sym-display (pair? sym-display))
+              (if (eq? (car sym-display) sym)
+                (set! found #t)))))))))
 
 ;; Mock user-input-hook (will be saved by practice.lisp)
 (defun user-input-hook (text cursor-pos)
@@ -117,7 +145,8 @@
 (defun reset-mocks ()
   (set! *mock-telnet-sends* '())
   (set! *mock-terminal-echoes* '())
-  (set! *mock-divider-modes* '()))
+  ;; Clear divider modes directly (it's a global variable)
+  (set! *divider-modes* '()))
 
 ;; ============================================================================
 ;; Load slash.lisp
@@ -201,7 +230,7 @@
 (assert-false *practice-sleep-mode* "practice-start clears sleep mode")
 (assert-true (member "c lightb" *mock-telnet-sends*)
   "practice-start sends the command via telnet")
-(assert-true (member '(set practice "P") *mock-divider-modes*)
+(assert-true (divider-mode-has? 'practice)
   "practice-start sets divider mode to P")
 
 ;; ============================================================================
@@ -233,7 +262,7 @@
 
 (assert-false *practice-mode* "practice-stop clears *practice-mode*")
 (assert-false *practice-command* "practice-stop clears *practice-command*")
-(assert-true (member '(remove practice) *mock-divider-modes*)
+(assert-false (divider-mode-has? 'practice)
   "practice-stop removes divider mode")
 
 ;; ============================================================================
@@ -252,7 +281,7 @@
 (assert-true *practice-sleep-timer* "practice-enter-sleep creates timer")
 (assert-true (member "sleep" *mock-telnet-sends*)
   "practice-enter-sleep sends sleep command")
-(assert-true (member '(set practice "Z") *mock-divider-modes*)
+(assert-true (divider-mode-has? 'practice-sleep)
   "practice-enter-sleep sets divider mode to Z")
 
 ;; Cancel the timer we created
@@ -276,8 +305,8 @@
   "practice-exit-sleep sends stand command")
 (assert-true (member "c lightb" *mock-telnet-sends*)
   "practice-exit-sleep resumes with practice command")
-(assert-true (member '(set practice "P") *mock-divider-modes*)
-  "practice-exit-sleep restores divider mode to P")
+(assert-false (divider-mode-has? 'practice-sleep)
+  "practice-exit-sleep removes sleep indicator")
 
 ;; ============================================================================
 ;; Test practice-telnet-hook - failure pattern detection

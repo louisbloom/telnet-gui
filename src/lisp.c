@@ -400,14 +400,181 @@ static int load_bootstrap_file(void) {
     return 0;
 }
 
-/* Builtin function: input-area-redraw - Request input area/divider redraw */
-static LispObject *builtin_input_area_redraw(LispObject *args, Environment *env) {
-    (void)args;
+/* Builtin function: divider-mode-set - Set a divider mode indicator */
+static LispObject *builtin_divider_mode_set(LispObject *args, Environment *env) {
     (void)env;
 
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("divider-mode-set requires at least 2 arguments: symbol and display string");
+    }
+
+    /* Get symbol argument */
+    LispObject *sym_obj = lisp_car(args);
+    if (sym_obj->type != LISP_SYMBOL) {
+        return lisp_make_error("divider-mode-set: first argument must be a symbol");
+    }
+
+    /* Get display string argument */
+    LispObject *display_obj = lisp_car(lisp_cdr(args));
+    if (display_obj->type != LISP_STRING) {
+        return lisp_make_error("divider-mode-set: second argument must be a string");
+    }
+
+    /* Get optional priority (default 50) */
+    int priority = 50;
+    LispObject *rest = lisp_cdr(lisp_cdr(args));
+    if (rest != NIL) {
+        LispObject *prio_obj = lisp_car(rest);
+        if (prio_obj->type == LISP_INTEGER) {
+            priority = (int)prio_obj->value.integer;
+        }
+    }
+
+    /* Get current *divider-modes* */
+    LispObject *modes = env_lookup(lisp_env, "*divider-modes*");
+    if (modes == NULL)
+        modes = NIL;
+
+    /* Remove existing entry for this symbol */
+    LispObject *filtered = NIL;
+    LispObject *filtered_tail = NIL;
+    LispObject *m = modes;
+    while (m != NIL && m->type == LISP_CONS) {
+        LispObject *entry = lisp_car(m);
+        /* Entry format: (priority . (symbol . display)) */
+        if (entry != NIL && entry->type == LISP_CONS) {
+            LispObject *sym_display = lisp_cdr(entry);
+            if (sym_display != NIL && sym_display->type == LISP_CONS) {
+                LispObject *entry_sym = lisp_car(sym_display);
+                if (entry_sym != sym_obj) {
+                    /* Keep this entry */
+                    LispObject *new_cons = lisp_make_cons(entry, NIL);
+                    if (filtered == NIL) {
+                        filtered = new_cons;
+                        filtered_tail = new_cons;
+                    } else {
+                        filtered_tail->value.cons.cdr = new_cons;
+                        filtered_tail = new_cons;
+                    }
+                }
+            }
+        }
+        m = lisp_cdr(m);
+    }
+
+    /* Create new entry: (priority . (symbol . display)) */
+    LispObject *new_entry = lisp_make_cons(lisp_make_integer(priority), lisp_make_cons(sym_obj, display_obj));
+
+    /* Insert in sorted order by priority */
+    LispObject *result = NIL;
+    LispObject *result_tail = NIL;
+    int inserted = 0;
+    m = filtered;
+    while (m != NIL && m->type == LISP_CONS) {
+        LispObject *entry = lisp_car(m);
+        int entry_prio = (int)lisp_car(entry)->value.integer;
+
+        if (!inserted && priority < entry_prio) {
+            /* Insert new entry before this one */
+            LispObject *new_cons = lisp_make_cons(new_entry, NIL);
+            if (result == NIL) {
+                result = new_cons;
+                result_tail = new_cons;
+            } else {
+                result_tail->value.cons.cdr = new_cons;
+                result_tail = new_cons;
+            }
+            inserted = 1;
+        }
+
+        /* Add current entry */
+        LispObject *cur_cons = lisp_make_cons(entry, NIL);
+        if (result == NIL) {
+            result = cur_cons;
+            result_tail = cur_cons;
+        } else {
+            result_tail->value.cons.cdr = cur_cons;
+            result_tail = cur_cons;
+        }
+
+        m = lisp_cdr(m);
+    }
+
+    /* If not inserted yet, add at end */
+    if (!inserted) {
+        LispObject *new_cons = lisp_make_cons(new_entry, NIL);
+        if (result == NIL) {
+            result = new_cons;
+        } else {
+            result_tail->value.cons.cdr = new_cons;
+        }
+    }
+
+    /* Update *divider-modes* */
+    env_define(lisp_env, "*divider-modes*", result);
+
+    /* Trigger redraw */
     if (registered_input_area) {
         input_area_request_redraw(registered_input_area);
     }
+
+    return NIL;
+}
+
+/* Builtin function: divider-mode-remove - Remove a divider mode indicator */
+static LispObject *builtin_divider_mode_remove(LispObject *args, Environment *env) {
+    (void)env;
+
+    if (args == NIL) {
+        return lisp_make_error("divider-mode-remove requires 1 argument: symbol");
+    }
+
+    /* Get symbol argument */
+    LispObject *sym_obj = lisp_car(args);
+    if (sym_obj->type != LISP_SYMBOL) {
+        return lisp_make_error("divider-mode-remove: argument must be a symbol");
+    }
+
+    /* Get current *divider-modes* */
+    LispObject *modes = env_lookup(lisp_env, "*divider-modes*");
+    if (modes == NULL)
+        modes = NIL;
+
+    /* Remove entry for this symbol */
+    LispObject *result = NIL;
+    LispObject *result_tail = NIL;
+    LispObject *m = modes;
+    while (m != NIL && m->type == LISP_CONS) {
+        LispObject *entry = lisp_car(m);
+        /* Entry format: (priority . (symbol . display)) */
+        if (entry != NIL && entry->type == LISP_CONS) {
+            LispObject *sym_display = lisp_cdr(entry);
+            if (sym_display != NIL && sym_display->type == LISP_CONS) {
+                LispObject *entry_sym = lisp_car(sym_display);
+                if (entry_sym != sym_obj) {
+                    /* Keep this entry */
+                    LispObject *new_cons = lisp_make_cons(entry, NIL);
+                    if (result == NIL) {
+                        result = new_cons;
+                        result_tail = new_cons;
+                    } else {
+                        result_tail->value.cons.cdr = new_cons;
+                        result_tail = new_cons;
+                    }
+                }
+            }
+        }
+        m = lisp_cdr(m);
+    }
+
+    /* Update *divider-modes* */
+    env_define(lisp_env, "*divider-modes*", result);
+
+    /* Trigger redraw */
+    if (registered_input_area) {
+        input_area_request_redraw(registered_input_area);
+    }
+
     return NIL;
 }
 
@@ -1018,21 +1185,56 @@ int lisp_x_init(void) {
                                     "- `terminal-info` - Get terminal dimensions and info";
     REGISTER_BUILTIN("terminal-echo", builtin_terminal_echo, terminal_echo_doc);
 
-    /* Register input-area-redraw builtin */
-    const char *input_area_redraw_doc = "Request redraw of input area and divider.\n"
-                                        "\n"
-                                        "## Returns\n"
-                                        "`nil`\n"
-                                        "\n"
-                                        "## Description\n"
-                                        "Requests a redraw of the input area, including the divider line\n"
-                                        "and mode indicators. Call this after modifying `*divider-modes*`\n"
-                                        "to ensure the display is updated.\n"
-                                        "\n"
-                                        "## See Also\n"
-                                        "- `divider-mode-set` - Set a divider mode indicator\n"
-                                        "- `divider-mode-remove` - Remove a divider mode indicator";
-    REGISTER_BUILTIN("input-area-redraw", builtin_input_area_redraw, input_area_redraw_doc);
+    /* Register divider-mode-set builtin */
+    const char *divider_mode_set_doc = "Set a divider mode indicator.\n"
+                                       "\n"
+                                       "## Parameters\n"
+                                       "- `sym` - Mode identifier symbol (e.g., 'eval, 'practice)\n"
+                                       "- `display` - Display string (e.g., \"P\", \"Z\")\n"
+                                       "- `priority` - Optional integer, lower = displayed first (default: 50)\n"
+                                       "\n"
+                                       "## Returns\n"
+                                       "`nil`\n"
+                                       "\n"
+                                       "## Description\n"
+                                       "Adds or updates a mode indicator on the divider line. If a mode with the\n"
+                                       "same symbol already exists, it is replaced. Modes are displayed in priority\n"
+                                       "order (lowest first). Automatically triggers a redraw.\n"
+                                       "\n"
+                                       "## Examples\n"
+                                       "```lisp\n"
+                                       "(divider-mode-set 'practice \"P\" 20)  ; Practice mode indicator\n"
+                                       "(divider-mode-set 'sleep \"Z\" 21)     ; Sleep mode indicator\n"
+                                       "```\n"
+                                       "\n"
+                                       "## See Also\n"
+                                       "- `divider-mode-remove` - Remove a mode indicator\n"
+                                       "- `*divider-modes*` - The mode alist";
+    REGISTER_BUILTIN("divider-mode-set", builtin_divider_mode_set, divider_mode_set_doc);
+
+    /* Register divider-mode-remove builtin */
+    const char *divider_mode_remove_doc = "Remove a divider mode indicator.\n"
+                                          "\n"
+                                          "## Parameters\n"
+                                          "- `sym` - Mode identifier symbol to remove\n"
+                                          "\n"
+                                          "## Returns\n"
+                                          "`nil`\n"
+                                          "\n"
+                                          "## Description\n"
+                                          "Removes the mode indicator with the given symbol from the divider.\n"
+                                          "Does nothing if the mode doesn't exist. Automatically triggers a redraw.\n"
+                                          "\n"
+                                          "## Examples\n"
+                                          "```lisp\n"
+                                          "(divider-mode-remove 'practice)\n"
+                                          "(divider-mode-remove 'sleep)\n"
+                                          "```\n"
+                                          "\n"
+                                          "## See Also\n"
+                                          "- `divider-mode-set` - Set a mode indicator\n"
+                                          "- `*divider-modes*` - The mode alist";
+    REGISTER_BUILTIN("divider-mode-remove", builtin_divider_mode_remove, divider_mode_remove_doc);
 
     /* Register telnet-send builtin */
     const char *telnet_send_doc = "Send text to telnet server.\n"
