@@ -136,9 +136,9 @@
   "Enter sleep sub-mode when out of mana."
   (if (not *practice-sleep-mode*)
     (progn
+      (set! *practice-sleep-mode* #t)
       ;; Add sleep indicator (P remains, Z added)
       (divider-mode-set 'practice-sleep "Z" 21)
-      (set! *practice-sleep-mode* #t)
       (practice-echo "Sleeping (low mana)...")
       (practice-send "sleep")
       ;; Start timer for periodic prompt refresh
@@ -155,10 +155,10 @@
         (progn
           (cancel-timer *practice-sleep-timer*)
           (set! *practice-sleep-timer* nil)))
-      ;; Remove sleep indicator (P remains)
-      (divider-mode-remove 'practice-sleep)
       ;; Clear sleep mode
       (set! *practice-sleep-mode* nil)
+      ;; Remove sleep indicator (P remains)
+      (divider-mode-remove 'practice-sleep)
       (practice-echo "Waking up (mana restored)...")
       ;; Stand up and resume practicing
       (practice-send "stand")
