@@ -135,8 +135,9 @@
   "Enter sleep sub-mode when out of mana."
   (if (not *practice-sleep-mode*)
     (progn
-      (set! *practice-sleep-mode* #t)
+      ;; Set indicator FIRST (immediate visual feedback)
       (divider-mode-set 'practice "Z" 20)
+      (set! *practice-sleep-mode* #t)
       (practice-echo "Sleeping (low mana)...")
       (practice-send "sleep")
       ;; Start timer for periodic prompt refresh
