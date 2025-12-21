@@ -533,6 +533,9 @@ static LispObject *builtin_documentation(LispObject *args, Environment *env);
 static LispObject *builtin_bound_p(LispObject *args, Environment *env);
 static LispObject *builtin_set_documentation(LispObject *args, Environment *env);
 
+/* Eval */
+static LispObject *builtin_eval(LispObject *args, Environment *env);
+
 /* Equality predicates */
 static LispObject *builtin_eq_predicate(LispObject *args, Environment *env);
 static LispObject *builtin_equal_predicate(LispObject *args, Environment *env);
@@ -2805,6 +2808,16 @@ void register_builtins(Environment *env) {
     REGISTER("documentation", builtin_documentation, doc_documentation);
     REGISTER("bound?", builtin_bound_p, doc_bound_p);
     REGISTER("set-documentation!", builtin_set_documentation, doc_set_documentation);
+
+    /* Eval */
+    REGISTER("eval", builtin_eval,
+             "Evaluate an expression.\n\n"
+             "(eval expr) => result\n\n"
+             "Evaluates expr in the current environment and returns the result.\n"
+             "Useful for evaluating symbols to get their bound values.\n\n"
+             "Examples:\n"
+             "  (eval '(+ 1 2))     ; => 3\n"
+             "  (eval 'my-function) ; => #<lambda my-function ...>\n");
 }
 
 #undef REGISTER
@@ -6739,6 +6752,17 @@ static LispObject *builtin_bound_p(LispObject *args, Environment *env) {
     LispObject *value = env_lookup(env, symbol->value.symbol->name);
 
     return value != NULL ? LISP_TRUE : NIL;
+}
+
+static LispObject *builtin_eval(LispObject *args, Environment *env) {
+    if (args == NIL) {
+        return lisp_make_error("eval requires 1 argument");
+    }
+
+    LispObject *expr = lisp_car(args);
+
+    /* Evaluate the expression in the current environment */
+    return lisp_eval(expr, env);
 }
 
 static LispObject *builtin_set_documentation(LispObject *args, Environment *env) {
