@@ -104,7 +104,7 @@
       (set! *practice-command* command)
       (set! *practice-sleep-mode* nil)
       (set! *practice-sleep-timer* nil)
-      (divider-mode-set 'practice "P" 20)
+      (divider-mode-set 'practice "🤹🏼" 20)
       (practice-echo (concat "Started: " command))
       (practice-send command))))
 
@@ -138,7 +138,7 @@
     (progn
       (set! *practice-sleep-mode* #t)
       ;; Add sleep indicator (P remains, Z added)
-      (divider-mode-set 'practice-sleep "Z" 21)
+      (divider-mode-set 'practice-sleep "💤" 21)
       (practice-echo "Sleeping (low mana)...")
       (practice-send "sleep")
       ;; Start timer for periodic prompt refresh
