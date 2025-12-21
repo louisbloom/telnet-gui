@@ -25,7 +25,7 @@ Note: Requires rlottie support to be compiled in.")
 
 ;; Load animation if rlottie support is available
 (when (bound? 'animation-load)
-  (let ((anim (animation-load "notification.json")))
+  (let ((anim (animation-load "ripple-nudge.json")))
     (when (and anim (not (error? anim)) (animation-loaded? anim))
       (animation-set-loop anim nil)      ; Play once, don't loop
       (animation-set-dim-mode anim 0.85) ; Subtle overlay

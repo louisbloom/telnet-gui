@@ -347,8 +347,6 @@ set(LOG2HTML_DST "${CMAKE_BINARY_DIR}/telnet-gui-log2html.py")
 # Copy sample animation files to build directory
 set(ANIM_FIREWORKS_SRC "${CMAKE_SOURCE_DIR}/animations/fireworks.json")
 set(ANIM_FIREWORKS_DST "${CMAKE_BINARY_DIR}/animations/fireworks.json")
-set(ANIM_NOTIFICATION_SRC "${CMAKE_SOURCE_DIR}/animations/notification.json")
-set(ANIM_NOTIFICATION_DST "${CMAKE_BINARY_DIR}/animations/notification.json")
 set(ANIM_NOTIFICATION_ICON_SRC "${CMAKE_SOURCE_DIR}/animations/notification-icon.json")
 set(ANIM_NOTIFICATION_ICON_DST "${CMAKE_BINARY_DIR}/animations/notification-icon.json")
 set(ANIM_RIPPLE_NUDGE_SRC "${CMAKE_SOURCE_DIR}/animations/ripple-nudge.json")
@@ -383,7 +381,6 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LOG2HTML_SRC}" "${LOG2HTML_DST}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/animations"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_FIREWORKS_SRC}" "${ANIM_FIREWORKS_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_NOTIFICATION_SRC}" "${ANIM_NOTIFICATION_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_NOTIFICATION_ICON_SRC}" "${ANIM_NOTIFICATION_ICON_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_RIPPLE_NUDGE_SRC}" "${ANIM_RIPPLE_NUDGE_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_LICENSE_SRC}" "${ANIM_LICENSE_DST}"
@@ -456,7 +453,6 @@ install(FILES
 # Install sample animation files to share directory
 install(FILES
     "${ANIM_FIREWORKS_SRC}"
-    "${ANIM_NOTIFICATION_SRC}"
     "${ANIM_NOTIFICATION_ICON_SRC}"
     "${ANIM_RIPPLE_NUDGE_SRC}"
     "${ANIM_LICENSE_SRC}"
