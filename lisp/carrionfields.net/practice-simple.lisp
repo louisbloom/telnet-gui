@@ -42,7 +42,7 @@
   "Pattern that triggers immediate sleep mode (spell too costly).")
 
 (defvar *practice-retry-patterns*
-  '("You failed." "You lost your concentration.")
+  '("You failed." "You lost your concentration." "You are already")
   "List of patterns that trigger a retry of the practice command.")
 
 ;; ============================================================================
@@ -105,7 +105,6 @@
       (set! *practice-sleep-mode* nil)
       (set! *practice-sleep-timer* nil)
       (divider-mode-set 'practice "🤹" 20)
-      (practice-echo (concat "Started: " command))
       (practice-send command))))
 
 (defun practice-stop ()
@@ -192,7 +191,8 @@
           (if (and mana (>= mana 100))
             (practice-exit-sleep)))))))
 
-;; Register the telnet hook
+;; Register the telnet hook (remove first to prevent duplicates on reload)
+(remove-hook 'telnet-input-hook practice-telnet-hook)
 (add-hook 'telnet-input-hook practice-telnet-hook)
 
 ;; ============================================================================
@@ -241,7 +241,8 @@
       (set! *user-input-handled* #t)
       (set! *user-input-result* nil))))
 
-;; Register the user input hook
+;; Register the user input hook (remove first to prevent duplicates on reload)
+(remove-hook 'user-input-hook practice-user-input-hook)
 (add-hook 'user-input-hook practice-user-input-hook)
 
 ;; ============================================================================
