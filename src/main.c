@@ -1616,6 +1616,10 @@ int main(int argc, char **argv) {
                 if (lisp_x_is_tab_mode_active()) {
                     lisp_x_accept_tab_completion();
                 }
+                /* Scroll to bottom when user starts typing */
+                if (lisp_x_get_scroll_to_bottom_on_user_input()) {
+                    terminal_scroll_to_bottom(term);
+                }
                 /* All text input goes to input area */
                 const char *text = event.text.text;
                 int text_len = strlen(text);
