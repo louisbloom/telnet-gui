@@ -172,18 +172,23 @@
   "Handle telnet input for practice mode.
    Triggers on specific patterns for retry/sleep, prompt only for waking."
   (if *practice-mode*
-    (cond
-      ;; Check for mana exhaustion message (spell too costly)
-      ((and (not *practice-sleep-mode*)
-         (string-contains? text *practice-sleep-pattern*))
-        (practice-enter-sleep))
-      ;; Check for retry patterns (spell failed, lost concentration, etc.)
-      ((and (not *practice-sleep-mode*)
-         (practice-matches-any-pattern? text *practice-retry-patterns*))
-        (practice-send *practice-command*))
-      ;; In sleep mode: check prompt for mana restoration
-      (*practice-sleep-mode*
-        (let ((mana (practice-extract-mana text)))
+    (let ((mana (practice-extract-mana text)))
+      (cond
+        ;; Check for mana exhaustion message (spell too costly)
+        ((and (not *practice-sleep-mode*)
+           (string-contains? text *practice-sleep-pattern*))
+          (practice-enter-sleep))
+        ;; Check if mana dropped below threshold
+        ((and (not *practice-sleep-mode*)
+           mana
+           (< mana *practice-mana-threshold*))
+          (practice-enter-sleep))
+        ;; Check for retry patterns (spell failed, lost concentration, etc.)
+        ((and (not *practice-sleep-mode*)
+           (practice-matches-any-pattern? text *practice-retry-patterns*))
+          (practice-send *practice-command*))
+        ;; In sleep mode: check prompt for mana restoration
+        (*practice-sleep-mode*
           (if (and mana (>= mana 100))
             (practice-exit-sleep)))))))
 
