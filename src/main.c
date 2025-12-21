@@ -1012,6 +1012,9 @@ int main(int argc, char **argv) {
     /* Register window with Lisp bridge for terminal-info builtin */
     lisp_x_register_window(win);
 
+    /* Register input area with Lisp bridge for input-area-redraw builtin */
+    lisp_x_register_input_area(&input_area);
+
 #if HAVE_RLOTTIE
     /* Register SDL renderer with Lisp for animation creation */
     lisp_x_register_renderer(renderer);

@@ -1756,8 +1756,13 @@ order (lowest first).
 - `divider-mode-remove` - Remove a mode indicator
 - `*divider-modes*` - The mode alist"
   (let ((prio (if (and priority (number? priority)) priority 50)))
-    ;; Remove existing entry for this symbol
-    (divider-mode-remove sym)
+    ;; Remove existing entry for this symbol (internal, no redraw)
+    (let ((result '()))
+      (do ((modes *divider-modes* (cdr modes)))
+        ((null? modes)
+          (set! *divider-modes* (reverse result)))
+        (if (not (eq? (car (cdr (car modes))) sym))
+          (set! result (cons (car modes) result)))))
     ;; Create new entry: (priority . (symbol . display))
     (let ((entry (cons prio (cons sym display)))
            (result '())
@@ -1771,7 +1776,9 @@ order (lowest first).
           (progn
             (set! inserted #t)
             (set! result (cons (car modes) (cons entry result))))
-          (set! result (cons (car modes) result)))))))
+          (set! result (cons (car modes) result))))))
+  ;; Trigger redraw to show updated indicator
+  (input-area-redraw))
 
 (defun divider-mode-remove (sym)
   "Remove a divider mode indicator.
@@ -1802,7 +1809,9 @@ Does nothing if the mode doesn't exist.
       ;; Entry format: (priority . (symbol . display))
       ;; Skip if symbol matches, otherwise keep
       (if (not (eq? (car (cdr (car modes))) sym))
-        (set! result (cons (car modes) result))))))
+        (set! result (cons (car modes) result)))))
+  ;; Trigger redraw to show updated indicator
+  (input-area-redraw))
 
 ;; ============================================================================
 ;; TIMER SYSTEM

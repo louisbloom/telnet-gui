@@ -67,6 +67,7 @@ static Terminal *registered_terminal = NULL;
 static Telnet *registered_telnet = NULL;
 static GlyphCache *registered_glyph_cache = NULL;
 static Window *registered_window = NULL;
+static InputArea *registered_input_area = NULL;
 #if HAVE_RLOTTIE
 static SDL_Renderer *registered_renderer = NULL;
 static Animation *active_animation = NULL; /* Animation currently being rendered */
@@ -397,6 +398,17 @@ static int load_bootstrap_file(void) {
 
     fprintf(stderr, "Bootstrap file resolution: ERROR - Failed to load bootstrap file from all attempted paths\n");
     return 0;
+}
+
+/* Builtin function: input-area-redraw - Request input area/divider redraw */
+static LispObject *builtin_input_area_redraw(LispObject *args, Environment *env) {
+    (void)args;
+    (void)env;
+
+    if (registered_input_area) {
+        input_area_request_redraw(registered_input_area);
+    }
+    return NIL;
 }
 
 /* Builtin function: terminal-echo - Echo text to terminal display */
@@ -1005,6 +1017,22 @@ int lisp_x_init(void) {
                                     "- `telnet-send` - Send text to server\n"
                                     "- `terminal-info` - Get terminal dimensions and info";
     REGISTER_BUILTIN("terminal-echo", builtin_terminal_echo, terminal_echo_doc);
+
+    /* Register input-area-redraw builtin */
+    const char *input_area_redraw_doc = "Request redraw of input area and divider.\n"
+                                        "\n"
+                                        "## Returns\n"
+                                        "`nil`\n"
+                                        "\n"
+                                        "## Description\n"
+                                        "Requests a redraw of the input area, including the divider line\n"
+                                        "and mode indicators. Call this after modifying `*divider-modes*`\n"
+                                        "to ensure the display is updated.\n"
+                                        "\n"
+                                        "## See Also\n"
+                                        "- `divider-mode-set` - Set a divider mode indicator\n"
+                                        "- `divider-mode-remove` - Remove a divider mode indicator";
+    REGISTER_BUILTIN("input-area-redraw", builtin_input_area_redraw, input_area_redraw_doc);
 
     /* Register telnet-send builtin */
     const char *telnet_send_doc = "Send text to telnet server.\n"
@@ -2293,6 +2321,10 @@ void lisp_x_register_glyph_cache(GlyphCache *cache) {
 
 void lisp_x_register_window(Window *w) {
     registered_window = w;
+}
+
+void lisp_x_register_input_area(InputArea *area) {
+    registered_input_area = area;
 }
 
 #if HAVE_RLOTTIE
