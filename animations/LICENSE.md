@@ -9,9 +9,9 @@
 
 ## notification.json
 
-- **Title**: Alert On
-- **Author**: Mr.Ratthatwit Arayapongpakdee
-- **Source**: [LottieFiles](https://lottiefiles.com/free-animation/alert-on-nt0TLe2mgk)
+- **Title**: Notification Dot Blue
+- **Author**: nokiy asdw
+- **Source**: [LottieFiles](https://lottiefiles.com/free-animation/notification-dot-blue-JtBzoskbsz)
 - **License**: [Lottie Simple License](https://lottiefiles.com/page/license) - Free for personal and commercial use with attribution
 
 ## ripple-nudge.json
