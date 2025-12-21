@@ -104,7 +104,7 @@
       (set! *practice-command* command)
       (set! *practice-sleep-mode* nil)
       (set! *practice-sleep-timer* nil)
-      (divider-mode-set 'practice "🤹🏼" 20)
+      (divider-mode-set 'practice "🤹" 20)
       (practice-echo (concat "Started: " command))
       (practice-send command))))
 
