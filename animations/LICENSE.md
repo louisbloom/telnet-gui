@@ -9,9 +9,9 @@
 
 ## notification.json
 
-- **Title**: Notification Dot Blue
-- **Author**: nokiy asdw
-- **Source**: [LottieFiles](https://lottiefiles.com/free-animation/notification-dot-blue-JtBzoskbsz)
+- **Title**: Tap Burst
+- **Author**: Eddy
+- **Source**: [LottieFiles](https://lottiefiles.com/free-animation/tap-burst-4iFocfda2b)
 - **License**: [Lottie Simple License](https://lottiefiles.com/page/license) - Free for personal and commercial use with attribution
 
 ## ripple-nudge.json
