@@ -1771,10 +1771,6 @@ int main(int argc, char **argv) {
                     char recv_buf[4096];
                     int received = telnet_receive(telnet, recv_buf, sizeof(recv_buf) - 1);
                     if (received > 0) {
-                        /* Clear terminal selection on new input */
-                        if (terminal_selection.active) {
-                            clear_terminal_selection(term);
-                        }
                         /* Call telnet-input-hook with received data (stripped of ANSI codes) */
                         lisp_x_call_telnet_input_hook(recv_buf, received);
                         /* Call telnet-input-filter-hook to transform data before displaying in terminal */
