@@ -5521,7 +5521,7 @@ Maps attribute names to their ANSI SGR codes.")
 ;; Automatically activate TinTin++ when this file is loaded
 
 ;; Register TinTin++ user input hook via the extensible hook system
-(add-hook 'user-input-hook tintin-user-input-hook)
+(add-hook 'user-input-hook 'tintin-user-input-hook)
 
 ;; Hook function for telnet-input-filter-hook integration
 ;; Signature: (lambda (text) -> string)

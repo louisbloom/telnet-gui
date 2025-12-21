@@ -39,6 +39,10 @@ Note: Requires rlottie support to be compiled in.")
           (not (animation-playing? *scroll-lock-notification-animation*)))
     (animation-play *scroll-lock-notification-animation*)))
 
+;; Hook wrapper for scroll-lock notifications (matches telnet-input-hook signature)
+(defun scroll-lock-notification-hook (text)
+  "Telnet input hook handler for scroll-lock notification animation."
+  (maybe-play-scroll-lock-notification))
+
 ;; Register hook for scroll-lock notifications
-(add-hook 'telnet-input-hook
-  (lambda (text) (maybe-play-scroll-lock-notification)))
+(add-hook 'telnet-input-hook 'scroll-lock-notification-hook)

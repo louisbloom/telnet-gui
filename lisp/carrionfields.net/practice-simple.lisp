@@ -191,9 +191,8 @@
           (if (and mana (>= mana 100))
             (practice-exit-sleep)))))))
 
-;; Register the telnet hook (only once)
-(unless (bound? '*practice-hooks-registered*)
-  (add-hook 'telnet-input-hook practice-telnet-hook))
+;; Register the telnet hook (symbol-based, prevents duplicates on reload)
+(add-hook 'telnet-input-hook 'practice-telnet-hook)
 
 ;; ============================================================================
 ;; USER INPUT HOOK
@@ -241,13 +240,8 @@
       (set! *user-input-handled* #t)
       (set! *user-input-result* nil))))
 
-;; Register the user input hook (only once)
-(unless (bound? '*practice-hooks-registered*)
-  (add-hook 'user-input-hook practice-user-input-hook))
-
-;; Mark hooks as registered
-(defvar *practice-hooks-registered* #t
-  "Guard to prevent duplicate hook registration on reload.")
+;; Register the user input hook (symbol-based, prevents duplicates on reload)
+(add-hook 'user-input-hook 'practice-user-input-hook)
 
 ;; ============================================================================
 ;; INITIALIZATION MESSAGE
