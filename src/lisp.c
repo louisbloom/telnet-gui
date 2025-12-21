@@ -2447,7 +2447,7 @@ void lisp_x_get_terminal_bg_color(int *r, int *g, int *b) {
 
 /* Divider colors */
 void lisp_x_get_divider_connected_color(int *r, int *g, int *b) {
-    get_color_from_lisp("*divider-connected-color*", r, g, b, 128, 150, 150); /* Gray with green/blue tint */
+    get_color_from_lisp("*divider-connected-color*", r, g, b, 100, 160, 120); /* Green tint */
 }
 
 void lisp_x_get_divider_disconnected_color(int *r, int *g, int *b) {
