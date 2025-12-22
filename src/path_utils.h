@@ -40,6 +40,13 @@ int path_construct_data_directory(const char *base_path, char *out_path, size_t 
  */
 int path_construct_exe_relative(const char *base_path, const char *filename, char *out_path, size_t out_path_size);
 
+/* Check if a path is absolute.
+ * Windows: Returns 1 if path starts with drive letter (C:, D:, etc.) or UNC (\\)
+ * Unix: Returns 1 if path starts with /
+ * Returns: 1 if absolute, 0 if relative
+ */
+int path_is_absolute(const char *path);
+
 /* Check if a file exists at the given path.
  * Returns: 1 if exists, 0 if not
  */

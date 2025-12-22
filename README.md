@@ -51,7 +51,7 @@ See [Building from Source](#building-from-source) for installation instructions.
 
 **Other Options:**
 
-- `-l, --lisp-file FILE` - Load Lisp configuration file
+- `-l, --lisp-file FILE` - Load Lisp configuration file. Supports relative paths (e.g., `contrib/practice.lisp`). Searches current directory first, then standard locations. Absolute paths are loaded directly.
 - `-t, --test FILE` - Run Lisp test file in headless mode
 - `-h, --help` - Show help message
 
@@ -83,10 +83,27 @@ The divider line between terminal and input area displays status indicators:
 **TinTin++ Scripting:**
 
 ```bash
-./telnet-gui -l lisp/tintin.lisp <host> <port>
+# Load TinTin++ scripting support (searches lisp/ automatically)
+./telnet-gui -l tintin.lisp <host> <port>
+
+# Load contrib scripts (e.g., practice mode for MUDs)
+./telnet-gui -l contrib/practice.lisp <host> <port>
+
+# Load multiple files
+./telnet-gui -l tintin.lisp -l contrib/practice.lisp <host> <port>
 ```
 
 Features aliases, variables, speedwalking, and command chaining. See [TINTIN.md](TINTIN.md) for full documentation.
+
+**Lisp File Loading:**
+
+The `-l` flag searches for files in this order:
+
+1. Current working directory (PWD)
+2. Build/development paths (`lisp/` subdirectory)
+3. Installed data directory
+
+Relative paths like `contrib/practice.lisp` are resolved the same way as simple filenames like `tintin.lisp`. Absolute paths (e.g., `C:\Users\...\file.lisp` on Windows, `/home/user/file.lisp` on Unix) are loaded directly without searching.
 
 **Emoji Support:**
 
@@ -96,7 +113,7 @@ The terminal supports color emoji rendering via system emoji fonts (e.g., NotoCo
 
 ```lisp
 (define anim (animation-load "animations/fireworks.json"))
-(animation-set-loop anim t)
+(animation-set-loop anim #t)  ; #t enables looping
 (animation-play anim)  ; automatically sets as active
 ```
 
@@ -162,9 +179,12 @@ Telnet GUI uses an Emacs-style hook system for extensibility. Hooks allow multip
 
 **Built-in hooks:**
 
-| Hook                | Arguments | Description                                           |
-| ------------------- | --------- | ----------------------------------------------------- |
-| `telnet-input-hook` | `(text)`  | Called when data received from server (ANSI stripped) |
+| Hook                       | Arguments           | Description                                                                             |
+| -------------------------- | ------------------- | --------------------------------------------------------------------------------------- |
+| `telnet-input-hook`        | `(text)`            | Called when data received from server (ANSI stripped). Side-effect only.                |
+| `telnet-input-filter-hook` | `(text)`            | Transform telnet output before display (includes ANSI codes). Returns transformed text. |
+| `user-input-hook`          | `(text cursor-pos)` | Transform user input before sending to server. Returns transformed text or `nil`.       |
+| `completion-hook`          | `(text)`            | Provide tab completion candidates. Returns list of completion strings.                  |
 
 **Default handlers on `telnet-input-hook`:**
 
@@ -371,6 +391,7 @@ telnet-gui/
 │   └── README.md         # Language documentation
 ├── src/                  # GUI source files
 ├── lisp/                 # Lisp scripts (bootstrap, tintin)
+│   └── contrib/          # Contrib scripts (practice, seaport, etc.)
 ├── fonts/                # Bundled fonts
 ├── animations/           # Sample Lottie animations
 ├── icons/                # Application icons

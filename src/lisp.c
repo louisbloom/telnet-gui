@@ -1565,21 +1565,10 @@ int lisp_x_load_file(const char *filepath) {
         return -1;
     }
 
-    /* Check if filepath is absolute or contains directory separators */
+    /* Check if filepath is absolute */
     /* If so, use it as-is without searching */
-    int has_path_separator = 0;
-#ifdef _WIN32
-    if (strchr(filepath, '\\') || strchr(filepath, '/') || strchr(filepath, ':')) {
-        has_path_separator = 1;
-    }
-#else
-    if (strchr(filepath, '/')) {
-        has_path_separator = 1;
-    }
-#endif
-
-    if (has_path_separator) {
-        /* Path contains directory separator - use as-is */
+    if (path_is_absolute(filepath)) {
+        /* Absolute path - load directly */
         LispObject *result = lisp_load_file(filepath, lisp_env);
         if (result && result->type == LISP_ERROR) {
             char *err_str = lisp_print(result);
@@ -1598,7 +1587,7 @@ int lisp_x_load_file(const char *filepath) {
         return 0;
     }
 
-    /* Filename only - search multiple locations */
+    /* Relative path - search multiple locations */
     fprintf(stderr, "Lisp file resolution: Starting search for %s...\n", filepath);
 
     /* Get executable base path */
@@ -1609,7 +1598,12 @@ int lisp_x_load_file(const char *filepath) {
     const char *search_labels[10];
     int search_count = 0;
 
-    /* PRIORITY 1: Build/development paths (checked first for development workflow) */
+    /* PRIORITY 1: Current working directory (checked first) */
+    search_paths[search_count] = filepath;
+    search_labels[search_count] = "current working directory";
+    search_count++;
+
+    /* PRIORITY 2: Build/development paths */
     /* Path 1: Executable-relative (build directory during development) */
     /* Skip if executable is in a bin directory (installed location) - .lisp files aren't in bin */
     if (base_path) {
@@ -1642,12 +1636,7 @@ int lisp_x_load_file(const char *filepath) {
     search_labels[search_count] = "parent lisp subdirectory";
     search_count++;
 
-    /* Path 4: Current working directory (for custom user scripts) */
-    search_paths[search_count] = filepath;
-    search_labels[search_count] = "current working directory";
-    search_count++;
-
-    /* PRIORITY 2: Installed path (fallback for installed builds) */
+    /* PRIORITY 3: Installed path (fallback for installed builds) */
     static char installed_lisp_path[TELNET_MAX_PATH];
     if (path_construct_installed_resource("lisp", filepath, installed_lisp_path, sizeof(installed_lisp_path))) {
         search_paths[search_count] = installed_lisp_path;

@@ -109,6 +109,32 @@ int path_construct_exe_relative(const char *base_path, const char *filename, cha
     return 1;
 }
 
+/* Check if a path is absolute.
+ * Windows: Returns 1 if path starts with drive letter (C:, D:, etc.) or UNC (\\)
+ * Unix: Returns 1 if path starts with /
+ * Returns: 1 if absolute, 0 if relative
+ */
+int path_is_absolute(const char *path) {
+    if (!path || path[0] == '\0') {
+        return 0;
+    }
+
+#ifdef _WIN32
+    /* Check for drive letter (C:, D:, etc.) */
+    if (path[0] != '\0' && path[1] == ':' && (path[2] == '\\' || path[2] == '/' || path[2] == '\0')) {
+        return 1;
+    }
+    /* Check for UNC path (\\server\share) */
+    if (path[0] == '\\' && path[1] == '\\') {
+        return 1;
+    }
+    return 0;
+#else
+    /* Unix: absolute paths start with / */
+    return (path[0] == '/');
+#endif
+}
+
 /* Check if a file exists at the given path.
  * Returns: 1 if exists, 0 if not
  */
