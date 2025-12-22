@@ -1675,7 +1675,6 @@ Format: ((priority . (symbol . \"display\")) ...)
 ;; API:
 ;;   (run-at-time TIME REPEAT FUNCTION &rest ARGS) - Schedule a timer
 ;;   (cancel-timer TIMER) - Cancel a timer
-;;   (cancel-function-timers FUNCTION) - Cancel all timers for a function
 ;;   (list-timers) - List all active timers
 ;;
 ;; Example:
@@ -1720,7 +1719,6 @@ execution.
 
 ## See Also
 - `cancel-timer` - Cancel a timer
-- `cancel-function-timers` - Cancel all timers for a function
 - `list-timers` - List active timers"
   (let* ((delay-ms (* time 1000))
           (repeat-ms (if repeat (* repeat 1000) 0))
@@ -1749,7 +1747,7 @@ execution.
 
 ## See Also
 - `run-at-time` - Create a timer
-- `cancel-function-timers` - Cancel by function"
+- `list-timers` - List active timers"
   (let ((found #f))
     (set! *timer-list*
       (filter (lambda (t)
@@ -1758,38 +1756,6 @@ execution.
                   #t))
         *timer-list*))
     found))
-
-(defun cancel-function-timers (function)
-  "Cancel all timers with FUNCTION as callback.
-
-## Parameters
-- `function` - Function whose timers to cancel
-
-## Returns
-Number of timers cancelled.
-
-## Description
-Useful when you've lost the timer reference but know the callback function.
-
-## Examples
-```lisp
-(defun my-ping () (telnet-send \"PING\"))
-(run-at-time 30 30 my-ping)
-(run-at-time 60 60 my-ping)
-(cancel-function-timers my-ping)  ; => 2
-```
-
-## See Also
-- `cancel-timer` - Cancel by timer object
-- `list-timers` - View active timers"
-  (let ((count 0))
-    (set! *timer-list*
-      (filter (lambda (t)
-                (if (eq? (list-ref t 3) function)
-                  (progn (set! count (+ count 1)) #f)
-                  #t))
-        *timer-list*))
-    count))
 
 (defun list-timers ()
   "Return list of active timers.

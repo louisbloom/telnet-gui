@@ -111,6 +111,8 @@ The terminal supports color emoji rendering via system emoji fonts (e.g., NotoCo
 
 **Background Animations:**
 
+Lottie animations can render behind terminal content. See [Animation System](#animation-system) in Lisp Scripting for complete documentation.
+
 ```lisp
 (define anim (animation-load "animations/fireworks.json"))
 (animation-set-loop anim #t)  ; #t enables looping
@@ -224,11 +226,9 @@ Emacs-style timers for scheduling Lisp code:
 ;; Pass arguments to callback
 (run-at-time 10 nil (lambda (msg) (terminal-echo msg)) "Delayed!\r\n")
 
-;; Cancel all timers for a function
-(defun my-ping () (telnet-send "PING"))
-(run-at-time 30 30 my-ping)
-(run-at-time 60 60 my-ping)
-(cancel-function-timers my-ping)  ; => 2
+;; Cancel a timer using the timer object returned by run-at-time
+(define keepalive (run-at-time 60 60 (lambda () (telnet-send "PING"))))
+(cancel-timer keepalive)  ; => #t
 
 ;; Inspect active timers
 (list-timers)
@@ -236,12 +236,78 @@ Emacs-style timers for scheduling Lisp code:
 
 **Timer functions:**
 
-| Function                                   | Description                                        |
-| ------------------------------------------ | -------------------------------------------------- |
-| `(run-at-time delay repeat fn &rest args)` | Schedule fn after delay seconds; repeat if non-nil |
-| `(cancel-timer timer)`                     | Cancel a timer, returns `#t` if found              |
-| `(cancel-function-timers fn)`              | Cancel all timers for fn, returns count            |
-| `(list-timers)`                            | Return list of active timers                       |
+| Function       | Arguments                      | Description                                                             |
+| -------------- | ------------------------------ | ----------------------------------------------------------------------- |
+| `run-at-time`  | `(delay repeat fn &rest args)` | Schedule fn after delay seconds; repeat if non-nil. Returns timer list. |
+| `cancel-timer` | `(timer)`                      | Cancel a timer, returns `#t` if found                                   |
+| `list-timers`  | `()`                           | Return list of active timers                                            |
+
+**Timer object structure:**
+
+`run-at-time` returns a list: `(id fire-time-ms repeat-ms callback args)`
+
+- `id` - Timer ID (integer)
+- `fire-time-ms` - When timer fires (milliseconds since epoch)
+- `repeat-ms` - Repeat interval in ms (0 for one-shot)
+- `callback` - Function to call
+- `args` - Arguments list for callback
+
+### Animation System
+
+Lottie animations render behind terminal content with configurable visibility modes:
+
+```lisp
+;; Load and play an animation
+(define anim (animation-load "animations/fireworks.json"))
+(animation-set-loop anim #t)  ; Enable looping
+(animation-play anim)  ; Start playing and set as active
+
+;; Control playback
+(animation-pause anim)  ; Pause
+(animation-play anim)   ; Resume
+(animation-stop anim)   ; Stop and reset to beginning
+(animation-seek anim 0.5)  ; Seek to middle (0.0 to 1.0)
+
+;; Adjust speed
+(animation-set-speed anim 2.0)  ; Double speed
+(animation-set-speed anim 0.5)  ; Half speed
+
+;; Visibility modes
+(animation-set-dim-mode anim 0.7)  ; Dim mode with overlay (default 0.7)
+(animation-set-transparent-mode anim 0.85)  ; Transparent terminal (default 0.85)
+
+;; Query state
+(animation-playing? anim)  ; => #t or nil
+(animation-loaded? anim)   ; => #t or nil
+(animation-position anim) ; => 0.0 to 1.0
+(animation-duration anim)  ; => seconds
+
+;; Set active animation (only one active at a time)
+(animation-set-active anim)  ; Set as active
+(animation-set-active nil)   ; Clear active animation
+```
+
+**Animation functions:**
+
+| Function                         | Arguments           | Description                                                 |
+| -------------------------------- | ------------------- | ----------------------------------------------------------- |
+| `animation-load`                 | `(path)`            | Load Lottie animation file, returns animation object        |
+| `animation-unload`               | `(anim)`            | Unload animation                                            |
+| `animation-play`                 | `(anim)`            | Start playing and set as active background animation        |
+| `animation-pause`                | `(anim)`            | Pause playback                                              |
+| `animation-stop`                 | `(anim)`            | Stop and reset to beginning                                 |
+| `animation-set-speed`            | `(anim multiplier)` | Set playback speed (1.0 = normal, 0.5 = half, 2.0 = double) |
+| `animation-set-loop`             | `(anim [enabled])`  | Enable/disable looping (default #t)                         |
+| `animation-seek`                 | `(anim position)`   | Seek to position (0.0 to 1.0)                               |
+| `animation-playing?`             | `(anim)`            | Check if currently playing, returns #t or nil               |
+| `animation-loaded?`              | `(anim)`            | Check if file is loaded, returns #t or nil                  |
+| `animation-position`             | `(anim)`            | Get current position (0.0 to 1.0)                           |
+| `animation-duration`             | `(anim)`            | Get duration in seconds                                     |
+| `animation-set-dim-mode`         | `(anim [alpha])`    | Set dim mode with overlay (alpha 0.0-1.0, default 0.7)      |
+| `animation-set-transparent-mode` | `(anim [alpha])`    | Set transparent mode (terminal alpha 0.0-1.0, default 0.85) |
+| `animation-set-active`           | `(anim)`            | Set active animation (nil to clear)                         |
+
+**Note:** Animation functions require rlottie support (optional dependency). Animations render behind terminal text and can be dimmed or made transparent for readability.
 
 ## Building from Source
 

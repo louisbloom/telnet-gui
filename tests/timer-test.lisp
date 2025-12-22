@@ -1,5 +1,5 @@
 ;; Timer system tests
-;; Tests run-at-time, cancel-timer, cancel-function-timers, list-timers, run-timers
+;; Tests run-at-time, cancel-timer, list-timers, run-timers
 (load "test-helpers.lisp")
 
 ;; ============================================================================
@@ -18,21 +18,6 @@
 (assert-true (cancel-timer test-timer) "cancel-timer returns true for valid timer")
 (assert-equal (length (list-timers)) 0 "timer removed after cancel")
 (assert-false (cancel-timer test-timer) "cancel-timer returns false for already cancelled")
-
-;; ============================================================================
-;; Test cancel-function-timers
-;; ============================================================================
-
-(define my-fn (lambda () nil))
-(run-at-time 10 nil my-fn)
-(run-at-time 20 nil my-fn)
-(run-at-time 30 nil (lambda () nil))  ; different function
-(assert-equal (length (list-timers)) 3 "3 timers created")
-(assert-equal (cancel-function-timers my-fn) 2 "cancel-function-timers returns count")
-(assert-equal (length (list-timers)) 1 "1 timer remains")
-
-;; Cleanup
-(set! *timer-list* '())
 
 ;; ============================================================================
 ;; Test run-timers fires one-shot timers
