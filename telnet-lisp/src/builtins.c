@@ -36,7 +36,6 @@ static LispObject *builtin_string_gte(LispObject *args, Environment *env);
 static LispObject *builtin_string_contains(LispObject *args, Environment *env);
 static LispObject *builtin_string_index(LispObject *args, Environment *env);
 static LispObject *builtin_string_match(LispObject *args, Environment *env);
-static LispObject *builtin_string_length(LispObject *args, Environment *env);
 static LispObject *builtin_substring(LispObject *args, Environment *env);
 static LispObject *builtin_string_ref(LispObject *args, Environment *env);
 static LispObject *builtin_string_prefix_question(LispObject *args, Environment *env);
@@ -71,7 +70,7 @@ static LispObject *builtin_set_car_bang(LispObject *args, Environment *env);
 static LispObject *builtin_set_cdr_bang(LispObject *args, Environment *env);
 static LispObject *builtin_cons(LispObject *args, Environment *env);
 static LispObject *builtin_list(LispObject *args, Environment *env);
-static LispObject *builtin_list_length(LispObject *args, Environment *env);
+static LispObject *builtin_length(LispObject *args, Environment *env);
 static LispObject *builtin_list_ref(LispObject *args, Environment *env);
 static LispObject *builtin_reverse(LispObject *args, Environment *env);
 static LispObject *builtin_append(LispObject *args, Environment *env);
@@ -509,7 +508,6 @@ static LispObject *builtin_symbol_to_string(LispObject *args, Environment *env);
 static LispObject *builtin_make_vector(LispObject *args, Environment *env);
 static LispObject *builtin_vector_ref(LispObject *args, Environment *env);
 static LispObject *builtin_vector_set_bang(LispObject *args, Environment *env);
-static LispObject *builtin_vector_length(LispObject *args, Environment *env);
 static LispObject *builtin_vector_push_bang(LispObject *args, Environment *env);
 static LispObject *builtin_vector_pop_bang(LispObject *args, Environment *env);
 
@@ -718,26 +716,6 @@ static const char *doc_substring =
     "- Indices are **character** positions, not byte positions\n"
     "- Works correctly with multi-byte UTF-8 characters\n"
     "- Index out of bounds returns error";
-
-static const char *doc_string_length = "Get the character count of a string (UTF-8 aware).\n"
-                                       "\n"
-                                       "## Parameters\n"
-                                       "- `string` - The input string\n"
-                                       "\n"
-                                       "## Returns\n"
-                                       "Number of characters in the string (not byte count).\n"
-                                       "\n"
-                                       "## Examples\n"
-                                       "```lisp\n"
-                                       "(string-length \"Hello\")          ; => 5\n"
-                                       "(string-length \"世界\")            ; => 2 (UTF-8 characters)\n"
-                                       "(string-length \"Hello, 世界! 🌍\")  ; => 15 (not byte count)\n"
-                                       "(string-length \"\")               ; => 0\n"
-                                       "```\n"
-                                       "\n"
-                                       "## Notes\n"
-                                       "- Returns **character** count, not byte count\n"
-                                       "- Correctly handles multi-byte UTF-8 characters";
 
 /* List operations */
 static const char *doc_car = "Get the first element of a list.\n"
@@ -1284,20 +1262,6 @@ static const char *doc_vector_set_bang = "Set element at index in vector (mutati
                                          "- Modifies vector in place\n"
                                          "- Returns error if index out of bounds";
 
-static const char *doc_vector_length = "Get the number of elements in a vector.\n"
-                                       "\n"
-                                       "## Parameters\n"
-                                       "- `vector` - The vector to measure\n"
-                                       "\n"
-                                       "## Returns\n"
-                                       "Integer count of elements in the vector.\n"
-                                       "\n"
-                                       "## Examples\n"
-                                       "```lisp\n"
-                                       "(vector-length (make-vector 5))  ; => 5\n"
-                                       "(vector-length #())              ; => 0\n"
-                                       "```";
-
 static const char *doc_vector_push_bang = "Append element to end of vector (mutating operation).\n"
                                           "\n"
                                           "## Parameters\n"
@@ -1526,20 +1490,24 @@ static const char *doc_apply = "Apply a function to a list of arguments.\n"
                                "(apply + args)              ; => 6\n"
                                "```";
 
-static const char *doc_list_length = "Get the number of elements in a list.\n"
-                                     "\n"
-                                     "## Parameters\n"
-                                     "- `list` - The list to measure\n"
-                                     "\n"
-                                     "## Returns\n"
-                                     "Integer count of elements in the list.\n"
-                                     "\n"
-                                     "## Examples\n"
-                                     "```lisp\n"
-                                     "(list-length '(1 2 3))       ; => 3\n"
-                                     "(list-length '())            ; => 0\n"
-                                     "(list-length '(a))           ; => 1\n"
-                                     "```";
+static const char *doc_length = "Get the length of a sequence (list, string, or vector).\n"
+                                "\n"
+                                "## Parameters\n"
+                                "- `sequence` - A list, string, or vector\n"
+                                "\n"
+                                "## Returns\n"
+                                "Integer count of elements/characters in the sequence.\n"
+                                "\n"
+                                "## Examples\n"
+                                "```lisp\n"
+                                "(length '(1 2 3))        ; => 3\n"
+                                "(length \"hello\")         ; => 5\n"
+                                "(length #(a b c))        ; => 3\n"
+                                "(length '())              ; => 0\n"
+                                "```\n"
+                                "\n"
+                                "## Notes\n"
+                                "Unified function for all sequence types. For strings, returns UTF-8 character count.";
 
 static const char *doc_list_ref = "Get element at index from list (0-based).\n"
                                   "\n"
@@ -1867,7 +1835,7 @@ static const char *doc_string_ref = "Get character at index from string (UTF-8 a
                                     "\n"
                                     "## See Also\n"
                                     "- `substring` - Extract substring by range\n"
-                                    "- `string-length` - Get character count";
+                                    "- `length` - Get length of sequence (list, string, or vector)";
 
 static const char *doc_string_prefix = "Test if string starts with prefix.\n"
                                        "\n"
@@ -2726,7 +2694,6 @@ void register_builtins(Environment *env) {
     REGISTER("string-contains?", builtin_string_contains, doc_string_contains);
     REGISTER("string-index", builtin_string_index, doc_string_index);
     REGISTER("string-match?", builtin_string_match, doc_string_match);
-    REGISTER("string-length", builtin_string_length, doc_string_length);
     REGISTER("substring", builtin_substring, doc_substring);
     REGISTER("string-ref", builtin_string_ref, doc_string_ref);
     REGISTER("string-prefix?", builtin_string_prefix_question, doc_string_prefix);
@@ -2759,7 +2726,7 @@ void register_builtins(Environment *env) {
     REGISTER("set-cdr!", builtin_set_cdr_bang, doc_set_cdr_bang);
     REGISTER("cons", builtin_cons, doc_cons);
     REGISTER("list", builtin_list, doc_list);
-    REGISTER("list-length", builtin_list_length, doc_list_length);
+    REGISTER("length", builtin_length, doc_length);
     REGISTER("list-ref", builtin_list_ref, doc_list_ref);
     REGISTER("reverse", builtin_reverse, doc_reverse);
     REGISTER("append", builtin_append, doc_append);
@@ -2837,7 +2804,6 @@ void register_builtins(Environment *env) {
     REGISTER("make-vector", builtin_make_vector, doc_make_vector);
     REGISTER("vector-ref", builtin_vector_ref, doc_vector_ref);
     REGISTER("vector-set!", builtin_vector_set_bang, doc_vector_set_bang);
-    REGISTER("vector-length", builtin_vector_length, doc_vector_length);
     REGISTER("vector-push!", builtin_vector_push_bang, doc_vector_push_bang);
     REGISTER("vector-pop!", builtin_vector_pop_bang, doc_vector_pop_bang);
 
@@ -3785,21 +3751,6 @@ static LispObject *builtin_string_prefix_question(LispObject *args, Environment 
 }
 
 /* UTF-8 String operations */
-static LispObject *builtin_string_length(LispObject *args, Environment *env) {
-    (void)env;
-    if (args == NIL) {
-        return lisp_make_error("string-length requires 1 argument");
-    }
-
-    LispObject *str_obj = lisp_car(args);
-    if (str_obj->type != LISP_STRING) {
-        return lisp_make_error("string-length requires a string");
-    }
-
-    size_t char_count = utf8_strlen(str_obj->value.string);
-    return lisp_make_integer((long long)char_count);
-}
-
 static LispObject *builtin_substring(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL || lisp_cdr(args) == NIL) {
@@ -4334,21 +4285,38 @@ static LispObject *builtin_list(LispObject *args, Environment *env) {
     return args;
 }
 
-static LispObject *builtin_list_length(LispObject *args, Environment *env) {
+static LispObject *builtin_length(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL) {
-        return lisp_make_error("list-length requires 1 argument");
+        return lisp_make_error("length requires 1 argument");
     }
 
-    LispObject *lst = lisp_car(args);
-    long long count = 0;
+    LispObject *obj = lisp_car(args);
 
-    while (lst != NIL && lst != NULL) {
-        count++;
-        lst = lst->value.cons.cdr;
+    switch (obj->type) {
+    case LISP_CONS:
+    case LISP_NIL: {
+        /* List length */
+        long long count = 0;
+        LispObject *lst = obj;
+        while (lst != NIL && lst != NULL) {
+            count++;
+            lst = lst->value.cons.cdr;
+        }
+        return lisp_make_integer(count);
     }
-
-    return lisp_make_integer(count);
+    case LISP_STRING: {
+        /* String length (UTF-8 aware) */
+        size_t char_count = utf8_strlen(obj->value.string);
+        return lisp_make_integer((long long)char_count);
+    }
+    case LISP_VECTOR: {
+        /* Vector length */
+        return lisp_make_number((double)obj->value.vector.size);
+    }
+    default:
+        return lisp_make_error("length requires a list, string, or vector");
+    }
 }
 
 static LispObject *builtin_list_ref(LispObject *args, Environment *env) {
@@ -5859,18 +5827,6 @@ static LispObject *builtin_vector_set_bang(LispObject *args, Environment *env) {
     LispObject *value = lisp_car(lisp_cdr(lisp_cdr(args)));
     vec_obj->value.vector.items[idx] = value;
     return value;
-}
-
-static LispObject *builtin_vector_length(LispObject *args, Environment *env) {
-    (void)env;
-    if (args == NIL) {
-        return lisp_make_error("vector-length requires 1 argument");
-    }
-    LispObject *vec_obj = lisp_car(args);
-    if (vec_obj->type != LISP_VECTOR) {
-        return lisp_make_error("vector-length requires a vector");
-    }
-    return lisp_make_number((double)vec_obj->value.vector.size);
 }
 
 static LispObject *builtin_vector_push_bang(LispObject *args, Environment *env) {

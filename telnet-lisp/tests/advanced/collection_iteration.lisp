@@ -52,7 +52,7 @@
 
 ;; Iterate with index and access elements
 (assert-equal (do ((i 0 (+ i 1)))
-                ((>= i (vector-length v)) "done")
+                ((>= i (length v)) "done")
                 (vector-ref v i))
   "done"
   "iterate over vector with index")
@@ -61,7 +61,7 @@
 (define sum 0)
 (assert-equal (do ((i 0 (+ i 1))
                     (acc 0))
-                ((>= i (vector-length v)) acc)
+                ((>= i (length v)) acc)
                 (set! acc (+ acc (vector-ref v i))))
   150
   "sum vector elements")
@@ -80,7 +80,7 @@
   "iterate over list")
 
 ;; Get list length
-(assert-equal (list-length lst) 5 "list-length")
+(assert-equal (length lst) 5 "length")
 
 ;; Access by index
 (assert-equal (list-ref lst 0) 1 "list-ref at index 0")
@@ -140,8 +140,8 @@
 (assert-equal (hash-count empty_ht) 0 "empty hash count")
 
 (define empty_list '())
-(assert-equal (list-length empty_list) 0 "empty list length")
+(assert-equal (length empty_list) 0 "empty list length")
 (assert-true (null? empty_list) "empty list is null")
 
 (define empty_vec #())
-(assert-equal (vector-length empty_vec) 0 "empty vector length")
+(assert-equal (length empty_vec) 0 "empty vector length")

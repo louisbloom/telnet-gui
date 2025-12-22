@@ -9,7 +9,7 @@
 
 ;; String length counts actual characters, not bytes
 ;; H-e-l-l-o-,- -世-界-!- -🌍 = 12 characters
-(assert-equal (string-length test_str) 12 "UTF-8 string length")
+(assert-equal (length test_str) 12 "UTF-8 string length")
 
 ;; Extract substring by character index (not byte index)
 (assert-equal (substring test_str 7 9) "世界" "substring with Chinese characters")
@@ -20,7 +20,7 @@
 
 ;; Test with emoji (composed of multiple UTF-8 bytes)
 (define emoji_str "Hello 🚀 World")
-(assert-equal (string-length emoji_str) 13 "string length with emoji")
+(assert-equal (length emoji_str) 13 "string length with emoji")
 
 ;; Extract just the emoji by character index
 (assert-equal (substring emoji_str 6 7) "🚀" "substring with emoji")

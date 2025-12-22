@@ -22,7 +22,7 @@
 
 ;; Use with Other Functions
 (define lst '(1 2 3 4 5))
-(assert-equal (list-length (reverse lst)) 5 "length of reversed list unchanged")
+(assert-equal (length (reverse lst)) 5 "length of reversed list unchanged")
 (assert-equal (car (reverse lst)) 5 "car of reversed list is last element")
 (assert-equal (list-ref (reverse lst) 0) 5 "list-ref at index 0 of reversed list")
 (assert-equal (list-ref (reverse lst) 4) 1 "list-ref at index 4 of reversed list")

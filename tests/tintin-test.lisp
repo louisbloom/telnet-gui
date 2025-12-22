@@ -264,7 +264,7 @@
 ;; Test: "s;s" should send two separate telnet commands with CRLF
 ;; Note: logs are in reverse order (most recent first)
 (tintin-user-input-hook "s;s" 0)
-(assert-equal (list-length *telnet-send-log*) 2
+(assert-equal (length *telnet-send-log*) 2
   "Should send 2 commands for 's;s'")
 (assert-equal (list-ref *telnet-send-log* 1) "s\r\n"
   "First command should be 's\\r\\n'")
@@ -277,7 +277,7 @@
 
 ;; Test: "3n" should send three "n" commands with CRLF
 (tintin-user-input-hook "3n" 0)
-(assert-equal (list-length *telnet-send-log*) 3
+(assert-equal (length *telnet-send-log*) 3
   "Should send 3 commands for '3n'")
 (assert-equal (list-ref *telnet-send-log* 2) "n\r\n"
   "First command should be 'n\\r\\n'")
@@ -293,7 +293,7 @@
 ;; Test: Alias expansion then multiple sends with CRLF
 (tintin-process-command "#alias {go} {n;s;e;w}")
 (tintin-user-input-hook "go" 0)
-(assert-equal (list-length *telnet-send-log*) 4
+(assert-equal (length *telnet-send-log*) 4
   "Should send 4 commands for alias 'go'")
 (assert-equal (list-ref *telnet-send-log* 3) "n\r\n"
   "First command should be 'n\\r\\n'")
@@ -311,7 +311,7 @@
 ;; Test: Each command echoed to terminal with CRLF
 ;; Note: main.c now handles echoing the original input, so the hook only echoes the commands
 (tintin-user-input-hook "n;s" 0)
-(assert-equal (list-length *terminal-echo-log*) 2
+(assert-equal (length *terminal-echo-log*) 2
   "Should echo 2 items (2 commands) for 'n;s'")
 (assert-equal (list-ref *terminal-echo-log* 1) "n\r\n"
   "First echo should be 'n\\r\\n'")
@@ -324,7 +324,7 @@
 
 ;; Test: Empty commands are skipped
 (tintin-user-input-hook "n;;s" 0)
-(assert-equal (list-length *telnet-send-log*) 2
+(assert-equal (length *telnet-send-log*) 2
   "Empty commands should be skipped")
 (assert-equal (list-ref *telnet-send-log* 1) "n\r\n"
   "First command should be 'n\\r\\n'")
@@ -364,7 +364,7 @@
 ;; Unknown command shows error (not sent to telnet)
 (assert-equal (tintin-process-command "#foo bar") ""
   "Unknown command should return empty string")
-(assert-equal (list-length *terminal-echo-log*) 1
+(assert-equal (length *terminal-echo-log*) 1
   "Unknown command should echo error message")
 (assert-true (string-prefix? "Unknown TinTin++" (list-ref *terminal-echo-log* 0))
   "Echo should be unknown command error")
@@ -375,7 +375,7 @@
 ;; Invalid format (just # with space)
 (assert-equal (tintin-process-command "# ") ""
   "Invalid format should return empty string")
-(assert-equal (list-length *terminal-echo-log*) 1
+(assert-equal (length *terminal-echo-log*) 1
   "Invalid format should echo error message")
 (assert-true (string-prefix? "Invalid TinTin++" (list-ref *terminal-echo-log* 0))
   "Echo should be invalid format error")
@@ -386,7 +386,7 @@
 ;; Query non-existent alias (unbraced argument is valid)
 (assert-equal (tintin-process-command "#alias missing") ""
   "Query command should return empty string")
-(assert-equal (list-length *terminal-echo-log*) 1
+(assert-equal (length *terminal-echo-log*) 1
   "Query command should echo not found message")
 (assert-true (string-prefix? "Alias 'missing' not found" (list-ref *terminal-echo-log* 0))
   "Echo should be not found message")
@@ -499,7 +499,7 @@
 (tintin-user-input-hook "testcmd" 0)
 ;; The hook should process the alias and send the expanded command
 ;; Note: main.c echoes the original input, so the hook doesn't need to
-(assert-equal (list-length *telnet-send-log*) 1
+(assert-equal (length *telnet-send-log*) 1
   "Should send 1 command for alias")
 (assert-equal (list-ref *telnet-send-log* 0) "north\r\n"
   "Should send expanded alias command")
@@ -544,7 +544,7 @@
 (tintin-user-input-hook "ef" 0)
 
 ;; Verify variable was expanded and commands were sent
-(assert-equal (list-length *telnet-send-log*) 2
+(assert-equal (length *telnet-send-log*) 2
   "Should send 2 commands")
 (assert-equal (list-ref *telnet-send-log* 1) "get bread\r\n"
   "First command should have expanded variable")
@@ -553,7 +553,7 @@
 
 ;; Verify expanded commands were echoed (hook echoes when commands differ from original)
 ;; Note: main.c handles echoing the original input "ef", so the hook only echoes the expanded commands
-(assert-equal (list-length *terminal-echo-log*) 2
+(assert-equal (length *terminal-echo-log*) 2
   "Hook should echo 2 expanded commands")
 (assert-equal (list-ref *terminal-echo-log* 1) "get bread\r\n"
   "First echo should be expanded command")
@@ -577,7 +577,7 @@
 (tintin-process-command "#load tintin-load-test.lisp")
 
 ;; Check what was echoed
-(assert-true (>= (list-length *terminal-echo-log*) 1)
+(assert-true (>= (length *terminal-echo-log*) 1)
   "#load without braces should echo")
 ;; Most recent echo should be success message
 (assert-true (string-prefix? "State loaded from" (list-ref *terminal-echo-log* 0))
@@ -591,7 +591,7 @@
 (tintin-process-command "#load {tintin-load-test.lisp}")
 
 ;; Check what was echoed
-(assert-true (>= (list-length *terminal-echo-log*) 1)
+(assert-true (>= (length *terminal-echo-log*) 1)
   "#load with braces should echo")
 ;; Most recent echo should be success message
 (assert-true (string-prefix? "State loaded from" (list-ref *terminal-echo-log* 0))
@@ -694,7 +694,7 @@
 ;; Clear logs first
 (set! *terminal-echo-log* '())
 (tintin-process-command "#load tintin-load-test.lisp")
-(assert-true (>= (list-length *terminal-echo-log*) 1)
+(assert-true (>= (length *terminal-echo-log*) 1)
   "#load should echo when called")
 
 ;; Test nested braces are preserved after stripping outer braces
@@ -725,7 +725,7 @@
 (assert-equal (tintin-handle-load (list "nonexistent-file.lisp")) ""
   "Loading non-existent file should return empty string")
 ;; Should have error message
-(assert-true (> (list-length *terminal-echo-log*) 0)
+(assert-true (> (length *terminal-echo-log*) 0)
   "Should have error message in log")
 (assert-true (string-prefix? "Failed to load" (list-ref *terminal-echo-log* 0))
   "Error message should start with 'Failed to load'")
@@ -960,7 +960,7 @@
 (define sorted (tintin-sort-highlights-by-priority highlight-entries))
 
 ;; Verify we got all 3 entries
-(assert-equal (list-length sorted) 3
+(assert-equal (length sorted) 3
   "Should have 3 highlight entries after sorting")
 
 ;; Extract priorities from sorted entries (format: (pattern . (fg bg priority)))
@@ -984,7 +984,7 @@
 ;; Test edge case: single entry
 (define single-entry (list (cons "test" (list "red" nil 5))))
 (define sorted-single (tintin-sort-highlights-by-priority single-entry))
-(assert-equal (list-length sorted-single) 1
+(assert-equal (length sorted-single) 1
   "Single entry should return list with 1 element")
 (assert-equal (car (cdr (cdr (cdr (car sorted-single))))) 5
   "Single entry priority should be preserved")
@@ -995,7 +995,7 @@
 (hash-set! *tintin-highlights* "pattern2" (list "blue" nil 5))
 (define equal-pri-entries (hash-entries *tintin-highlights*))
 (define sorted-equal (tintin-sort-highlights-by-priority equal-pri-entries))
-(assert-equal (list-length sorted-equal) 2
+(assert-equal (length sorted-equal) 2
   "Should have 2 entries with equal priority")
 
 ;; ============================================================================
@@ -1144,18 +1144,18 @@
 
 (print "Test: Extract captures from pattern match...")
 (define captures1 (tintin-extract-captures "You hit %1 for %2 damage" "You hit orc for 15 damage"))
-(assert-equal (list-length captures1) 2 "Should extract 2 captures")
+(assert-equal (length captures1) 2 "Should extract 2 captures")
 (assert-equal (list-ref captures1 0) "orc" "First capture should be 'orc'")
 (assert-equal (list-ref captures1 1) "15" "Second capture should be '15'")
 
 (print "Test: Extract single capture...")
 (define captures2 (tintin-extract-captures "%1 appears" "An orc appears"))
-(assert-equal (list-length captures2) 1 "Should extract 1 capture")
+(assert-equal (length captures2) 1 "Should extract 1 capture")
 (assert-equal (list-ref captures2 0) "An orc" "Capture should be 'An orc'")
 
 (print "Test: Extract no captures (literal pattern)...")
 (define captures3 (tintin-extract-captures "Ready to attack!" "Ready to attack!"))
-(assert-equal (list-length captures3) 0 "Should extract no captures")
+(assert-equal (length captures3) 0 "Should extract no captures")
 
 ;; ============================================================================
 ;; TEST: Capture substitution
@@ -1188,7 +1188,7 @@
 (hash-set! *tintin-actions* "pattern3" (list "cmd3" 9))
 (hash-set! *tintin-actions* "pattern4" (list "cmd4" 3))
 (define sorted-actions (tintin-sort-actions-by-priority (hash-entries *tintin-actions*)))
-(assert-equal (list-length sorted-actions) 4 "Should have 4 actions")
+(assert-equal (length sorted-actions) 4 "Should have 4 actions")
 ;; Check sorted order: priorities should be 1, 3, 5, 9
 (assert-equal (car (cdr (cdr (list-ref sorted-actions 0)))) 1 "First should be priority 1")
 (assert-equal (car (cdr (cdr (list-ref sorted-actions 1)))) 3 "Second should be priority 3")
@@ -1308,7 +1308,7 @@
 
 (print "Test: Extract captures with anchored pattern...")
 (define cap-anchored (tintin-extract-captures "^Health: %1/%2 HP" "Health: 50/100 HP"))
-(assert-equal (list-length cap-anchored) 2 "Should extract 2 captures")
+(assert-equal (length cap-anchored) 2 "Should extract 2 captures")
 (assert-equal (list-ref cap-anchored 0) "50" "First capture")
 (assert-equal (list-ref cap-anchored 1) "100" "Second capture")
 
@@ -1335,7 +1335,7 @@
 
 ;; Test helper to verify column widths
 (defun test-column-widths (natural-widths terminal-width expected desc)
-  (define num-cols (list-length natural-widths))
+  (define num-cols (length natural-widths))
 
   ;; Create test data that produces the specified natural widths
   ;; Generate strings of exactly the right length for each column
@@ -1349,7 +1349,7 @@
   (define result (tintin-calculate-optimal-widths (list test-row) terminal-width 8))
 
   ;; Verify result
-  (assert-equal (list-length result) num-cols (concat desc " - column count"))
+  (assert-equal (length result) num-cols (concat desc " - column count"))
   (do ((i 0 (+ i 1)))
     ((>= i num-cols))
     (assert-equal (list-ref result i) (list-ref expected i)

@@ -1,12 +1,12 @@
-;; practice-simple.lisp - Practice mode automation for telnet-gui
+;; practice.lisp - Practice mode automation for telnet-gui
 ;;
 ;; This script was created for Carrion Fields MUD (https://carrionfields.net/)
-;; It handles slash commands (e.g., /practice, /p) for automated spell practice.
-;; Slash commands are processed via the user-input-hook system before
-;; TinTin++ processing, allowing clean separation of concerns.
+;; It handles the /practice command (and its aliases like /p, /pr, etc.) for
+;; automated spell practice. The command is processed via the user-input-hook
+;; system before TinTin++ processing, allowing clean separation of concerns.
 ;;
 ;; Usage:
-;;   :load practice-simple.lisp  ; Load the script
+;;   :load practice.lisp  ; Load the script
 ;;   /p c lightb               ; Start practicing (or /practice, /pr, etc.)
 ;;   /p stop                   ; Stop practice mode
 ;;   /p                        ; Show current status
@@ -237,7 +237,7 @@
         ;; Has space - check if prefix matches
         (let ((cmd (substring text 0 space-pos)))
           (if (string-prefix? cmd "/practice")
-            (substring text (+ space-pos 1) (string-length text))
+            (substring text (+ space-pos 1) (length text))
             nil))))))
 
 ;; User input hook handler for /practice commands
@@ -252,7 +252,7 @@
         ((string=? args "stop")
           (practice-stop))
         ;; /p <command> or /practice <command>
-        ((> (string-length args) 0)
+        ((> (length args) 0)
           (practice-start args))
         ;; Just /p with no args - show status
         (#t

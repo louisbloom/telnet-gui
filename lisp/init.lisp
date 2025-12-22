@@ -124,7 +124,7 @@ Log filename format: telnet-<host>-<port>-<timestamp>.log")
   ## See Also
   - `clean-word` - Wrapper that validates and trims
   - `collect-words-from-text` - Uses this for word extraction"
-  (if (not (and (string? word) (> (string-length word) 0)))
+  (if (not (and (string? word) (> (length word) 0)))
     ""
     (let* ((no-trailing (regex-replace "[.,!?;:()\\[\\]{}'\"\\-]+$" word ""))
             (cleaned (regex-replace "^[.,!?;:()\\[\\]{}'\"\\-]+" no-trailing "")))
@@ -164,7 +164,7 @@ Log filename format: telnet-<host>-<port>-<timestamp>.log")
   ## See Also
   - `trim-punctuation` - Performs actual punctuation removal
   - `valid-word?` - Check if cleaned word is valid"
-  (if (and (string? word) (> (string-length word) 0))
+  (if (and (string? word) (> (length word) 0))
     (trim-punctuation word)
     ""))
 
@@ -198,7 +198,7 @@ Log filename format: telnet-<host>-<port>-<timestamp>.log")
   - `clean-word` - Cleans words before validation
   - `word-valid-for-store?` - Checks minimum length requirement"
   (and (string? cleaned)
-    (> (string-length cleaned) 0)))
+    (> (length cleaned) 0)))
 
 ;; Helper: Process word list and filter valid words
 ;; Preserves left-to-right order so leftmost words are added first (oldest)
@@ -255,7 +255,7 @@ Log filename format: telnet-<host>-<port>-<timestamp>.log")
 ;; Helper: Check if word is valid for storage (length >= 3)
 (defun word-valid-for-store? (word)
   (and (string? word)
-    (>= (string-length word) 3)))
+    (>= (length word) 3)))
 
 ;; Add a word to the store (bounded by *completion-word-store-size*)
 ;; If store is full, removes oldest word (FIFO)
@@ -321,7 +321,7 @@ Log filename format: telnet-<host>-<port>-<timestamp>.log")
   (if (not (word-valid-for-store? word))
     0
     (let* ((vec *completion-word-order*)
-            (vec-size (vector-length vec)))
+            (vec-size (length vec)))
       ;; Normalize index BEFORE any vector-ref to avoid OOB
       (if (>= *completion-word-order-index* vec-size)
         (set! *completion-word-order-index* 0))
@@ -509,11 +509,11 @@ Log filename format: telnet-<host>-<port>-<timestamp>.log")
   - `add-word-to-store` - Adds words to store
   - `collect-words-from-text` - Populates store from text"
   ;; Early return for invalid prefix
-  (if (not (and (string? prefix) (> (string-length prefix) 0)))
+  (if (not (and (string? prefix) (> (length prefix) 0)))
     '()
     (let* ((p (string-downcase prefix))
             (vec *completion-word-order*)
-            (vec-size (vector-length vec))
+            (vec-size (length vec))
             (start *completion-word-order-index*)
             (seen (make-hash-table))
             (result (scan-circular-buffer vec vec-size start p seen *completion-max-results*))
@@ -860,7 +860,7 @@ to control the return value. First handler to set these wins.
   - `telnet-input-hook` - Populates word store from server output
   - `get-completions-from-store` - Internal function that performs search
   - `add-word-to-store` - Adds words to completion store"
-  (if (and (string? text) (> (string-length text) 0))
+  (if (and (string? text) (> (length text) 0))
     (get-completions-from-store text)
     '()))
 
@@ -1133,7 +1133,7 @@ to control the return value. First handler to set these wins.
 ;; Cursor position aware (only transform if cursor at end):
 ;;   (define user-input-hook
 ;;     (lambda (text cursor-pos)
-;;       (if (= cursor-pos (string-length text))
+;;       (if (= cursor-pos (length text))
 ;;           (string-upcase text)
 ;;           text)))
 ;;
@@ -1843,4 +1843,3 @@ Do not call this function directly."
             ;; Not due yet - keep it
             (set! new-list (cons timer new-list)))))
       (set! *timer-list* new-list))))
-

@@ -182,7 +182,7 @@
   "too many args - no rest param")
 
 ;; Correct with rest parameter - no max limit
-(assert-equal ((lambda (a &rest more) (list a (list-length more))) 1 2 3 4 5)
+(assert-equal ((lambda (a &rest more) (list a (length more))) 1 2 3 4 5)
   (list 1 4)
   "no max args with rest param")
 
@@ -226,7 +226,7 @@
   "empty parameter list")
 
 ;; Only &rest parameter
-(assert-equal ((lambda (&rest all) (list-length all)) 1 2 3)
+(assert-equal ((lambda (&rest all) (length all)) 1 2 3)
   3
   "only &rest param")
 

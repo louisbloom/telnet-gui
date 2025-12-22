@@ -91,7 +91,7 @@
 (print "Test: Extract words from text...")
 (define words1 (extract-words "hello world test"))
 (assert-true (list? words1) "Should return a list")
-(assert-true (>= (list-length words1) 3) "Should extract multiple words")
+(assert-true (>= (length words1) 3) "Should extract multiple words")
 
 (print "Test: Handle punctuation...")
 (define words2 (extract-words "hello, world! test."))
@@ -148,7 +148,7 @@
 
 (define completions (get-completions-from-store "hel"))
 (assert-true (list? completions) "Should return a list")
-(assert-true (> (list-length completions) 0) "Should find matches for 'hel' prefix")
+(assert-true (> (length completions) 0) "Should find matches for 'hel' prefix")
 
 (print "Test: Case-insensitive matching...")
 (define completions-upper (get-completions-from-store "HEL"))

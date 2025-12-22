@@ -12,7 +12,7 @@
 (assert-true (or (string? home) (null? home)) "home-directory returns string or nil")
 
 ;; If home exists, it should be non-empty
-(assert-true (if (string? home) (> (string-length home) 0) #t) "home directory is non-empty if it exists")
+(assert-true (if (string? home) (> (length home) 0) #t) "home directory is non-empty if it exists")
 
 ;; ============================================================================
 ;; expand-path Tests - Basic Functionality

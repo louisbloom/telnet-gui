@@ -58,7 +58,7 @@
 ;; Test: Complex nested structure with multiple tail calls
 (define trim-punctuation
   (lambda (word)
-    (if (not (and (string? word) (> (string-length word) 0)))
+    (if (not (and (string? word) (> (length word) 0)))
       ""
       (let* ((no-trailing (regex-replace "[.,!?;:]+" word ""))
               (cleaned (regex-replace "^[.,!?;:]+" no-trailing "")))
@@ -66,7 +66,7 @@
 
 (define clean-word
   (lambda (word)
-    (if (and (string? word) (> (string-length word) 0))
+    (if (and (string? word) (> (length word) 0))
       (trim-punctuation word)
       "")))
 

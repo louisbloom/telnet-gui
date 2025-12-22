@@ -323,8 +323,8 @@ set(INIT_POST_DST "${CMAKE_BINARY_DIR}/lisp/init-post.lisp")
 # Copy test-related Lisp files to build directory
 set(TINTIN_SRC "${CMAKE_SOURCE_DIR}/lisp/tintin.lisp")
 set(TINTIN_DST "${CMAKE_BINARY_DIR}/lisp/tintin.lisp")
-set(PRACTICE_SIMPLE_SRC "${CMAKE_SOURCE_DIR}/lisp/contrib/practice-simple.lisp")
-set(PRACTICE_SIMPLE_DST "${CMAKE_BINARY_DIR}/lisp/contrib/practice-simple.lisp")
+set(PRACTICE_SRC "${CMAKE_SOURCE_DIR}/lisp/contrib/practice.lisp")
+set(PRACTICE_DST "${CMAKE_BINARY_DIR}/lisp/contrib/practice.lisp")
 set(SEAPORT_SRC "${CMAKE_SOURCE_DIR}/lisp/contrib/seaport.lisp")
 set(SEAPORT_DST "${CMAKE_BINARY_DIR}/lisp/contrib/seaport.lisp")
 set(TINTIN_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/tintin-test.lisp")
@@ -335,8 +335,8 @@ set(INIT_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/init-test.lisp")
 set(INIT_TEST_DST "${CMAKE_BINARY_DIR}/tests/init-test.lisp")
 set(TIMER_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/timer-test.lisp")
 set(TIMER_TEST_DST "${CMAKE_BINARY_DIR}/tests/timer-test.lisp")
-set(PRACTICE_SIMPLE_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/practice-simple-test.lisp")
-set(PRACTICE_SIMPLE_TEST_DST "${CMAKE_BINARY_DIR}/tests/practice-simple-test.lisp")
+set(PRACTICE_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/practice-test.lisp")
+set(PRACTICE_TEST_DST "${CMAKE_BINARY_DIR}/tests/practice-test.lisp")
 set(TEST_HELPERS_SRC "${CMAKE_SOURCE_DIR}/tests/test-helpers.lisp")
 set(TEST_HELPERS_DST "${CMAKE_BINARY_DIR}/tests/test-helpers.lisp")
 
@@ -369,14 +369,14 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${INIT_POST_SRC}" "${INIT_POST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_SRC}" "${TINTIN_DST}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/lisp/contrib"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PRACTICE_SIMPLE_SRC}" "${PRACTICE_SIMPLE_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PRACTICE_SRC}" "${PRACTICE_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SEAPORT_SRC}" "${SEAPORT_DST}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/tests"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_TEST_SRC}" "${TINTIN_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${COMPLETION_TEST_SRC}" "${COMPLETION_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${INIT_TEST_SRC}" "${INIT_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TIMER_TEST_SRC}" "${TIMER_TEST_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PRACTICE_SIMPLE_TEST_SRC}" "${PRACTICE_SIMPLE_TEST_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PRACTICE_TEST_SRC}" "${PRACTICE_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TEST_HELPERS_SRC}" "${TEST_HELPERS_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LOG2HTML_SRC}" "${LOG2HTML_DST}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/animations"
@@ -452,7 +452,7 @@ install(FILES
 
 # Install contrib Lisp files to share directory
 install(FILES
-    "${PRACTICE_SIMPLE_SRC}"
+    "${PRACTICE_SRC}"
     "${SEAPORT_SRC}"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/lisp/contrib"
     COMPONENT Runtime
@@ -1547,8 +1547,8 @@ add_test(NAME gui_timer-test
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
 )
 
-add_test(NAME gui_practice-simple-test
-    COMMAND $<TARGET_FILE:lisp-repl> practice-simple-test.lisp
+add_test(NAME gui_practice-test
+    COMMAND $<TARGET_FILE:lisp-repl> practice-test.lisp
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
 )
 

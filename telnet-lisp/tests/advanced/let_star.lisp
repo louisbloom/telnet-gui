@@ -35,7 +35,7 @@
 ;; Complex example: building a greeting message step by step
 (assert-equal (let* ((name "Alice")
                       (greeting (concat "Hello, " name))
-                      (length (string-length greeting)))
+                      (length (length greeting)))
                 length)
   12
   "sequential string operations")

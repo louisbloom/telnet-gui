@@ -1,5 +1,5 @@
 ;; Practice mode tests
-;; Tests the practice-simple.lisp script (/practice command)
+;; Tests the practice.lisp script (/practice command)
 (load "test-helpers.lisp")
 
 ;; ============================================================================
@@ -39,6 +39,15 @@
       lst
       (member item (cdr lst)))))
 
+;; Helper: check if any string in list contains substring
+(defun any-contains? (lst substr)
+  "Check if any string in list contains the substring."
+  (if (null? lst)
+    nil
+    (if (string-contains? (car lst) substr)
+      #t
+      (any-contains? (cdr lst) substr))))
+
 ;; Mock regex-extract - simplified for mana pattern matching
 ;; Pattern: (\d+)%m - extract mana percentage from prompt
 (defun regex-extract (pattern text)
@@ -53,6 +62,22 @@
         (if num-str
           (list num-str)  ; List of capture groups
           nil)))))
+
+;; Mock regex-match? - simplified for hunger/thirst pattern
+;; Pattern: "Your (hunger|thirst) \\w+ you"
+(defun regex-match? (pattern text)
+  "Mock regex-match?: handles hunger/thirst pattern.
+   Returns #t if pattern matches, nil otherwise."
+  ;; Check for hunger/thirst damage patterns
+  (if (string-contains? text "Your hunger")
+    (if (string-contains? text " you")
+      #t
+      nil)
+    (if (string-contains? text "Your thirst")
+      (if (string-contains? text " you")
+        #t
+        nil)
+      nil)))
 
 ;; Helper: extract consecutive digits before position
 (defun extract-digits-before (text pos)
@@ -70,7 +95,7 @@
       (if (digit-char? ch)
         (let ((prev (find-digit-start text (- pos 1))))
           (if prev prev pos))
-        (if (= pos (string-length text))
+        (if (= pos (length text))
           nil
           (+ pos 1))))))
 
@@ -149,10 +174,10 @@
   (set! *divider-modes* '()))
 
 ;; ============================================================================
-;; Load practice-simple.lisp
+;; Load practice.lisp
 ;; ============================================================================
 
-(load "../lisp/contrib/practice-simple.lisp")
+(load "../lisp/contrib/practice.lisp")
 
 ;; ============================================================================
 ;; Test practice-command? helper function
@@ -427,6 +452,258 @@
 (practice-user-input-hook "look" 0)
 (assert-false *user-input-handled* "practice-user-input-hook does not handle non-practice commands")
 
+;; ============================================================================
+;; Test practice-user-input-hook - status display (/p with no args)
+;; ============================================================================
+
+;; Test /p when not practicing
+(reset-mocks)
+(set! *practice-mode* nil)
+(set! *user-input-handled* nil)
+(practice-user-input-hook "/p" 0)
+(assert-true *user-input-handled* "practice-user-input-hook handles /p status")
+;; Check if any echo contains the message (terminal-echo adds ANSI codes)
+(assert-true (any-contains? *mock-terminal-echoes* "Not practicing")
+  "practice-user-input-hook shows 'Not practicing' message")
+
+;; Test /p when practicing
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* nil)
+(set! *user-input-handled* nil)
+(practice-user-input-hook "/p" 0)
+(assert-true *user-input-handled* "practice-user-input-hook handles /p status when practicing")
+(assert-true (any-contains? *mock-terminal-echoes* "Currently practicing: c lightb")
+  "practice-user-input-hook shows current command when practicing")
+
+;; Test /p when practicing and sleeping
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* #t)
+(set! *user-input-handled* nil)
+(practice-user-input-hook "/p" 0)
+(assert-true *user-input-handled* "practice-user-input-hook handles /p status when sleeping")
+(assert-true (any-contains? *mock-terminal-echoes* "Currently practicing: c lightb (sleeping)")
+  "practice-user-input-hook shows sleeping status")
+
+;; ============================================================================
+;; Test practice-telnet-hook - hunger/thirst damage detection
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* nil)
+(set! *practice-sleep-timer* nil)
+
+;; Test hunger damage detection
+(practice-telnet-hook "Your hunger grazes you.\r\n")
+(assert-false *practice-mode* "telnet hook stops practice on hunger damage")
+(assert-true (member "quit" *mock-telnet-sends*)
+  "telnet hook sends quit on hunger damage")
+(assert-true (any-contains? *mock-terminal-echoes* "Hunger/thirst damage detected")
+  "telnet hook shows quit message on hunger damage")
+
+;; Test thirst damage detection
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* nil)
+(practice-telnet-hook "Your thirst grazes you.\r\n")
+(assert-false *practice-mode* "telnet hook stops practice on thirst damage")
+(assert-true (member "quit" *mock-telnet-sends*)
+  "telnet hook sends quit on thirst damage")
+
+;; Test hunger damage with different verb
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(practice-telnet-hook "Your hunger hits you.\r\n")
+(assert-false *practice-mode* "telnet hook stops practice on hunger damage with different verb")
+(assert-true (member "quit" *mock-telnet-sends*)
+  "telnet hook sends quit on hunger damage with different verb")
+
+;; ============================================================================
+;; Test practice-telnet-hook - mana threshold detection
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* nil)
+(set! *practice-sleep-timer* nil)
+
+;; Test mana below threshold (15%)
+(practice-telnet-hook "civilized <100%hp 15%m 100%mv>\r\n")
+(assert-true *practice-sleep-mode* "telnet hook enters sleep mode when mana < 20%")
+(assert-true (member "sleep" *mock-telnet-sends*)
+  "telnet hook sends sleep when mana < 20%")
+
+;; Cleanup timer
+(if *practice-sleep-timer* (cancel-timer *practice-sleep-timer*))
+
+;; Test mana at threshold boundary (19%)
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* nil)
+(practice-telnet-hook "civilized <100%hp 19%m 100%mv>\r\n")
+(assert-true *practice-sleep-mode* "telnet hook enters sleep mode when mana = 19%")
+
+;; Cleanup timer
+(if *practice-sleep-timer* (cancel-timer *practice-sleep-timer*))
+
+;; Test mana at threshold boundary (20% - should not sleep)
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* nil)
+(practice-telnet-hook "civilized <100%hp 20%m 100%mv>\r\n")
+(assert-false *practice-sleep-mode* "telnet hook does not enter sleep mode when mana = 20%")
+
+;; ============================================================================
+;; Test practice-telnet-hook - "You are already" retry pattern
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* nil)
+(set! *practice-sleep-timer* nil)
+
+(practice-telnet-hook "You are already practicing that spell.\r\n")
+(assert-true (member "c lightb" *mock-telnet-sends*)
+  "telnet hook retries command on 'You are already' pattern")
+
+;; ============================================================================
+;; Test practice-add-retry-pattern
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-retry-patterns* '("You failed." "You lost your concentration." "You are already"))
+
+;; Test adding new pattern
+(practice-add-retry-pattern "Your spell fizzles.")
+(assert-true (member "Your spell fizzles." *practice-retry-patterns*)
+  "practice-add-retry-pattern adds new pattern to list")
+(assert-true (any-contains? *mock-terminal-echoes* "Added retry pattern: Your spell fizzles.")
+  "practice-add-retry-pattern shows success message")
+
+;; Test adding duplicate pattern
+(reset-mocks)
+(practice-add-retry-pattern "You failed.")
+(assert-false (any-contains? *mock-terminal-echoes* "Added retry pattern: You failed.")
+  "practice-add-retry-pattern does not add duplicate")
+(assert-true (any-contains? *mock-terminal-echoes* "Pattern already exists: You failed.")
+  "practice-add-retry-pattern shows exists message for duplicate")
+
+;; ============================================================================
+;; Test practice-send-empty (timer callback)
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-sleep-mode* #t)
+
+(practice-send-empty)
+(assert-true (member "" *mock-telnet-sends*)
+  "practice-send-empty sends empty string when in sleep mode")
+
+;; Test when not in sleep mode
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-sleep-mode* nil)
+
+(practice-send-empty)
+(assert-false (member "" *mock-telnet-sends*)
+  "practice-send-empty does not send when not in sleep mode")
+
+;; Test when not in practice mode
+(reset-mocks)
+(set! *practice-mode* nil)
+(set! *practice-sleep-mode* #t)
+
+(practice-send-empty)
+(assert-false (member "" *mock-telnet-sends*)
+  "practice-send-empty does not send when not in practice mode")
+
+;; ============================================================================
+;; Test practice-stop - edge cases
+;; ============================================================================
+
+;; Test stop when not practicing
+(reset-mocks)
+(set! *practice-mode* nil)
+(practice-stop)
+(assert-true (any-contains? *mock-terminal-echoes* "Not currently practicing")
+  "practice-stop shows message when not practicing")
+
+;; Test stop with active timer
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* #t)
+(set! *practice-sleep-timer* (run-at-time 9999 9999 (lambda () nil)))
+
+(practice-stop)
+(assert-false *practice-sleep-timer* "practice-stop cancels active timer")
+(assert-false *practice-mode* "practice-stop clears practice mode")
+
+;; ============================================================================
+;; Test practice-enter-sleep - idempotency
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* #t)
+(set! *practice-sleep-timer* (run-at-time 9999 9999 (lambda () nil)))
+
+;; Count timers before
+(define timer-count-before (length *timer-list*))
+(practice-enter-sleep)
+(define timer-count-after (length *timer-list*))
+
+;; Should not create duplicate timer
+(assert-equal timer-count-before timer-count-after
+  "practice-enter-sleep does not create duplicate timer when already sleeping")
+
+;; Cleanup
+(if *practice-sleep-timer* (cancel-timer *practice-sleep-timer*))
+
+;; ============================================================================
+;; Test practice-exit-sleep - idempotency
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* nil)
+(set! *practice-sleep-timer* nil)
+
+(practice-exit-sleep)
+(assert-false (member "stand" *mock-telnet-sends*)
+  "practice-exit-sleep does nothing when not in sleep mode")
+
+;; ============================================================================
+;; Test practice-quit-on-hunger-thirst directly
+;; ============================================================================
+
+(reset-mocks)
+(set! *practice-mode* #t)
+(set! *practice-command* "c lightb")
+(set! *practice-sleep-mode* nil)
+(set! *practice-sleep-timer* nil)
+
+(practice-quit-on-hunger-thirst)
+(assert-false *practice-mode* "practice-quit-on-hunger-thirst stops practice mode")
+(assert-true (member "quit" *mock-telnet-sends*)
+  "practice-quit-on-hunger-thirst sends quit command")
+(assert-true (any-contains? *mock-terminal-echoes* "Hunger/thirst damage detected")
+  "practice-quit-on-hunger-thirst shows quit message")
+
 ;; Cleanup any remaining timers
 (set! *timer-list* '())
 
@@ -434,4 +711,4 @@
 ;; All tests passed
 ;; ============================================================================
 
-(princ "All slash command tests passed!\n")
+(princ "All practice command tests passed!\n")
