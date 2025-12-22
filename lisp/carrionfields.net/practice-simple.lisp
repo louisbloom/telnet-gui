@@ -91,9 +91,16 @@
       #t
       (practice-matches-any-pattern? text (cdr patterns)))))
 
+(defun practice-pattern-exists? (pattern lst)
+  "Check if pattern exists in list."
+  (cond
+    ((null? lst) nil)
+    ((string=? pattern (car lst)) #t)
+    (#t (practice-pattern-exists? pattern (cdr lst)))))
+
 (defun practice-add-retry-pattern (pattern)
   "Add a pattern to *practice-retry-patterns* if not already present."
-  (if (member pattern *practice-retry-patterns*)
+  (if (practice-pattern-exists? pattern *practice-retry-patterns*)
     (practice-echo (concat "Pattern already exists: " pattern))
     (progn
       (set! *practice-retry-patterns* (cons pattern *practice-retry-patterns*))
