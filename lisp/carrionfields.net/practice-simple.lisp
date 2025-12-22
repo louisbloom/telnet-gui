@@ -5,7 +5,7 @@
 ;; TinTin++ processing, allowing clean separation of concerns.
 ;;
 ;; Usage:
-;;   :source slash.lisp        ; Load the script
+;;   :load slash.lisp          ; Load the script
 ;;   /p c lightb               ; Start practicing (or /practice, /pr, etc.)
 ;;   /p stop                   ; Stop practice mode
 ;;   /p                        ; Show current status
