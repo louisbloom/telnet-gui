@@ -850,6 +850,30 @@ Association lists are lists of key-value pairs represented as cons cells: `((key
 (cdr (assoc "debug" config))    ; => #t
 ```
 
+### List Membership Functions
+
+Functions for testing list membership. These return the tail of the list starting from the match, or nil if not found.
+
+- `member` - Find element using structural equality (equal?)
+- `memq` - Find element using pointer equality (eq?)
+
+**Examples:**
+
+```lisp
+; Find element in list (returns tail starting from match)
+(member 'b '(a b c d))          ; => (b c d)
+(member 'x '(a b c))            ; => nil
+
+; Works with strings using structural equality
+(member "foo" '("bar" "foo" "baz"))  ; => ("foo" "baz")
+
+; memq uses pointer equality (fast, but only reliable for symbols)
+(memq 'b '(a b c d))            ; => (b c d)
+
+; Test for membership (truthy if found)
+(if (member item list) "found" "not found")
+```
+
 ### Mapping Functions
 
 Functions for transforming lists by applying a function to each element.
@@ -940,6 +964,42 @@ Symbols are interned objects with a name and an optional docstring. The same sym
 (define x 'test)
 (symbol? x)                 ; => 1
 (symbol->string x)          ; => "test"
+```
+
+### Evaluation Functions
+
+- `eval` - Evaluate an expression in the current environment
+- `bound?` - Check if a symbol is bound to a value
+
+**Examples:**
+
+```lisp
+; eval evaluates quoted expressions
+(eval '(+ 1 2 3))           ; => 6
+(eval 'my-var)              ; => value of my-var
+
+; Useful for evaluating symbols to get their bound values
+(define my-func (lambda (x) (* x 2)))
+(eval 'my-func)             ; => #<lambda my-func ...>
+
+; bound? checks if a symbol has a binding
+(define x 42)
+(bound? 'x)                 ; => #t
+(bound? 'undefined-var)     ; => nil
+```
+
+### Time Functions
+
+- `current-time-ms` - Return current time in milliseconds
+
+**Examples:**
+
+```lisp
+; Get current time for timing operations
+(define start (current-time-ms))
+; ... do some work ...
+(define elapsed (- (current-time-ms) start))
+(format nil "Elapsed: ~A ms" elapsed)
 ```
 
 ### Error Handling Functions

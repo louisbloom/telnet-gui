@@ -518,6 +518,10 @@ static LispObject *builtin_assoc(LispObject *args, Environment *env);
 static LispObject *builtin_assq(LispObject *args, Environment *env);
 static LispObject *builtin_assv(LispObject *args, Environment *env);
 static LispObject *builtin_alist_get(LispObject *args, Environment *env);
+
+/* List membership */
+static LispObject *builtin_member(LispObject *args, Environment *env);
+static LispObject *builtin_memq(LispObject *args, Environment *env);
 static LispObject *builtin_map(LispObject *args, Environment *env);
 static LispObject *builtin_mapcar(LispObject *args, Environment *env);
 static LispObject *builtin_filter(LispObject *args, Environment *env);
@@ -1982,6 +1986,54 @@ static const char *doc_alist_get = "Get value for key from association list with
                                    "- `assoc` - Get full key-value pair\n"
                                    "- `hash-ref` - Hash table lookup";
 
+/* List membership */
+static const char *doc_member = "Find element in list using structural equality.\n"
+                                "\n"
+                                "## Parameters\n"
+                                "- `item` - Item to search for\n"
+                                "- `list` - List to search in\n"
+                                "\n"
+                                "## Returns\n"
+                                "The tail of the list starting from the first match, or `nil` if not found.\n"
+                                "\n"
+                                "## Examples\n"
+                                "```lisp\n"
+                                "(member 'b '(a b c d))          ; => (b c d)\n"
+                                "(member 'x '(a b c))            ; => nil\n"
+                                "(member \"foo\" '(\"bar\" \"foo\" \"baz\"))  ; => (\"foo\" \"baz\")\n"
+                                "```\n"
+                                "\n"
+                                "## Notes\n"
+                                "Uses deep structural comparison (`equal?`). For pointer equality, use `memq`.\n"
+                                "\n"
+                                "## See Also\n"
+                                "- `memq` - Pointer equality search\n"
+                                "- `assoc` - Association list lookup";
+
+static const char *doc_memq = "Find element in list using pointer equality.\n"
+                              "\n"
+                              "## Parameters\n"
+                              "- `item` - Item to search for\n"
+                              "- `list` - List to search in\n"
+                              "\n"
+                              "## Returns\n"
+                              "The tail of the list starting from the first match, or `nil` if not found.\n"
+                              "\n"
+                              "## Examples\n"
+                              "```lisp\n"
+                              "(memq 'b '(a b c d))            ; => (b c d)\n"
+                              "(memq 'x '(a b c))              ; => nil\n"
+                              "```\n"
+                              "\n"
+                              "## Notes\n"
+                              "- Uses pointer equality (`eq?`) - fastest but only reliable for symbols\n"
+                              "- Symbols are always interned, so `memq` is safe for symbol searches\n"
+                              "- NOT reliable for numbers or strings (use `member` instead)\n"
+                              "\n"
+                              "## See Also\n"
+                              "- `member` - Structural equality search\n"
+                              "- `assq` - Association list lookup with eq?";
+
 /* Miscellaneous predicates and operations */
 static const char *doc_even_question = "Test if number is even.\n"
                                        "\n"
@@ -2717,6 +2769,10 @@ void register_builtins(Environment *env) {
     REGISTER("assq", builtin_assq, doc_assq);
     REGISTER("assv", builtin_assv, doc_assv);
     REGISTER("alist-get", builtin_alist_get, doc_alist_get);
+
+    /* List membership */
+    REGISTER("member", builtin_member, doc_member);
+    REGISTER("memq", builtin_memq, doc_memq);
 
     /* Equality predicates */
     REGISTER("eq?", builtin_eq_predicate, doc_eq_predicate);
@@ -6291,6 +6347,60 @@ static LispObject *builtin_alist_get(LispObject *args, Environment *env) {
     }
 
     return default_val;
+}
+
+/* List membership */
+
+static LispObject *builtin_member(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("member requires 2 arguments");
+    }
+
+    LispObject *item = lisp_car(args);
+    LispObject *list = lisp_car(lisp_cdr(args));
+
+    /* Iterate through list using structural equality */
+    while (list != NIL && list != NULL) {
+        if (list->type != LISP_CONS) {
+            return lisp_make_error("member requires a proper list");
+        }
+
+        LispObject *elem = lisp_car(list);
+        if (objects_equal_recursive(item, elem)) {
+            return list;
+        }
+
+        list = lisp_cdr(list);
+    }
+
+    return NIL;
+}
+
+static LispObject *builtin_memq(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("memq requires 2 arguments");
+    }
+
+    LispObject *item = lisp_car(args);
+    LispObject *list = lisp_car(lisp_cdr(args));
+
+    /* Iterate through list using pointer equality */
+    while (list != NIL && list != NULL) {
+        if (list->type != LISP_CONS) {
+            return lisp_make_error("memq requires a proper list");
+        }
+
+        LispObject *elem = lisp_car(list);
+        if (item == elem) {
+            return list;
+        }
+
+        list = lisp_cdr(list);
+    }
+
+    return NIL;
 }
 
 /* Equality predicates */
