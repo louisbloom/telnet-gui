@@ -15,12 +15,14 @@
 ;; - Enters sleep mode on "You don't have enough mana."
 ;; - Wakes and resumes when prompt shows 100% mana
 ;; - Visual indicators on divider line: P when practicing, P+Z when sleeping
+;; - Quits game on hunger/thirst damage (indicates no one is watching)
 ;;
 ;; Configuration (via eval mode, Shift+Tab):
 ;;   *practice-retry-patterns*   - List of patterns that retry the command
 ;;   *practice-sleep-pattern*    - Pattern that enters sleep mode
 ;;   *practice-mana-pattern*     - Regex to extract mana % from prompt
 ;;   *practice-sleep-interval*   - Seconds between prompt refreshes while sleeping
+;;   *practice-hunger-thirst-pattern* - Regex pattern that triggers quit (hunger/thirst damage)
 ;;
 ;; Example: Add a retry pattern
 ;;   (practice-add-retry-pattern "Your spell fizzles.")
@@ -44,6 +46,9 @@
 (defvar *practice-retry-patterns*
   '("You failed." "You lost your concentration." "You are already")
   "List of patterns that trigger a retry of the practice command.")
+
+(defvar *practice-hunger-thirst-pattern* "Your (hunger|thirst) \\w+ you"
+  "Regex pattern that matches hunger/thirst damage messages with any verb (triggers quit).")
 
 ;; ============================================================================
 ;; STATE VARIABLES
@@ -171,16 +176,26 @@
       (practice-send "stand")
       (practice-send *practice-command*))))
 
+(defun practice-quit-on-hunger-thirst ()
+  "Quit the game when hunger/thirst damage is detected (no one watching)."
+  (practice-echo "Hunger/thirst damage detected - quitting (no one watching)")
+  (practice-stop)
+  (telnet-send "quit"))
+
 ;; ============================================================================
 ;; TELNET INPUT HOOK
 ;; ============================================================================
 
 (defun practice-telnet-hook (text)
   "Handle telnet input for practice mode.
-   Triggers on specific patterns for retry/sleep, prompt only for waking."
+   Triggers on specific patterns for retry/sleep, prompt only for waking.
+   Quits on hunger/thirst damage (indicates no one is watching)."
   (if *practice-mode*
     (let ((mana (practice-extract-mana text)))
       (cond
+        ;; Check for hunger/thirst damage (quit - no one watching)
+        ((regex-match? *practice-hunger-thirst-pattern* text)
+          (practice-quit-on-hunger-thirst))
         ;; Check for mana exhaustion message (spell too costly)
         ((and (not *practice-sleep-mode*)
            (string-contains? text *practice-sleep-pattern*))
