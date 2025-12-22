@@ -1,11 +1,13 @@
-;; TinTin++ State File
-;; Seaport ship triggers for Carrion Fields (carrionfields.net)
+;; seaport.lisp - Seaport ship triggers for telnet-gui
+;;
+;; This script was created for Carrion Fields MUD (https://carrionfields.net/)
+;; It provides automated ship boarding triggers for the Seaport area.
 ;;
 ;; Converted from original TinTin++ seaport.conf
 ;; Each action triggers once when a ship arrives, then removes itself.
 ;;
-;; Usage: (load "lisp/carrionfields.net/seaport.lisp")
-;;    or: #load lisp/carrionfields.net/seaport.lisp
+;; Usage: (load "lisp/contrib/seaport.lisp")
+;;    or: #load lisp/contrib/seaport.lisp
 
 ;; Aliases
 

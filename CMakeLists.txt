@@ -323,10 +323,10 @@ set(INIT_POST_DST "${CMAKE_BINARY_DIR}/lisp/init-post.lisp")
 # Copy test-related Lisp files to build directory
 set(TINTIN_SRC "${CMAKE_SOURCE_DIR}/lisp/tintin.lisp")
 set(TINTIN_DST "${CMAKE_BINARY_DIR}/lisp/tintin.lisp")
-set(PRACTICE_SIMPLE_SRC "${CMAKE_SOURCE_DIR}/lisp/carrionfields.net/practice-simple.lisp")
-set(PRACTICE_SIMPLE_DST "${CMAKE_BINARY_DIR}/lisp/carrionfields.net/practice-simple.lisp")
-set(SEAPORT_SRC "${CMAKE_SOURCE_DIR}/lisp/carrionfields.net/seaport.lisp")
-set(SEAPORT_DST "${CMAKE_BINARY_DIR}/lisp/carrionfields.net/seaport.lisp")
+set(PRACTICE_SIMPLE_SRC "${CMAKE_SOURCE_DIR}/lisp/contrib/practice-simple.lisp")
+set(PRACTICE_SIMPLE_DST "${CMAKE_BINARY_DIR}/lisp/contrib/practice-simple.lisp")
+set(SEAPORT_SRC "${CMAKE_SOURCE_DIR}/lisp/contrib/seaport.lisp")
+set(SEAPORT_DST "${CMAKE_BINARY_DIR}/lisp/contrib/seaport.lisp")
 set(TINTIN_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/tintin-test.lisp")
 set(TINTIN_TEST_DST "${CMAKE_BINARY_DIR}/tests/tintin-test.lisp")
 set(COMPLETION_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/completion-test.lisp")
@@ -368,7 +368,7 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${INIT_SRC}" "${INIT_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${INIT_POST_SRC}" "${INIT_POST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_SRC}" "${TINTIN_DST}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/lisp/carrionfields.net"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/lisp/contrib"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PRACTICE_SIMPLE_SRC}" "${PRACTICE_SIMPLE_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SEAPORT_SRC}" "${SEAPORT_DST}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/tests"
@@ -447,6 +447,14 @@ install(FILES
     "${INIT_POST_SRC}"
     "${TINTIN_SRC}"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/lisp"
+    COMPONENT Runtime
+)
+
+# Install contrib Lisp files to share directory
+install(FILES
+    "${PRACTICE_SIMPLE_SRC}"
+    "${SEAPORT_SRC}"
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/lisp/contrib"
     COMPONENT Runtime
 )
 

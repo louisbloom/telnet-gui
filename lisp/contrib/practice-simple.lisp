@@ -1,11 +1,12 @@
-;; slash.lisp - Slash command handlers for telnet-gui
+;; practice-simple.lisp - Practice mode automation for telnet-gui
 ;;
-;; This file handles slash commands (e.g., /practice, /p).
+;; This script was created for Carrion Fields MUD (https://carrionfields.net/)
+;; It handles slash commands (e.g., /practice, /p) for automated spell practice.
 ;; Slash commands are processed via the user-input-hook system before
 ;; TinTin++ processing, allowing clean separation of concerns.
 ;;
 ;; Usage:
-;;   :load slash.lisp          ; Load the script
+;;   :load practice-simple.lisp  ; Load the script
 ;;   /p c lightb               ; Start practicing (or /practice, /pr, etc.)
 ;;   /p stop                   ; Stop practice mode
 ;;   /p                        ; Show current status

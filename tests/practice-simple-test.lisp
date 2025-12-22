@@ -152,7 +152,7 @@
 ;; Load practice-simple.lisp
 ;; ============================================================================
 
-(load "../lisp/carrionfields.net/practice-simple.lisp")
+(load "../lisp/contrib/practice-simple.lisp")
 
 ;; ============================================================================
 ;; Test practice-command? helper function
