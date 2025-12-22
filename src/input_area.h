@@ -7,8 +7,27 @@
 
 #define INPUT_AREA_MAX_LENGTH 4096
 #define INPUT_AREA_HISTORY_SIZE 100 /* Default, can be overridden by Lisp config */
+#define UNDO_STACK_SIZE 64
 
 typedef enum { INPUT_AREA_MODE_NORMAL = 0, INPUT_AREA_MODE_EVAL = 1 } InputAreaMode;
+
+/* Undo operation types (for coalescing) */
+typedef enum {
+    UNDO_OP_NONE = 0,
+    UNDO_OP_INSERT,
+    UNDO_OP_DELETE,
+    UNDO_OP_BACKSPACE,
+    UNDO_OP_KILL,
+    UNDO_OP_YANK,
+    UNDO_OP_CLEAR
+} UndoOpType;
+
+/* Undo state snapshot */
+typedef struct {
+    char buffer[INPUT_AREA_MAX_LENGTH];
+    int cursor_pos;
+    int length;
+} UndoEntry;
 
 typedef struct InputArea {
     char buffer[INPUT_AREA_MAX_LENGTH];
@@ -52,6 +71,17 @@ typedef struct InputArea {
 
     /* Eval buffer for Lisp expression output */
     DynamicBuffer *eval_buf;
+
+    /* Undo/Redo state */
+    UndoEntry undo_stack[UNDO_STACK_SIZE];
+    int undo_head;            /* Index of most recent entry */
+    int undo_count;           /* Number of valid entries */
+    UndoEntry redo_stack[UNDO_STACK_SIZE];
+    int redo_head;
+    int redo_count;
+    UndoOpType undo_last_op;  /* For coalescing */
+    int undo_last_cursor;     /* Cursor pos after last op */
+    int undo_coalesce_active; /* Whether grouping is active */
 } InputArea;
 
 /* Initialize input area */
@@ -106,6 +136,13 @@ void input_area_history_restore_current(InputArea *area);
 
 /* Clear input area */
 void input_area_clear(InputArea *area);
+
+/* Undo/Redo operations */
+int input_area_undo(InputArea *area);       /* Returns 1 if undo performed */
+int input_area_redo(InputArea *area);       /* Returns 1 if redo performed */
+int input_area_can_undo(InputArea *area);
+int input_area_can_redo(InputArea *area);
+void input_area_undo_clear(InputArea *area);
 
 /* Get current text */
 const char *input_area_get_text(InputArea *area);

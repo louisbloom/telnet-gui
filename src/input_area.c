@@ -26,6 +26,102 @@ static void clear_selection_if_active(InputArea *area) {
     }
 }
 
+/* Helper: Push current state to undo stack */
+static void undo_push(InputArea *area) {
+    if (!area)
+        return;
+
+    /* Advance head (circular buffer) */
+    area->undo_head = (area->undo_head + 1) % UNDO_STACK_SIZE;
+    if (area->undo_count < UNDO_STACK_SIZE) {
+        area->undo_count++;
+    }
+
+    /* Save current state */
+    UndoEntry *entry = &area->undo_stack[area->undo_head];
+    memcpy(entry->buffer, area->buffer, area->length + 1);
+    entry->cursor_pos = area->cursor_pos;
+    entry->length = area->length;
+}
+
+/* Helper: Push current state to redo stack */
+static void redo_push(InputArea *area) {
+    if (!area)
+        return;
+
+    /* Advance head (circular buffer) */
+    area->redo_head = (area->redo_head + 1) % UNDO_STACK_SIZE;
+    if (area->redo_count < UNDO_STACK_SIZE) {
+        area->redo_count++;
+    }
+
+    /* Save current state */
+    UndoEntry *entry = &area->redo_stack[area->redo_head];
+    memcpy(entry->buffer, area->buffer, area->length + 1);
+    entry->cursor_pos = area->cursor_pos;
+    entry->length = area->length;
+}
+
+/* Helper: Clear redo stack (called on any new modification) */
+static void redo_clear(InputArea *area) {
+    if (!area)
+        return;
+    area->redo_count = 0;
+    area->redo_head = -1;
+}
+
+/* Helper: Check if operation should coalesce with previous */
+static int should_coalesce(InputArea *area, UndoOpType op_type, const char *text, int text_len) {
+    if (!area)
+        return 0;
+
+    /* Never coalesce if no previous operation or coalescing disabled */
+    if (!area->undo_coalesce_active || area->undo_count == 0)
+        return 0;
+
+    /* Different operation type breaks coalescing */
+    if (area->undo_last_op != op_type)
+        return 0;
+
+    /* Cursor moved since last operation breaks coalescing */
+    if (area->cursor_pos != area->undo_last_cursor)
+        return 0;
+
+    /* Only coalesce single-character insert operations */
+    if (op_type != UNDO_OP_INSERT)
+        return 0;
+
+    /* Multi-character insert (paste) never coalesces */
+    if (text_len != 1)
+        return 0;
+
+    /* Word boundary detection: space, newline, or punctuation breaks coalescing */
+    char ch = text[0];
+    if (isspace((unsigned char)ch) || ispunct((unsigned char)ch))
+        return 0;
+
+    return 1; /* Coalesce! */
+}
+
+/* Helper: Save state before modification (with coalescing logic) */
+static void undo_save_state(InputArea *area, UndoOpType op_type, const char *text, int text_len) {
+    if (!area)
+        return;
+
+    /* Check if we should coalesce with previous operation */
+    if (!should_coalesce(area, op_type, text, text_len)) {
+        /* Push current state to undo stack */
+        undo_push(area);
+    }
+
+    /* Clear redo stack on any modification */
+    redo_clear(area);
+
+    /* Update coalescing state */
+    area->undo_last_op = op_type;
+    area->undo_coalesce_active = 1;
+}
+
 void input_area_init(InputArea *area) {
     if (!area)
         return;
@@ -61,6 +157,15 @@ void input_area_init(InputArea *area) {
     area->scroll_offset = 0;       /* No scrolling initially */
     area->max_visible_rows = 5;    /* Default: up to 5 rows before scrolling */
     area->needs_layout_recalc = 0; /* No recalc needed for empty buffer */
+
+    /* Initialize undo/redo state */
+    area->undo_head = -1;
+    area->undo_count = 0;
+    area->redo_head = -1;
+    area->redo_count = 0;
+    area->undo_last_op = UNDO_OP_NONE;
+    area->undo_last_cursor = 0;
+    area->undo_coalesce_active = 0;
 }
 
 void input_area_insert_text(InputArea *area, const char *text, int text_len) {
@@ -68,6 +173,9 @@ void input_area_insert_text(InputArea *area, const char *text, int text_len) {
         return;
 
     if (area->length + text_len < INPUT_AREA_MAX_LENGTH) {
+        /* Save undo state before modification */
+        undo_save_state(area, UNDO_OP_INSERT, text, text_len);
+
         /* Make room for new text */
         memmove(&area->buffer[area->cursor_pos + text_len], &area->buffer[area->cursor_pos],
                 area->length - area->cursor_pos);
@@ -82,6 +190,9 @@ void input_area_insert_text(InputArea *area, const char *text, int text_len) {
         area->needs_redraw = 1;
         area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
 
+        /* Update undo cursor tracking */
+        area->undo_last_cursor = area->cursor_pos;
+
         /* Reset history prefix search when text is edited */
         reset_history_search(area);
         /* Clear selection when text is edited */
@@ -94,6 +205,9 @@ void input_area_delete_char(InputArea *area) {
         return;
 
     if (area->cursor_pos < area->length) {
+        /* Save undo state before modification */
+        undo_save_state(area, UNDO_OP_DELETE, NULL, 0);
+
         memmove(&area->buffer[area->cursor_pos], &area->buffer[area->cursor_pos + 1],
                 area->length - area->cursor_pos - 1);
         area->length--;
@@ -103,6 +217,9 @@ void input_area_delete_char(InputArea *area) {
         }
         area->needs_redraw = 1;
         area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
+
+        /* Update undo cursor tracking */
+        area->undo_last_cursor = area->cursor_pos;
 
         /* Reset history prefix search when text is edited */
         reset_history_search(area);
@@ -116,6 +233,9 @@ void input_area_backspace(InputArea *area) {
         return;
 
     if (area->cursor_pos > 0) {
+        /* Save undo state before modification */
+        undo_save_state(area, UNDO_OP_BACKSPACE, NULL, 0);
+
         memmove(&area->buffer[area->cursor_pos - 1], &area->buffer[area->cursor_pos], area->length - area->cursor_pos);
         area->cursor_pos--;
         area->length--;
@@ -125,6 +245,9 @@ void input_area_backspace(InputArea *area) {
         }
         area->needs_redraw = 1;
         area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
+
+        /* Update undo cursor tracking */
+        area->undo_last_cursor = area->cursor_pos;
 
         /* Reset history prefix search when text is edited */
         reset_history_search(area);
@@ -289,6 +412,9 @@ void input_area_kill_to_end(InputArea *area) {
         return;
 
     if (area->cursor_pos < area->length) {
+        /* Save undo state before modification */
+        undo_save_state(area, UNDO_OP_KILL, NULL, 0);
+
         /* Copy killed text to kill ring */
         int kill_len = area->length - area->cursor_pos;
         memcpy(area->kill_ring, &area->buffer[area->cursor_pos], kill_len);
@@ -298,6 +424,9 @@ void input_area_kill_to_end(InputArea *area) {
         area->length = area->cursor_pos;
         area->buffer[area->length] = '\0';
         area->needs_redraw = 1;
+
+        /* Update undo cursor tracking */
+        area->undo_last_cursor = area->cursor_pos;
 
         /* Reset history prefix search when text is edited */
         reset_history_search(area);
@@ -309,6 +438,9 @@ void input_area_kill_from_start(InputArea *area) {
         return;
 
     if (area->cursor_pos > 0) {
+        /* Save undo state before modification */
+        undo_save_state(area, UNDO_OP_KILL, NULL, 0);
+
         /* Copy killed text to kill ring */
         memcpy(area->kill_ring, area->buffer, area->cursor_pos);
         area->kill_ring[area->cursor_pos] = '\0';
@@ -319,6 +451,9 @@ void input_area_kill_from_start(InputArea *area) {
         area->cursor_pos = 0;
         area->buffer[area->length] = '\0';
         area->needs_redraw = 1;
+
+        /* Update undo cursor tracking */
+        area->undo_last_cursor = area->cursor_pos;
 
         /* Reset history prefix search when text is edited */
         reset_history_search(area);
@@ -333,19 +468,28 @@ void input_area_kill_word(InputArea *area) {
         int word_start = find_word_start(area->buffer, area->cursor_pos);
         int kill_len = area->cursor_pos - word_start;
 
-        /* Copy killed text to kill ring */
-        memcpy(area->kill_ring, &area->buffer[word_start], kill_len);
-        area->kill_ring[kill_len] = '\0';
+        /* Only proceed if there's something to kill */
+        if (kill_len > 0) {
+            /* Save undo state before modification */
+            undo_save_state(area, UNDO_OP_KILL, NULL, 0);
 
-        /* Remove killed text */
-        memmove(&area->buffer[word_start], &area->buffer[area->cursor_pos], area->length - area->cursor_pos);
-        area->length -= kill_len;
-        area->cursor_pos = word_start;
-        area->buffer[area->length] = '\0';
-        area->needs_redraw = 1;
+            /* Copy killed text to kill ring */
+            memcpy(area->kill_ring, &area->buffer[word_start], kill_len);
+            area->kill_ring[kill_len] = '\0';
 
-        /* Reset history prefix search when text is edited */
-        reset_history_search(area);
+            /* Remove killed text */
+            memmove(&area->buffer[word_start], &area->buffer[area->cursor_pos], area->length - area->cursor_pos);
+            area->length -= kill_len;
+            area->cursor_pos = word_start;
+            area->buffer[area->length] = '\0';
+            area->needs_redraw = 1;
+
+            /* Update undo cursor tracking */
+            area->undo_last_cursor = area->cursor_pos;
+
+            /* Reset history prefix search when text is edited */
+            reset_history_search(area);
+        }
     }
 }
 
@@ -355,6 +499,9 @@ void input_area_yank(InputArea *area) {
 
     int kill_len = strlen(area->kill_ring);
     if (kill_len > 0 && area->length + kill_len < INPUT_AREA_MAX_LENGTH) {
+        /* Save undo state before modification */
+        undo_save_state(area, UNDO_OP_YANK, NULL, 0);
+
         /* Make room for yanked text */
         memmove(&area->buffer[area->cursor_pos + kill_len], &area->buffer[area->cursor_pos],
                 area->length - area->cursor_pos);
@@ -364,6 +511,9 @@ void input_area_yank(InputArea *area) {
         area->length += kill_len;
         area->buffer[area->length] = '\0';
         area->needs_redraw = 1;
+
+        /* Update undo cursor tracking */
+        area->undo_last_cursor = area->cursor_pos;
 
         /* Reset history prefix search when text is edited */
         reset_history_search(area);
@@ -384,6 +534,9 @@ void input_area_paste(InputArea *area, const char *text) {
 
     int text_len = strlen(text);
     if (text_len > 0 && area->length + text_len < INPUT_AREA_MAX_LENGTH) {
+        /* Save undo state before modification (multi-char insert, never coalesces) */
+        undo_save_state(area, UNDO_OP_INSERT, text, text_len);
+
         /* Make room for pasted text */
         memmove(&area->buffer[area->cursor_pos + text_len], &area->buffer[area->cursor_pos],
                 area->length - area->cursor_pos);
@@ -394,6 +547,9 @@ void input_area_paste(InputArea *area, const char *text) {
         area->buffer[area->length] = '\0';
         area->needs_redraw = 1;
         area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
+
+        /* Update undo cursor tracking */
+        area->undo_last_cursor = area->cursor_pos;
 
         /* Reset history prefix search when text is edited */
         reset_history_search(area);
@@ -632,11 +788,104 @@ void input_area_clear(InputArea *area) {
     if (!area)
         return;
 
+    /* Save undo state before clearing (only if there's content) */
+    if (area->length > 0) {
+        undo_save_state(area, UNDO_OP_CLEAR, NULL, 0);
+        area->undo_last_cursor = 0;
+    }
+
     area->buffer[0] = '\0';
     area->length = 0;
     area->cursor_pos = 0;
     area->needs_redraw = 1;
     area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
+}
+
+/* Undo/Redo operations */
+
+int input_area_undo(InputArea *area) {
+    if (!area || area->undo_count == 0)
+        return 0;
+
+    /* Push current state to redo stack */
+    redo_push(area);
+
+    /* Pop from undo stack and restore */
+    UndoEntry *entry = &area->undo_stack[area->undo_head];
+    memcpy(area->buffer, entry->buffer, entry->length + 1);
+    area->cursor_pos = entry->cursor_pos;
+    area->length = entry->length;
+
+    /* Update undo stack pointers */
+    area->undo_head = (area->undo_head - 1 + UNDO_STACK_SIZE) % UNDO_STACK_SIZE;
+    area->undo_count--;
+
+    /* Break coalescing */
+    area->undo_coalesce_active = 0;
+    area->undo_last_op = UNDO_OP_NONE;
+
+    /* Request redraw */
+    area->needs_redraw = 1;
+    area->needs_layout_recalc = 1;
+
+    /* Reset history search */
+    reset_history_search(area);
+
+    return 1;
+}
+
+int input_area_redo(InputArea *area) {
+    if (!area || area->redo_count == 0)
+        return 0;
+
+    /* Push current state to undo stack */
+    undo_push(area);
+
+    /* Pop from redo stack and restore */
+    UndoEntry *entry = &area->redo_stack[area->redo_head];
+    memcpy(area->buffer, entry->buffer, entry->length + 1);
+    area->cursor_pos = entry->cursor_pos;
+    area->length = entry->length;
+
+    /* Update redo stack pointers */
+    area->redo_head = (area->redo_head - 1 + UNDO_STACK_SIZE) % UNDO_STACK_SIZE;
+    area->redo_count--;
+
+    /* Break coalescing */
+    area->undo_coalesce_active = 0;
+    area->undo_last_op = UNDO_OP_NONE;
+
+    /* Request redraw */
+    area->needs_redraw = 1;
+    area->needs_layout_recalc = 1;
+
+    /* Reset history search */
+    reset_history_search(area);
+
+    return 1;
+}
+
+int input_area_can_undo(InputArea *area) {
+    if (!area)
+        return 0;
+    return area->undo_count > 0;
+}
+
+int input_area_can_redo(InputArea *area) {
+    if (!area)
+        return 0;
+    return area->redo_count > 0;
+}
+
+void input_area_undo_clear(InputArea *area) {
+    if (!area)
+        return;
+    area->undo_count = 0;
+    area->undo_head = -1;
+    area->redo_count = 0;
+    area->redo_head = -1;
+    area->undo_coalesce_active = 0;
+    area->undo_last_op = UNDO_OP_NONE;
 }
 
 const char *input_area_get_text(InputArea *area) {
@@ -691,6 +940,8 @@ void input_area_sync_state(InputArea *area) {
         area->cursor_pos = area->length;
     }
     area->needs_redraw = 1;
+    /* Clear undo history - external modifications invalidate it */
+    input_area_undo_clear(area);
 }
 
 /* Mode management */

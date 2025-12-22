@@ -1207,6 +1207,17 @@ int main(int argc, char **argv) {
                     }
                 }
 
+                /* Check for Ctrl+_ (undo) / Alt+_ (redo) using keysym */
+                if (event.key.keysym.sym == SDLK_UNDERSCORE) {
+                    if (mod & KMOD_CTRL) {
+                        input_area_undo(&input_area);
+                        break;
+                    } else if (mod & KMOD_ALT) {
+                        input_area_redo(&input_area);
+                        break;
+                    }
+                }
+
                 switch (scancode) {
                 case SDL_SCANCODE_RETURN:
                 case SDL_SCANCODE_KP_ENTER: {
