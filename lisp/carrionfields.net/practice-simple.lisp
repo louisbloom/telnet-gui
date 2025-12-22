@@ -23,7 +23,7 @@
 ;;   *practice-sleep-interval*   - Seconds between prompt refreshes while sleeping
 ;;
 ;; Example: Add a retry pattern
-;;   (set! *practice-retry-patterns* (cons "Your spell fizzles." *practice-retry-patterns*))
+;;   (practice-add-retry-pattern "Your spell fizzles.")
 
 ;; ============================================================================
 ;; CONFIGURATION
@@ -90,6 +90,14 @@
     (if (string-contains? text (car patterns))
       #t
       (practice-matches-any-pattern? text (cdr patterns)))))
+
+(defun practice-add-retry-pattern (pattern)
+  "Add a pattern to *practice-retry-patterns* if not already present."
+  (if (member pattern *practice-retry-patterns*)
+    (practice-echo (concat "Pattern already exists: " pattern))
+    (progn
+      (set! *practice-retry-patterns* (cons pattern *practice-retry-patterns*))
+      (practice-echo (concat "Added retry pattern: " pattern)))))
 
 ;; ============================================================================
 ;; CORE FUNCTIONS
