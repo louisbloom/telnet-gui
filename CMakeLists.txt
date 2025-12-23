@@ -1568,9 +1568,6 @@ add_test(NAME gui_practice-test
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
 )
 
-# Release target for creating git tags
-include(Release)
-
 # Package configuration
 set(CPACK_PACKAGE_NAME "TelnetGui")
 set(CPACK_PACKAGE_VERSION "${GIT_VERSION_FULL}")
