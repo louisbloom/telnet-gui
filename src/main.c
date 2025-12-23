@@ -385,16 +385,15 @@ static void print_help(const char *program_name) {
     printf("    -f, --font-size SIZE   Set font size in points (default: 12)\n");
     printf("    -F<letter>             Select font (default: s = system font):\n");
     printf("                             s = System monospace font (best for platform),\n");
-    printf("                             m = Cascadia Mono, l = Cascadia Code (ligatures),\n");
-    printf("                             i = Inconsolata, p = IBM Plex Mono,\n");
-    printf("                             d = DejaVu Sans Mono, c = Courier Prime\n");
+    printf("                             m = Cascadia Mono, i = Inconsolata,\n");
+    printf("                             p = IBM Plex Mono, d = DejaVu Sans Mono,\n");
+    printf("                             c = Courier Prime\n");
     printf("    --font <name>          Select font by name:\n");
-    printf("                             system, cascadia, cascadiacode, inconsolata, plex,\n");
-    printf("                             dejavu, courier\n");
+    printf("                             system, cascadia, inconsolata, plex, dejavu, courier\n");
     printf("    -H, --hinting MODE     Set font hinting mode (default: none)\n");
-    printf("                            MODE can be: none, light, normal, mono\n");
+    printf("                             MODE can be: none, light, normal, mono\n");
     printf("    -a, --antialiasing MODE Set anti-aliasing mode (default: nearest)\n");
-    printf("                            MODE can be: nearest, linear\n");
+    printf("                             MODE can be: nearest, linear\n");
     printf("\n");
     printf("  Terminal Options:\n");
     printf("    -g, --geometry GEOM     Set terminal size in characters\n");
@@ -448,13 +447,12 @@ int main(int argc, char **argv) {
     int port = 0;
     const char *lisp_files[16]; /* Support up to 16 -l flags */
     int lisp_file_count = 0;
-    char font_choice = 's';       /* Font selection: s=System, m=Cascadia Mono, l=Cascadia Code, i=Inconsolata, p=Plex,
-                                     d=DejaVu, c=Courier */
-    int font_size = 12;           /* Default font size */
-    int terminal_cols = 80;       /* Default terminal columns */
-    int terminal_rows = 40;       /* Default terminal rows */
-    int debug_exit = 0;           /* Exit after initialization for debug output */
-    float cli_line_height = 0.0f; /* CLI line height (0.0 means not set, use default) */
+    char font_choice = 's'; /* Font selection: s=System, m=Cascadia Mono, i=Inconsolata, p=Plex, d=DejaVu, c=Courier */
+    int font_size = 12;     /* Default font size */
+    int terminal_cols = 80;             /* Default terminal columns */
+    int terminal_rows = 40;             /* Default terminal rows */
+    int debug_exit = 0;                 /* Exit after initialization for debug output */
+    float cli_line_height = 0.0f;       /* CLI line height (0.0 means not set, use default) */
 
     /* Parse command-line arguments */
     int arg_idx = 1;
@@ -507,9 +505,9 @@ int main(int argc, char **argv) {
             }
         } else if (strncmp(argv[arg_idx], "-F", 2) == 0 && strlen(argv[arg_idx]) == 3) {
             font_choice = argv[arg_idx][2];
-            if (font_choice != 's' && font_choice != 'm' && font_choice != 'l' && font_choice != 'i' &&
-                font_choice != 'p' && font_choice != 'd' && font_choice != 'c') {
-                fprintf(stderr, "Error: Invalid font flag -F%c. Use: s, m, l, i, p, d, or c\n", font_choice);
+            if (font_choice != 's' && font_choice != 'm' && font_choice != 'i' && font_choice != 'p' &&
+                font_choice != 'd' && font_choice != 'c') {
+                fprintf(stderr, "Error: Invalid font flag -F%c. Use: s, m, i, p, d, or c\n", font_choice);
                 return 1;
             }
         } else if (strcmp(argv[arg_idx], "--font") == 0) {
@@ -522,8 +520,6 @@ int main(int argc, char **argv) {
                 font_choice = 's';
             else if (strcmp(argv[arg_idx], "cascadia") == 0)
                 font_choice = 'm';
-            else if (strcmp(argv[arg_idx], "cascadiacode") == 0)
-                font_choice = 'l';
             else if (strcmp(argv[arg_idx], "inconsolata") == 0)
                 font_choice = 'i';
             else if (strcmp(argv[arg_idx], "plex") == 0)
@@ -687,28 +683,24 @@ int main(int argc, char **argv) {
     if (font_choice != 's') {
         switch (font_choice) {
         case 'm':
-            font_filename = "CascadiaMono-Regular.ttf";
             font_name = "Cascadia Mono";
-            break;
-        case 'l':
-            font_filename = "CascadiaCode-Regular.ttf";
-            font_name = "Cascadia Code";
+            font_filename = "CascadiaMono-Regular.ttf";
             break;
         case 'i':
-            font_filename = "Inconsolata-Regular.ttf";
             font_name = "Inconsolata";
+            font_filename = "Inconsolata-Regular.ttf";
             break;
         case 'p':
-            font_filename = "IBMPlexMono-Regular.ttf";
             font_name = "IBM Plex Mono";
+            font_filename = "IBMPlexMono-Regular.ttf";
             break;
         case 'd':
-            font_filename = "DejaVuSansMono.ttf";
             font_name = "DejaVu Sans Mono";
+            font_filename = "DejaVuSansMono.ttf";
             break;
         case 'c':
-            font_filename = "CourierPrime-Regular.ttf";
             font_name = "Courier Prime";
+            font_filename = "CourierPrime-Regular.ttf";
             break;
         default:
             fprintf(stderr, "Internal error: Invalid font_choice '%c'\n", font_choice);

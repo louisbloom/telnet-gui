@@ -318,14 +318,10 @@ set(FONT_PLEX_SRC "${CMAKE_SOURCE_DIR}/fonts/IBMPlexMono-Regular.ttf")
 set(FONT_PLEX_DST "${CMAKE_BINARY_DIR}/fonts/IBMPlexMono-Regular.ttf")
 set(FONT_DEJAVU_SRC "${CMAKE_SOURCE_DIR}/fonts/DejaVuSansMono.ttf")
 set(FONT_DEJAVU_DST "${CMAKE_BINARY_DIR}/fonts/DejaVuSansMono.ttf")
-set(FONT_DEJAVU_BOLD_SRC "${CMAKE_SOURCE_DIR}/fonts/DejaVuSansMono-Bold.ttf")
-set(FONT_DEJAVU_BOLD_DST "${CMAKE_BINARY_DIR}/fonts/DejaVuSansMono-Bold.ttf")
 set(FONT_COURIER_SRC "${CMAKE_SOURCE_DIR}/fonts/CourierPrime-Regular.ttf")
 set(FONT_COURIER_DST "${CMAKE_BINARY_DIR}/fonts/CourierPrime-Regular.ttf")
 set(FONT_CASCADIA_SRC "${CMAKE_SOURCE_DIR}/fonts/CascadiaMono-Regular.ttf")
 set(FONT_CASCADIA_DST "${CMAKE_BINARY_DIR}/fonts/CascadiaMono-Regular.ttf")
-set(FONT_CASCADIA_CODE_SRC "${CMAKE_SOURCE_DIR}/fonts/CascadiaCode-Regular.ttf")
-set(FONT_CASCADIA_CODE_DST "${CMAKE_BINARY_DIR}/fonts/CascadiaCode-Regular.ttf")
 
 # Copy init Lisp files to build directory
 set(INIT_SRC "${CMAKE_SOURCE_DIR}/lisp/init.lisp")
@@ -373,10 +369,8 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_INCONSOLATA_SRC}" "${FONT_INCONSOLATA_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_PLEX_SRC}" "${FONT_PLEX_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_DEJAVU_SRC}" "${FONT_DEJAVU_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_DEJAVU_BOLD_SRC}" "${FONT_DEJAVU_BOLD_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_COURIER_SRC}" "${FONT_COURIER_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_CASCADIA_SRC}" "${FONT_CASCADIA_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_CASCADIA_CODE_SRC}" "${FONT_CASCADIA_CODE_DST}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/lisp"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${INIT_SRC}" "${INIT_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${INIT_POST_SRC}" "${INIT_POST_DST}"
@@ -437,10 +431,8 @@ install(FILES
     "${FONT_INCONSOLATA_SRC}"
     "${FONT_PLEX_SRC}"
     "${FONT_DEJAVU_SRC}"
-    "${FONT_DEJAVU_BOLD_SRC}"
     "${FONT_COURIER_SRC}"
     "${FONT_CASCADIA_SRC}"
-    "${FONT_CASCADIA_CODE_SRC}"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/fonts"
     COMPONENT Runtime
 )
