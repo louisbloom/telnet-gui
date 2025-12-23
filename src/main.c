@@ -1592,6 +1592,20 @@ int main(int argc, char **argv) {
             }
 
             case SDL_TEXTINPUT: {
+                const char *text = event.text.text;
+                int text_len = strlen(text);
+
+                /* Suppress underscore input if modifiers match undo/redo shortcut
+                 * This prevents underscore from being inserted when Alt+Shift+- is used for redo */
+                if (text_len == 1 && text[0] == '_') {
+                    SDL_Keymod current_mod = SDL_GetModState();
+                    if (((current_mod & KMOD_CTRL) && (current_mod & KMOD_SHIFT)) ||
+                        ((current_mod & KMOD_ALT) && (current_mod & KMOD_SHIFT))) {
+                        /* Modifiers match shortcut, ignore this text input */
+                        break;
+                    }
+                }
+
                 /* Accept tab completion if active (any text input exits tab mode) */
                 if (lisp_x_is_tab_mode_active()) {
                     lisp_x_accept_tab_completion();
@@ -1601,8 +1615,6 @@ int main(int argc, char **argv) {
                     terminal_scroll_to_bottom(term);
                 }
                 /* All text input goes to input area */
-                const char *text = event.text.text;
-                int text_len = strlen(text);
                 input_area_insert_text(&input_area, text, text_len);
                 break;
             }
