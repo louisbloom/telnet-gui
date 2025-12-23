@@ -1744,15 +1744,25 @@ int main(int argc, char **argv) {
             /* Use select() to check if data is available (avoid unnecessary recv() calls) */
             int sock = telnet_get_socket(telnet);
             if (sock >= 0) {
-                fd_set readfds;
+                fd_set readfds, exceptfds;
                 struct timeval tv = {0, 0}; /* Non-blocking check */
                 FD_ZERO(&readfds);
+                FD_ZERO(&exceptfds);
 #ifdef _WIN32
                 FD_SET((SOCKET)sock, &readfds);
-                int ready = select(0, &readfds, NULL, NULL, &tv); /* First param ignored on Windows */
+                FD_SET((SOCKET)sock, &exceptfds);
+                int ready = select(0, &readfds, NULL, &exceptfds, &tv); /* First param ignored on Windows */
+                /* Check for socket exceptions (out-of-band data or errors) */
+                if (FD_ISSET((SOCKET)sock, &exceptfds)) {
+                    fprintf(stderr, "select(): socket exception detected (OOB data or error)\n");
+                }
 #else
                 FD_SET(sock, &readfds);
-                int ready = select(sock + 1, &readfds, NULL, NULL, &tv);
+                FD_SET(sock, &exceptfds);
+                int ready = select(sock + 1, &readfds, NULL, &exceptfds, &tv);
+                if (FD_ISSET(sock, &exceptfds)) {
+                    fprintf(stderr, "select(): socket exception detected (OOB data or error)\n");
+                }
 #endif
 #ifdef _WIN32
                 if (ready > 0 && FD_ISSET((SOCKET)sock, &readfds)) {

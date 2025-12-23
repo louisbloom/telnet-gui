@@ -390,22 +390,30 @@ int telnet_receive(Telnet *t, char *buffer, size_t bufsize) {
         telnet_log_data(t, "RECV", (unsigned char *)buffer, received);
     }
 
-    if (received <= 0) {
+    if (received < 0) {
+        /* Error from recv() */
 #ifdef _WIN32
         int error = WSAGetLastError();
-        if (error == WSAEWOULDBLOCK || error == WSAEINPROGRESS) {
-            /* Would block - no data available */
+        if (error == WSAEWOULDBLOCK || error == WSAEINPROGRESS || error == WSAEINTR) {
+            /* Would block or interrupted - no data available, not an error */
             return 0;
         }
+        fprintf(stderr, "telnet_receive: recv() returned -1, WSAGetLastError=%d\n", error);
 #else
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            /* Would block - no data available */
+        if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+            /* Would block or interrupted - no data available, not an error */
             return 0;
         }
+        fprintf(stderr, "telnet_receive: recv() returned -1, errno=%d (%s)\n", errno, strerror(errno));
 #endif
-        /* Connection closed or error */
+        /* Connection error */
         telnet_disconnect(t);
-        return -1; /* Return -1 for connection closed/error (not 0 which means "would block") */
+        return -1;
+    } else if (received == 0) {
+        /* recv() returning 0 means graceful close (peer sent FIN) */
+        fprintf(stderr, "telnet_receive: recv() returned 0 (peer closed connection)\n");
+        telnet_disconnect(t);
+        return -1;
     }
 
     /* Parse Telnet commands */
