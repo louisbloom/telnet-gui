@@ -1543,14 +1543,14 @@ under the cursor is rendered with this background color.
 ;; Divider Colors
 ;; ----------------------------------------------------------------------------
 
-(defvar *divider-connected-color* '(128 150 150)
+(defvar *divider-connected-color* '(100 175 135)
   "Divider line color when connected to server.
 
 ## Format
 RGB list: (R G B) where each component is 0-255.
 
 ## Default
-Gray with green/blue tint (128, 150, 150)
+Moderate green (100, 175, 135)
 
 ## Description
 Color of the box-drawing divider lines (top and bottom of input area) when
@@ -1558,8 +1558,9 @@ a telnet connection is active. Provides visual feedback of connection status.
 
 ## Examples
 ```lisp
-(define *divider-connected-color* '(128 150 150))  ; Gray with green/blue tint (default)
-(define *divider-connected-color* '(80 200 120))   ; Saturated green
+(define *divider-connected-color* '(100 175 135))  ; Moderate green (default)
+(define *divider-connected-color* '(80 200 120))  ; Saturated green
+(define *divider-connected-color* '(128 150 150))  ; Gray with green/blue tint
 (define *divider-connected-color* '(0 180 180))    ; Cyan (match theme)
 ```")
 
