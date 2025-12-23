@@ -777,6 +777,56 @@ static LispObject *create_telnet_gui_version_alist(void) {
     return result;
 }
 
+/* Create default ANSI color palette alist.
+ * Returns alist: ((index . (R G B)) ...) for indices 0-15.
+ * Muted/lighter palette for softer terminal colors.
+ */
+static LispObject *create_ansi_color_palette_alist(void) {
+    /* Muted/lighter color palette based on xterm defaults: (index . (R G B)) */
+    static const uint8_t palette[16][3] = {
+        {60, 60, 65},    /* 0: Black - xterm (0,0,0) */
+        {210, 120, 120}, /* 1: Red - xterm (205,0,0) */
+        {120, 200, 120}, /* 2: Green - xterm (0,205,0) */
+        {220, 210, 140}, /* 3: Yellow - xterm (205,205,0) */
+        {130, 150, 220}, /* 4: Blue - xterm (0,0,238) */
+        {200, 130, 200}, /* 5: Magenta - xterm (205,0,205) */
+        {120, 200, 200}, /* 6: Cyan - xterm (0,205,205) */
+        {220, 220, 220}, /* 7: White - xterm (229,229,229) */
+        {140, 140, 145}, /* 8: Bright Black - xterm (127,127,127) */
+        {235, 150, 150}, /* 9: Bright Red - xterm (255,0,0) */
+        {150, 230, 150}, /* 10: Bright Green - xterm (0,255,0) */
+        {240, 235, 170}, /* 11: Bright Yellow - xterm (255,255,0) */
+        {160, 175, 235}, /* 12: Bright Blue - xterm (92,92,255) */
+        {230, 165, 230}, /* 13: Bright Magenta - xterm (255,0,255) */
+        {160, 235, 235}, /* 14: Bright Cyan - xterm (0,255,255) */
+        {245, 245, 245}, /* 15: Bright White - xterm (255,255,255) */
+    };
+
+    LispObject *result = NIL;
+    LispObject *tail = NULL;
+
+    for (int i = 0; i < 16; i++) {
+        /* Build RGB list: (R G B) */
+        LispObject *rgb = lisp_make_cons(
+            lisp_make_integer(palette[i][0]),
+            lisp_make_cons(lisp_make_integer(palette[i][1]), lisp_make_cons(lisp_make_integer(palette[i][2]), NIL)));
+
+        /* Build pair: (index . (R G B)) */
+        LispObject *pair = lisp_make_cons(lisp_make_integer(i), rgb);
+        LispObject *new_cons = lisp_make_cons(pair, NIL);
+
+        if (result == NIL) {
+            result = new_cons;
+            tail = new_cons;
+        } else {
+            tail->value.cons.cdr = new_cons;
+            tail = new_cons;
+        }
+    }
+
+    return result;
+}
+
 /* Built-in: terminal-scroll-locked?
  * Returns t if terminal scroll is locked (user scrolled back), nil otherwise.
  */
@@ -1531,6 +1581,7 @@ int lisp_x_init(void) {
     env_define(lisp_env, "*input-history-size*", lisp_make_integer(100));
     env_define(lisp_env, "*terminal-line-height*", lisp_make_number(1.2));
     env_define(lisp_env, "*divider-modes*", NIL);
+    env_define(lisp_env, "*ansi-color-palette*", create_ansi_color_palette_alist());
 
     /* Load init file - redefines hooks with actual implementations.
      * Hooks and variables are already defined above, so app works even if init fails. */
@@ -2393,6 +2444,53 @@ void lisp_x_get_divider_connected_color(int *r, int *g, int *b) {
 
 void lisp_x_get_divider_disconnected_color(int *r, int *g, int *b) {
     get_color_from_lisp("*divider-disconnected-color*", r, g, b, 128, 128, 128); /* Gray */
+}
+
+/* Get ANSI palette color by index (0-15) from *ansi-color-palette* alist.
+ * Returns 1 if found, 0 if not (caller should use libvterm default).
+ */
+int lisp_x_get_ansi_palette_color(int index, int *r, int *g, int *b) {
+    if (!lisp_env || index < 0 || index > 15) {
+        return 0; /* Not found */
+    }
+
+    LispObject *palette = env_lookup(lisp_env, "*ansi-color-palette*");
+    if (!palette || palette == NIL || palette->type != LISP_CONS) {
+        return 0; /* No palette defined */
+    }
+
+    /* Search alist for matching index */
+    LispObject *entry = palette;
+    while (entry != NIL && entry->type == LISP_CONS) {
+        LispObject *pair = lisp_car(entry);
+        if (pair && pair->type == LISP_CONS) {
+            LispObject *key = lisp_car(pair);
+            if (key && key->type == LISP_INTEGER && key->value.integer == index) {
+                /* Found matching index, extract RGB from cdr */
+                LispObject *rgb = lisp_cdr(pair);
+                if (rgb && rgb->type == LISP_CONS) {
+                    LispObject *r_obj = lisp_car(rgb);
+                    LispObject *rest = lisp_cdr(rgb);
+                    if (rest && rest->type == LISP_CONS) {
+                        LispObject *g_obj = lisp_car(rest);
+                        rest = lisp_cdr(rest);
+                        if (rest && rest->type == LISP_CONS) {
+                            LispObject *b_obj = lisp_car(rest);
+                            if (r_obj && r_obj->type == LISP_INTEGER && g_obj && g_obj->type == LISP_INTEGER && b_obj &&
+                                b_obj->type == LISP_INTEGER) {
+                                *r = (int)r_obj->value.integer;
+                                *g = (int)g_obj->value.integer;
+                                *b = (int)b_obj->value.integer;
+                                return 1; /* Success */
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        entry = lisp_cdr(entry);
+    }
+    return 0; /* Not found */
 }
 
 /* Get divider modes alist for rendering */

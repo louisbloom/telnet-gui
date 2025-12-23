@@ -1585,6 +1585,33 @@ A neutral color indicating disconnected state.
 ```")
 
 ;; ----------------------------------------------------------------------------
+;; ANSI Color Palette
+;; ----------------------------------------------------------------------------
+
+(defvar *ansi-color-palette* *ansi-color-palette*
+  "ANSI 16-color palette for terminal emulation.
+
+## Format
+Alist: ((index . (R G B)) ...) where index is 0-15 and RGB components are 0-255.
+
+## Indices
+0-7: Normal colors (black, red, green, yellow, blue, magenta, cyan, white)
+8-15: Bright variants of the above
+
+## Default
+Muted/lighter palette predefined in C.
+
+## Examples
+```lisp
+;; Override just red (index 1):
+(set! *ansi-color-palette*
+      (cons '(1 . (255 0 0)) *ansi-color-palette*))
+
+;; Use standard xterm colors:
+(set! *ansi-color-palette* nil)
+```")
+
+;; ----------------------------------------------------------------------------
 ;; User Input Echo Color
 ;; ----------------------------------------------------------------------------
 

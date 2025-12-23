@@ -74,6 +74,9 @@ void lisp_x_get_terminal_bg_color(int *r, int *g, int *b);
 void lisp_x_get_divider_connected_color(int *r, int *g, int *b);
 void lisp_x_get_divider_disconnected_color(int *r, int *g, int *b);
 
+/* ANSI palette color - returns 1 if found, 0 if not (use libvterm default) */
+int lisp_x_get_ansi_palette_color(int index, int *r, int *g, int *b);
+
 /* Forward declaration for LispObject (defined in telnet-lisp) */
 struct LispObject;
 

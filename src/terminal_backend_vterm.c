@@ -500,6 +500,18 @@ static void *vterm_create(int rows, int cols) {
 
     vterm_screen_reset(state->screen, 1);
 
+    /* Set custom ANSI color palette from Lisp config */
+    VTermState *vstate = vterm_obtain_state(state->vterm);
+    for (int i = 0; i < 16; i++) {
+        int r, g, b;
+        if (lisp_x_get_ansi_palette_color(i, &r, &g, &b)) {
+            VTermColor col;
+            vterm_color_rgb(&col, (uint8_t)r, (uint8_t)g, (uint8_t)b);
+            vterm_state_set_palette_color(vstate, i, &col);
+        }
+        /* If not found, libvterm's default xterm color is used */
+    }
+
     char seq[32];
     ansi_format_scroll_region(seq, sizeof(seq), 1, rows);
     vterm_input_write(state->vterm, seq, strlen(seq));
