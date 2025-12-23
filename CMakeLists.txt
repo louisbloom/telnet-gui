@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
 
+# Add cmake modules directory
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+# Extract version from git tags before project() command
+include(GitVersion)
+get_git_version()
+
 # IMPORTANT: Detect and set UCRT64 compiler BEFORE project() command
 # This ensures CMake uses the correct compiler from the start
 if(WIN32 AND NOT CMAKE_C_COMPILER)
@@ -65,7 +72,7 @@ if(WIN32 AND NOT CMAKE_C_COMPILER)
     endif()
 endif()
 
-project(TelnetGui VERSION 1.0.0 LANGUAGES C)
+project(TelnetGui VERSION ${GIT_VERSION_FULL} LANGUAGES C)
 
 # Use GNUInstallDirs for POSIX-compliant installation paths
 include(GNUInstallDirs)
@@ -262,6 +269,12 @@ if(WIN32)
         message(WARNING "Falling back to dynamic linking - DLLs will be required at runtime")
     endif()
 endif()
+
+# Pass version information to telnet-lisp subdirectory
+set(TELNET_LISP_VERSION "${GIT_VERSION_FULL}" CACHE INTERNAL "")
+set(TELNET_LISP_VERSION_MAJOR ${GIT_VERSION_MAJOR} CACHE INTERNAL "")
+set(TELNET_LISP_VERSION_MINOR ${GIT_VERSION_MINOR} CACHE INTERNAL "")
+set(TELNET_LISP_VERSION_PATCH ${GIT_VERSION_PATCH} CACHE INTERNAL "")
 
 # Add library subdirectory (includes lisp-repl)
 add_subdirectory(telnet-lisp)
@@ -1456,7 +1469,10 @@ endif()
 
 # Pass version macros and feature flags
 target_compile_definitions(telnet-gui PRIVATE
-    PROJECT_VERSION="${CMAKE_PROJECT_VERSION}"
+    TELNET_GUI_VERSION="${GIT_VERSION_FULL}"
+    TELNET_GUI_VERSION_MAJOR=${GIT_VERSION_MAJOR}
+    TELNET_GUI_VERSION_MINOR=${GIT_VERSION_MINOR}
+    TELNET_GUI_VERSION_PATCH=${GIT_VERSION_PATCH}
     LIBVTERM_VERSION="${VTERM_VERSION}"
     SDL2_VERSION="${SDL2_VERSION}"
     SDL2_TTF_VERSION="${SDL2_TTF_VERSION}"
@@ -1552,9 +1568,12 @@ add_test(NAME gui_practice-test
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
 )
 
+# Release target for creating git tags
+include(Release)
+
 # Package configuration
 set(CPACK_PACKAGE_NAME "TelnetGui")
-set(CPACK_PACKAGE_VERSION "1.0.0")
+set(CPACK_PACKAGE_VERSION "${GIT_VERSION_FULL}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Telnet GUI - Graphical telnet client with Lisp scripting")
 set(CPACK_PACKAGE_VENDOR "Telnet GUI Project")
 

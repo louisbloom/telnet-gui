@@ -19,8 +19,20 @@
 #include <string.h>
 
 /* Version information - fallbacks if not defined by CMake */
-#ifndef PROJECT_VERSION
-#define PROJECT_VERSION "unknown"
+#ifndef TELNET_GUI_VERSION
+#define TELNET_GUI_VERSION "unknown"
+#endif
+
+#ifndef TELNET_GUI_VERSION_MAJOR
+#define TELNET_GUI_VERSION_MAJOR 0
+#endif
+
+#ifndef TELNET_GUI_VERSION_MINOR
+#define TELNET_GUI_VERSION_MINOR 0
+#endif
+
+#ifndef TELNET_GUI_VERSION_PATCH
+#define TELNET_GUI_VERSION_PATCH 0
 #endif
 
 #ifndef LIBVTERM_VERSION
@@ -715,13 +727,10 @@ static LispObject *builtin_terminal_info(LispObject *args, Environment *env) {
     return result;
 }
 
-/* Built-in: version
- * Returns association list with version information for all dependencies and system.
+/* Create telnet-gui-version alist with version information for telnet-gui and dependencies.
+ * Called during initialization to define the telnet-gui-version variable.
  */
-static LispObject *builtin_version(LispObject *args, Environment *env) {
-    (void)args; /* No arguments expected */
-    (void)env;  /* Environment not needed */
-
+static LispObject *create_telnet_gui_version_alist(void) {
     /* Build association list using tail-pointer pattern */
     LispObject *result = NIL;
     LispObject *tail = NULL;
@@ -742,10 +751,11 @@ static LispObject *builtin_version(LispObject *args, Environment *env) {
         }                                                                                                              \
     } while (0)
 
-    /* Add version pairs in logical groups */
-
-    /* Project version */
-    ADD_PAIR("project", lisp_make_string(PROJECT_VERSION));
+    /* Version information */
+    ADD_PAIR("version", lisp_make_string(TELNET_GUI_VERSION));
+    ADD_PAIR("major", lisp_make_integer(TELNET_GUI_VERSION_MAJOR));
+    ADD_PAIR("minor", lisp_make_integer(TELNET_GUI_VERSION_MINOR));
+    ADD_PAIR("patch", lisp_make_integer(TELNET_GUI_VERSION_PATCH));
 
     /* Core dependencies */
     ADD_PAIR("libvterm", lisp_make_string(LIBVTERM_VERSION));
@@ -1352,36 +1362,6 @@ int lisp_x_init(void) {
         "- `tintin-print-table` - Uses this for responsive table formatting";
     REGISTER_BUILTIN("terminal-info", builtin_terminal_info, terminal_info_doc);
 
-    /* version: Return version information for all dependencies */
-    const char *version_doc =
-        "Return version information for all dependencies and system.\n"
-        "\n"
-        "Returns an association list with the following keys:\n"
-        "  - project: TelnetLisp version\n"
-        "  - libvterm: libvterm version (with feature flags)\n"
-        "  - sdl2: SDL2 version\n"
-        "  - sdl2-ttf: SDL2_ttf version\n"
-        "  - bdw-gc: Boehm GC version\n"
-        "  - pcre2: PCRE2 version\n"
-        "  - cmake: CMake version used for build\n"
-        "  - system: Operating system name\n"
-        "  - architecture: System processor architecture\n"
-        "  - toolchain: Full toolchain details (e.g., \"UCRT64 (GCC 13.2.0, x86_64-w64-mingw32-ucrt)\")\n"
-        "\n"
-        "## Returns\n"
-        "Association list: ((key . \"version\") ...)\n"
-        "\n"
-        "## Examples\n"
-        "```lisp\n"
-        "(version)\n"
-        "; => ((project . \"1.0.0\") (libvterm . \"0.3.3+pushline4\") ...)\n"
-        "\n"
-        "; Get specific version:\n"
-        "(cdr (assoc 'libvterm (version)))\n"
-        "; => \"0.3.3+pushline4\"\n"
-        "```\n";
-    REGISTER_BUILTIN("version", builtin_version, version_doc);
-
     /* terminal-scroll-locked?: Check if terminal scroll is locked */
     const char *terminal_scroll_locked_doc = "Check if terminal scroll is locked (user scrolled back from bottom).\n"
                                              "\n"
@@ -1539,6 +1519,9 @@ int lisp_x_init(void) {
     REGISTER_HOOK("completion-hook", "(lambda (text) ())", completion_hook_doc);
 
 #undef REGISTER_HOOK
+
+    /* Define version information variable */
+    env_define(lisp_env, "telnet-gui-version", create_telnet_gui_version_alist());
 
     /* Define configuration variables accessed from C (init.lisp documents with defvar) */
     env_define(lisp_env, "*scroll-lines-per-click*", lisp_make_integer(3));

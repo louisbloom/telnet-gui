@@ -5,10 +5,15 @@
 #include <string.h>
 #include <locale.h>
 
+/* Version fallback if not defined by CMake */
+#ifndef TELNET_LISP_VERSION
+#define TELNET_LISP_VERSION "unknown"
+#endif
+
 #define REPL_INPUT_SIZE 4096
 
 static void print_welcome(void) {
-    printf("Telnet Lisp Interpreter v1.0\n");
+    printf("Telnet Lisp Interpreter v%s\n", TELNET_LISP_VERSION);
     printf("Type expressions to evaluate, :quit to exit, :load <file> to load a file\n");
     printf(">>> ");
     fflush(stdout);
@@ -20,7 +25,7 @@ static void print_prompt(void) {
 }
 
 static void print_help(void) {
-    printf("Telnet Lisp Interpreter v1.0\n");
+    printf("Telnet Lisp Interpreter v%s\n", TELNET_LISP_VERSION);
     printf("\n");
     printf("Usage:\n");
     printf("  lisp-repl                 Start interactive REPL\n");

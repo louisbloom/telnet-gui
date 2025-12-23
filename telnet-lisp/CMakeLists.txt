@@ -5,7 +5,18 @@ cmake_minimum_required(VERSION 3.10)
 
 # Check if this is being included as a subdirectory or standalone
 if(NOT DEFINED PROJECT_NAME)
-    project(TelnetLisp VERSION 1.0.0 LANGUAGES C)
+    # Standalone build - extract version from git
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
+    include(GitVersion)
+    get_git_version()
+
+    project(TelnetLisp VERSION ${GIT_VERSION_FULL} LANGUAGES C)
+
+    # Set version variables for standalone build
+    set(TELNET_LISP_VERSION "${GIT_VERSION_FULL}")
+    set(TELNET_LISP_VERSION_MAJOR ${GIT_VERSION_MAJOR})
+    set(TELNET_LISP_VERSION_MINOR ${GIT_VERSION_MINOR})
+    set(TELNET_LISP_VERSION_PATCH ${GIT_VERSION_PATCH})
 
     # Set C standard
     set(CMAKE_C_STANDARD 99)
@@ -71,6 +82,21 @@ install(FILES include/lisp.h include/utf8.h include/file_utils.h
 add_executable(lisp-repl repl/main.c)
 target_link_libraries(lisp-repl lisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
 target_include_directories(lisp-repl PRIVATE include)
+
+# Pass version information to lisp library and repl
+target_compile_definitions(lisp PRIVATE
+    TELNET_LISP_VERSION="${TELNET_LISP_VERSION}"
+    TELNET_LISP_VERSION_MAJOR=${TELNET_LISP_VERSION_MAJOR}
+    TELNET_LISP_VERSION_MINOR=${TELNET_LISP_VERSION_MINOR}
+    TELNET_LISP_VERSION_PATCH=${TELNET_LISP_VERSION_PATCH}
+)
+
+target_compile_definitions(lisp-repl PRIVATE
+    TELNET_LISP_VERSION="${TELNET_LISP_VERSION}"
+    TELNET_LISP_VERSION_MAJOR=${TELNET_LISP_VERSION_MAJOR}
+    TELNET_LISP_VERSION_MINOR=${TELNET_LISP_VERSION_MINOR}
+    TELNET_LISP_VERSION_PATCH=${TELNET_LISP_VERSION_PATCH}
+)
 
 # Install REPL
 install(TARGETS lisp-repl

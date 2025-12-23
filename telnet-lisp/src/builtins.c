@@ -11,6 +11,23 @@
 #include <windows.h>
 #endif
 
+/* Version information - fallbacks if not defined by CMake */
+#ifndef TELNET_LISP_VERSION
+#define TELNET_LISP_VERSION "unknown"
+#endif
+
+#ifndef TELNET_LISP_VERSION_MAJOR
+#define TELNET_LISP_VERSION_MAJOR 0
+#endif
+
+#ifndef TELNET_LISP_VERSION_MINOR
+#define TELNET_LISP_VERSION_MINOR 0
+#endif
+
+#ifndef TELNET_LISP_VERSION_PATCH
+#define TELNET_LISP_VERSION_PATCH 0
+#endif
+
 /* Arithmetic operations */
 static LispObject *builtin_add(LispObject *args, Environment *env);
 static LispObject *builtin_subtract(LispObject *args, Environment *env);
@@ -2661,6 +2678,41 @@ static const char *doc_terpri = "Print newline (terminate print).\n"
                                 "## Notes\n"
                                 "Useful for adding newlines between output.";
 
+/* Create telnet-lisp-version alist with version information.
+ * Called during initialization to define the telnet-lisp-version variable.
+ */
+static LispObject *create_telnet_lisp_version_alist(void) {
+    /* Build association list using tail-pointer pattern */
+    LispObject *result = NIL;
+    LispObject *tail = NULL;
+
+    /* Helper macro to add key-value pairs */
+#define ADD_VERSION_PAIR(key_name, value_expr)                                                                         \
+    do {                                                                                                               \
+        LispObject *key = lisp_make_symbol(key_name);                                                                  \
+        LispObject *value = (value_expr);                                                                              \
+        LispObject *pair = lisp_make_cons(key, value);                                                                 \
+        LispObject *new_cons = lisp_make_cons(pair, NIL);                                                              \
+        if (result == NIL) {                                                                                           \
+            result = new_cons;                                                                                         \
+            tail = new_cons;                                                                                           \
+        } else {                                                                                                       \
+            tail->value.cons.cdr = new_cons;                                                                           \
+            tail = new_cons;                                                                                           \
+        }                                                                                                              \
+    } while (0)
+
+    /* Version information */
+    ADD_VERSION_PAIR("version", lisp_make_string(TELNET_LISP_VERSION));
+    ADD_VERSION_PAIR("major", lisp_make_integer(TELNET_LISP_VERSION_MAJOR));
+    ADD_VERSION_PAIR("minor", lisp_make_integer(TELNET_LISP_VERSION_MINOR));
+    ADD_VERSION_PAIR("patch", lisp_make_integer(TELNET_LISP_VERSION_PATCH));
+
+#undef ADD_VERSION_PAIR
+
+    return result;
+}
+
 /* Helper macro to register a builtin and set its symbol's docstring */
 #define REGISTER(name, func, doc)                                                                                      \
     do {                                                                                                               \
@@ -2859,6 +2911,9 @@ void register_builtins(Environment *env) {
              "  (let ((start (current-time-ms)))\n"
              "    (sleep 100)\n"
              "    (- (current-time-ms) start)) ; => ~100\n");
+
+    /* Define version information variable */
+    env_define(env, "telnet-lisp-version", create_telnet_lisp_version_alist());
 }
 
 #undef REGISTER
