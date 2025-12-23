@@ -1207,12 +1207,19 @@ int main(int argc, char **argv) {
                     }
                 }
 
-                /* Check for Ctrl+_ (undo) / Alt+_ (redo) using keysym */
-                if (event.key.keysym.sym == SDLK_UNDERSCORE) {
-                    if (mod & KMOD_CTRL) {
+                /* Check for Ctrl+_ (undo) / Alt+_ (redo)
+                 * Use scancode for physical key consistency across keyboard layouts.
+                 * SDL_SCANCODE_MINUS targets the physical key that produces '-' and '_' on US/German layouts
+                 * regardless of whether the software layout is German, US, etc.
+                 * This ensures the shortcut stays in the same physical location, which is standard
+                 * for gaming and professional software. */
+                if (scancode == SDL_SCANCODE_MINUS) {
+                    if ((mod & KMOD_CTRL) && (mod & KMOD_SHIFT)) {
+                        /* Captured Ctrl + Shift + _ (physically) */
                         input_area_undo(&input_area);
                         break;
-                    } else if (mod & KMOD_ALT) {
+                    } else if ((mod & KMOD_ALT) && (mod & KMOD_SHIFT)) {
+                        /* Captured Alt + Shift + _ (physically) */
                         input_area_redo(&input_area);
                         break;
                     }
