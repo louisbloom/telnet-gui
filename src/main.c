@@ -449,10 +449,10 @@ int main(int argc, char **argv) {
     int lisp_file_count = 0;
     char font_choice = 's'; /* Font selection: s=System, m=Cascadia Mono, i=Inconsolata, p=Plex, d=DejaVu, c=Courier */
     int font_size = 12;     /* Default font size */
-    int terminal_cols = 80;             /* Default terminal columns */
-    int terminal_rows = 40;             /* Default terminal rows */
-    int debug_exit = 0;                 /* Exit after initialization for debug output */
-    float cli_line_height = 0.0f;       /* CLI line height (0.0 means not set, use default) */
+    int terminal_cols = 80; /* Default terminal columns */
+    int terminal_rows = 40; /* Default terminal rows */
+    int debug_exit = 0;     /* Exit after initialization for debug output */
+    float cli_line_height = 0.0f; /* CLI line height (0.0 means not set, use default) */
 
     /* Parse command-line arguments */
     int arg_idx = 1;
@@ -1744,23 +1744,21 @@ int main(int argc, char **argv) {
                 FD_SET((SOCKET)sock, &readfds);
                 FD_SET((SOCKET)sock, &exceptfds);
                 int ready = select(0, &readfds, NULL, &exceptfds, &tv); /* First param ignored on Windows */
-                /* Check for socket exceptions (out-of-band data or errors) */
-                if (FD_ISSET((SOCKET)sock, &exceptfds)) {
-                    fprintf(stderr, "select(): socket exception detected (OOB data or error)\n");
-                }
+                int has_read = ready > 0 && FD_ISSET((SOCKET)sock, &readfds);
+                int has_except = ready > 0 && FD_ISSET((SOCKET)sock, &exceptfds);
 #else
                 FD_SET(sock, &readfds);
                 FD_SET(sock, &exceptfds);
                 int ready = select(sock + 1, &readfds, NULL, &exceptfds, &tv);
-                if (FD_ISSET(sock, &exceptfds)) {
+                int has_read = ready > 0 && FD_ISSET(sock, &readfds);
+                int has_except = ready > 0 && FD_ISSET(sock, &exceptfds);
+#endif
+                /* Check for socket exceptions (out-of-band data or errors) */
+                if (has_except) {
                     fprintf(stderr, "select(): socket exception detected (OOB data or error)\n");
                 }
-#endif
-#ifdef _WIN32
-                if (ready > 0 && FD_ISSET((SOCKET)sock, &readfds)) {
-#else
-                if (ready > 0 && FD_ISSET(sock, &readfds)) {
-#endif
+                /* Call recv() when readable OR exception - exception may indicate connection closure */
+                if (has_read || has_except) {
                     /* Data is available, read it */
                     char recv_buf[4096];
                     int received = telnet_receive(telnet, recv_buf, sizeof(recv_buf) - 1);

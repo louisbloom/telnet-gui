@@ -98,3 +98,38 @@ Add an extra space after affected emoji:
 ### Technical Details
 
 The renderer detects variation selectors and renders affected emoji at 2-cell width for proper appearance, but cannot change the terminal's text layout which already allocated only 1 cell.
+
+## Windows: Delayed Detection of Server Connection Closure
+
+**Platform:** Windows
+**Status:** Known Issue - Platform Limitation
+**Severity:** Minor UX Issue
+
+### Description
+
+On Windows, when the server closes the telnet connection while the client is idle (e.g., server idle timeout), the client does not immediately detect the closure. The connection appears active until the user attempts to send data, at which point the closure is detected and reported.
+
+### Root Cause
+
+This is a fundamental Windows Winsock limitation. When a server sends a TCP FIN (graceful close) or RST (reset) packet, Windows does not update the socket state for non-blocking sockets until actual I/O is attempted. Multiple detection methods were tested and all failed:
+
+1. **`select()` with `exceptfds`** - Does not report the socket as exceptional after RST/FIN
+2. **`recv()` with `MSG_PEEK`** - Returns `WSAEWOULDBLOCK` even after the connection is closed
+3. **`getsockopt(SO_ERROR)`** - Returns 0 (no error) even after RST is received
+
+Only when actual send/receive I/O is attempted does Windows report the connection error (e.g., `WSAECONNRESET` error 10054).
+
+### Workaround
+
+The connection closure will be detected and reported when the user next attempts to send data. The message "Connection lost" or "Connection closed" will appear at that time.
+
+Alternative approaches that were considered but rejected:
+
+- **TCP Keepalive** - Would prevent server idle timeouts from triggering (sends periodic probes that count as activity)
+- **Application-level heartbeat** - Same issue as TCP keepalive
+
+### Impact
+
+- Users may not immediately realize the connection has been closed by the server
+- The connection state indicator may show "connected" briefly after server closes
+- Detection occurs reliably when user next interacts with the connection
