@@ -61,13 +61,16 @@
       (format-info-lines (cdr entries) name-width value-width box-width))))
 
 ;; Build the complete version announcement box
-(defun build-version-box (version libvterm sdl2 sdl2-ttf bdw-gc pcre2 system arch toolchain)
+(defun build-version-box (version libvterm sdl2 sdl2-ttf bdw-gc pcre2 rlottie system arch toolchain)
   (let* ((title-text (concat "Telnet GUI  v" version))
           (name-width 10)
-          (lib-entries (list (cons "libvterm:" libvterm) (cons "SDL2:" sdl2) (cons "SDL2_ttf:" sdl2-ttf)
-                         (cons "bdw-gc:" bdw-gc) (cons "PCRE2:" pcre2)))
+          (lib-entries (if rlottie
+                         (list (cons "libvterm:" libvterm) (cons "SDL2:" sdl2) (cons "SDL2_ttf:" sdl2-ttf)
+                           (cons "bdw-gc:" bdw-gc) (cons "PCRE2:" pcre2) (cons "rlottie:" rlottie))
+                         (list (cons "libvterm:" libvterm) (cons "SDL2:" sdl2) (cons "SDL2_ttf:" sdl2-ttf)
+                           (cons "bdw-gc:" bdw-gc) (cons "PCRE2:" pcre2))))
           (build-entries (list (cons "System:" system) (cons "Arch:" arch) (cons "Compiler:" toolchain)))
-          (value-width (max-visual-length (list libvterm sdl2 sdl2-ttf bdw-gc pcre2 system arch toolchain)))
+          (value-width (max-visual-length (list libvterm sdl2 sdl2-ttf bdw-gc pcre2 (or rlottie "") system arch toolchain)))
           (title-width (+ (visual-length title-text) 4))
           (content-width (+ name-width value-width 7))
           (box-width (if (> title-width content-width) title-width content-width))
@@ -99,7 +102,8 @@
   (terminal-echo (build-version-box
                    (version-get 'version) (version-get 'libvterm) (version-get 'sdl2)
                    (version-get 'sdl2-ttf) (version-get 'bdw-gc) (version-get 'pcre2)
-                   (version-get 'system) (version-get 'architecture) (version-get 'toolchain))))
+                   (version-get 'rlottie) (version-get 'system) (version-get 'architecture)
+                   (version-get 'toolchain))))
 
 ;; ============================================================================
 ;; SCROLL-LOCK NOTIFICATION ANIMATION

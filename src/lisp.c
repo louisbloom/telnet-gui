@@ -763,6 +763,11 @@ static LispObject *create_telnet_gui_version_alist(void) {
     ADD_PAIR("sdl2-ttf", lisp_make_string(SDL2_TTF_VERSION));
     ADD_PAIR("bdw-gc", lisp_make_string(GC_VERSION));
     ADD_PAIR("pcre2", lisp_make_string(PCRE2_VERSION));
+#if HAVE_RLOTTIE
+    ADD_PAIR("rlottie", lisp_make_string(RLOTTIE_VERSION));
+#else
+    ADD_PAIR("rlottie", NIL);
+#endif
 
     /* Build system */
     ADD_PAIR("cmake", lisp_make_string(CMAKE_VERSION));
