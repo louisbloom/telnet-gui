@@ -630,6 +630,9 @@ int main(int argc, char **argv) {
         lisp_x_set_terminal_line_height(cli_line_height);
     }
 
+    /* Enable high DPI awareness on Windows (must be set before SDL_Init) */
+    SDL_SetHint(SDL_HINT_WINDOWS_DPI_AWARENESS, "permonitorv2");
+
     /* Initialize SDL2 */
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) < 0) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -1139,6 +1142,80 @@ int main(int argc, char **argv) {
 
                     /* Present the frame */
                     SDL_RenderPresent(renderer);
+                } else if (event.window.event == SDL_WINDOWEVENT_DISPLAY_CHANGED) {
+                    /* Window moved to a different display - check for DPI change */
+                    int display_idx = SDL_GetWindowDisplayIndex(sdl_window);
+                    float new_ddpi, new_hdpi, new_vdpi;
+
+                    if (SDL_GetDisplayDPI(display_idx, &new_ddpi, &new_hdpi, &new_vdpi) == 0) {
+                        fprintf(stderr, "Display changed to %d: DPI %.1f x %.1f\n", display_idx, new_hdpi, new_vdpi);
+
+                        /* Check if DPI actually changed */
+                        if ((int)new_hdpi != (int)hdpi || (int)new_vdpi != (int)vdpi) {
+                            fprintf(stderr, "DPI changed from %.1f x %.1f to %.1f x %.1f - recreating fonts\n", hdpi,
+                                    vdpi, new_hdpi, new_vdpi);
+
+                            /* Update stored DPI values */
+                            hdpi = new_hdpi;
+                            vdpi = new_vdpi;
+
+                            /* Get current terminal size BEFORE recreating fonts */
+                            int current_rows, current_cols;
+                            terminal_get_size(term, &current_rows, &current_cols);
+
+                            /* Get font info from existing cache before destroying it */
+                            const char *current_font_path = glyph_cache_get_font_path(glyph_cache);
+                            const char *current_font_name = glyph_cache_get_font_name(glyph_cache);
+
+                            /* Make copies since the strings will be freed with the cache */
+                            char *font_path_copy = strdup(current_font_path);
+                            char *font_name_copy = strdup(current_font_name);
+
+                            /* Destroy old glyph cache */
+                            glyph_cache_destroy(glyph_cache);
+
+                            /* Create new glyph cache with new DPI */
+                            glyph_cache = glyph_cache_create(renderer, font_path_copy, font_name_copy, font_size,
+                                                             hinting_mode, scale_mode, (int)new_hdpi, (int)new_vdpi);
+
+                            free(font_path_copy);
+                            free(font_name_copy);
+
+                            if (glyph_cache) {
+                                /* Update cell dimensions */
+                                glyph_cache_get_cell_size(glyph_cache, &cell_w, &cell_h);
+                                float line_height = lisp_x_get_terminal_line_height();
+                                int effective_cell_h = (int)(cell_h * line_height);
+
+                                /* Recreate renderer with new glyph cache */
+                                renderer_destroy(rend);
+                                rend = renderer_create(renderer, glyph_cache, cell_w, cell_h);
+
+                                /* Calculate new window size to maintain same terminal dimensions */
+                                int input_visible_rows = input_area_get_visible_rows(&input_area);
+                                int total_rows = current_rows + 2 + input_visible_rows;
+                                int new_win_width = current_cols * cell_w + 2 * PADDING_X;
+                                int new_win_height = total_rows * effective_cell_h + 2 * PADDING_Y;
+
+                                /* Resize window to maintain terminal dimensions */
+                                SDL_SetWindowSize(sdl_window, new_win_width, new_win_height);
+
+                                /* Recalculate input area layout */
+                                input_area.needs_layout_recalc = 1;
+                                input_area_recalculate_layout(&input_area, current_cols);
+                                terminal_render_input_area(term, &input_area, current_cols);
+
+                                /* Force full redraw */
+                                terminal_request_redraw(term);
+                                input_area_request_redraw(&input_area);
+
+                                fprintf(stderr, "DPI change complete: cell size %dx%d, window %dx%d, terminal %dx%d\n",
+                                        cell_w, cell_h, new_win_width, new_win_height, current_cols, current_rows);
+                            } else {
+                                fprintf(stderr, "ERROR: Failed to recreate glyph cache after DPI change\n");
+                            }
+                        }
+                    }
                 }
                 break;
 
