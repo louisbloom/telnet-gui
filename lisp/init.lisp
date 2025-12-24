@@ -1641,15 +1641,15 @@ server output.
 ;; TERMINAL LINE HEIGHT CONFIGURATION
 ;; ============================================================================
 
-(defvar *terminal-line-height* 1.2
+(defvar *terminal-line-height* 1.0
   "Multiplier for terminal line spacing.
 
 This controls the vertical spacing between terminal lines. The value is a
 multiplier applied to the base cell height calculated from the font metrics.
 
 ## Values
-- 1.2 - Default spacing (20% more than font metrics, better readability)
-- 1.0 - Normal spacing (matches font metrics)
+- 1.0 - Default spacing (matches font metrics)
+- 1.2 - 20% more spacing for better readability
 - 1.5 - 50% more spacing between lines
 - 2.0 - Double spacing
 - 0.5 - Half spacing (tighter, minimum recommended)

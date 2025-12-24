@@ -47,7 +47,7 @@ See [Building from Source](#building-from-source) for installation instructions.
 **Terminal Options:**
 
 - `-g, --geometry COLSxROWS` - Set terminal size (default: 80x40)
-- `-L, --line-height HEIGHT` - Line height multiplier (default: 1.2)
+- `-L, --line-height HEIGHT` - Line height multiplier (default: 1.0)
 
 **Other Options:**
 

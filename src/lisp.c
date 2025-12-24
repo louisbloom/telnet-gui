@@ -1579,7 +1579,7 @@ int lisp_x_init(void) {
     env_define(lisp_env, "*max-scrollback-lines*", lisp_make_integer(0));
     env_define(lisp_env, "*scroll-to-bottom-on-user-input*", lisp_make_boolean(1));
     env_define(lisp_env, "*input-history-size*", lisp_make_integer(100));
-    env_define(lisp_env, "*terminal-line-height*", lisp_make_number(1.2));
+    env_define(lisp_env, "*terminal-line-height*", lisp_make_number(1.0));
     env_define(lisp_env, "*divider-modes*", NIL);
     env_define(lisp_env, "*ansi-color-palette*", create_ansi_color_palette_alist());
 

@@ -404,7 +404,7 @@ static void print_help(const char *program_name) {
     printf("    -l, --lisp-file FILE   Load and evaluate Lisp file on startup\n");
     printf("                            Can be specified multiple times (loads in order)\n");
     printf("                            Used to customize completion hooks and scroll settings\n");
-    printf("    -L, --line-height HEIGHT Set line height multiplier (default: 1.2)\n");
+    printf("    -L, --line-height HEIGHT Set line height multiplier (default: 1.0)\n");
     printf("                            HEIGHT can be 0.5 to 3.0 (e.g., 1.5 for 50%% more spacing)\n");
     printf("    --debug-exit           Exit after initialization (for debug output)\n");
     printf("\n");
