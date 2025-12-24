@@ -315,15 +315,11 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
     int use_symbol_font = 0;
     int use_emoji_font = 0;
 
-    /* Symbol ranges (dingbats, misc symbols) prefer symbol font */
-    if (is_symbol_range(codepoint) && cache->symbol_font) {
+    /* Emoji/symbols: prefer emoji font, fall back to symbol font */
+    if (is_emoji) {
         use_main_font = 0;
-        use_symbol_font = 1;
-    }
-    /* Emoji presentation preferred, use emoji font */
-    else if (is_emoji && cache->emoji_font) {
-        use_main_font = 0;
-        use_emoji_font = 1;
+        use_emoji_font = 1;  /* Try emoji font first */
+        use_symbol_font = 1; /* Fall back to symbol font if emoji doesn't have it */
     }
 
     /* Check if main font provides this glyph */
@@ -335,6 +331,10 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
             main_font_has_glyph = TTF_GlyphIsProvided(cache->font, (uint16_t)codepoint);
         }
 #endif
+        /* If main font doesn't have glyph, allow fallback to symbol font */
+        if (!main_font_has_glyph) {
+            use_symbol_font = 1;
+        }
     }
 
     if (main_font_has_glyph) {
@@ -358,7 +358,20 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
     /* Track if we used an emoji/symbol font (for scale mode selection) */
     int used_emoji_font = 0;
 
-    /* Try symbol font for symbol ranges */
+    /* Try emoji font first for emoji and symbols, but only if it has the glyph */
+    if (!surface && use_emoji_font && cache->emoji_font) {
+        /* Check if emoji font actually has this glyph before trying to render */
+        if (TTF_GlyphIsProvided32(cache->emoji_font, codepoint)) {
+            TTF_SetFontStyle(cache->emoji_font, style);
+            char utf8[5];
+            utf8_put_codepoint(codepoint, utf8);
+            surface = TTF_RenderUTF8_Blended(cache->emoji_font, utf8, fg_color);
+            TTF_SetFontStyle(cache->emoji_font, TTF_STYLE_NORMAL);
+            used_emoji_font = 1;
+        }
+    }
+
+    /* Fall back to symbol font if emoji font didn't have the glyph */
     if (!surface && use_symbol_font && cache->symbol_font) {
         TTF_SetFontStyle(cache->symbol_font, style);
 
@@ -372,16 +385,6 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
         }
 
         TTF_SetFontStyle(cache->symbol_font, TTF_STYLE_NORMAL);
-        used_emoji_font = 1;
-    }
-
-    /* Try emoji font for emoji or if symbol font didn't have the glyph */
-    if (!surface && (use_emoji_font || use_symbol_font) && cache->emoji_font) {
-        TTF_SetFontStyle(cache->emoji_font, style);
-        char utf8[5];
-        utf8_put_codepoint(codepoint, utf8);
-        surface = TTF_RenderUTF8_Blended(cache->emoji_font, utf8, fg_color);
-        TTF_SetFontStyle(cache->emoji_font, TTF_STYLE_NORMAL);
         used_emoji_font = 1;
     }
 

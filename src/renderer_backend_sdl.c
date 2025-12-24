@@ -42,22 +42,10 @@ static SDL_Rect calc_scaled_glyph_rect(int dst_x, int dst_y, int tex_w, int tex_
     int final_y = dst_y;
 
     if (scale_to_fit) {
-        /* Scale emoji to fill width, maintain aspect ratio, center vertically */
-        /* This ensures emoji always span their full cell allocation (typically 2 cells) */
-        /* Height may be clipped if emoji is taller than cell_h after width scaling */
+        /* Box scale: fit within cell bounds while maintaining aspect ratio, then center */
         float scale_x = (float)cell_w / tex_w;
         float scale_y = (float)cell_h / tex_h;
-
-        /* Use the smaller scale to fit within both dimensions while maintaining aspect ratio */
-        /* But prefer filling width - if scaling by width still fits height, use that */
-        float scale;
-        if (tex_h * scale_x <= cell_h) {
-            /* Scaling to fill width still fits within height - use width scale */
-            scale = scale_x;
-        } else {
-            /* Scaling to fill width would overflow height - use height scale instead */
-            scale = scale_y;
-        }
+        float scale = (scale_x < scale_y) ? scale_x : scale_y;
 
         final_w = (int)(tex_w * scale);
         final_h = (int)(tex_h * scale);
@@ -292,15 +280,21 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
     if (cell->width == 0 || cell->chars[0] > 0x10FFFF)
         return;
 
-    /* Also skip cells that follow an emoji with variation selector (U+FE0F) */
-    /* These emoji have width=1 in vterm but we render them as width=2 */
+    /* Skip cells that follow emoji/emoji-style characters we render as 2-wide */
     /* Without this check, this cell's background would overwrite the emoji's right half */
     if (col > 0) {
         TermCell prev_cell;
         if (terminal_get_cell_at(term, row, col - 1, &prev_cell)) {
-            if (prev_cell.chars[1] == 0xFE0F && prev_cell.width == 1) {
-                /* Previous cell was an emoji with variation selector that we rendered as 2-wide */
-                return;
+            if (prev_cell.width == 1) {
+                uint32_t pcp = prev_cell.chars[0];
+                /* Skip for both true emoji and emoji-style (both render at 2-cell width) */
+                int prev_is_2wide = (prev_cell.chars[1] == 0xFE0F) || is_emoji_presentation(pcp) ||
+                                    is_emoji_property(pcp) || (pcp >= 0x1F300 && pcp <= 0x1F5FF) ||
+                                    (pcp >= 0x1F600 && pcp <= 0x1F64F) || (pcp >= 0x1F680 && pcp <= 0x1F6FF) ||
+                                    (pcp >= 0x1F900 && pcp <= 0x1F9FF) || (pcp >= 0x1FA00 && pcp <= 0x1FAFF);
+                if (prev_is_2wide) {
+                    return;
+                }
             }
         }
     }
@@ -498,18 +492,22 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
              * - Emoji: Variation selector U+FE0F or high Unicode emoji ranges - needs full scaling
              */
             uint32_t cp = cell->chars[0];
-            int is_symbol = is_symbol_range(cp);
-            int is_emoji = (cell->chars[1] == 0xFE0F) ||       /* Emoji variation selector */
-                           (cp >= 0x1F300 && cp <= 0x1F5FF) || /* Misc Symbols and Pictographs */
-                           (cp >= 0x1F600 && cp <= 0x1F64F) || /* Emoticons */
-                           (cp >= 0x1F680 && cp <= 0x1F6FF) || /* Transport/Map */
-                           (cp >= 0x1F900 && cp <= 0x1F9FF) || /* Supplemental Symbols */
-                           (cp >= 0x1FA00 && cp <= 0x1FAFF);   /* Chess, symbols */
+            /* True emoji: Emoji_Presentation=Yes, variation selector, or emoji ranges - occupy 2 cells */
+            int has_variation_selector = (cell->chars[1] == 0xFE0F);
+            int is_true_emoji = has_variation_selector || is_emoji_presentation(cp) || /* Emoji_Presentation=Yes */
+                                (cp >= 0x1F300 && cp <= 0x1F5FF) || /* Misc Symbols and Pictographs */
+                                (cp >= 0x1F600 && cp <= 0x1F64F) || /* Emoticons */
+                                (cp >= 0x1F680 && cp <= 0x1F6FF) || /* Transport/Map */
+                                (cp >= 0x1F900 && cp <= 0x1F9FF) || /* Supplemental Symbols */
+                                (cp >= 0x1FA00 && cp <= 0x1FAFF);   /* Chess, symbols */
+            /* Emoji property chars: render at 2-cell size but occupy 1 cell (overflow into next) */
+            int is_emoji_style = !is_true_emoji && is_emoji_property(cp);
+            /* Symbols need emoji font but are 1-cell wide and 1-cell render */
+            int is_symbol = is_symbol_range(cp) && !is_true_emoji && !is_emoji_style;
 
-            /* For glyph cache, pass is_emoji flag for emoji font selection */
-            /* Symbol ranges also need emoji/symbol font, so pass is_emoji || is_symbol */
-            SDL_Texture *glyph = glyph_cache_get(state->glyph_cache, cell->chars[0], fg_color, bg_color,
-                                                 cell->attrs.bold, cell->attrs.italic, is_emoji || is_symbol);
+            SDL_Texture *glyph =
+                glyph_cache_get(state->glyph_cache, cell->chars[0], fg_color, bg_color, cell->attrs.bold,
+                                cell->attrs.italic, is_true_emoji || is_emoji_style || is_symbol);
             if (glyph) {
                 /* Get actual texture size */
                 int tex_w, tex_h;
@@ -522,33 +520,174 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
                 int scale_to_fit;
                 int center_vertical;
 
-                if (is_symbol) {
-                    /* Symbol glyphs: center vertically in cell, no width scaling */
-                    /* Let calc_scaled_glyph_rect handle centering after any scaling */
+                if (is_true_emoji) {
+                    /* True emoji (Emoji_Presentation=Yes): box scale to fit 2 cells, occupy 2 cells */
                     dst_y = row * cell_h + PADDING_Y;
-                    scale_height = cell_h;
-                    scale_to_fit = 0;
-                    center_vertical = 1;
-                } else if (is_emoji) {
-                    /* Emoji: scale to fill cell, center both ways */
-                    dst_y = row * cell_h + PADDING_Y;
-                    if (cell->chars[1] == 0xFE0F && char_width < 2) {
-                        char_width = 2;
-                    }
                     scale_height = cell_h;
                     scale_to_fit = 1;
                     center_vertical = 0; /* scale_to_fit already centers */
+                    if (char_width < 2) {
+                        char_width = 2;
+                    }
+                    SDL_Rect dst = calc_scaled_glyph_rect(dst_x, dst_y, tex_w, tex_h, cell_w * char_width, scale_height,
+                                                          scale_to_fit, center_vertical);
+                    SDL_RenderCopy(state->sdl_renderer, glyph, NULL, &dst);
+                } else if (is_emoji_style) {
+                    /* Emoji style (Emoji=Yes, Emoji_Presentation=No): render at 2-cell size, occupy 1 cell */
+                    /* These overflow into the next cell but don't claim it */
+                    dst_y = row * cell_h + PADDING_Y;
+                    scale_height = cell_h;
+                    scale_to_fit = 1;
+                    center_vertical = 0;
+                    /* Render at 2-cell width but don't modify char_width (stays 1) */
+                    SDL_Rect dst = calc_scaled_glyph_rect(dst_x, dst_y, tex_w, tex_h, cell_w * 2, scale_height,
+                                                          scale_to_fit, center_vertical);
+                    SDL_RenderCopy(state->sdl_renderer, glyph, NULL, &dst);
+                } else if (is_symbol) {
+                    /* Symbols: box scale to fit 1 cell, center both ways */
+                    dst_y = row * cell_h + PADDING_Y;
+                    scale_height = cell_h;
+                    scale_to_fit = 1;
+                    center_vertical = 0;
+                    SDL_Rect dst = calc_scaled_glyph_rect(dst_x, dst_y, tex_w, tex_h, cell_w * char_width, scale_height,
+                                                          scale_to_fit, center_vertical);
+                    SDL_RenderCopy(state->sdl_renderer, glyph, NULL, &dst);
+                } else if (is_block_element(cp)) {
+                    /* Block elements: draw procedurally for pixel-perfect cell filling */
+                    int cx = dst_x;
+                    int cy = row * cell_h + PADDING_Y;
+                    int cw = cell_w;
+                    int ch = cell_h;
+                    int hw = cw / 2, hh = ch / 2; /* half width/height */
+                    SDL_SetRenderDrawColor(state->sdl_renderer, fg_color.r, fg_color.g, fg_color.b, 255);
+                    SDL_Rect r;
+                    switch (cp) {
+                    /* Upper/lower fractional blocks */
+                    case 0x2580:
+                        r = (SDL_Rect){cx, cy, cw, hh};
+                        break; /* ▀ Upper 1/2 */
+                    case 0x2581:
+                        r = (SDL_Rect){cx, cy + ch * 7 / 8, cw, ch - ch * 7 / 8};
+                        break; /* ▁ Lower 1/8 */
+                    case 0x2582:
+                        r = (SDL_Rect){cx, cy + ch * 3 / 4, cw, ch - ch * 3 / 4};
+                        break; /* ▂ Lower 1/4 */
+                    case 0x2583:
+                        r = (SDL_Rect){cx, cy + ch * 5 / 8, cw, ch - ch * 5 / 8};
+                        break; /* ▃ Lower 3/8 */
+                    case 0x2584:
+                        r = (SDL_Rect){cx, cy + hh, cw, ch - hh};
+                        break; /* ▄ Lower 1/2 */
+                    case 0x2585:
+                        r = (SDL_Rect){cx, cy + ch * 3 / 8, cw, ch - ch * 3 / 8};
+                        break; /* ▅ Lower 5/8 */
+                    case 0x2586:
+                        r = (SDL_Rect){cx, cy + ch / 4, cw, ch - ch / 4};
+                        break; /* ▆ Lower 3/4 */
+                    case 0x2587:
+                        r = (SDL_Rect){cx, cy + ch / 8, cw, ch - ch / 8};
+                        break; /* ▇ Lower 7/8 */
+                    case 0x2588:
+                        r = (SDL_Rect){cx, cy, cw, ch};
+                        break; /* █ Full */
+                    /* Left fractional blocks */
+                    case 0x2589:
+                        r = (SDL_Rect){cx, cy, cw * 7 / 8, ch};
+                        break; /* ▉ Left 7/8 */
+                    case 0x258A:
+                        r = (SDL_Rect){cx, cy, cw * 3 / 4, ch};
+                        break; /* ▊ Left 3/4 */
+                    case 0x258B:
+                        r = (SDL_Rect){cx, cy, cw * 5 / 8, ch};
+                        break; /* ▋ Left 5/8 */
+                    case 0x258C:
+                        r = (SDL_Rect){cx, cy, hw, ch};
+                        break; /* ▌ Left 1/2 */
+                    case 0x258D:
+                        r = (SDL_Rect){cx, cy, cw * 3 / 8, ch};
+                        break; /* ▍ Left 3/8 */
+                    case 0x258E:
+                        r = (SDL_Rect){cx, cy, cw / 4, ch};
+                        break; /* ▎ Left 1/4 */
+                    case 0x258F:
+                        r = (SDL_Rect){cx, cy, cw / 8, ch};
+                        break; /* ▏ Left 1/8 */
+                    /* Right half and edges */
+                    case 0x2590:
+                        r = (SDL_Rect){cx + hw, cy, cw - hw, ch};
+                        break; /* ▐ Right 1/2 */
+                    case 0x2594:
+                        r = (SDL_Rect){cx, cy, cw, ch / 8};
+                        break; /* ▔ Upper 1/8 */
+                    case 0x2595:
+                        r = (SDL_Rect){cx + cw - cw / 8, cy, cw / 8, ch};
+                        break; /* ▕ Right 1/8 */
+                    /* Shade blocks - use alpha blending */
+                    case 0x2591: /* ░ Light shade 25% */
+                        SDL_SetRenderDrawColor(state->sdl_renderer, fg_color.r, fg_color.g, fg_color.b, 64);
+                        r = (SDL_Rect){cx, cy, cw, ch};
+                        break;
+                    case 0x2592: /* ▒ Medium shade 50% */
+                        SDL_SetRenderDrawColor(state->sdl_renderer, fg_color.r, fg_color.g, fg_color.b, 128);
+                        r = (SDL_Rect){cx, cy, cw, ch};
+                        break;
+                    case 0x2593: /* ▓ Dark shade 75% */
+                        SDL_SetRenderDrawColor(state->sdl_renderer, fg_color.r, fg_color.g, fg_color.b, 192);
+                        r = (SDL_Rect){cx, cy, cw, ch};
+                        break;
+                    /* Quadrants - draw multiple rectangles */
+                    case 0x2596: /* ▖ Lower left */
+                        r = (SDL_Rect){cx, cy + hh, hw, ch - hh};
+                        break;
+                    case 0x2597: /* ▗ Lower right */
+                        r = (SDL_Rect){cx + hw, cy + hh, cw - hw, ch - hh};
+                        break;
+                    case 0x2598: /* ▘ Upper left */
+                        r = (SDL_Rect){cx, cy, hw, hh};
+                        break;
+                    case 0x259D: /* ▝ Upper right */
+                        r = (SDL_Rect){cx + hw, cy, cw - hw, hh};
+                        break;
+                    case 0x2599: /* ▙ Upper left + lower left + lower right */
+                        SDL_RenderFillRect(state->sdl_renderer, &(SDL_Rect){cx, cy, hw, hh});
+                        r = (SDL_Rect){cx, cy + hh, cw, ch - hh};
+                        break;
+                    case 0x259A: /* ▚ Upper left + lower right (diagonal) */
+                        SDL_RenderFillRect(state->sdl_renderer, &(SDL_Rect){cx, cy, hw, hh});
+                        r = (SDL_Rect){cx + hw, cy + hh, cw - hw, ch - hh};
+                        break;
+                    case 0x259B: /* ▛ Upper left + upper right + lower left */
+                        SDL_RenderFillRect(state->sdl_renderer, &(SDL_Rect){cx, cy, cw, hh});
+                        r = (SDL_Rect){cx, cy + hh, hw, ch - hh};
+                        break;
+                    case 0x259C: /* ▜ Upper left + upper right + lower right */
+                        SDL_RenderFillRect(state->sdl_renderer, &(SDL_Rect){cx, cy, cw, hh});
+                        r = (SDL_Rect){cx + hw, cy + hh, cw - hw, ch - hh};
+                        break;
+                    case 0x259E: /* ▞ Upper right + lower left (diagonal) */
+                        SDL_RenderFillRect(state->sdl_renderer, &(SDL_Rect){cx + hw, cy, cw - hw, hh});
+                        r = (SDL_Rect){cx, cy + hh, hw, ch - hh};
+                        break;
+                    case 0x259F: /* ▟ Upper right + lower left + lower right */
+                        SDL_RenderFillRect(state->sdl_renderer, &(SDL_Rect){cx + hw, cy, cw - hw, hh});
+                        r = (SDL_Rect){cx, cy + hh, cw, ch - hh};
+                        break;
+                    default:
+                        r = (SDL_Rect){cx, cy, cw, ch};
+                        break;
+                    }
+                    SDL_RenderFillRect(state->sdl_renderer, &r);
                 } else {
                     /* Regular text: use vertical offset for line height centering */
                     dst_y = row * cell_h + PADDING_Y + vertical_offset;
                     scale_height = state->actual_cell_h;
                     scale_to_fit = 0;
                     center_vertical = 0;
-                }
 
-                SDL_Rect dst = calc_scaled_glyph_rect(dst_x, dst_y, tex_w, tex_h, cell_w * char_width, scale_height,
-                                                      scale_to_fit, center_vertical);
-                SDL_RenderCopy(state->sdl_renderer, glyph, NULL, &dst);
+                    SDL_Rect dst = calc_scaled_glyph_rect(dst_x, dst_y, tex_w, tex_h, cell_w * char_width, scale_height,
+                                                          scale_to_fit, center_vertical);
+                    SDL_RenderCopy(state->sdl_renderer, glyph, NULL, &dst);
+                }
             }
         }
     }
