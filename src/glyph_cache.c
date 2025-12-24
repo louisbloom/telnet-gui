@@ -108,7 +108,8 @@ typedef struct CacheNode {
 
 struct GlyphCache {
     TTF_Font *font;
-    TTF_Font *fallback_font; /* Fallback font for glyphs not in main font (e.g., emoji) */
+    TTF_Font *emoji_font;  /* Emoji font (color emoji) */
+    TTF_Font *symbol_font; /* Symbol font for dingbats/symbols */
     SDL_Renderer *renderer;
     CacheNode *cache;
     int cache_size;
@@ -119,11 +120,8 @@ struct GlyphCache {
     char *font_name; /* Display name of font */
 };
 
-/* Try to find system emoji/symbol font for fallback */
-static const char *find_fallback_font(void) {
-#ifdef _WIN32
-    /* Windows: Try Segoe UI Emoji */
-    const char *fonts[] = {"C:/Windows/Fonts/seguiemj.ttf", "C:\\Windows\\Fonts\\seguiemj.ttf", NULL};
+/* Find first existing font from a NULL-terminated list of paths */
+static const char *find_first_existing_font(const char *fonts[]) {
     for (int i = 0; fonts[i] != NULL; i++) {
         FILE *test = fopen(fonts[i], "rb");
         if (test) {
@@ -131,23 +129,54 @@ static const char *find_fallback_font(void) {
             return fonts[i];
         }
     }
+    return NULL;
+}
+
+/* Try to find system symbol font for dingbats/symbols */
+static const char *find_symbol_font(void) {
+#ifdef _WIN32
+    static const char *fonts[] = {"C:/Windows/Fonts/seguisym.ttf", "C:\\Windows\\Fonts\\seguisym.ttf", NULL};
 #elif defined(__APPLE__)
-    /* macOS: Apple Color Emoji */
-    return "/System/Library/Fonts/Apple Color Emoji.ttc";
+    static const char *fonts[] = {"/System/Library/Fonts/Apple Symbols.ttf", NULL};
 #else
-    /* Linux: Try common emoji/symbol fonts */
-    const char *fonts[] = {
+    static const char *fonts[] = {"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                                  "/usr/share/fonts/TTF/DejaVuSans.ttf", NULL};
+#endif
+    return find_first_existing_font(fonts);
+}
+
+/* Try to find system emoji font for color emoji fallback */
+static const char *find_emoji_font(void) {
+#ifdef _WIN32
+    static const char *fonts[] = {"C:/Windows/Fonts/seguiemj.ttf", "C:\\Windows\\Fonts\\seguiemj.ttf", NULL};
+#elif defined(__APPLE__)
+    static const char *fonts[] = {"/System/Library/Fonts/Apple Color Emoji.ttc", NULL};
+#else
+    static const char *fonts[] = {
         "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf", "/usr/share/fonts/noto-emoji/NotoColorEmoji.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans.ttf", NULL};
-    for (int i = 0; fonts[i] != NULL; i++) {
-        FILE *test = fopen(fonts[i], "rb");
-        if (test) {
-            fclose(test);
-            return fonts[i];
-        }
-    }
 #endif
-    return NULL;
+    return find_first_existing_font(fonts);
+}
+
+/* Load an emoji/symbol font at fixed size, returns NULL if not found or failed */
+static TTF_Font *load_emoji_font(const char *(*find_func)(void), const char *name, int size, int hdpi, int vdpi) {
+    const char *path = find_func();
+    if (!path) {
+        fprintf(stderr, "No %s font found on system\n", name);
+        return NULL;
+    }
+#if HAVE_SDL_TTF_DPI
+    TTF_Font *font = TTF_OpenFontDPI(path, size, hdpi, vdpi);
+#else
+    TTF_Font *font = TTF_OpenFont(path, size);
+#endif
+    if (font) {
+        fprintf(stderr, "%s font loaded at %dpt: %s\n", name, size, path);
+    } else {
+        fprintf(stderr, "Failed to load %s font: %s (%s)\n", name, path, TTF_GetError());
+    }
+    return font;
 }
 
 /* Hash function for cache key */
@@ -246,25 +275,9 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
     /* Store space character's minx as baseline for consistent positioning */
     cache->space_minx = minx;
 
-    /* Try to load fallback font for glyphs not in main font (e.g., emoji) */
-    /* Load at large fixed size for color emoji (they're bitmap-based with fixed sizes) */
-    cache->fallback_font = NULL;
-    const char *fallback_font_path = find_fallback_font();
-    if (fallback_font_path) {
-        int emoji_font_size = 128; /* Large fixed size for best quality */
-#if HAVE_SDL_TTF_DPI
-        cache->fallback_font = TTF_OpenFontDPI(fallback_font_path, emoji_font_size, hdpi, vdpi);
-#else
-        cache->fallback_font = TTF_OpenFont(fallback_font_path, emoji_font_size);
-#endif
-        if (cache->fallback_font) {
-            fprintf(stderr, "Fallback font loaded at %dpt: %s\n", emoji_font_size, fallback_font_path);
-        } else {
-            fprintf(stderr, "Failed to load fallback font: %s (%s)\n", fallback_font_path, TTF_GetError());
-        }
-    } else {
-        fprintf(stderr, "No fallback font found on system\n");
-    }
+    /* Load emoji/symbol fonts at large fixed size (128pt) for quality scaling */
+    cache->emoji_font = load_emoji_font(find_emoji_font, "Emoji", 128, hdpi, vdpi);
+    cache->symbol_font = load_emoji_font(find_symbol_font, "Symbol", 128, hdpi, vdpi);
 
     return cache;
 }
@@ -293,14 +306,24 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
         style |= TTF_STYLE_ITALIC;
 
     /* Render the glyph - try main font first, but only if it provides the glyph */
-    /* If is_emoji is set and fallback font is available, skip main font */
+    /* If is_emoji is set and emoji font is available, skip main font */
     SDL_Surface *surface = NULL;
     int main_font_has_glyph = 0;
     int use_main_font = 1;
 
-    /* If emoji presentation is preferred and we have a fallback font, use it directly */
-    if (is_emoji && cache->fallback_font) {
+    /* Determine if we should skip main font and use a fallback */
+    int use_symbol_font = 0;
+    int use_emoji_font = 0;
+
+    /* Symbol ranges (dingbats, misc symbols) prefer symbol font */
+    if (is_symbol_range(codepoint) && cache->symbol_font) {
         use_main_font = 0;
+        use_symbol_font = 1;
+    }
+    /* Emoji presentation preferred, use emoji font */
+    else if (is_emoji && cache->emoji_font) {
+        use_main_font = 0;
+        use_emoji_font = 1;
     }
 
     /* Check if main font provides this glyph */
@@ -332,29 +355,43 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
         TTF_SetFontStyle(cache->font, TTF_STYLE_NORMAL);
     }
 
-    /* Track if we used the fallback font (for scale mode selection) */
-    int used_fallback = 0;
+    /* Track if we used an emoji/symbol font (for scale mode selection) */
+    int used_emoji_font = 0;
 
-    /* If main font doesn't have glyph or failed, try fallback font */
-    if (!surface && cache->fallback_font) {
-        TTF_SetFontStyle(cache->fallback_font, style);
+    /* Try symbol font for symbol ranges */
+    if (!surface && use_symbol_font && cache->symbol_font) {
+        TTF_SetFontStyle(cache->symbol_font, style);
 
-        /* Convert codepoint to UTF-8 for fallback font */
+        /* For BMP characters, use glyph rendering for tight bounds (like main font) */
+        if (codepoint < 0x10000) {
+            surface = TTF_RenderGlyph_Blended(cache->symbol_font, (uint16_t)codepoint, fg_color);
+        } else {
+            char utf8[5];
+            utf8_put_codepoint(codepoint, utf8);
+            surface = TTF_RenderUTF8_Blended(cache->symbol_font, utf8, fg_color);
+        }
+
+        TTF_SetFontStyle(cache->symbol_font, TTF_STYLE_NORMAL);
+        used_emoji_font = 1;
+    }
+
+    /* Try emoji font for emoji or if symbol font didn't have the glyph */
+    if (!surface && (use_emoji_font || use_symbol_font) && cache->emoji_font) {
+        TTF_SetFontStyle(cache->emoji_font, style);
         char utf8[5];
         utf8_put_codepoint(codepoint, utf8);
-        surface = TTF_RenderUTF8_Blended(cache->fallback_font, utf8, fg_color);
-
-        TTF_SetFontStyle(cache->fallback_font, TTF_STYLE_NORMAL);
-        used_fallback = 1;
+        surface = TTF_RenderUTF8_Blended(cache->emoji_font, utf8, fg_color);
+        TTF_SetFontStyle(cache->emoji_font, TTF_STYLE_NORMAL);
+        used_emoji_font = 1;
     }
 
     if (!surface)
         return NULL;
 
-    /* For fallback font (emoji), pre-scale using box filter for better quality */
+    /* For emoji font, pre-scale using box filter for better quality */
     /* This is much better than SDL's bilinear for large downscaling ratios */
     SDL_Surface *final_surface = surface;
-    if (used_fallback && surface->h > cache->cell_h * 2) {
+    if (used_emoji_font && surface->h > cache->cell_h * 2) {
         /* Scale to approximately 2x cell height, maintaining aspect ratio */
         int target_h = cache->cell_h * 2;
         float scale = (float)target_h / surface->h;
@@ -373,7 +410,7 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
     if (texture) {
         /* Use linear scaling for any remaining scaling during render */
         /* Use configured scale mode for main font (usually nearest for pixel-perfect text) */
-        SDL_SetTextureScaleMode(texture, used_fallback ? SDL_ScaleModeLinear : cache->scale_mode);
+        SDL_SetTextureScaleMode(texture, used_emoji_font ? SDL_ScaleModeLinear : cache->scale_mode);
         /* Enable alpha blending for smooth edges */
         SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
     }
@@ -478,8 +515,12 @@ void glyph_cache_destroy(GlyphCache *cache) {
         TTF_CloseFont(cache->font);
     }
 
-    if (cache->fallback_font) {
-        TTF_CloseFont(cache->fallback_font);
+    if (cache->emoji_font) {
+        TTF_CloseFont(cache->emoji_font);
+    }
+
+    if (cache->symbol_font) {
+        TTF_CloseFont(cache->symbol_font);
     }
 
     /* Clean up cache textures */

@@ -4,6 +4,104 @@
 ;; Animation functions are only available when built with rlottie support.
 
 ;; ============================================================================
+;; HELPER FUNCTIONS FOR VERSION ANNOUNCEMENT
+;; ============================================================================
+
+;; Calculate visual display length of string, excluding ANSI escape codes
+(defun visual-length (str)
+  (if (not (string? str))
+    0
+    (let ((ansi-pattern "\\033\\[[0-9;]*m"))
+      (length (regex-replace-all ansi-pattern str "")))))
+
+;; Pad string to specified width with trailing spaces
+(defun pad-string (str width)
+  (if (not (string? str))
+    ""
+    (let ((visual-len (visual-length str)))
+      (let ((padding-needed (- width visual-len)))
+        (if (<= padding-needed 0)
+          str
+          (let ((result str))
+            (do ((i 0 (+ i 1)))
+              ((>= i padding-needed) result)
+              (set! result (concat result " ")))))))))
+
+;; Repeat a string N times
+(defun repeat-string (str count)
+  (if (<= count 0)
+    ""
+    (let ((result ""))
+      (do ((i 0 (+ i 1)))
+        ((>= i count) result)
+        (set! result (concat result str))))))
+
+;; Find maximum visual length from a list of strings
+(defun max-visual-length (str-list)
+  (if (null? str-list)
+    0
+    (let ((first (visual-length (car str-list)))
+           (rest (max-visual-length (cdr str-list))))
+      (if (> first rest) first rest))))
+
+;; Format a single info line with proper padding
+(defun format-info-line (name value name-width value-width box-width)
+  (let* ((name-padding (- name-width (length name)))
+          (right-padding (- box-width name-width value-width 4)))
+    (concat "│    \033[38;2;220;220;220m" name "\033[0;38;2;100;149;237m"
+      (pad-string "" name-padding)
+      "\033[38;2;144;238;144m" (pad-string value value-width) "\033[38;2;100;149;237m"
+      (pad-string "" right-padding) "│\n")))
+
+;; Format multiple info lines from a list of (name . value) pairs
+(defun format-info-lines (entries name-width value-width box-width)
+  (if (null? entries)
+    ""
+    (concat (format-info-line (car (car entries)) (cdr (car entries)) name-width value-width box-width)
+      (format-info-lines (cdr entries) name-width value-width box-width))))
+
+;; Build the complete version announcement box
+(defun build-version-box (version libvterm sdl2 sdl2-ttf bdw-gc pcre2 system arch toolchain)
+  (let* ((title-text (concat "Telnet GUI  v" version))
+          (name-width 10)
+          (lib-entries (list (cons "libvterm:" libvterm) (cons "SDL2:" sdl2) (cons "SDL2_ttf:" sdl2-ttf)
+                         (cons "bdw-gc:" bdw-gc) (cons "PCRE2:" pcre2)))
+          (build-entries (list (cons "System:" system) (cons "Arch:" arch) (cons "Compiler:" toolchain)))
+          (value-width (max-visual-length (list libvterm sdl2 sdl2-ttf bdw-gc pcre2 system arch toolchain)))
+          (title-width (+ (visual-length title-text) 4))
+          (content-width (+ name-width value-width 7))
+          (box-width (if (> title-width content-width) title-width content-width))
+          (border (repeat-string "─" box-width)))
+    (concat "\033[38;2;100;149;237m"
+      "┌" border "┐\n"
+      "│  \033[1;38;2;255;215;0mTelnet GUI\033[0;38;2;100;149;237m  "
+      "\033[38;2;144;238;144mv" version "\033[38;2;100;149;237m"
+      (pad-string "" (- box-width (visual-length title-text) 2)) "│\n"
+      "├" border "┤\n"
+      "│  \033[38;2;200;200;200mLibraries:\033[0;38;2;100;149;237m" (pad-string "" (- box-width 12)) "│\n"
+      (format-info-lines lib-entries name-width value-width box-width)
+      "├" border "┤\n"
+      "│  \033[38;2;200;200;200mBuild:\033[0;38;2;100;149;237m" (pad-string "" (- box-width 8)) "│\n"
+      (format-info-lines build-entries name-width value-width box-width)
+      "└" border "┘\n"
+      "\033[0m")))
+
+;; ============================================================================
+;; VERSION ANNOUNCEMENT
+;; ============================================================================
+
+;; Helper to extract value from version alist
+(defun version-get (key)
+  (cdr (assoc key telnet-gui-version)))
+
+;; Display version announcement if telnet-gui-version is available
+(when (bound? 'telnet-gui-version)
+  (terminal-echo (build-version-box
+                   (version-get 'version) (version-get 'libvterm) (version-get 'sdl2)
+                   (version-get 'sdl2-ttf) (version-get 'bdw-gc) (version-get 'pcre2)
+                   (version-get 'system) (version-get 'architecture) (version-get 'toolchain))))
+
+;; ============================================================================
 ;; SCROLL-LOCK NOTIFICATION ANIMATION
 ;; ============================================================================
 

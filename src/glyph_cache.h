@@ -16,7 +16,7 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
                                 int font_size, int hinting_mode, SDL_ScaleMode scale_mode, int hdpi, int vdpi);
 
 /* Get a cached texture for a glyph */
-/* is_emoji: if true and fallback font available, use emoji font even if main font has the glyph */
+/* is_emoji: if true and emoji font available, use it even if main font has the glyph */
 SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg_color, SDL_Color bg_color, int bold,
                              int italic, int is_emoji);
 
@@ -37,5 +37,17 @@ int glyph_cache_get_minx(GlyphCache *cache, uint32_t codepoint, SDL_Color fg_col
 
 /* Clean up and destroy the cache */
 void glyph_cache_destroy(GlyphCache *cache);
+
+/* Check if codepoint is in a symbol/dingbat range (rendered by symbol font, not emoji font).
+ * These are monochrome symbols that need the symbol font fallback and vertical centering. */
+static inline int is_symbol_range(uint32_t codepoint) {
+    /* Miscellaneous Symbols (U+2600-U+26FF) */
+    if (codepoint >= 0x2600 && codepoint <= 0x26FF)
+        return 1;
+    /* Dingbats (U+2700-U+27BF) - includes U+2726 (four-pointed star) */
+    if (codepoint >= 0x2700 && codepoint <= 0x27BF)
+        return 1;
+    return 0;
+}
 
 #endif /* GLYPH_CACHE_H */
