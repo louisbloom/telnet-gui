@@ -1991,7 +1991,8 @@ be shown after the current one expires.
       (set! *notification-queue*
         (append *notification-queue* (list (cons message ms))))
       ;; Show immediately
-      (notification-show message ms))))
+      (notification-show message ms))
+    nil))
 
 (defun notification-show (message timeout-ms)
   "Internal: Display MESSAGE and set dismiss timer.
