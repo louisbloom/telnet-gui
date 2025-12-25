@@ -3,6 +3,7 @@
 #include "renderer.h"
 #include "renderer_backend.h"
 #include "terminal.h"
+#include "dock.h"
 #include "lisp.h"
 #include "../../telnet-lisp/include/utf8.h"
 #include <stdlib.h>
@@ -56,15 +57,15 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
     int scrolling_rows, cols;
     terminal_get_size(term, &scrolling_rows, &cols);
 
-    /* Total display includes scrolling area + top divider + bottom divider + input rows + notification row */
+    /* Total display includes scrolling area + dock (top divider + input rows + bottom divider + notification row) */
     int input_rows = 1;
     if (dock) {
-        input_rows = dock_get_visible_rows(dock);
+        input_rows = dock_get_text_rows(dock);
         if (input_rows < 1)
             input_rows = 1;
     }
 
-    int total_rows = scrolling_rows + 2 + input_rows + 1; /* +1 for notification row */
+    int total_rows = scrolling_rows + dock_height_rows(input_rows);
 
     /* Get line height multiplier and calculate effective cell height */
     float line_height = lisp_x_get_terminal_line_height();

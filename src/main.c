@@ -290,8 +290,8 @@ static void calculate_terminal_size(int window_width, int window_height, int cel
         *cols = 10; /* Minimum width */
 
     /* Calculate number of rows that fit in available height */
-    /* Subtract rows for dock area: top divider + input rows + bottom divider + notification row */
-    int input_height_rows = 3 + dock_get_visible_rows(dock);
+    /* Subtract rows for dock area */
+    int input_height_rows = dock_height_rows(dock_get_text_rows(dock));
     *rows = (available_height / effective_cell_h) - input_height_rows;
     if (*rows < 1)
         *rows = 1; /* Minimum: 1 scrolling row */
@@ -871,7 +871,7 @@ int main(int argc, char **argv) {
     int effective_cell_h = (int)(cell_h * line_height);
 
     /* Calculate exact window size for terminal geometry using effective cell height */
-    int separator_and_input_height = 3 * effective_cell_h; /* Top divider + bottom divider + input row */
+    int separator_and_input_height = dock_height_rows(1) * effective_cell_h;
     int precise_width = terminal_cols * cell_w + 2 * PADDING_X;
     int precise_height = terminal_rows * effective_cell_h + separator_and_input_height + 2 * PADDING_Y;
 
@@ -984,7 +984,7 @@ int main(int argc, char **argv) {
     SDL_GetWindowSize(sdl_window, &actual_width, &actual_height);
     int initial_rows, initial_cols;
     calculate_terminal_size(actual_width, actual_height, cell_w, cell_h, &dock, &initial_rows, &initial_cols);
-    int input_visible_rows = dock_get_visible_rows(&dock);
+    int input_visible_rows = dock_get_text_rows(&dock);
     terminal_resize(term, initial_rows, initial_cols, input_visible_rows);
     telnet_set_terminal_size(telnet, initial_cols, initial_rows);
 
@@ -1069,14 +1069,13 @@ int main(int argc, char **argv) {
                     int available_height = new_height - 2 * PADDING_Y;
                     float line_height = lisp_x_get_terminal_line_height();
                     int effective_cell_h = (int)(cell_h * line_height);
-                    int input_height_rows =
-                        3 + dock_get_visible_rows(&dock); /* Top divider + input rows + bottom divider + notification row */
+                    int input_height_rows = dock_height_rows(dock_get_text_rows(&dock));
                     int new_rows = (available_height / effective_cell_h) - input_height_rows;
                     if (new_rows < 1)
                         new_rows = 1; /* Minimum: 1 scrolling row */
 
                     /* Step 4: Resize terminal and update */
-                    int input_visible_rows = dock_get_visible_rows(&dock);
+                    int input_visible_rows = dock_get_text_rows(&dock);
 
                     /* Save cursor position before resize corrupts it */
                     int saved_cursor_row, saved_cursor_col, saved_cursor_visible;
@@ -1109,7 +1108,8 @@ int main(int argc, char **argv) {
 
                     /* Calculate terminal area bounds and fill any area beyond with background color */
                     int terminal_width = new_cols * cell_w + 2 * PADDING_X;
-                    int terminal_height = (new_rows + 3 + input_visible_rows) * effective_cell_h + 2 * PADDING_Y;
+                    int terminal_height =
+                        (new_rows + dock_height_rows(input_visible_rows)) * effective_cell_h + 2 * PADDING_Y;
 
                     /* Fill any area beyond the terminal content with background color */
                     /* This handles cases where window is larger than terminal area */
@@ -1190,8 +1190,8 @@ int main(int argc, char **argv) {
                                 rend = renderer_create(renderer, glyph_cache, cell_w, cell_h);
 
                                 /* Calculate new window size to maintain same terminal dimensions */
-                                int input_visible_rows = dock_get_visible_rows(&dock);
-                                int total_rows = current_rows + 3 + input_visible_rows;
+                                int input_visible_rows = dock_get_text_rows(&dock);
+                                int total_rows = current_rows + dock_height_rows(input_visible_rows);
                                 int new_win_width = current_cols * cell_w + 2 * PADDING_X;
                                 int new_win_height = total_rows * effective_cell_h + 2 * PADDING_Y;
 
@@ -1239,7 +1239,7 @@ int main(int argc, char **argv) {
                 int effective_cell_h = (int)(cell_h * line_height);
 
                 /* Calculate input area height: top divider + bottom divider + visible input rows */
-                int dock_height = (3 + dock_get_visible_rows(&dock)) * effective_cell_h;
+                int dock_height = dock_height_rows(dock_get_text_rows(&dock)) * effective_cell_h;
 
                 /* Handle clicks in terminal area (not in input area or padding) */
                 /* Check if click is within terminal area (excluding padding) */
@@ -1698,7 +1698,7 @@ int main(int argc, char **argv) {
                 window_get_size(win, &win_width, &win_height);
                 float line_height = lisp_x_get_terminal_line_height();
                 int effective_cell_h = (int)(cell_h * line_height);
-                int dock_height = (3 + dock_get_visible_rows(&dock)) * effective_cell_h;
+                int dock_height = dock_height_rows(dock_get_text_rows(&dock)) * effective_cell_h;
                 /* Check if click is within terminal area (excluding padding) and not in input area */
                 if (event.button.x >= PADDING_X && event.button.x < win_width - PADDING_X &&
                     event.button.y >= PADDING_Y && event.button.y < win_height - PADDING_Y &&
@@ -1715,7 +1715,7 @@ int main(int argc, char **argv) {
                     window_get_size(win, &motion_win_width, &motion_win_height);
                     float line_height = lisp_x_get_terminal_line_height();
                     int effective_cell_h = (int)(cell_h * line_height);
-                    int dock_height = (3 + dock_get_visible_rows(&dock)) * effective_cell_h;
+                    int dock_height = dock_height_rows(dock_get_text_rows(&dock)) * effective_cell_h;
                     /* Check if motion is within terminal area (excluding padding) and not in input area */
                     if (event.motion.x >= PADDING_X && event.motion.x < motion_win_width - PADDING_X &&
                         event.motion.y >= PADDING_Y && event.motion.y < motion_win_height - PADDING_Y &&
@@ -1732,7 +1732,7 @@ int main(int argc, char **argv) {
                 window_get_size(win, &motion_win_width, &motion_win_height);
                 float line_height = lisp_x_get_terminal_line_height();
                 int effective_cell_h = (int)(cell_h * line_height);
-                int dock_height = (3 + dock_get_visible_rows(&dock)) * effective_cell_h;
+                int dock_height = dock_height_rows(dock_get_text_rows(&dock)) * effective_cell_h;
                 /* Check if motion is within terminal area (excluding padding) and not in input area */
                 if (event.motion.x >= PADDING_X && event.motion.x < motion_win_width - PADDING_X &&
                     event.motion.y >= PADDING_Y && event.motion.y < motion_win_height - PADDING_Y &&
@@ -1751,7 +1751,7 @@ int main(int argc, char **argv) {
                 window_get_size(win, &wheel_win_width, &wheel_win_height);
                 float line_height = lisp_x_get_terminal_line_height();
                 int effective_cell_h = (int)(cell_h * line_height);
-                int dock_height = (3 + dock_get_visible_rows(&dock)) * effective_cell_h;
+                int dock_height = dock_height_rows(dock_get_text_rows(&dock)) * effective_cell_h;
                 /* Check if mouse is within terminal area (excluding padding) and not in input area */
                 if (mouse_x >= PADDING_X && mouse_x < wheel_win_width - PADDING_X && mouse_y >= PADDING_Y &&
                     mouse_y < wheel_win_height - PADDING_Y && mouse_y < wheel_win_height - dock_height - PADDING_Y) {
@@ -1870,7 +1870,7 @@ int main(int argc, char **argv) {
 
         /* Check if input area height changed and resize terminal if needed */
         /* This must happen BEFORE rendering so vterm has correct scrolling region */
-        int current_visible_rows = dock_get_visible_rows(&dock);
+        int current_visible_rows = dock_get_text_rows(&dock);
         if (current_visible_rows != prev_input_visible_rows) {
             prev_input_visible_rows = current_visible_rows;
 

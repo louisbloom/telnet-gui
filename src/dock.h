@@ -9,6 +9,14 @@
 #define DOCK_HISTORY_SIZE 100 /* Default, can be overridden by Lisp config */
 #define UNDO_STACK_SIZE 64
 
+/* Fixed dock rows: top divider + bottom divider + notification row */
+#define DOCK_FIXED_ROWS 3
+
+/* Calculate total dock height in rows (fixed rows + text input rows) */
+static inline int dock_height_rows(int text_rows) {
+    return DOCK_FIXED_ROWS + text_rows;
+}
+
 typedef enum { DOCK_MODE_NORMAL = 0, DOCK_MODE_EVAL = 1 } DockMode;
 
 /* Undo operation types (for coalescing) */
@@ -176,7 +184,7 @@ DockMode dock_get_mode(Dock *area);
 void dock_recalculate_layout(Dock *area, int terminal_cols);
 void dock_get_cursor_visual_position(Dock *area, int cols, int *out_row, int *out_col);
 void dock_ensure_cursor_visible(Dock *area, int cols);
-int dock_get_visible_rows(Dock *area);
+int dock_get_text_rows(Dock *area);
 int dock_is_at_first_visual_line(Dock *area, int cols);
 int dock_is_at_last_visual_line(Dock *area, int cols);
 void dock_move_cursor_up_line(Dock *area, int cols);

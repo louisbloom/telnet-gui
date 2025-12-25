@@ -1089,7 +1089,7 @@ void dock_ensure_cursor_visible(Dock *area, int cols) {
         area->scroll_offset = 0;
 }
 
-int dock_get_visible_rows(Dock *area) {
+int dock_get_text_rows(Dock *area) {
     if (!area)
         return 1;
     return area->visible_rows;

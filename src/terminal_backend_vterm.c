@@ -397,8 +397,8 @@ static void *vterm_create(int rows, int cols) {
 
     vterm_check_version(0, 3);
 
-    /* Total rows: scrolling area + top divider + input row + bottom divider + notification row */
-    int total_rows = rows + 4;
+    /* Total rows: scrolling area + dock (top divider + input row + bottom divider + notification row) */
+    int total_rows = rows + dock_height_rows(1);
     state->vterm = vterm_new(total_rows, cols);
     if (!state->vterm) {
         free(state);
@@ -687,8 +687,8 @@ static void vterm_resize(void *vstate, int rows, int cols, int input_visible_row
     int old_cols = state->cols;
     int old_input_row = state->input_row;
     int old_total_rows = state->rows;
-    /* Total rows: scrolling area + top divider + input rows + bottom divider + notification row */
-    int total_rows = rows + 3 + input_visible_rows;
+    /* Total rows: scrolling area + dock (top divider + input rows + bottom divider + notification row) */
+    int total_rows = rows + dock_height_rows(input_visible_rows);
 
     /* If columns decreased, clear entire old input area (all divider and input rows) BEFORE resizing */
     /* This prevents old divider/content from being pushed into scroll area during resize */
@@ -1088,7 +1088,7 @@ static void vterm_render_dock(void *vstate, void *dock_ptr, int input_row, int c
     /* Get input area state for multi-row rendering */
     const char *text = dock_get_text(dock);
     int text_len = dock_get_length(dock);
-    int visible_rows = dock_get_visible_rows(dock);
+    int visible_rows = dock_get_text_rows(dock);
 
     /* Calculate row positions (1-indexed) */
     int top_divider_row = input_row + 1;
