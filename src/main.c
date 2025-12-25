@@ -26,7 +26,7 @@
 #include "renderer.h"
 #include "glyph_cache.h"
 #include "input.h"
-#include "input_area.h"
+#include "dock.h"
 #include "commands.h"
 #include "lisp.h"
 #include "ansi_sequences.h"
@@ -47,7 +47,7 @@ void renderer_set_animation(Animation *anim);
 static int running = 1;
 
 /* Input area */
-static InputArea input_area;
+static Dock dock;
 
 /* Terminal selection state */
 static struct {
@@ -213,9 +213,9 @@ static void cleanup(void) {
  * state updates, and UI redraws
  * Returns 0 on success, -1 on failure
  */
-static int send_to_telnet(Telnet *telnet, Terminal *term, InputArea *input_area, int *connected_mode, const char *data,
-                          size_t len, int append_crlf) {
-    if (!telnet || !term || !input_area || !connected_mode) {
+static int send_to_telnet(Telnet *telnet, Terminal *term, Dock *dock, int *connected_mode, const char *data, size_t len,
+                          int append_crlf) {
+    if (!telnet || !term || !dock || !connected_mode) {
         return -1;
     }
 
@@ -266,7 +266,7 @@ static int send_to_telnet(Telnet *telnet, Terminal *term, InputArea *input_area,
         *connected_mode = 0;
         const char *msg = "\r\n*** Connection lost ***\r\n";
         terminal_feed_data(term, msg, strlen(msg));
-        input_area_request_redraw(input_area); /* Trigger color update */
+        dock_request_redraw(dock); /* Trigger color update */
         return -1;
     }
 
@@ -274,8 +274,8 @@ static int send_to_telnet(Telnet *telnet, Terminal *term, InputArea *input_area,
 }
 
 /* Calculate terminal size (rows, cols) based on window dimensions */
-static void calculate_terminal_size(int window_width, int window_height, int cell_w, int cell_h, InputArea *input_area,
-                                    int *rows, int *cols) {
+static void calculate_terminal_size(int window_width, int window_height, int cell_w, int cell_h, Dock *dock, int *rows,
+                                    int *cols) {
     /* Subtract padding from window dimensions before calculating terminal size */
     int available_width = window_width - 2 * PADDING_X;
     int available_height = window_height - 2 * PADDING_Y;
@@ -291,8 +291,7 @@ static void calculate_terminal_size(int window_width, int window_height, int cel
 
     /* Calculate number of rows that fit in available height */
     /* Subtract rows for top divider, bottom divider, and dynamic input area height */
-    int input_height_rows =
-        2 + input_area_get_visible_rows(input_area); /* Top divider + bottom divider + visible input rows */
+    int input_height_rows = 2 + dock_get_visible_rows(dock); /* Top divider + bottom divider + visible input rows */
     *rows = (available_height / effective_cell_h) - input_height_rows;
     if (*rows < 1)
         *rows = 1; /* Minimum: 1 scrolling row */
@@ -927,7 +926,7 @@ int main(int argc, char **argv) {
     }
 
     /* Initialize input area (needed for terminal size calculation) */
-    input_area_init(&input_area);
+    dock_init(&dock);
 
     /* Create terminal with specified geometry */
     Terminal *term = terminal_create(terminal_rows, terminal_cols);
@@ -967,7 +966,7 @@ int main(int argc, char **argv) {
     lisp_x_register_window(win);
 
     /* Register input area with Lisp bridge for input-area-redraw builtin */
-    lisp_x_register_input_area(&input_area);
+    lisp_x_register_dock(&dock);
 
 #if HAVE_RLOTTIE
     /* Register SDL renderer with Lisp for animation creation */
@@ -984,8 +983,8 @@ int main(int argc, char **argv) {
     int actual_width, actual_height;
     SDL_GetWindowSize(sdl_window, &actual_width, &actual_height);
     int initial_rows, initial_cols;
-    calculate_terminal_size(actual_width, actual_height, cell_w, cell_h, &input_area, &initial_rows, &initial_cols);
-    int input_visible_rows = input_area_get_visible_rows(&input_area);
+    calculate_terminal_size(actual_width, actual_height, cell_w, cell_h, &dock, &initial_rows, &initial_cols);
+    int input_visible_rows = dock_get_visible_rows(&dock);
     terminal_resize(term, initial_rows, initial_cols, input_visible_rows);
     telnet_set_terminal_size(telnet, initial_cols, initial_rows);
 
@@ -1028,12 +1027,12 @@ int main(int argc, char **argv) {
     SDL_RenderClear(renderer);
 
     /* Render input area to vterm FIRST (must happen before renderer reads vterm cells) */
-    terminal_render_input_area(term, &input_area, initial_cols);
+    terminal_render_dock(term, &dock, initial_cols);
 
     /* Render initial terminal state */
     char title[256];
     snprintf(title, sizeof(title), "Telnet: %s:%d", hostname ? hostname : "", port);
-    renderer_render(rend, term, title, 0, 0, 0, 0, 0, 0, 0, 0, 0, &input_area, initial_cols);
+    renderer_render(rend, term, title, 0, 0, 0, 0, 0, 0, 0, 0, 0, &dock, initial_cols);
 
     /* Present the initial frame immediately */
     SDL_RenderPresent(renderer);
@@ -1063,22 +1062,21 @@ int main(int argc, char **argv) {
 
                     /* Step 2: Force recalculation of input area layout with new columns */
                     /* This updates visible_rows based on new width */
-                    input_area.needs_layout_recalc = 1;
-                    input_area_recalculate_layout(&input_area, new_cols);
+                    dock.needs_layout_recalc = 1;
+                    dock_recalculate_layout(&dock, new_cols);
 
                     /* Step 3: Calculate terminal rows using updated input area height */
                     int available_height = new_height - 2 * PADDING_Y;
                     float line_height = lisp_x_get_terminal_line_height();
                     int effective_cell_h = (int)(cell_h * line_height);
                     int input_height_rows =
-                        2 + input_area_get_visible_rows(
-                                &input_area); /* Top divider + bottom divider + visible input rows */
+                        2 + dock_get_visible_rows(&dock); /* Top divider + bottom divider + visible input rows */
                     int new_rows = (available_height / effective_cell_h) - input_height_rows;
                     if (new_rows < 1)
                         new_rows = 1; /* Minimum: 1 scrolling row */
 
                     /* Step 4: Resize terminal and update */
-                    int input_visible_rows = input_area_get_visible_rows(&input_area);
+                    int input_visible_rows = dock_get_visible_rows(&dock);
 
                     /* Save cursor position before resize corrupts it */
                     int saved_cursor_row, saved_cursor_col, saved_cursor_visible;
@@ -1087,7 +1085,7 @@ int main(int argc, char **argv) {
                     terminal_resize(term, new_rows, new_cols, input_visible_rows);
 
                     /* Re-render input area immediately to update divider position */
-                    terminal_render_input_area(term, &input_area, new_cols);
+                    terminal_render_dock(term, &dock, new_cols);
 
                     /* Restore cursor position using explicit CUP (avoids DECSC/DECRC nesting issue) */
                     char cursor_pos_seq[16];
@@ -1127,7 +1125,7 @@ int main(int argc, char **argv) {
 
                     /* Force terminal to redraw */
                     terminal_request_redraw(term);
-                    input_area_request_redraw(&input_area);
+                    dock_request_redraw(&dock);
 
                     /* Render immediately to clear artifacts */
                     char title[256];
@@ -1136,9 +1134,9 @@ int main(int argc, char **argv) {
                                     terminal_selection.start_col, terminal_selection.start_viewport_offset,
                                     terminal_selection.start_scrollback_size, terminal_selection.end_row,
                                     terminal_selection.end_col, terminal_selection.end_viewport_offset,
-                                    terminal_selection.end_scrollback_size, &input_area, new_cols);
+                                    terminal_selection.end_scrollback_size, &dock, new_cols);
                     terminal_mark_drawn(term);
-                    input_area_mark_drawn(&input_area);
+                    dock_mark_drawn(&dock);
 
                     /* Present the frame */
                     SDL_RenderPresent(renderer);
@@ -1192,7 +1190,7 @@ int main(int argc, char **argv) {
                                 rend = renderer_create(renderer, glyph_cache, cell_w, cell_h);
 
                                 /* Calculate new window size to maintain same terminal dimensions */
-                                int input_visible_rows = input_area_get_visible_rows(&input_area);
+                                int input_visible_rows = dock_get_visible_rows(&dock);
                                 int total_rows = current_rows + 2 + input_visible_rows;
                                 int new_win_width = current_cols * cell_w + 2 * PADDING_X;
                                 int new_win_height = total_rows * effective_cell_h + 2 * PADDING_Y;
@@ -1201,13 +1199,13 @@ int main(int argc, char **argv) {
                                 SDL_SetWindowSize(sdl_window, new_win_width, new_win_height);
 
                                 /* Recalculate input area layout */
-                                input_area.needs_layout_recalc = 1;
-                                input_area_recalculate_layout(&input_area, current_cols);
-                                terminal_render_input_area(term, &input_area, current_cols);
+                                dock.needs_layout_recalc = 1;
+                                dock_recalculate_layout(&dock, current_cols);
+                                terminal_render_dock(term, &dock, current_cols);
 
                                 /* Force full redraw */
                                 terminal_request_redraw(term);
-                                input_area_request_redraw(&input_area);
+                                dock_request_redraw(&dock);
 
                                 fprintf(stderr, "DPI change complete: cell size %dx%d, window %dx%d, terminal %dx%d\n",
                                         cell_w, cell_h, new_win_width, new_win_height, current_cols, current_rows);
@@ -1241,14 +1239,14 @@ int main(int argc, char **argv) {
                 int effective_cell_h = (int)(cell_h * line_height);
 
                 /* Calculate input area height: top divider + bottom divider + visible input rows */
-                int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * effective_cell_h;
+                int dock_height = (2 + dock_get_visible_rows(&dock)) * effective_cell_h;
 
                 /* Handle clicks in terminal area (not in input area or padding) */
                 /* Check if click is within terminal area (excluding padding) */
                 if (mouse_x >= PADDING_X && mouse_x < window_width - PADDING_X && mouse_y >= PADDING_Y &&
                     mouse_y < window_height - PADDING_Y) {
                     /* Check if click is in terminal scrolling area (not input area) */
-                    if (mouse_y < window_height - input_area_height - PADDING_Y) {
+                    if (mouse_y < window_height - dock_height - PADDING_Y) {
                         /* Start selection only if no selection was cleared */
                         if (event.button.button == SDL_BUTTON_LEFT && !had_selection) {
                             /* Convert mouse coordinates to terminal cell coordinates, subtracting padding */
@@ -1285,11 +1283,11 @@ int main(int argc, char **argv) {
                 if (scancode == SDL_SCANCODE_MINUS) {
                     if ((mod & KMOD_CTRL) && (mod & KMOD_SHIFT)) {
                         /* Captured Ctrl + Shift + _ (physically) */
-                        input_area_undo(&input_area);
+                        dock_undo(&dock);
                         break;
                     } else if ((mod & KMOD_ALT) && (mod & KMOD_SHIFT)) {
                         /* Captured Alt + Shift + _ (physically) */
-                        input_area_redo(&input_area);
+                        dock_redo(&dock);
                         break;
                     }
                 }
@@ -1298,31 +1296,31 @@ int main(int argc, char **argv) {
                 case SDL_SCANCODE_RETURN:
                 case SDL_SCANCODE_KP_ENTER: {
                     /* Send input area text to terminal and telnet */
-                    int length = input_area_get_length(&input_area);
+                    int length = dock_get_length(&dock);
                     if (length > 0) {
-                        const char *text = input_area_get_text(&input_area);
-                        int cursor_pos = input_area_get_cursor_pos(&input_area);
+                        const char *text = dock_get_text(&dock);
+                        int cursor_pos = dock_get_cursor_pos(&dock);
 
                         /* Echo raw input FIRST for non-eval mode (eval mode has its own echo with >) */
-                        if (input_area_get_mode(&input_area) != INPUT_AREA_MODE_EVAL && input_area.echo_buf) {
+                        if (dock_get_mode(&dock) != DOCK_MODE_EVAL && dock.echo_buf) {
                             char color_buf[32];
                             int echo_r, echo_g, echo_b;
                             lisp_x_get_user_input_echo_color(&echo_r, &echo_g, &echo_b);
-                            dynamic_buffer_clear(input_area.echo_buf);
+                            dynamic_buffer_clear(dock.echo_buf);
                             ansi_format_fg_color_rgb(color_buf, sizeof(color_buf), echo_r, echo_g, echo_b);
-                            dynamic_buffer_append_str(input_area.echo_buf, color_buf);
-                            if (dynamic_buffer_append_printf(input_area.echo_buf, "%s\r\n", text) == 0) {
+                            dynamic_buffer_append_str(dock.echo_buf, color_buf);
+                            if (dynamic_buffer_append_printf(dock.echo_buf, "%s\r\n", text) == 0) {
                                 /* Reset color after text */
-                                dynamic_buffer_append_str(input_area.echo_buf, ANSI_SGR_RESET);
-                                terminal_feed_data(term, dynamic_buffer_data(input_area.echo_buf),
-                                                   dynamic_buffer_len(input_area.echo_buf));
+                                dynamic_buffer_append_str(dock.echo_buf, ANSI_SGR_RESET);
+                                terminal_feed_data(term, dynamic_buffer_data(dock.echo_buf),
+                                                   dynamic_buffer_len(dock.echo_buf));
                             }
                         }
 
                         /* Check if this is a special command starting with ':' */
                         if (text[0] == ':') {
                             /* Process command */
-                            process_command(text, telnet, term, &connected_mode, &input_area, &quit_requested);
+                            process_command(text, telnet, term, &connected_mode, &dock, &quit_requested);
 
                             /* Scroll to bottom on command */
                             if (lisp_x_get_scroll_to_bottom_on_user_input()) {
@@ -1330,13 +1328,13 @@ int main(int argc, char **argv) {
                             }
 
                             /* Add to history and clear input area */
-                            input_area_history_add(&input_area);
-                            input_area_clear(&input_area);
-                        } else if (input_area_get_mode(&input_area) == INPUT_AREA_MODE_EVAL) {
+                            dock_history_add(&dock);
+                            dock_clear(&dock);
+                        } else if (dock_get_mode(&dock) == DOCK_MODE_EVAL) {
                             /* Eval mode - evaluate Lisp expression using shared eval logic */
-                            if (input_area.eval_buf && lisp_x_eval_and_echo(text, input_area.eval_buf) == 0) {
-                                terminal_feed_data(term, dynamic_buffer_data(input_area.eval_buf),
-                                                   dynamic_buffer_len(input_area.eval_buf));
+                            if (dock.eval_buf && lisp_x_eval_and_echo(text, dock.eval_buf) == 0) {
+                                terminal_feed_data(term, dynamic_buffer_data(dock.eval_buf),
+                                                   dynamic_buffer_len(dock.eval_buf));
                             }
 
                             /* Scroll to bottom */
@@ -1345,8 +1343,8 @@ int main(int argc, char **argv) {
                             }
 
                             /* Add to history and clear input area */
-                            input_area_history_add(&input_area);
-                            input_area_clear(&input_area);
+                            dock_history_add(&dock);
+                            dock_clear(&dock);
                         } else {
                             /* Normal text - call user-input-hook to transform text before sending */
                             const char *transformed_text = lisp_x_call_user_input_hook(text, cursor_pos);
@@ -1365,7 +1363,7 @@ int main(int argc, char **argv) {
 
                                 /* Send transformed text to telnet (unified function handles LF->CRLF, CRLF appending,
                                  * and errors) */
-                                send_to_telnet(telnet, term, &input_area, &connected_mode, transformed_text,
+                                send_to_telnet(telnet, term, &dock, &connected_mode, transformed_text,
                                                transformed_length, 1); /* append_crlf = 1 */
                             } else {
                                 /* Empty string from hook - scroll to bottom only */
@@ -1375,12 +1373,12 @@ int main(int argc, char **argv) {
                             }
 
                             /* Add to history and clear input area */
-                            input_area_history_add(&input_area);
-                            input_area_clear(&input_area);
+                            dock_history_add(&dock);
+                            dock_clear(&dock);
                         }
                     } else {
                         /* Even if input is empty, send CRLF for newline (unified function handles errors) */
-                        send_to_telnet(telnet, term, &input_area, &connected_mode, "", 0, 1); /* append_crlf = 1 */
+                        send_to_telnet(telnet, term, &dock, &connected_mode, "", 0, 1); /* append_crlf = 1 */
                         /* Echo newline to terminal (vterm_feed_data will normalize LF to CRLF) */
                         terminal_feed_data(term, "\n", 1);
 
@@ -1392,40 +1390,40 @@ int main(int argc, char **argv) {
                     break;
                 }
                 case SDL_SCANCODE_BACKSPACE: {
-                    input_area_backspace(&input_area);
+                    dock_backspace(&dock);
                     break;
                 }
                 case SDL_SCANCODE_DELETE: {
-                    input_area_delete_char(&input_area);
+                    dock_delete_char(&dock);
                     break;
                 }
                 case SDL_SCANCODE_LEFT: {
                     /* Start selection if Shift is pressed and no selection */
-                    if ((mod & KMOD_SHIFT) && !input_area_has_selection(&input_area)) {
-                        input_area_start_selection(&input_area);
+                    if ((mod & KMOD_SHIFT) && !dock_has_selection(&dock)) {
+                        dock_start_selection(&dock);
                     } else if (!(mod & KMOD_SHIFT)) {
-                        input_area_clear_selection(&input_area);
+                        dock_clear_selection(&dock);
                     }
 
                     if (mod & KMOD_CTRL) {
-                        input_area_move_cursor_word_left(&input_area);
+                        dock_move_cursor_word_left(&dock);
                     } else {
-                        input_area_move_cursor_left(&input_area);
+                        dock_move_cursor_left(&dock);
                     }
                     break;
                 }
                 case SDL_SCANCODE_RIGHT: {
                     /* Start selection if Shift is pressed and no selection */
-                    if ((mod & KMOD_SHIFT) && !input_area_has_selection(&input_area)) {
-                        input_area_start_selection(&input_area);
+                    if ((mod & KMOD_SHIFT) && !dock_has_selection(&dock)) {
+                        dock_start_selection(&dock);
                     } else if (!(mod & KMOD_SHIFT)) {
-                        input_area_clear_selection(&input_area);
+                        dock_clear_selection(&dock);
                     }
 
                     if (mod & KMOD_CTRL) {
-                        input_area_move_cursor_word_right(&input_area);
+                        dock_move_cursor_word_right(&dock);
                     } else {
-                        input_area_move_cursor_right(&input_area);
+                        dock_move_cursor_right(&dock);
                     }
                     break;
                 }
@@ -1433,10 +1431,10 @@ int main(int argc, char **argv) {
                     /* Navigate lines in multi-line input, or history if at first line */
                     int rows, cols;
                     terminal_get_size(term, &rows, &cols);
-                    if (!input_area_is_at_first_visual_line(&input_area, cols)) {
-                        input_area_move_cursor_up_line(&input_area, cols);
+                    if (!dock_is_at_first_visual_line(&dock, cols)) {
+                        dock_move_cursor_up_line(&dock, cols);
                     } else {
-                        input_area_history_prev(&input_area);
+                        dock_history_prev(&dock);
                     }
                     break;
                 }
@@ -1444,52 +1442,52 @@ int main(int argc, char **argv) {
                     /* Navigate lines in multi-line input, or history if at last line */
                     int rows, cols;
                     terminal_get_size(term, &rows, &cols);
-                    if (!input_area_is_at_last_visual_line(&input_area, cols)) {
-                        input_area_move_cursor_down_line(&input_area, cols);
+                    if (!dock_is_at_last_visual_line(&dock, cols)) {
+                        dock_move_cursor_down_line(&dock, cols);
                     } else {
-                        input_area_history_next(&input_area);
+                        dock_history_next(&dock);
                     }
                     break;
                 }
                 case SDL_SCANCODE_HOME: {
                     /* Start selection if Shift is pressed and no selection */
-                    if ((mod & KMOD_SHIFT) && !input_area_has_selection(&input_area)) {
-                        input_area_start_selection(&input_area);
+                    if ((mod & KMOD_SHIFT) && !dock_has_selection(&dock)) {
+                        dock_start_selection(&dock);
                     } else if (!(mod & KMOD_SHIFT)) {
-                        input_area_clear_selection(&input_area);
+                        dock_clear_selection(&dock);
                     }
 
-                    input_area_move_cursor_home(&input_area);
+                    dock_move_cursor_home(&dock);
                     break;
                 }
                 case SDL_SCANCODE_END: {
                     /* Start selection if Shift is pressed and no selection */
-                    if ((mod & KMOD_SHIFT) && !input_area_has_selection(&input_area)) {
-                        input_area_start_selection(&input_area);
+                    if ((mod & KMOD_SHIFT) && !dock_has_selection(&dock)) {
+                        dock_start_selection(&dock);
                     } else if (!(mod & KMOD_SHIFT)) {
-                        input_area_clear_selection(&input_area);
+                        dock_clear_selection(&dock);
                     }
 
-                    input_area_move_cursor_end(&input_area);
+                    dock_move_cursor_end(&dock);
                     break;
                 }
                 case SDL_SCANCODE_A: {
                     if (mod & KMOD_CTRL) {
-                        input_area_move_cursor_beginning(&input_area);
+                        dock_move_cursor_beginning(&dock);
                     }
                     break;
                 }
                 case SDL_SCANCODE_E: {
                     if (mod & KMOD_CTRL) {
-                        input_area_move_cursor_end_line(&input_area);
+                        dock_move_cursor_end_line(&dock);
                     }
                     break;
                 }
                 case SDL_SCANCODE_K: {
                     if (mod & KMOD_CTRL) {
-                        input_area_kill_to_end(&input_area);
+                        dock_kill_to_end(&dock);
                         /* Copy killed text to clipboard */
-                        const char *killed = input_area_get_kill_ring(&input_area);
+                        const char *killed = dock_get_kill_ring(&dock);
                         if (killed && killed[0] != '\0') {
                             SDL_SetClipboardText(killed);
                         }
@@ -1498,9 +1496,9 @@ int main(int argc, char **argv) {
                 }
                 case SDL_SCANCODE_U: {
                     if (mod & KMOD_CTRL) {
-                        input_area_kill_from_start(&input_area);
+                        dock_kill_from_start(&dock);
                         /* Copy killed text to clipboard */
-                        const char *killed = input_area_get_kill_ring(&input_area);
+                        const char *killed = dock_get_kill_ring(&dock);
                         if (killed && killed[0] != '\0') {
                             SDL_SetClipboardText(killed);
                         }
@@ -1509,9 +1507,9 @@ int main(int argc, char **argv) {
                 }
                 case SDL_SCANCODE_W: {
                     if (mod & KMOD_CTRL) {
-                        input_area_kill_word(&input_area);
+                        dock_kill_word(&dock);
                         /* Copy killed text to clipboard */
-                        const char *killed = input_area_get_kill_ring(&input_area);
+                        const char *killed = dock_get_kill_ring(&dock);
                         if (killed && killed[0] != '\0') {
                             SDL_SetClipboardText(killed);
                         }
@@ -1520,7 +1518,7 @@ int main(int argc, char **argv) {
                 }
                 case SDL_SCANCODE_Y: {
                     if (mod & KMOD_CTRL) {
-                        input_area_yank(&input_area);
+                        dock_yank(&dock);
                     }
                     break;
                 }
@@ -1532,13 +1530,13 @@ int main(int argc, char **argv) {
                             clear_terminal_selection(term); /* Clear selection after copy */
                         }
                         /* Copy input area selection or all text to clipboard */
-                        else if (input_area_has_selection(&input_area)) {
-                            char selection_buffer[INPUT_AREA_MAX_LENGTH];
-                            if (input_area_copy_selection(&input_area, selection_buffer, INPUT_AREA_MAX_LENGTH) > 0) {
+                        else if (dock_has_selection(&dock)) {
+                            char selection_buffer[DOCK_MAX_LENGTH];
+                            if (dock_copy_selection(&dock, selection_buffer, DOCK_MAX_LENGTH) > 0) {
                                 SDL_SetClipboardText(selection_buffer);
                             }
                         } else {
-                            const char *text = input_area_copy(&input_area);
+                            const char *text = dock_copy(&dock);
                             if (text && text[0] != '\0') {
                                 SDL_SetClipboardText(text);
                             }
@@ -1549,7 +1547,7 @@ int main(int argc, char **argv) {
                 case SDL_SCANCODE_D: {
                     if (mod & KMOD_CTRL) {
                         /* Ctrl+D: Delete character forward (like Emacs) */
-                        input_area_delete_char(&input_area);
+                        dock_delete_char(&dock);
                     }
                     break;
                 }
@@ -1559,7 +1557,7 @@ int main(int argc, char **argv) {
                         if (SDL_HasClipboardText()) {
                             char *text = SDL_GetClipboardText();
                             if (text) {
-                                input_area_paste(&input_area, text);
+                                dock_paste(&dock, text);
                                 SDL_free(text);
                             }
                         }
@@ -1570,14 +1568,13 @@ int main(int argc, char **argv) {
                     if (mod & KMOD_CTRL) {
                         /* Ctrl+G: Cancel tab completion and revert */
                         if (lisp_x_is_tab_mode_active()) {
-                            int cursor_pos = input_area_get_cursor_pos(&input_area);
-                            int length = input_area_get_length(&input_area);
-                            int needs_redraw = input_area_needs_redraw(&input_area);
-                            char *buffer = input_area_get_buffer(&input_area);
-                            lisp_x_cancel_tab_completion(buffer, INPUT_AREA_MAX_LENGTH, &cursor_pos, &length,
-                                                         &needs_redraw);
-                            input_area_sync_state(&input_area);
-                            input_area_move_cursor(&input_area, cursor_pos);
+                            int cursor_pos = dock_get_cursor_pos(&dock);
+                            int length = dock_get_length(&dock);
+                            int needs_redraw = dock_needs_redraw(&dock);
+                            char *buffer = dock_get_buffer(&dock);
+                            lisp_x_cancel_tab_completion(buffer, DOCK_MAX_LENGTH, &cursor_pos, &length, &needs_redraw);
+                            dock_sync_state(&dock);
+                            dock_move_cursor(&dock, cursor_pos);
                         }
                     }
                     break;
@@ -1585,7 +1582,7 @@ int main(int argc, char **argv) {
                 case SDL_SCANCODE_J: {
                     if (mod & KMOD_CTRL) {
                         /* Ctrl+J: Insert newline for multi-line input */
-                        input_area_insert_text(&input_area, "\n", 1);
+                        dock_insert_text(&dock, "\n", 1);
                     }
                     break;
                 }
@@ -1610,29 +1607,28 @@ int main(int argc, char **argv) {
                 case SDL_SCANCODE_TAB: {
                     /* Shift+Tab: Toggle input mode */
                     if (mod & KMOD_SHIFT) {
-                        InputAreaMode current = input_area_get_mode(&input_area);
-                        InputAreaMode new_mode =
-                            (current == INPUT_AREA_MODE_NORMAL) ? INPUT_AREA_MODE_EVAL : INPUT_AREA_MODE_NORMAL;
-                        input_area_set_mode(&input_area, new_mode);
+                        DockMode current = dock_get_mode(&dock);
+                        DockMode new_mode = (current == DOCK_MODE_NORMAL) ? DOCK_MODE_EVAL : DOCK_MODE_NORMAL;
+                        dock_set_mode(&dock, new_mode);
                         break;
                     }
 
                     /* Tab in eval mode: do nothing */
-                    if (input_area_get_mode(&input_area) == INPUT_AREA_MODE_EVAL) {
+                    if (dock_get_mode(&dock) == DOCK_MODE_EVAL) {
                         break;
                     }
 
                     /* Handle TAB completion via Lisp bridge */
                     /* Note: lisp_handle_tab modifies buffer directly */
-                    int cursor_pos = input_area_get_cursor_pos(&input_area);
-                    int length = input_area_get_length(&input_area);
-                    int needs_redraw = input_area_needs_redraw(&input_area);
-                    char *buffer = input_area_get_buffer(&input_area);
-                    lisp_x_handle_tab(buffer, INPUT_AREA_MAX_LENGTH, &cursor_pos, &length, &needs_redraw);
+                    int cursor_pos = dock_get_cursor_pos(&dock);
+                    int length = dock_get_length(&dock);
+                    int needs_redraw = dock_needs_redraw(&dock);
+                    char *buffer = dock_get_buffer(&dock);
+                    lisp_x_handle_tab(buffer, DOCK_MAX_LENGTH, &cursor_pos, &length, &needs_redraw);
                     /* Sync state after external buffer modification */
-                    input_area_sync_state(&input_area);
+                    dock_sync_state(&dock);
                     /* Update cursor position */
-                    input_area_move_cursor(&input_area, cursor_pos);
+                    dock_move_cursor(&dock, cursor_pos);
                     break;
                 }
                 case SDL_SCANCODE_ESCAPE: {
@@ -1642,14 +1638,13 @@ int main(int argc, char **argv) {
                     }
                     /* ESC: Cancel tab completion and revert */
                     else if (lisp_x_is_tab_mode_active()) {
-                        int cursor_pos = input_area_get_cursor_pos(&input_area);
-                        int length = input_area_get_length(&input_area);
-                        int needs_redraw = input_area_needs_redraw(&input_area);
-                        char *buffer = input_area_get_buffer(&input_area);
-                        lisp_x_cancel_tab_completion(buffer, INPUT_AREA_MAX_LENGTH, &cursor_pos, &length,
-                                                     &needs_redraw);
-                        input_area_sync_state(&input_area);
-                        input_area_move_cursor(&input_area, cursor_pos);
+                        int cursor_pos = dock_get_cursor_pos(&dock);
+                        int length = dock_get_length(&dock);
+                        int needs_redraw = dock_needs_redraw(&dock);
+                        char *buffer = dock_get_buffer(&dock);
+                        lisp_x_cancel_tab_completion(buffer, DOCK_MAX_LENGTH, &cursor_pos, &length, &needs_redraw);
+                        dock_sync_state(&dock);
+                        dock_move_cursor(&dock, cursor_pos);
                     }
                     break;
                 }
@@ -1684,7 +1679,7 @@ int main(int argc, char **argv) {
                     terminal_scroll_to_bottom(term);
                 }
                 /* All text input goes to input area */
-                input_area_insert_text(&input_area, text, text_len);
+                dock_insert_text(&dock, text, text_len);
                 break;
             }
 
@@ -1703,11 +1698,11 @@ int main(int argc, char **argv) {
                 window_get_size(win, &win_width, &win_height);
                 float line_height = lisp_x_get_terminal_line_height();
                 int effective_cell_h = (int)(cell_h * line_height);
-                int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * effective_cell_h;
+                int dock_height = (2 + dock_get_visible_rows(&dock)) * effective_cell_h;
                 /* Check if click is within terminal area (excluding padding) and not in input area */
                 if (event.button.x >= PADDING_X && event.button.x < win_width - PADDING_X &&
                     event.button.y >= PADDING_Y && event.button.y < win_height - PADDING_Y &&
-                    event.button.y < win_height - input_area_height - PADDING_Y) {
+                    event.button.y < win_height - dock_height - PADDING_Y) {
                     input_handle_mouse(&event.button, NULL, terminal_get_vterm(term), cell_w, cell_h, 0);
                 }
                 break;
@@ -1720,11 +1715,11 @@ int main(int argc, char **argv) {
                     window_get_size(win, &motion_win_width, &motion_win_height);
                     float line_height = lisp_x_get_terminal_line_height();
                     int effective_cell_h = (int)(cell_h * line_height);
-                    int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * effective_cell_h;
+                    int dock_height = (2 + dock_get_visible_rows(&dock)) * effective_cell_h;
                     /* Check if motion is within terminal area (excluding padding) and not in input area */
                     if (event.motion.x >= PADDING_X && event.motion.x < motion_win_width - PADDING_X &&
                         event.motion.y >= PADDING_Y && event.motion.y < motion_win_height - PADDING_Y &&
-                        event.motion.y < motion_win_height - input_area_height - PADDING_Y) {
+                        event.motion.y < motion_win_height - dock_height - PADDING_Y) {
                         /* Convert mouse coordinates to terminal cell coordinates, subtracting padding */
                         int term_row = (event.motion.y - PADDING_Y) / effective_cell_h;
                         int term_col = (event.motion.x - PADDING_X) / cell_w;
@@ -1737,11 +1732,11 @@ int main(int argc, char **argv) {
                 window_get_size(win, &motion_win_width, &motion_win_height);
                 float line_height = lisp_x_get_terminal_line_height();
                 int effective_cell_h = (int)(cell_h * line_height);
-                int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * effective_cell_h;
+                int dock_height = (2 + dock_get_visible_rows(&dock)) * effective_cell_h;
                 /* Check if motion is within terminal area (excluding padding) and not in input area */
                 if (event.motion.x >= PADDING_X && event.motion.x < motion_win_width - PADDING_X &&
                     event.motion.y >= PADDING_Y && event.motion.y < motion_win_height - PADDING_Y &&
-                    event.motion.y < motion_win_height - input_area_height - PADDING_Y) {
+                    event.motion.y < motion_win_height - dock_height - PADDING_Y) {
                     input_handle_mouse(NULL, &event.motion, terminal_get_vterm(term), cell_w, cell_h, 0);
                 }
                 break;
@@ -1756,11 +1751,10 @@ int main(int argc, char **argv) {
                 window_get_size(win, &wheel_win_width, &wheel_win_height);
                 float line_height = lisp_x_get_terminal_line_height();
                 int effective_cell_h = (int)(cell_h * line_height);
-                int input_area_height = (2 + input_area_get_visible_rows(&input_area)) * effective_cell_h;
+                int dock_height = (2 + dock_get_visible_rows(&dock)) * effective_cell_h;
                 /* Check if mouse is within terminal area (excluding padding) and not in input area */
                 if (mouse_x >= PADDING_X && mouse_x < wheel_win_width - PADDING_X && mouse_y >= PADDING_Y &&
-                    mouse_y < wheel_win_height - PADDING_Y &&
-                    mouse_y < wheel_win_height - input_area_height - PADDING_Y) {
+                    mouse_y < wheel_win_height - PADDING_Y && mouse_y < wheel_win_height - dock_height - PADDING_Y) {
                     /* Get scroll configuration from Lisp bridge */
                     int lines_per_click = lisp_x_get_scroll_lines_per_click();
                     int smooth_scrolling = lisp_x_get_smooth_scrolling_enabled();
@@ -1859,7 +1853,7 @@ int main(int argc, char **argv) {
                         connected_mode = 0;
                         terminal_feed_data(term, "\r\n*** Connection closed ***\r\n",
                                            strlen("\r\n*** Connection closed ***\r\n"));
-                        input_area_request_redraw(&input_area); /* Trigger color update */
+                        dock_request_redraw(&dock); /* Trigger color update */
                     }
                 }
             }
@@ -1870,13 +1864,13 @@ int main(int argc, char **argv) {
         terminal_get_size(term, &term_rows, &term_cols);
 
         /* Recalculate layout if needed (text changed, newline inserted, etc.) */
-        if (input_area.needs_layout_recalc) {
-            input_area_recalculate_layout(&input_area, term_cols);
+        if (dock.needs_layout_recalc) {
+            dock_recalculate_layout(&dock, term_cols);
         }
 
         /* Check if input area height changed and resize terminal if needed */
         /* This must happen BEFORE rendering so vterm has correct scrolling region */
-        int current_visible_rows = input_area_get_visible_rows(&input_area);
+        int current_visible_rows = dock_get_visible_rows(&dock);
         if (current_visible_rows != prev_input_visible_rows) {
             prev_input_visible_rows = current_visible_rows;
 
@@ -1884,7 +1878,7 @@ int main(int argc, char **argv) {
             int window_width, window_height;
             window_get_size(win, &window_width, &window_height);
             int new_rows, new_cols;
-            calculate_terminal_size(window_width, window_height, cell_w, cell_h, &input_area, &new_rows, &new_cols);
+            calculate_terminal_size(window_width, window_height, cell_w, cell_h, &dock, &new_rows, &new_cols);
 
             /* Resize terminal to accommodate new input area height */
             terminal_resize(term, new_rows, new_cols, current_visible_rows);
@@ -1907,7 +1901,7 @@ int main(int argc, char **argv) {
             if (is_playing && !animation_mode_was_playing) {
                 /* Animation started - show play button */
                 lisp_x_set_divider_mode("animation", "\xE2\x96\xB6\xEF\xB8\x8F", 90); /* ▶️ U+25B6 U+FE0F */
-                input_area_request_redraw(&input_area);                               /* Redraw divider with new mode */
+                dock_request_redraw(&dock);                                           /* Redraw divider with new mode */
             }
 
             if (is_playing) {
@@ -1920,14 +1914,14 @@ int main(int argc, char **argv) {
                 animation_just_finished = 1; /* Force redraw to clear last frame */
                 /* Animation stopped - remove play button */
                 lisp_x_remove_divider_mode("animation");
-                input_area_request_redraw(&input_area); /* Redraw divider without mode */
+                dock_request_redraw(&dock); /* Redraw divider without mode */
             }
             animation_mode_was_playing = animation_is_playing(active_anim);
         } else {
             /* No active animation - ensure mode is removed */
             if (animation_mode_was_playing) {
                 lisp_x_remove_divider_mode("animation");
-                input_area_request_redraw(&input_area); /* Redraw divider without mode */
+                dock_request_redraw(&dock); /* Redraw divider without mode */
                 animation_mode_was_playing = 0;
             }
         }
@@ -1937,9 +1931,9 @@ int main(int argc, char **argv) {
 
         /* Render input area to vterm if it needs redraw */
         /* This must happen AFTER terminal resize so cursor is positioned correctly */
-        if (input_area_needs_redraw(&input_area)) {
-            terminal_render_input_area(term, &input_area, term_cols);
-            input_area_mark_drawn(&input_area);
+        if (dock_needs_redraw(&dock)) {
+            terminal_render_dock(term, &dock, term_cols);
+            dock_mark_drawn(&dock);
             /* Input area updates vterm which triggers terminal_needs_redraw */
         }
 
@@ -1973,7 +1967,7 @@ int main(int argc, char **argv) {
                             terminal_selection.start_col, terminal_selection.start_viewport_offset,
                             terminal_selection.start_scrollback_size, terminal_selection.end_row,
                             terminal_selection.end_col, terminal_selection.end_viewport_offset,
-                            terminal_selection.end_scrollback_size, &input_area, term_cols);
+                            terminal_selection.end_scrollback_size, &dock, term_cols);
             terminal_mark_drawn(term);
             needs_render = 1;
         }

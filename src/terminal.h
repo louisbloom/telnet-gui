@@ -4,7 +4,7 @@
 #define TERMINAL_H
 
 #include "term_cell.h"
-#include "input_area.h"
+#include "dock.h"
 
 /* Opaque Terminal type - actual definition is in terminal.c */
 typedef struct Terminal Terminal;
@@ -85,7 +85,7 @@ int terminal_get_cell_at(Terminal *term, int row, int col, TermCell *cell);
 int terminal_get_cell_at_scrollback_index(Terminal *term, int scrollback_index, int col, TermCell *cell);
 
 /* Render input area to vterm using ANSI escape sequences */
-void terminal_render_input_area(Terminal *term, InputArea *input_area, int terminal_cols);
+void terminal_render_dock(Terminal *term, Dock *dock, int terminal_cols);
 
 /* TEMPORARY: VTerm accessors (will be removed when input/renderer are abstracted) */
 #include <vterm.h>

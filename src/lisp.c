@@ -1,7 +1,7 @@
 /* Lisp implementation for telnet-gui */
 
 #include "lisp.h"
-#include "input_area.h"
+#include "dock.h"
 #include "terminal.h"
 #include "telnet.h"
 #include "glyph_cache.h"
@@ -79,7 +79,7 @@ static Terminal *registered_terminal = NULL;
 static Telnet *registered_telnet = NULL;
 static GlyphCache *registered_glyph_cache = NULL;
 static Window *registered_window = NULL;
-static InputArea *registered_input_area = NULL;
+static Dock *registered_dock = NULL;
 
 /* Notification text for notification row */
 static char *notification_text = NULL;
@@ -530,8 +530,8 @@ static LispObject *builtin_divider_mode_set(LispObject *args, Environment *env) 
     env_define(lisp_env, "*divider-modes*", result);
 
     /* Trigger redraw */
-    if (registered_input_area) {
-        input_area_request_redraw(registered_input_area);
+    if (registered_dock) {
+        dock_request_redraw(registered_dock);
     }
 
     return NIL;
@@ -587,8 +587,8 @@ static LispObject *builtin_divider_mode_remove(LispObject *args, Environment *en
     env_define(lisp_env, "*divider-modes*", result);
 
     /* Trigger redraw */
-    if (registered_input_area) {
-        input_area_request_redraw(registered_input_area);
+    if (registered_dock) {
+        dock_request_redraw(registered_dock);
     }
 
     return NIL;
@@ -2621,8 +2621,8 @@ void lisp_x_register_window(Window *w) {
     registered_window = w;
 }
 
-void lisp_x_register_input_area(InputArea *area) {
-    registered_input_area = area;
+void lisp_x_register_dock(Dock *area) {
+    registered_dock = area;
 }
 
 /* Get notification text for notification row */

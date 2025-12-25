@@ -15,7 +15,7 @@ static void handle_disconnection(int *connected_mode, Terminal *term, const char
 }
 
 /* Process special commands (starting with :) */
-int process_command(const char *text, Telnet *telnet, Terminal *term, int *connected_mode, InputArea *area,
+int process_command(const char *text, Telnet *telnet, Terminal *term, int *connected_mode, Dock *area,
                     int *quit_requested) {
     (void)area; /* Unused parameter - reserved for future use */
 

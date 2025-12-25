@@ -5,7 +5,7 @@
 
 #include "telnet.h"
 #include "terminal.h"
-#include "input_area.h"
+#include "dock.h"
 
 /* Process special commands starting with ':'
  * Returns 1 if command was processed, 0 if not a command
@@ -18,6 +18,6 @@
  *   area           - Input area instance
  *   quit_requested - Pointer to quit flag (set by :quit command)
  */
-int process_command(const char *text, Telnet *telnet, Terminal *term, int *connected_mode, InputArea *area, int *quit_requested);
+int process_command(const char *text, Telnet *telnet, Terminal *term, int *connected_mode, Dock *area, int *quit_requested);
 
 #endif /* COMMANDS_H */

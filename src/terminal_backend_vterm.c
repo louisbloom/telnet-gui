@@ -2,7 +2,7 @@
 
 #include "terminal_backend.h"
 #include "term_cell.h"
-#include "input_area.h"
+#include "dock.h"
 #include "telnet.h"
 #include "dynamic_buffer.h"
 #include "ansi_sequences.h"
@@ -1054,10 +1054,10 @@ static void get_visual_row_byte_range(const char *buffer, int length, int cols, 
     *out_end = length;
 }
 
-static void vterm_render_input_area(void *vstate, void *input_area_ptr, int input_row, int cols, int connected) {
+static void vterm_render_dock(void *vstate, void *dock_ptr, int input_row, int cols, int connected) {
     VTermBackendState *state = (VTermBackendState *)vstate;
-    InputArea *input_area = (InputArea *)input_area_ptr;
-    if (!state || !input_area)
+    Dock *dock = (Dock *)dock_ptr;
+    if (!state || !dock)
         return;
 
     /* Reuse state's render buffer (clear it first) */
@@ -1084,9 +1084,9 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
     int actual_cols = (state->cols > 0) ? state->cols : cols;
 
     /* Get input area state for multi-row rendering */
-    const char *text = input_area_get_text(input_area);
-    int text_len = input_area_get_length(input_area);
-    int visible_rows = input_area_get_visible_rows(input_area);
+    const char *text = dock_get_text(dock);
+    int text_len = dock_get_length(dock);
+    int visible_rows = dock_get_visible_rows(dock);
 
     /* Calculate row positions (1-indexed) */
     int top_divider_row = input_row + 1;
@@ -1187,11 +1187,11 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
     lisp_x_get_terminal_bg_color(&bg_r, &bg_g, &bg_b);
 
     /* Get input area state for multi-row rendering */
-    int scroll_offset = input_area->scroll_offset;
+    int scroll_offset = dock->scroll_offset;
     int sel_start = 0, sel_end = 0;
-    int has_sel = input_area_has_selection(input_area);
+    int has_sel = dock_has_selection(dock);
     if (has_sel)
-        input_area_get_selection_range(input_area, &sel_start, &sel_end);
+        dock_get_selection_range(dock, &sel_start, &sel_end);
 
     /* Render each visible row */
     for (int vis_row = 0; vis_row < visible_rows; vis_row++) {
@@ -1329,7 +1329,7 @@ const TerminalBackend terminal_backend_vterm = {
     .echo_local = vterm_echo_local,
     .send_buffer = vterm_send_buffer,
     .clear_output_buffer = vterm_clear_output_buffer,
-    .render_input_area = vterm_render_input_area,
+    .render_dock = vterm_render_dock,
     .get_version = vterm_get_version,
     .get_vterm = vterm_get_vterm,
     .get_vterm_screen = vterm_get_vterm_screen,

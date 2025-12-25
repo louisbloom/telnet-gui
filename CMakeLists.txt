@@ -296,7 +296,7 @@ set(GUI_SOURCES
     src/glyph_cache.c
     src/box_drawing.c
     src/input.c
-    src/input_area.c
+    src/dock.c
     src/lisp.c
     src/path_utils.c
     src/dynamic_buffer.c

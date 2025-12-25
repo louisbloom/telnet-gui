@@ -119,8 +119,8 @@ void lisp_x_register_glyph_cache(struct GlyphCache *cache);
 void lisp_x_register_window(struct Window *w);
 
 /* Register input area pointer for divider-mode-set/remove builtins */
-struct InputArea;
-void lisp_x_register_input_area(struct InputArea *area);
+struct Dock;
+void lisp_x_register_dock(struct Dock *area);
 
 /* Get notification text for notification row (NULL if none) */
 const char *lisp_x_get_notification_text(void);

@@ -47,8 +47,7 @@ Renderer *renderer_create(SDL_Renderer *sdl_renderer, GlyphCache *glyph_cache, i
 
 void renderer_render(Renderer *r, Terminal *term, const char *title, int selection_active, int sel_start_row,
                      int sel_start_col, int sel_start_offset, int sel_start_scrollback, int sel_end_row,
-                     int sel_end_col, int sel_end_offset, int sel_end_scrollback, InputArea *input_area,
-                     int terminal_cols) {
+                     int sel_end_col, int sel_end_offset, int sel_end_scrollback, Dock *dock, int terminal_cols) {
     if (!r || !term)
         return;
     (void)title; /* unused for now */
@@ -59,8 +58,8 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
 
     /* Total display includes scrolling area + top divider + bottom divider + input rows + notification row */
     int input_rows = 1;
-    if (input_area) {
-        input_rows = input_area_get_visible_rows(input_area);
+    if (dock) {
+        input_rows = dock_get_visible_rows(dock);
         if (input_rows < 1)
             input_rows = 1;
     }
@@ -138,13 +137,13 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
 
     /* Render input area cursor only (user always types in input area, not terminal) */
     /* Note: vterm cursor is tracked but not rendered - it's only used for positioning output */
-    if (current_offset == 0 && r->backend && r->backend->render_cursor && input_area) {
+    if (current_offset == 0 && r->backend && r->backend->render_cursor && dock) {
         /* Calculate visual cursor position for multi-line input */
         int cursor_visual_row, cursor_visual_col;
-        input_area_get_cursor_visual_position(input_area, terminal_cols, &cursor_visual_row, &cursor_visual_col);
+        dock_get_cursor_visual_position(dock, terminal_cols, &cursor_visual_row, &cursor_visual_col);
 
         /* Adjust for scroll offset */
-        int visible_cursor_row = cursor_visual_row - input_area->scroll_offset;
+        int visible_cursor_row = cursor_visual_row - dock->scroll_offset;
 
         /* Calculate screen row (0-indexed) */
         int input_text_first_row = scrolling_rows + 1; /* First row of input text */
@@ -152,9 +151,9 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
 
         /* Get character at cursor position (0 if cursor is at end of buffer) */
         uint32_t cursor_char = 0;
-        int cursor_pos = input_area_get_cursor_pos(input_area);
-        const char *buffer = input_area_get_text(input_area);
-        int buffer_len = input_area_get_length(input_area);
+        int cursor_pos = dock_get_cursor_pos(dock);
+        const char *buffer = dock_get_text(dock);
+        int buffer_len = dock_get_length(dock);
         if (cursor_pos < buffer_len && buffer[cursor_pos] != '\0') {
             int codepoint = utf8_get_codepoint(&buffer[cursor_pos]);
             if (codepoint >= 0) {

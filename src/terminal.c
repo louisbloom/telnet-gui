@@ -3,7 +3,7 @@
 #include "terminal.h"
 #include "terminal_backend.h"
 #include "telnet.h"
-#include "input_area.h"
+#include "dock.h"
 #include "term_cell.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -188,12 +188,12 @@ int terminal_get_cell_at_scrollback_index(Terminal *term, int scrollback_index, 
     return term->backend->get_cell_at_scrollback_index(term->backend_state, scrollback_index, col, cell);
 }
 
-void terminal_render_input_area(Terminal *term, InputArea *input_area, int terminal_cols) {
-    if (!term || !term->backend || !term->backend->render_input_area)
+void terminal_render_dock(Terminal *term, Dock *dock, int terminal_cols) {
+    if (!term || !term->backend || !term->backend->render_dock)
         return;
 
     /* Recalculate layout before rendering */
-    input_area_recalculate_layout(input_area, terminal_cols);
+    dock_recalculate_layout(dock, terminal_cols);
 
     int rows, cols;
     terminal_get_size(term, &rows, &cols);
@@ -207,7 +207,7 @@ void terminal_render_input_area(Terminal *term, InputArea *input_area, int termi
         connected = (state == TELNET_STATE_CONNECTED);
     }
 
-    term->backend->render_input_area(term->backend_state, input_area, input_row, cols, connected);
+    term->backend->render_dock(term->backend_state, dock, input_row, cols, connected);
 }
 
 VTerm *terminal_get_vterm(Terminal *term) {
