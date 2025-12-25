@@ -641,6 +641,11 @@ static LispObject *builtin_notification_set(LispObject *args, Environment *env) 
         /* If nil is passed, notification_text stays NULL (cleared) */
     }
 
+    /* Trigger redraw to display updated notification */
+    if (registered_dock) {
+        dock_request_redraw(registered_dock);
+    }
+
     return NIL;
 }
 
