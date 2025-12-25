@@ -397,7 +397,8 @@ static void *vterm_create(int rows, int cols) {
 
     vterm_check_version(0, 3);
 
-    int total_rows = rows + 2;
+    /* Total rows: scrolling area + top divider + input row + bottom divider + notification row */
+    int total_rows = rows + 4;
     state->vterm = vterm_new(total_rows, cols);
     if (!state->vterm) {
         free(state);
@@ -686,7 +687,8 @@ static void vterm_resize(void *vstate, int rows, int cols, int input_visible_row
     int old_cols = state->cols;
     int old_input_row = state->input_row;
     int old_total_rows = state->rows;
-    int total_rows = rows + 2 + input_visible_rows; /* top divider + bottom divider + variable input rows */
+    /* Total rows: scrolling area + top divider + input rows + bottom divider + notification row */
+    int total_rows = rows + 3 + input_visible_rows;
 
     /* If columns decreased, clear entire old input area (all divider and input rows) BEFORE resizing */
     /* This prevents old divider/content from being pushed into scroll area during resize */

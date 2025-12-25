@@ -290,8 +290,8 @@ static void calculate_terminal_size(int window_width, int window_height, int cel
         *cols = 10; /* Minimum width */
 
     /* Calculate number of rows that fit in available height */
-    /* Subtract rows for top divider, bottom divider, and dynamic input area height */
-    int input_height_rows = 2 + dock_get_visible_rows(dock); /* Top divider + bottom divider + visible input rows */
+    /* Subtract rows for dock area: top divider + input rows + bottom divider + notification row */
+    int input_height_rows = 3 + dock_get_visible_rows(dock);
     *rows = (available_height / effective_cell_h) - input_height_rows;
     if (*rows < 1)
         *rows = 1; /* Minimum: 1 scrolling row */
@@ -1070,7 +1070,7 @@ int main(int argc, char **argv) {
                     float line_height = lisp_x_get_terminal_line_height();
                     int effective_cell_h = (int)(cell_h * line_height);
                     int input_height_rows =
-                        2 + dock_get_visible_rows(&dock); /* Top divider + bottom divider + visible input rows */
+                        3 + dock_get_visible_rows(&dock); /* Top divider + input rows + bottom divider + notification row */
                     int new_rows = (available_height / effective_cell_h) - input_height_rows;
                     if (new_rows < 1)
                         new_rows = 1; /* Minimum: 1 scrolling row */
@@ -1109,7 +1109,7 @@ int main(int argc, char **argv) {
 
                     /* Calculate terminal area bounds and fill any area beyond with background color */
                     int terminal_width = new_cols * cell_w + 2 * PADDING_X;
-                    int terminal_height = (new_rows + 2 + input_visible_rows) * effective_cell_h + 2 * PADDING_Y;
+                    int terminal_height = (new_rows + 3 + input_visible_rows) * effective_cell_h + 2 * PADDING_Y;
 
                     /* Fill any area beyond the terminal content with background color */
                     /* This handles cases where window is larger than terminal area */
@@ -1191,7 +1191,7 @@ int main(int argc, char **argv) {
 
                                 /* Calculate new window size to maintain same terminal dimensions */
                                 int input_visible_rows = dock_get_visible_rows(&dock);
-                                int total_rows = current_rows + 2 + input_visible_rows;
+                                int total_rows = current_rows + 3 + input_visible_rows;
                                 int new_win_width = current_cols * cell_w + 2 * PADDING_X;
                                 int new_win_height = total_rows * effective_cell_h + 2 * PADDING_Y;
 
@@ -1239,7 +1239,7 @@ int main(int argc, char **argv) {
                 int effective_cell_h = (int)(cell_h * line_height);
 
                 /* Calculate input area height: top divider + bottom divider + visible input rows */
-                int dock_height = (2 + dock_get_visible_rows(&dock)) * effective_cell_h;
+                int dock_height = (3 + dock_get_visible_rows(&dock)) * effective_cell_h;
 
                 /* Handle clicks in terminal area (not in input area or padding) */
                 /* Check if click is within terminal area (excluding padding) */
@@ -1698,7 +1698,7 @@ int main(int argc, char **argv) {
                 window_get_size(win, &win_width, &win_height);
                 float line_height = lisp_x_get_terminal_line_height();
                 int effective_cell_h = (int)(cell_h * line_height);
-                int dock_height = (2 + dock_get_visible_rows(&dock)) * effective_cell_h;
+                int dock_height = (3 + dock_get_visible_rows(&dock)) * effective_cell_h;
                 /* Check if click is within terminal area (excluding padding) and not in input area */
                 if (event.button.x >= PADDING_X && event.button.x < win_width - PADDING_X &&
                     event.button.y >= PADDING_Y && event.button.y < win_height - PADDING_Y &&
@@ -1715,7 +1715,7 @@ int main(int argc, char **argv) {
                     window_get_size(win, &motion_win_width, &motion_win_height);
                     float line_height = lisp_x_get_terminal_line_height();
                     int effective_cell_h = (int)(cell_h * line_height);
-                    int dock_height = (2 + dock_get_visible_rows(&dock)) * effective_cell_h;
+                    int dock_height = (3 + dock_get_visible_rows(&dock)) * effective_cell_h;
                     /* Check if motion is within terminal area (excluding padding) and not in input area */
                     if (event.motion.x >= PADDING_X && event.motion.x < motion_win_width - PADDING_X &&
                         event.motion.y >= PADDING_Y && event.motion.y < motion_win_height - PADDING_Y &&
@@ -1732,7 +1732,7 @@ int main(int argc, char **argv) {
                 window_get_size(win, &motion_win_width, &motion_win_height);
                 float line_height = lisp_x_get_terminal_line_height();
                 int effective_cell_h = (int)(cell_h * line_height);
-                int dock_height = (2 + dock_get_visible_rows(&dock)) * effective_cell_h;
+                int dock_height = (3 + dock_get_visible_rows(&dock)) * effective_cell_h;
                 /* Check if motion is within terminal area (excluding padding) and not in input area */
                 if (event.motion.x >= PADDING_X && event.motion.x < motion_win_width - PADDING_X &&
                     event.motion.y >= PADDING_Y && event.motion.y < motion_win_height - PADDING_Y &&
@@ -1751,7 +1751,7 @@ int main(int argc, char **argv) {
                 window_get_size(win, &wheel_win_width, &wheel_win_height);
                 float line_height = lisp_x_get_terminal_line_height();
                 int effective_cell_h = (int)(cell_h * line_height);
-                int dock_height = (2 + dock_get_visible_rows(&dock)) * effective_cell_h;
+                int dock_height = (3 + dock_get_visible_rows(&dock)) * effective_cell_h;
                 /* Check if mouse is within terminal area (excluding padding) and not in input area */
                 if (mouse_x >= PADDING_X && mouse_x < wheel_win_width - PADDING_X && mouse_y >= PADDING_Y &&
                     mouse_y < wheel_win_height - PADDING_Y && mouse_y < wheel_win_height - dock_height - PADDING_Y) {
