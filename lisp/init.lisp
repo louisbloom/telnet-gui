@@ -71,6 +71,88 @@ to make room for new ones (FIFO - First In, First Out).
 Log filename format: telnet-<host>-<port>-<timestamp>.log")
 
 ;; ============================================================================
+;; TCP KEEPALIVE CONFIGURATION
+;; ============================================================================
+
+(defvar *tcp-keepalive-enabled* #t
+  "Enable TCP keepalive probes on telnet connections.
+
+When enabled (`#t`), the operating system will send periodic keepalive probes
+on the TCP connection to detect if the remote host has become unreachable.
+This helps prevent silent connection drops due to NAT timeouts, firewalls,
+or network issues.
+
+## Values
+- `#t` - Enable TCP keepalives (default, recommended)
+- `#f` - Disable TCP keepalives
+
+## How It Works
+TCP keepalive sends small probe packets when the connection is idle:
+1. After an idle period, the OS sends a keepalive probe
+2. If no response, it retries several times
+3. If still no response, the connection is marked as dead
+
+This causes `recv()` to return an error (WSAECONNRESET on Windows, ETIMEDOUT
+on Unix) when the connection is actually dead, rather than hanging forever.
+
+## Use Cases
+- Enable (`#t`) to detect dead connections faster
+- Enable (`#t`) to prevent NAT/firewall timeout disconnects
+- Disable (`#f`) if keepalive probes cause issues with your server
+
+## Platform Notes
+- Windows: Uses system-wide keepalive timing (default ~2 hours idle)
+- Unix/Linux: Can be tuned via sysctl (net.ipv4.tcp_keepalive_*)
+
+## See Also
+- `*tcp-keepalive-time*` - Idle time before first probe
+- `*tcp-keepalive-interval*` - Time between probes
+- `*enable-telnet-logging*` - Enable I/O logging
+- Error 10054 (WSAECONNRESET) - Connection reset by peer")
+
+(defvar *tcp-keepalive-time* 60
+  "Seconds of idle time before sending the first keepalive probe.
+
+This controls how long the connection must be idle before TCP starts
+sending keepalive probes. Lower values detect dead connections faster
+but generate more network traffic.
+
+## Values
+- 60 - Default, start probing after 1 minute of idle time
+- 30 - More aggressive, good for flaky connections
+- 120 - Conservative, less network overhead
+- 300 - Very conservative (5 minutes)
+
+## Platform Notes
+- Windows: Applied via SIO_KEEPALIVE_VALS
+- Unix/Linux: Applied via TCP_KEEPIDLE socket option
+
+## See Also
+- `*tcp-keepalive-enabled*` - Enable/disable keepalives
+- `*tcp-keepalive-interval*` - Time between probes")
+
+(defvar *tcp-keepalive-interval* 10
+  "Seconds between keepalive probes after the first probe.
+
+Once the idle timeout (`*tcp-keepalive-time*`) is reached, TCP sends
+keepalive probes at this interval until either a response is received
+or the connection is determined to be dead.
+
+## Values
+- 10 - Default, probe every 10 seconds
+- 5 - More aggressive probing
+- 30 - Conservative, less network overhead
+
+## Platform Notes
+- Windows: Applied via SIO_KEEPALIVE_VALS
+- Unix/Linux: Applied via TCP_KEEPINTVL socket option
+- Probe count: Windows uses system default (~10), Unix can be tuned via sysctl
+
+## See Also
+- `*tcp-keepalive-enabled*` - Enable/disable keepalives
+- `*tcp-keepalive-time*` - Idle time before first probe")
+
+;; ============================================================================
 ;; WORD STORE HELPER FUNCTIONS
 ;; ============================================================================
 

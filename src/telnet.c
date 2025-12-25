@@ -18,9 +18,11 @@
 #include <windows.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <mstcpip.h> /* For tcp_keepalive struct and SIO_KEEPALIVE_VALS */
 #define close(s) closesocket(s)
 #define sleep(s) Sleep(s * 1000)
 #else
+#include <netinet/tcp.h> /* For TCP_KEEPIDLE, TCP_KEEPINTVL, TCP_KEEPCNT */
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -285,6 +287,66 @@ int telnet_connect(Telnet *t, const char *hostname, int port) {
         t->socket = -1;
         t->state = TELNET_STATE_DISCONNECTED;
         return -1;
+    }
+
+    /* Enable TCP keepalive if configured via Lisp variable */
+    Environment *keepalive_env = (Environment *)lisp_x_get_environment();
+    if (keepalive_env) {
+        LispObject *enable_keepalive = env_lookup(keepalive_env, "*tcp-keepalive-enabled*");
+        if (enable_keepalive && enable_keepalive != NIL && lisp_is_truthy(enable_keepalive)) {
+            /* Get keepalive timing from Lisp variables (defaults: 60s idle, 10s interval) */
+            int keepalive_time = 60;
+            int keepalive_interval = 10;
+
+            LispObject *time_obj = env_lookup(keepalive_env, "*tcp-keepalive-time*");
+            if (time_obj && time_obj->type == LISP_INTEGER) {
+                keepalive_time = (int)time_obj->value.integer;
+            }
+
+            LispObject *interval_obj = env_lookup(keepalive_env, "*tcp-keepalive-interval*");
+            if (interval_obj && interval_obj->type == LISP_INTEGER) {
+                keepalive_interval = (int)interval_obj->value.integer;
+            }
+
+#ifdef _WIN32
+            /* Enable SO_KEEPALIVE first */
+            BOOL optval = TRUE;
+            if (setsockopt(t->socket, SOL_SOCKET, SO_KEEPALIVE, (char *)&optval, sizeof(optval)) < 0) {
+                fprintf(stderr, "Warning: Failed to enable TCP keepalive (error %d)\n", WSAGetLastError());
+            } else {
+                /* Set keepalive timing via WSAIoctl */
+                struct tcp_keepalive ka;
+                ka.onoff = 1;
+                ka.keepalivetime = keepalive_time * 1000;         /* Convert to milliseconds */
+                ka.keepaliveinterval = keepalive_interval * 1000; /* Convert to milliseconds */
+
+                DWORD bytes_returned;
+                if (WSAIoctl(t->socket, SIO_KEEPALIVE_VALS, &ka, sizeof(ka), NULL, 0, &bytes_returned, NULL, NULL) !=
+                    0) {
+                    fprintf(stderr, "Warning: Failed to set TCP keepalive timing (error %d)\n", WSAGetLastError());
+                }
+            }
+#else
+            /* Enable SO_KEEPALIVE */
+            int optval = 1;
+            if (setsockopt(t->socket, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval)) < 0) {
+                fprintf(stderr, "Warning: Failed to enable TCP keepalive: %s\n", strerror(errno));
+            } else {
+                /* Set keepalive timing (Linux/BSD) */
+#ifdef TCP_KEEPIDLE
+                if (setsockopt(t->socket, IPPROTO_TCP, TCP_KEEPIDLE, &keepalive_time, sizeof(keepalive_time)) < 0) {
+                    fprintf(stderr, "Warning: Failed to set TCP_KEEPIDLE: %s\n", strerror(errno));
+                }
+#endif
+#ifdef TCP_KEEPINTVL
+                if (setsockopt(t->socket, IPPROTO_TCP, TCP_KEEPINTVL, &keepalive_interval, sizeof(keepalive_interval)) <
+                    0) {
+                    fprintf(stderr, "Warning: Failed to set TCP_KEEPINTVL: %s\n", strerror(errno));
+                }
+#endif
+            }
+#endif
+        }
     }
 
     /* Set socket to non-blocking mode */
