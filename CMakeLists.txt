@@ -336,6 +336,8 @@ set(PRACTICE_SRC "${CMAKE_SOURCE_DIR}/lisp/contrib/practice.lisp")
 set(PRACTICE_DST "${CMAKE_BINARY_DIR}/lisp/contrib/practice.lisp")
 set(SEAPORT_SRC "${CMAKE_SOURCE_DIR}/lisp/contrib/seaport.lisp")
 set(SEAPORT_DST "${CMAKE_BINARY_DIR}/lisp/contrib/seaport.lisp")
+set(SCAN_TRACKER_SRC "${CMAKE_SOURCE_DIR}/lisp/contrib/scan-tracker.lisp")
+set(SCAN_TRACKER_DST "${CMAKE_BINARY_DIR}/lisp/contrib/scan-tracker.lisp")
 set(TINTIN_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/tintin-test.lisp")
 set(TINTIN_TEST_DST "${CMAKE_BINARY_DIR}/tests/tintin-test.lisp")
 set(COMPLETION_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/completion-test.lisp")
@@ -378,6 +380,7 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/lisp/contrib"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PRACTICE_SRC}" "${PRACTICE_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SEAPORT_SRC}" "${SEAPORT_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SCAN_TRACKER_SRC}" "${SCAN_TRACKER_DST}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/tests"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_TEST_SRC}" "${TINTIN_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${COMPLETION_TEST_SRC}" "${COMPLETION_TEST_DST}"
@@ -459,6 +462,7 @@ install(FILES
 install(FILES
     "${PRACTICE_SRC}"
     "${SEAPORT_SRC}"
+    "${SCAN_TRACKER_SRC}"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/lisp/contrib"
     COMPONENT Runtime
 )

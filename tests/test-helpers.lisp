@@ -37,9 +37,25 @@
                 ,message result))
        nil)))  ; Success: silent
 
+;; Assert that expression evaluates to nil explicitly
+;; Usage: (assert-nil expr "description")
+;; Returns: nil on success, aborts test with error on failure
+(defmacro assert-nil (expr message)
+  `(let ((result ,expr))
+     (if (null? result)
+       nil  ; Success
+       (error (format nil "Assertion failed: ~A (expected nil, got: ~S)" ,message result)))))
+
 ;; ============================================================================
 ;; Load init.lisp for hook system and other core functionality
 ;; ============================================================================
 ;; Tests run via lisp-repl need init.lisp loaded for the hook system.
 ;; Path is relative to build/tests/ directory where tests run.
 (load "../lisp/init.lisp")
+
+;; ============================================================================
+;; Mock TinTin++ Variables (for testing scripts that use $variables)
+;; ============================================================================
+;; Create *tintin-variables* if not already defined (normally in tintin.lisp)
+(if (not (defined? '*tintin-variables*))
+    (define *tintin-variables* (make-hash-table)))

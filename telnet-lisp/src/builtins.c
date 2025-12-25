@@ -59,6 +59,7 @@ static LispObject *builtin_string_prefix_question(LispObject *args, Environment 
 static LispObject *builtin_string_replace(LispObject *args, Environment *env);
 static LispObject *builtin_string_upcase(LispObject *args, Environment *env);
 static LispObject *builtin_string_downcase(LispObject *args, Environment *env);
+static LispObject *builtin_string_trim(LispObject *args, Environment *env);
 
 /* Character operations */
 static LispObject *builtin_char_question(LispObject *args, Environment *env);
@@ -1632,6 +1633,26 @@ static const char *doc_string_downcase = "Convert string to lowercase (ASCII onl
                                          "## Notes\n"
                                          "Only converts ASCII letters (A-Z). Non-ASCII characters unchanged.";
 
+static const char *doc_string_trim =
+    "Remove leading and trailing whitespace from a string.\n"
+    "\n"
+    "## Parameters\n"
+    "- `string` - The input string\n"
+    "\n"
+    "## Returns\n"
+    "New string with leading and trailing whitespace removed.\n"
+    "\n"
+    "## Examples\n"
+    "```lisp\n"
+    "(string-trim \"  hello  \")      ; => \"hello\"\n"
+    "(string-trim \"\\thello\\n\")      ; => \"hello\"\n"
+    "(string-trim \"hello\")           ; => \"hello\"\n"
+    "(string-trim \"   \")             ; => \"\"\n"
+    "```\n"
+    "\n"
+    "## Notes\n"
+    "Whitespace includes space, tab, newline, carriage return, form feed, vertical tab.";
+
 /* String conversion operations */
 static const char *doc_number_to_string = "Convert number to string with optional radix.\n"
                                           "\n"
@@ -2752,6 +2773,7 @@ void register_builtins(Environment *env) {
     REGISTER("string-replace", builtin_string_replace, doc_string_replace);
     REGISTER("string-upcase", builtin_string_upcase, doc_string_upcase);
     REGISTER("string-downcase", builtin_string_downcase, doc_string_downcase);
+    REGISTER("string-trim", builtin_string_trim, doc_string_trim);
 
     /* Character operations */
     REGISTER("char?", builtin_char_question, NULL);
@@ -4025,6 +4047,47 @@ static LispObject *builtin_string_downcase(LispObject *args, Environment *env) {
         }
     }
     *dst = '\0';
+
+    return lisp_make_string(result);
+}
+
+/* String trim - remove leading and trailing whitespace */
+static LispObject *builtin_string_trim(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("string-trim requires 1 argument");
+    }
+
+    LispObject *str_obj = lisp_car(args);
+    if (str_obj->type != LISP_STRING) {
+        return lisp_make_error("string-trim requires a string");
+    }
+
+    const char *str = str_obj->value.string;
+    size_t len = strlen(str);
+
+    /* Find start - skip leading whitespace */
+    const char *start = str;
+    while (*start && isspace((unsigned char)*start)) {
+        start++;
+    }
+
+    /* If all whitespace, return empty string */
+    if (*start == '\0') {
+        return lisp_make_string("");
+    }
+
+    /* Find end - skip trailing whitespace */
+    const char *end = str + len - 1;
+    while (end > start && isspace((unsigned char)*end)) {
+        end--;
+    }
+
+    /* Calculate result length and copy */
+    size_t result_len = end - start + 1;
+    char *result = GC_malloc(result_len + 1);
+    memcpy(result, start, result_len);
+    result[result_len] = '\0';
 
     return lisp_make_string(result);
 }

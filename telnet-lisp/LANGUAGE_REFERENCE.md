@@ -621,6 +621,7 @@ String equality - returns true if `str1` and `str2` have identical character seq
 - `string-replace` - Replace all occurrences of substring in string
 - `string-upcase` - Convert string to uppercase (UTF-8 aware, ASCII only)
 - `string-downcase` - Convert string to lowercase (UTF-8 aware, ASCII only)
+- `string-trim` - Remove leading and trailing whitespace
 - `string->number` - Convert string to number (integer or float) with optional radix (R7RS compliant)
 - `number->string` - Convert number to string with optional radix (R7RS compliant)
 
@@ -1658,8 +1659,10 @@ Convert to tail recursion by:
 ; String transformations
 (string-replace "hello world" "world" "universe")  ; => "hello universe"
 (string-replace "hello" "l" "L")                   ; => "heLLo"
-(string-upcase "hello world")                     ; => "HELLO WORLD"
+(string-upcase "hello world")                      ; => "HELLO WORLD"
 (string-downcase "HELLO WORLD")                    ; => "hello world"
+(string-trim "  hello world  ")                    ; => "hello world"
+(string-trim "\t  spaced  \n")                     ; => "spaced"
 ```
 
 ### Regex Operations
