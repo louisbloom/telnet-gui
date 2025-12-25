@@ -80,6 +80,9 @@ static Telnet *registered_telnet = NULL;
 static GlyphCache *registered_glyph_cache = NULL;
 static Window *registered_window = NULL;
 static InputArea *registered_input_area = NULL;
+
+/* Notification text for notification row */
+static char *notification_text = NULL;
 #if HAVE_RLOTTIE
 static SDL_Renderer *registered_renderer = NULL;
 static Animation *active_animation = NULL; /* Animation currently being rendered */
@@ -614,6 +617,28 @@ static LispObject *builtin_terminal_echo(LispObject *args, Environment *env) {
         /* Normal mode: feed to terminal */
         size_t len = strlen(text);
         terminal_feed_data(registered_terminal, text, len);
+    }
+
+    return NIL;
+}
+
+/* Builtin function: notification-set - Set notification text for notification row */
+static LispObject *builtin_notification_set(LispObject *args, Environment *env) {
+    (void)env;
+
+    /* Free existing notification text */
+    if (notification_text) {
+        free(notification_text);
+        notification_text = NULL;
+    }
+
+    /* Set new notification text if argument provided and is a string */
+    if (args != NIL) {
+        LispObject *text_obj = lisp_car(args);
+        if (text_obj->type == LISP_STRING) {
+            notification_text = strdup(text_obj->value.string);
+        }
+        /* If nil is passed, notification_text stays NULL (cleared) */
     }
 
     return NIL;
@@ -1240,6 +1265,32 @@ int lisp_x_init(void) {
                                     "- `telnet-send` - Send text to server\n"
                                     "- `terminal-info` - Get terminal dimensions and info";
     REGISTER_BUILTIN("terminal-echo", builtin_terminal_echo, terminal_echo_doc);
+
+    /* Register notification-set builtin */
+    const char *notification_set_doc = "Set or clear the notification row text.\n"
+                                       "\n"
+                                       "## Parameters\n"
+                                       "- `text` - String to display, or `nil` to clear\n"
+                                       "\n"
+                                       "## Returns\n"
+                                       "`nil`\n"
+                                       "\n"
+                                       "## Description\n"
+                                       "Sets the text displayed in the notification row below the bottom divider.\n"
+                                       "Pass `nil` or call with no arguments to clear the notification.\n"
+                                       "Supports ANSI escape sequences for colors and UTF-8 (including emojis).\n"
+                                       "\n"
+                                       "## Examples\n"
+                                       "```lisp\n"
+                                       "(notification-set \"Connection established\")\n"
+                                       "(notification-set \"\\033[32m✓ Connected\\033[0m\")\n"
+                                       "(notification-set nil)  ; Clear notification\n"
+                                       "```\n"
+                                       "\n"
+                                       "## See Also\n"
+                                       "- `notify` - High-level notification with timeout and queue\n"
+                                       "- `notification-clear` - Clear notification and queue";
+    REGISTER_BUILTIN("notification-set", builtin_notification_set, notification_set_doc);
 
     /* Register divider-mode-set builtin */
     const char *divider_mode_set_doc = "Set a divider mode indicator.\n"
@@ -2572,6 +2623,11 @@ void lisp_x_register_window(Window *w) {
 
 void lisp_x_register_input_area(InputArea *area) {
     registered_input_area = area;
+}
+
+/* Get notification text for notification row */
+const char *lisp_x_get_notification_text(void) {
+    return notification_text;
 }
 
 /* Load init-post.lisp after SDL/GUI is initialized */

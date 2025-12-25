@@ -57,7 +57,7 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
     int scrolling_rows, cols;
     terminal_get_size(term, &scrolling_rows, &cols);
 
-    /* Total display includes scrolling area + top divider + bottom divider + all visible input rows */
+    /* Total display includes scrolling area + top divider + bottom divider + input rows + notification row */
     int input_rows = 1;
     if (input_area) {
         input_rows = input_area_get_visible_rows(input_area);
@@ -65,7 +65,7 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
             input_rows = 1;
     }
 
-    int total_rows = scrolling_rows + 2 + input_rows;
+    int total_rows = scrolling_rows + 2 + input_rows + 1; /* +1 for notification row */
 
     /* Get line height multiplier and calculate effective cell height */
     float line_height = lisp_x_get_terminal_line_height();

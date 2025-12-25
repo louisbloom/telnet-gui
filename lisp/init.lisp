@@ -1670,7 +1670,7 @@ A neutral color indicating disconnected state.
 ;; ANSI Color Palette
 ;; ----------------------------------------------------------------------------
 
-(defvar *ansi-color-palette* *ansi-color-palette*
+(defvar *ansi-color-palette* (if (bound? '*ansi-color-palette*) *ansi-color-palette* '())
   "ANSI 16-color palette for terminal emulation.
 
 ## Format
@@ -1919,3 +1919,130 @@ Do not call this function directly."
             ;; Not due yet - keep it
             (set! new-list (cons timer new-list)))))
       (set! *timer-list* new-list))))
+
+;; ============================================================================
+;; NOTIFICATION SYSTEM
+;; ============================================================================
+;; Queue-based notification system with timed auto-dismiss.
+;;
+;; API:
+;;   (notify MESSAGE &optional TIMEOUT) - Queue a notification
+;;   (notification-clear) - Clear current notification and queue
+;;   (notification-active?) - Check if notification is showing
+;;
+;; The notification-set builtin is low-level (C side), while notify is the
+;; high-level Lisp API that handles queuing and timeouts.
+;;
+;; Example:
+;;   (notify "Connection established!" 3000)  ; 3 second notification
+;;   (notify "New message from Djurden")      ; default timeout
+
+(defvar *notification-timeout* 5000
+  "Default notification display time in milliseconds.")
+
+(defvar *notification-queue* '()
+  "Queue of pending notification messages.
+Each entry is (message . timeout-ms).")
+
+(defvar *notification-timer* nil
+  "Timer ID for current notification auto-dismiss.")
+
+(defun notify (message &optional timeout)
+  "Display a notification MESSAGE for TIMEOUT milliseconds.
+
+## Parameters
+- `message` - String to display (supports ANSI colors and UTF-8/emoji)
+- `timeout` - Display time in milliseconds (default: `*notification-timeout*`)
+
+## Returns
+`nil`
+
+## Description
+Shows a notification in the notification row below the bottom divider.
+If a notification is already displayed, the new one is queued and will
+be shown after the current one expires.
+
+## Examples
+```lisp
+;; Show notification for 3 seconds
+(notify \"Connection established!\" 3000)
+
+;; Use default timeout
+(notify \"New message from Djurden\")
+
+;; With ANSI colors
+(notify \"\\033[32m✓ Connected\\033[0m to server\")
+
+;; With emoji
+(notify \"🔔 New tell from Djurden!\")
+```
+
+## See Also
+- `notification-set` - Low-level builtin (C)
+- `notification-clear` - Clear notification and queue
+- `*notification-timeout*` - Default timeout"
+  (let ((ms (or timeout *notification-timeout*)))
+    (if (notification-active?)
+      ;; Queue the notification
+      (set! *notification-queue*
+        (append *notification-queue* (list (cons message ms))))
+      ;; Show immediately
+      (notification-show message ms))))
+
+(defun notification-show (message timeout-ms)
+  "Internal: Display MESSAGE and set dismiss timer.
+Do not call directly; use `notify` instead."
+  (notification-set message)
+  (when *notification-timer*
+    (cancel-timer *notification-timer*))
+  (set! *notification-timer*
+    (run-at-time (/ timeout-ms 1000.0) nil notification-dismiss)))
+
+(defun notification-dismiss ()
+  "Internal: Clear current notification and show next queued one.
+Do not call directly; called by timer system."
+  (notification-set nil)
+  (set! *notification-timer* nil)
+  (when (not (null? *notification-queue*))
+    (let ((next (car *notification-queue*)))
+      (set! *notification-queue* (cdr *notification-queue*))
+      (notification-show (car next) (cdr next)))))
+
+(defun notification-active? ()
+  "Return non-nil if a notification is currently displayed.
+
+## Returns
+Non-nil if notification is showing, nil otherwise.
+
+## Examples
+```lisp
+(if (notification-active?)
+    (princ \"Notification is showing\")
+    (princ \"No notification\"))
+```
+
+## See Also
+- `notify` - Show notifications
+- `notification-clear` - Clear notification and queue"
+  *notification-timer*)
+
+(defun notification-clear ()
+  "Clear current notification and entire queue.
+
+## Description
+Immediately clears any displayed notification and removes all
+pending notifications from the queue.
+
+## Examples
+```lisp
+(notification-clear)  ; Clear everything
+```
+
+## See Also
+- `notify` - Show notifications
+- `notification-active?` - Check if notification showing"
+  (notification-set nil)
+  (when *notification-timer*
+    (cancel-timer *notification-timer*)
+    (set! *notification-timer* nil))
+  (set! *notification-queue* '()))

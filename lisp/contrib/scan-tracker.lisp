@@ -73,7 +73,7 @@
     ;; "You scan <direction>." - start/continue scanning
     ((regex-match? "^You scan (north|south|east|west|up|down)\\." line)
       (let ((captures (regex-extract "^You scan (\\w+)\\." line)))
-	(when captures
+        (when captures
           (set! *scan-state* 'scanning)
           (set! *scan-direction* (scan-tracker-get-direction-abbrev (car captures)))
           (set! *scan-range* 0))))
@@ -81,14 +81,14 @@
     ;; "***** Range N *****" - update range
     ((regex-match? "^\\*+ Range (\\d+) \\*+$" line)
       (when (eq? *scan-state* 'scanning)
-	(let ((captures (regex-extract "Range (\\d+)" line)))
+        (let ((captures (regex-extract "Range (\\d+)" line)))
           (when captures
             (set! *scan-range* (string->number (car captures)))))))
 
     ;; Prompt line - end scan, finalize result
     ((regex-match? "<\\d+%hp" line)
       (when (eq? *scan-state* 'scanning)
-	(scan-tracker-finalize)))
+        (scan-tracker-finalize)))
 
     ;; Any other line while scanning - check for target
     ((eq? *scan-state* 'scanning)

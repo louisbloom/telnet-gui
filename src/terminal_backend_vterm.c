@@ -1251,6 +1251,19 @@ static void vterm_render_input_area(void *vstate, void *input_area_ptr, int inpu
     /* Reset colors after drawing divider to prevent green color from persisting */
     dynamic_buffer_append_str(buf, SGR_RESET);
 
+    /* Draw notification row below bottom divider */
+    int notification_row = bottom_divider_row + 1;
+    ansi_format_cursor_pos(cursor_buf, sizeof(cursor_buf), notification_row, 1);
+    dynamic_buffer_append_str(buf, cursor_buf);
+    dynamic_buffer_append_str(buf, ANSI_ERASE_TO_EOL);
+
+    const char *notification = lisp_x_get_notification_text();
+    if (notification && notification[0]) {
+        /* Notification text can contain ANSI escape sequences, so just append it directly */
+        dynamic_buffer_append_str(buf, notification);
+        dynamic_buffer_append_str(buf, SGR_RESET);
+    }
+
     /* Restore scrolling region */
     char scroll_buf[24];
     ansi_format_scroll_region(scroll_buf, sizeof(scroll_buf), 1, state->scrolling_rows);

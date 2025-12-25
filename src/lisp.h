@@ -122,6 +122,9 @@ void lisp_x_register_window(struct Window *w);
 struct InputArea;
 void lisp_x_register_input_area(struct InputArea *area);
 
+/* Get notification text for notification row (NULL if none) */
+const char *lisp_x_get_notification_text(void);
+
 /* Load init-post.lisp after SDL/GUI is initialized */
 void lisp_x_load_init_post(void);
 

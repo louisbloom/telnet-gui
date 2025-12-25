@@ -57,5 +57,5 @@
 ;; Mock TinTin++ Variables (for testing scripts that use $variables)
 ;; ============================================================================
 ;; Create *tintin-variables* if not already defined (normally in tintin.lisp)
-(if (not (defined? '*tintin-variables*))
+(if (not (bound? '*tintin-variables*))
     (define *tintin-variables* (make-hash-table)))

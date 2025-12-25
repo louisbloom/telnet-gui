@@ -348,6 +348,8 @@ set(TIMER_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/timer-test.lisp")
 set(TIMER_TEST_DST "${CMAKE_BINARY_DIR}/tests/timer-test.lisp")
 set(PRACTICE_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/practice-test.lisp")
 set(PRACTICE_TEST_DST "${CMAKE_BINARY_DIR}/tests/practice-test.lisp")
+set(NOTIFICATION_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/notification-test.lisp")
+set(NOTIFICATION_TEST_DST "${CMAKE_BINARY_DIR}/tests/notification-test.lisp")
 set(TEST_HELPERS_SRC "${CMAKE_SOURCE_DIR}/tests/test-helpers.lisp")
 set(TEST_HELPERS_DST "${CMAKE_BINARY_DIR}/tests/test-helpers.lisp")
 
@@ -387,6 +389,7 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${INIT_TEST_SRC}" "${INIT_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TIMER_TEST_SRC}" "${TIMER_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PRACTICE_TEST_SRC}" "${PRACTICE_TEST_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${NOTIFICATION_TEST_SRC}" "${NOTIFICATION_TEST_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TEST_HELPERS_SRC}" "${TEST_HELPERS_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LOG2HTML_SRC}" "${LOG2HTML_DST}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/animations"
@@ -1561,6 +1564,11 @@ add_test(NAME gui_timer-test
 
 add_test(NAME gui_practice-test
     COMMAND $<TARGET_FILE:lisp-repl> practice-test.lisp
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
+)
+
+add_test(NAME gui_notification-test
+    COMMAND $<TARGET_FILE:lisp-repl> notification-test.lisp
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
 )
 
