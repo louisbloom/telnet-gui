@@ -1900,8 +1900,11 @@ Recurring timers are rescheduled; one-shot timers are removed.
 Do not call this function directly."
   (when (not (null? *timer-list*))
     (let ((now (current-time-ms))
+           (to-process *timer-list*)
            (new-list '()))
-      (do ((remaining *timer-list* (cdr remaining)))
+      ;; Clear timer list so callbacks can add new timers
+      (set! *timer-list* '())
+      (do ((remaining to-process (cdr remaining)))
         ((null? remaining))
         (let* ((timer (car remaining))
                 (fire-time (list-ref timer 1))
@@ -1918,7 +1921,8 @@ Do not call this function directly."
                 (set! new-list (cons timer new-list))))
             ;; Not due yet - keep it
             (set! new-list (cons timer new-list)))))
-      (set! *timer-list* new-list))))
+      ;; Merge: rescheduled timers + any timers created during callbacks
+      (set! *timer-list* (append new-list *timer-list*)))))
 
 ;; ============================================================================
 ;; NOTIFICATION SYSTEM
