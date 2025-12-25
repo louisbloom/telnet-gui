@@ -123,16 +123,15 @@
          (path *scan-best-path*))
     ;; Set $target_path to best path found (or empty string if not found)
     (hash-set! *tintin-variables* "target_path" (if path path ""))
-    ;; Show result in notification row
+    ;; Show result in notification row (only highlight when found)
     (when (and target (string? target) (> (length target) 0))
       (if path
-        ;; Found - green text
+        ;; Found - green text with yellow path
         (notify (concat "\033[32m[Scan] \033[1m" target
                   "\033[0m\033[32m found: \033[1;33m"
                   path "\033[0m"))
-        ;; Not found - red text
-        (notify (concat "\033[31m[Scan] \033[1m" target
-                  "\033[0m\033[31m not found\033[0m")))))
+        ;; Not found - default color
+        (notify (concat "[Scan] " target " not found")))))
   ;; Reset state for next scan
   (set! *scan-state* 'idle)
   (set! *scan-direction* nil)
