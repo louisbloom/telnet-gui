@@ -196,6 +196,19 @@ static inline int is_emoji_property(uint32_t cp) {
     return 0;
 }
 
+/* Check if codepoint renders at 2-cell width (true emoji or emoji-style that overflows).
+ * This is used to detect emoji that visually occupy 2 cells even if vterm treats them as 1. */
+static inline int is_emoji_2wide(uint32_t cp, uint32_t second_char) {
+    return (second_char == 0xFE0F) ||           /* Variation selector forces emoji presentation */
+           is_emoji_presentation(cp) ||          /* Emoji_Presentation=Yes */
+           is_emoji_property(cp) ||              /* Emoji=Yes property */
+           (cp >= 0x1F300 && cp <= 0x1F5FF) ||   /* Misc Symbols and Pictographs */
+           (cp >= 0x1F600 && cp <= 0x1F64F) ||   /* Emoticons */
+           (cp >= 0x1F680 && cp <= 0x1F6FF) ||   /* Transport/Map */
+           (cp >= 0x1F900 && cp <= 0x1F9FF) ||   /* Supplemental Symbols */
+           (cp >= 0x1FA00 && cp <= 0x1FAFF);     /* Chess, Extended-A symbols */
+}
+
 /* Check if codepoint is a block element (U+2580-U+259F).
  * These are 1-cell wide but need to fill the entire cell. */
 static inline int is_block_element(uint32_t codepoint) {

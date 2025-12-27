@@ -292,19 +292,15 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
             if (prev_cell.width == 1) {
                 uint32_t pcp = prev_cell.chars[0];
                 /* Skip for both true emoji and emoji-style (both render at 2-cell width) */
-                int prev_is_2wide = (prev_cell.chars[1] == 0xFE0F) || is_emoji_presentation(pcp) ||
-                                    is_emoji_property(pcp) || (pcp >= 0x1F300 && pcp <= 0x1F5FF) ||
-                                    (pcp >= 0x1F600 && pcp <= 0x1F64F) || (pcp >= 0x1F680 && pcp <= 0x1F6FF) ||
-                                    (pcp >= 0x1F900 && pcp <= 0x1F9FF) || (pcp >= 0x1FA00 && pcp <= 0x1FAFF);
+                int prev_is_2wide = is_emoji_2wide(pcp, prev_cell.chars[1]);
                 if (prev_is_2wide) {
                     /* Only skip if this cell is empty (the overflow area) */
                     /* If this cell has its own character, render it (consecutive emoji) */
                     if (cell->chars[0] == 0 || cell->chars[0] == ' ') {
                         return;
                     }
-                    /* If current cell is also emoji-style, skip background to avoid erasing prev emoji's overflow */
-                    uint32_t cp = cell->chars[0];
-                    if (is_emoji_property(cp)) {
+                    /* If current cell is also 2-wide emoji, skip background to avoid erasing prev emoji's overflow */
+                    if (is_emoji_2wide(cell->chars[0], cell->chars[1])) {
                         skip_background = 1;
                     }
                 }
