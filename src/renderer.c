@@ -139,12 +139,10 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
     /* Render input area cursor only (user always types in input area, not terminal) */
     /* Note: vterm cursor is tracked but not rendered - it's only used for positioning output */
     if (current_offset == 0 && r->backend && r->backend->render_cursor && dock) {
-        /* Calculate visual cursor position for multi-line input */
-        int cursor_visual_row, cursor_visual_col;
-        dock_get_cursor_visual_position(dock, terminal_cols, &cursor_visual_row, &cursor_visual_col);
-
-        /* Adjust for scroll offset */
-        int visible_cursor_row = cursor_visual_row - dock->scroll_offset;
+        /* Use cursor position tracked during vterm_render_dock() */
+        /* This ensures cursor aligns with vterm's character width interpretation */
+        int cursor_visual_col = dock->vterm_cursor_col;
+        int visible_cursor_row = dock->vterm_cursor_row;
 
         /* Calculate screen row (0-indexed) */
         int input_text_first_row = scrolling_rows + 1; /* First row of input text */

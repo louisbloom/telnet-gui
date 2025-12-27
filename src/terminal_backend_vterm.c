@@ -1089,6 +1089,7 @@ static void vterm_render_dock(void *vstate, void *dock_ptr, int input_row, int c
     const char *text = dock_get_text(dock);
     int text_len = dock_get_length(dock);
     int visible_rows = dock_get_text_rows(dock);
+    int cursor_pos = dock_get_cursor_pos(dock);
 
     /* Calculate row positions (1-indexed) */
     int top_divider_row = input_row + 1;
@@ -1195,6 +1196,9 @@ static void vterm_render_dock(void *vstate, void *dock_ptr, int input_row, int c
     if (has_sel)
         dock_get_selection_range(dock, &sel_start, &sel_end);
 
+    /* Track cursor position for renderer (vis_row and column) */
+    int cursor_found = 0;
+
     /* Render each visible row */
     for (int vis_row = 0; vis_row < visible_rows; vis_row++) {
         int visual_row = scroll_offset + vis_row;
@@ -1216,6 +1220,26 @@ static void vterm_render_dock(void *vstate, void *dock_ptr, int input_row, int c
         int row_start, row_end;
         get_visual_row_byte_range(text, text_len, actual_cols, visual_row, &row_start, &row_end);
 
+        /* Track cursor position: if cursor_pos is in this row, count columns up to it */
+        if (!cursor_found && cursor_pos >= row_start && cursor_pos <= row_end) {
+            dock->vterm_cursor_row = vis_row;
+            /* Count columns from row_start to cursor_pos (1 column per char, vterm-style) */
+            int col = 0;
+            for (int i = row_start; i < cursor_pos;) {
+                if (text[i] == '\n') {
+                    i++;
+                    continue;
+                }
+                int char_bytes = utf8_char_bytes(&text[i]);
+                if (char_bytes <= 0)
+                    char_bytes = 1;
+                col++;
+                i += char_bytes;
+            }
+            dock->vterm_cursor_col = col;
+            cursor_found = 1;
+        }
+
         /* Render characters in this row with selection highlighting */
         for (int i = row_start; i < row_end; i++) {
             if (has_sel && i == sel_start) {
@@ -1235,6 +1259,28 @@ static void vterm_render_dock(void *vstate, void *dock_ptr, int input_row, int c
         if (has_sel && sel_end > row_start && sel_end <= row_end) {
             dynamic_buffer_append_str(buf, ANSI_SGR_REVERSE_OFF);
         }
+    }
+
+    /* Handle cursor at end of text (past last row_end) */
+    if (!cursor_found) {
+        dock->vterm_cursor_row = visible_rows > 0 ? visible_rows - 1 : 0;
+        /* Count columns in last row up to end of text */
+        int last_visual_row = scroll_offset + (visible_rows > 0 ? visible_rows - 1 : 0);
+        int row_start, row_end;
+        get_visual_row_byte_range(text, text_len, actual_cols, last_visual_row, &row_start, &row_end);
+        int col = 0;
+        for (int i = row_start; i < text_len;) {
+            if (text[i] == '\n') {
+                i++;
+                continue;
+            }
+            int char_bytes = utf8_char_bytes(&text[i]);
+            if (char_bytes <= 0)
+                char_bytes = 1;
+            col++;
+            i += char_bytes;
+        }
+        dock->vterm_cursor_col = col;
     }
 
     /* Draw bottom divider - colored box drawing character */

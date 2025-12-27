@@ -74,6 +74,10 @@ typedef struct Dock {
     int max_visible_rows;    /* Config: max rows before scrolling (default: 5) */
     int needs_layout_recalc; /* Flag: recalculate visual rows */
 
+    /* Vterm cursor position (set by terminal_render_dock, used by renderer) */
+    int vterm_cursor_row; /* Cursor row within dock (0-indexed from first text row) */
+    int vterm_cursor_col; /* Cursor column (0-indexed) */
+
     /* Echo buffer for user input */
     DynamicBuffer *echo_buf;
 
