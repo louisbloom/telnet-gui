@@ -1556,6 +1556,10 @@ int main(int argc, char **argv) {
                             if (text) {
                                 dock_paste(&dock, text);
                                 SDL_free(text);
+                                /* Scroll to bottom on paste (same as typing) */
+                                if (lisp_x_get_scroll_to_bottom_on_user_input()) {
+                                    terminal_scroll_to_bottom(term);
+                                }
                             }
                         }
                     }
