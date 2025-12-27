@@ -156,11 +156,15 @@ static void copy_terminal_selection(Terminal *term) {
         for (int col = col_start; col <= col_end; col++) {
             TermCell cell;
             if (terminal_get_cell_at_scrollback_index(term, idx, col, &cell)) {
-                /* Convert cell characters to UTF-8 */
-                if (cell.chars[0]) {
+                /* Skip continuation cells (right half of wide characters like emoji) */
+                if (cell.width == 0)
+                    continue;
+
+                /* Convert all cell codepoints to UTF-8 (up to 6 for combining chars) */
+                for (int ci = 0; ci < 6 && cell.chars[ci]; ci++) {
                     char utf8[5];
                     int len = 0;
-                    uint32_t codepoint = cell.chars[0];
+                    uint32_t codepoint = cell.chars[ci];
 
                     /* Encode UTF-8 */
                     if (codepoint < 0x80) {
