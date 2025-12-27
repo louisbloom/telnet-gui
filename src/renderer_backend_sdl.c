@@ -296,7 +296,11 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
                                     (pcp >= 0x1F600 && pcp <= 0x1F64F) || (pcp >= 0x1F680 && pcp <= 0x1F6FF) ||
                                     (pcp >= 0x1F900 && pcp <= 0x1F9FF) || (pcp >= 0x1FA00 && pcp <= 0x1FAFF);
                 if (prev_is_2wide) {
-                    return;
+                    /* Only skip if this cell is empty (the overflow area) */
+                    /* If this cell has its own character, render it (consecutive emoji) */
+                    if (cell->chars[0] == 0 || cell->chars[0] == ' ') {
+                        return;
+                    }
                 }
             }
         }
