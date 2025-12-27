@@ -198,7 +198,7 @@ int utf8_put_codepoint(unsigned int codepoint, char *buf) {
 }
 
 /* Get display width of a single codepoint */
-static int codepoint_width(int cp) {
+int utf8_codepoint_width(int cp) {
     if (cp < 0)
         return 0;
 
@@ -255,7 +255,7 @@ int utf8_display_width(const char *str) {
 
     while (*ptr) {
         int cp = utf8_get_codepoint(ptr);
-        width += codepoint_width(cp);
+        width += utf8_codepoint_width(cp);
         ptr = utf8_next_char(ptr);
         if (ptr == NULL)
             break;

@@ -35,6 +35,10 @@ int utf8_get_codepoint(const char *ptr);
 /* Buffer must have space for at least 5 bytes (4 UTF-8 bytes + null terminator) */
 int utf8_put_codepoint(unsigned int codepoint, char *buf);
 
+/* Get display width of a single Unicode codepoint */
+/* Returns 0 for control/combining chars, 2 for wide chars (CJK/emoji), 1 otherwise */
+int utf8_codepoint_width(int codepoint);
+
 /* Calculate display width of UTF-8 string in terminal columns */
 /* Returns number of columns the string would occupy */
 int utf8_display_width(const char *str);

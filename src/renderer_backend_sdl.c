@@ -277,8 +277,17 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
     /* The wide character in the previous cell will render across both cells */
     /* VTerm marks continuation cells with chars[0] = 0xFFFFFFFF (or width=0 on some platforms) */
     /* 0x10FFFF is the maximum valid Unicode codepoint */
-    if (cell->width == 0 || cell->chars[0] > 0x10FFFF)
+    if (cell->width == 0 || cell->chars[0] > 0x10FFFF) {
+        /* Still draw selection background for continuation cells */
+        if (in_selection) {
+            int sel_bg_r, sel_bg_g, sel_bg_b;
+            lisp_x_get_selection_bg_color(&sel_bg_r, &sel_bg_g, &sel_bg_b);
+            SDL_SetRenderDrawColor(state->sdl_renderer, sel_bg_r, sel_bg_g, sel_bg_b, 255);
+            SDL_Rect bg_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y, cell_w, cell_h};
+            SDL_RenderFillRect(state->sdl_renderer, &bg_rect);
+        }
         return;
+    }
 
     /* Skip cells that follow emoji/emoji-style characters we render as 2-wide */
     /* Without this check, this cell's background would overwrite the emoji's right half */

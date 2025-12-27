@@ -3,6 +3,7 @@
 #include "dock.h"
 #include "lisp.h"
 #include "dynamic_buffer.h"
+#include "../../telnet-lisp/include/utf8.h"
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -1044,16 +1045,25 @@ void dock_get_cursor_visual_position(Dock *area, int cols, int *out_row, int *ou
     int visual_row = 0;
     int visual_col = 0;
 
-    for (int i = 0; i < area->cursor_pos; i++) {
+    for (int i = 0; i < area->cursor_pos;) {
         if (area->buffer[i] == '\n') {
             visual_row++;
             visual_col = 0;
+            i++;
         } else {
-            visual_col++;
+            /* Get UTF-8 character info */
+            int cp = utf8_get_codepoint(&area->buffer[i]);
+            int char_bytes = utf8_char_bytes(&area->buffer[i]);
+            if (char_bytes <= 0)
+                char_bytes = 1; /* Safety: skip at least 1 byte */
+            int char_width = utf8_codepoint_width(cp);
+
+            visual_col += char_width;
             if (visual_col >= cols) {
                 visual_row++;
                 visual_col = 0;
             }
+            i += char_bytes;
         }
     }
 

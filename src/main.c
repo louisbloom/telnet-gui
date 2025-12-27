@@ -157,7 +157,8 @@ static void copy_terminal_selection(Terminal *term) {
             TermCell cell;
             if (terminal_get_cell_at_scrollback_index(term, idx, col, &cell)) {
                 /* Skip continuation cells (right half of wide characters like emoji) */
-                if (cell.width == 0)
+                /* VTerm marks these with width=0 or chars[0]=0xFFFFFFFF (>0x10FFFF) */
+                if (cell.width == 0 || cell.chars[0] > 0x10FFFF)
                     continue;
 
                 /* Convert all cell codepoints to UTF-8 (up to 6 for combining chars) */
