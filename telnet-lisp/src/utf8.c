@@ -248,10 +248,16 @@ int utf8_codepoint_width(int cp) {
         (cp >= 0x30000 && cp <= 0x3FFFF))   /* CJK Extension G+ */
         return 2;
 
-    /* Emoji (width 2) - true emoji ranges only */
-    /* Note: Misc Symbols (0x2600-26FF), Dingbats (0x2700-27BF), and Geometric Shapes (0x25A0-25FF) */
-    /* are width 1 in vterm/terminal - they're emoji-style but not Emoji_Presentation=Yes */
-    if ((cp >= 0x1F300 && cp <= 0x1F9FF) || /* Misc Symbols, Emoticons, etc */
+    /* Emoji with Emoji_Presentation=Yes (width 2) */
+    /* These are codepoints that default to emoji presentation even without variation selector */
+    if (utf8_is_emoji_presentation((uint32_t)cp))
+        return 2;
+
+    /* Emoji ranges (width 2) - Misc Symbols/Pictographs, Emoticons, Transport, etc */
+    if ((cp >= 0x1F300 && cp <= 0x1F5FF) || /* Misc Symbols and Pictographs */
+        (cp >= 0x1F600 && cp <= 0x1F64F) || /* Emoticons */
+        (cp >= 0x1F680 && cp <= 0x1F6FF) || /* Transport/Map */
+        (cp >= 0x1F900 && cp <= 0x1F9FF) || /* Supplemental Symbols */
         (cp >= 0x1FA00 && cp <= 0x1FAFF))   /* Chess, Extended-A */
         return 2;
 

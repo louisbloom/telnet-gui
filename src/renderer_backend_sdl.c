@@ -292,7 +292,7 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
             if (prev_cell.width == 1) {
                 uint32_t pcp = prev_cell.chars[0];
                 /* Skip for both true emoji and emoji-style (both render at 2-cell width) */
-                int prev_is_2wide = is_emoji_2wide(pcp, prev_cell.chars[1]);
+                int prev_is_2wide = utf8_is_emoji_2wide(pcp, prev_cell.chars[1]);
                 if (prev_is_2wide) {
                     /* Only skip if this cell is empty (the overflow area) */
                     /* If this cell has its own character, render it (consecutive emoji) */
@@ -300,7 +300,7 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
                         return;
                     }
                     /* If current cell is also 2-wide emoji, skip background to avoid erasing prev emoji's overflow */
-                    if (is_emoji_2wide(cell->chars[0], cell->chars[1])) {
+                    if (utf8_is_emoji_2wide(cell->chars[0], cell->chars[1])) {
                         skip_background = 1;
                     }
                 }
@@ -506,16 +506,16 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
             uint32_t cp = cell->chars[0];
             /* True emoji: Emoji_Presentation=Yes, variation selector, or emoji ranges - occupy 2 cells */
             int has_variation_selector = (cell->chars[1] == 0xFE0F);
-            int is_true_emoji = has_variation_selector || is_emoji_presentation(cp) || /* Emoji_Presentation=Yes */
+            int is_true_emoji = has_variation_selector || utf8_is_emoji_presentation(cp) || /* Emoji_Presentation=Yes */
                                 (cp >= 0x1F300 && cp <= 0x1F5FF) || /* Misc Symbols and Pictographs */
                                 (cp >= 0x1F600 && cp <= 0x1F64F) || /* Emoticons */
                                 (cp >= 0x1F680 && cp <= 0x1F6FF) || /* Transport/Map */
                                 (cp >= 0x1F900 && cp <= 0x1F9FF) || /* Supplemental Symbols */
                                 (cp >= 0x1FA00 && cp <= 0x1FAFF);   /* Chess, symbols */
             /* Emoji property chars: render at 2-cell size but occupy 1 cell (overflow into next) */
-            int is_emoji_style = !is_true_emoji && is_emoji_property(cp);
+            int is_emoji_style = !is_true_emoji && utf8_is_emoji_property(cp);
             /* Symbols need emoji font but are 1-cell wide and 1-cell render */
-            int is_symbol = is_symbol_range(cp) && !is_true_emoji && !is_emoji_style;
+            int is_symbol = utf8_is_symbol_range(cp) && !is_true_emoji && !is_emoji_style;
 
             SDL_Texture *glyph =
                 glyph_cache_get(state->glyph_cache, cell->chars[0], fg_color, bg_color, cell->attrs.bold,
@@ -564,7 +564,7 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
                     SDL_Rect dst = calc_scaled_glyph_rect(dst_x, dst_y, tex_w, tex_h, cell_w * char_width, scale_height,
                                                           scale_to_fit, center_vertical);
                     SDL_RenderCopy(state->sdl_renderer, glyph, NULL, &dst);
-                } else if (is_block_element(cp)) {
+                } else if (utf8_is_block_element(cp)) {
                     /* Block elements: draw procedurally for pixel-perfect cell filling */
                     int cx = dst_x;
                     int cy = row * cell_h + PADDING_Y;
