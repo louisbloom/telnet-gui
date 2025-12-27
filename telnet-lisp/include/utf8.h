@@ -14,6 +14,10 @@ const char *utf8_char_at(const char *str, size_t char_index);
 /* Returns pointer to next character, or NULL if end of string */
 const char *utf8_next_char(const char *ptr);
 
+/* Move pointer to previous UTF-8 character */
+/* Returns pointer to previous character, or str if at beginning */
+const char *utf8_prev_char(const char *str, const char *ptr);
+
 /* Validate UTF-8 sequence */
 /* Returns 1 if valid, 0 if invalid */
 int utf8_validate(const char *str);

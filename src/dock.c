@@ -209,10 +209,15 @@ void dock_delete_char(Dock *area) {
         /* Save undo state before modification */
         undo_save_state(area, UNDO_OP_DELETE, NULL, 0);
 
-        memmove(&area->buffer[area->cursor_pos], &area->buffer[area->cursor_pos + 1],
-                area->length - area->cursor_pos - 1);
-        area->length--;
-        /* Clear the last byte to ensure no stale data */
+        /* Get byte length of UTF-8 character at cursor */
+        int char_bytes = utf8_char_bytes(&area->buffer[area->cursor_pos]);
+        if (char_bytes <= 0)
+            char_bytes = 1;
+
+        memmove(&area->buffer[area->cursor_pos], &area->buffer[area->cursor_pos + char_bytes],
+                area->length - area->cursor_pos - char_bytes);
+        area->length -= char_bytes;
+        /* Clear stale bytes at end */
         if (area->length < DOCK_MAX_LENGTH) {
             area->buffer[area->length] = '\0';
         }
@@ -237,10 +242,15 @@ void dock_backspace(Dock *area) {
         /* Save undo state before modification */
         undo_save_state(area, UNDO_OP_BACKSPACE, NULL, 0);
 
-        memmove(&area->buffer[area->cursor_pos - 1], &area->buffer[area->cursor_pos], area->length - area->cursor_pos);
-        area->cursor_pos--;
-        area->length--;
-        /* Clear the last byte to ensure no stale data */
+        /* Find start of previous UTF-8 character */
+        const char *prev = utf8_prev_char(area->buffer, &area->buffer[area->cursor_pos]);
+        int prev_pos = prev - area->buffer;
+        int bytes_to_delete = area->cursor_pos - prev_pos;
+
+        memmove(&area->buffer[prev_pos], &area->buffer[area->cursor_pos], area->length - area->cursor_pos);
+        area->cursor_pos = prev_pos;
+        area->length -= bytes_to_delete;
+        /* Clear stale bytes at end */
         if (area->length < DOCK_MAX_LENGTH) {
             area->buffer[area->length] = '\0';
         }
@@ -281,7 +291,9 @@ void dock_move_cursor_left(Dock *area) {
         return;
 
     if (area->cursor_pos > 0) {
-        area->cursor_pos--;
+        /* Move to start of previous UTF-8 character */
+        const char *prev = utf8_prev_char(area->buffer, &area->buffer[area->cursor_pos]);
+        area->cursor_pos = prev - area->buffer;
         /* Update selection end if selection is active */
         if (area->selection_active) {
             area->selection_end = area->cursor_pos;
@@ -295,7 +307,9 @@ void dock_move_cursor_right(Dock *area) {
         return;
 
     if (area->cursor_pos < area->length) {
-        area->cursor_pos++;
+        /* Move past current UTF-8 character */
+        int char_bytes = utf8_char_bytes(&area->buffer[area->cursor_pos]);
+        area->cursor_pos += (char_bytes > 0) ? char_bytes : 1;
         /* Update selection end if selection is active */
         if (area->selection_active) {
             area->selection_end = area->cursor_pos;

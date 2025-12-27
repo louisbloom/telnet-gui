@@ -77,6 +77,21 @@ const char *utf8_next_char(const char *ptr) {
     return ptr + 1; /* Invalid, advance by 1 */
 }
 
+/* Move pointer to previous UTF-8 character */
+const char *utf8_prev_char(const char *str, const char *ptr) {
+    if (str == NULL || ptr == NULL || ptr <= str)
+        return str;
+
+    /* Move back one byte */
+    ptr--;
+
+    /* Skip UTF-8 continuation bytes (10xxxxxx = 0x80-0xBF) */
+    while (ptr > str && (*ptr & 0xC0) == 0x80)
+        ptr--;
+
+    return ptr;
+}
+
 /* Validate UTF-8 sequence */
 int utf8_validate(const char *str) {
     if (str == NULL)
