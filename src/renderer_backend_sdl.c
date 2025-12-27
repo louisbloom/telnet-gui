@@ -285,6 +285,7 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
 
     /* Skip cells that follow emoji/emoji-style characters we render as 2-wide */
     /* Without this check, this cell's background would overwrite the emoji's right half */
+    int skip_background = 0;
     if (col > 0) {
         TermCell prev_cell;
         if (terminal_get_cell_at(term, row, col - 1, &prev_cell)) {
@@ -300,6 +301,11 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
                     /* If this cell has its own character, render it (consecutive emoji) */
                     if (cell->chars[0] == 0 || cell->chars[0] == ' ') {
                         return;
+                    }
+                    /* If current cell is also emoji-style, skip background to avoid erasing prev emoji's overflow */
+                    uint32_t cp = cell->chars[0];
+                    if (is_emoji_property(cp)) {
+                        skip_background = 1;
                     }
                 }
             }
@@ -335,69 +341,72 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
 #endif
 
     /* Draw background - use selection color if in selection, otherwise cell bg */
-    if (in_selection) {
-        /* Get selection background color from Lisp config */
-        int sel_bg_r, sel_bg_g, sel_bg_b;
-        lisp_x_get_selection_bg_color(&sel_bg_r, &sel_bg_g, &sel_bg_b);
-        SDL_SetRenderDrawColor(state->sdl_renderer, sel_bg_r, sel_bg_g, sel_bg_b, 255);
-        SDL_Rect bg_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y, cell_w, cell_h};
-        SDL_RenderFillRect(state->sdl_renderer, &bg_rect);
-    }
-#if HAVE_RLOTTIE
-    else if (use_transparent_bg) {
-        /* TRANSPARENT mode: draw semi-transparent background over animation */
-        int term_bg_r, term_bg_g, term_bg_b;
-        lisp_x_get_terminal_bg_color(&term_bg_r, &term_bg_g, &term_bg_b);
-        SDL_SetRenderDrawColor(state->sdl_renderer, term_bg_r, term_bg_g, term_bg_b, bg_alpha);
-        SDL_Rect bg_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y, cell_w, cell_h};
-        SDL_RenderFillRect(state->sdl_renderer, &bg_rect);
-    }
-#endif
-    else if (cell->bg.type != TERM_COLOR_DEFAULT) {
-        /* Draw non-default background color */
-        uint8_t bg_r, bg_g, bg_b;
-
-        if (cell->bg.type == TERM_COLOR_RGB) {
-            /* Use RGB color directly */
-            bg_r = cell->bg.color.rgb.r;
-            bg_g = cell->bg.color.rgb.g;
-            bg_b = cell->bg.color.rgb.b;
-        } else if (cell->bg.type == TERM_COLOR_INDEXED) {
-            /* Convert indexed color to RGB using vterm */
-            VTermColor vc;
-            vc.type = VTERM_COLOR_INDEXED;
-            vc.indexed.idx = cell->bg.color.idx;
-            vterm_screen_convert_color_to_rgb(screen, &vc);
-            bg_r = vc.rgb.red;
-            bg_g = vc.rgb.green;
-            bg_b = vc.rgb.blue;
-        } else {
-            /* Shouldn't reach here, but use default bg from Lisp config */
-            int term_bg_r, term_bg_g, term_bg_b;
-            lisp_x_get_terminal_bg_color(&term_bg_r, &term_bg_g, &term_bg_b);
-            bg_r = term_bg_r;
-            bg_g = term_bg_g;
-            bg_b = term_bg_b;
+    /* Skip background when consecutive emoji-style chars to avoid erasing previous emoji's overflow */
+    if (!skip_background) {
+        if (in_selection) {
+            /* Get selection background color from Lisp config */
+            int sel_bg_r, sel_bg_g, sel_bg_b;
+            lisp_x_get_selection_bg_color(&sel_bg_r, &sel_bg_g, &sel_bg_b);
+            SDL_SetRenderDrawColor(state->sdl_renderer, sel_bg_r, sel_bg_g, sel_bg_b, 255);
+            SDL_Rect bg_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y, cell_w, cell_h};
+            SDL_RenderFillRect(state->sdl_renderer, &bg_rect);
         }
-
 #if HAVE_RLOTTIE
-        /* In DIM mode, skip drawing backgrounds that match terminal default */
-        if (g_animation && animation_is_loaded(g_animation) &&
-            animation_get_visibility_mode(g_animation) == ANIMATION_VISIBILITY_DIM) {
+        else if (use_transparent_bg) {
+            /* TRANSPARENT mode: draw semi-transparent background over animation */
             int term_bg_r, term_bg_g, term_bg_b;
             lisp_x_get_terminal_bg_color(&term_bg_r, &term_bg_g, &term_bg_b);
-            /* Only draw if background differs from terminal default */
-            if (bg_r != (uint8_t)term_bg_r || bg_g != (uint8_t)term_bg_g || bg_b != (uint8_t)term_bg_b) {
+            SDL_SetRenderDrawColor(state->sdl_renderer, term_bg_r, term_bg_g, term_bg_b, bg_alpha);
+            SDL_Rect bg_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y, cell_w, cell_h};
+            SDL_RenderFillRect(state->sdl_renderer, &bg_rect);
+        }
+#endif
+        else if (cell->bg.type != TERM_COLOR_DEFAULT) {
+            /* Draw non-default background color */
+            uint8_t bg_r, bg_g, bg_b;
+
+            if (cell->bg.type == TERM_COLOR_RGB) {
+                /* Use RGB color directly */
+                bg_r = cell->bg.color.rgb.r;
+                bg_g = cell->bg.color.rgb.g;
+                bg_b = cell->bg.color.rgb.b;
+            } else if (cell->bg.type == TERM_COLOR_INDEXED) {
+                /* Convert indexed color to RGB using vterm */
+                VTermColor vc;
+                vc.type = VTERM_COLOR_INDEXED;
+                vc.indexed.idx = cell->bg.color.idx;
+                vterm_screen_convert_color_to_rgb(screen, &vc);
+                bg_r = vc.rgb.red;
+                bg_g = vc.rgb.green;
+                bg_b = vc.rgb.blue;
+            } else {
+                /* Shouldn't reach here, but use default bg from Lisp config */
+                int term_bg_r, term_bg_g, term_bg_b;
+                lisp_x_get_terminal_bg_color(&term_bg_r, &term_bg_g, &term_bg_b);
+                bg_r = term_bg_r;
+                bg_g = term_bg_g;
+                bg_b = term_bg_b;
+            }
+
+#if HAVE_RLOTTIE
+            /* In DIM mode, skip drawing backgrounds that match terminal default */
+            if (g_animation && animation_is_loaded(g_animation) &&
+                animation_get_visibility_mode(g_animation) == ANIMATION_VISIBILITY_DIM) {
+                int term_bg_r, term_bg_g, term_bg_b;
+                lisp_x_get_terminal_bg_color(&term_bg_r, &term_bg_g, &term_bg_b);
+                /* Only draw if background differs from terminal default */
+                if (bg_r != (uint8_t)term_bg_r || bg_g != (uint8_t)term_bg_g || bg_b != (uint8_t)term_bg_b) {
+                    SDL_SetRenderDrawColor(state->sdl_renderer, bg_r, bg_g, bg_b, 255);
+                    SDL_Rect bg_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y, cell_w, cell_h};
+                    SDL_RenderFillRect(state->sdl_renderer, &bg_rect);
+                }
+            } else
+#endif
+            {
                 SDL_SetRenderDrawColor(state->sdl_renderer, bg_r, bg_g, bg_b, 255);
                 SDL_Rect bg_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y, cell_w, cell_h};
                 SDL_RenderFillRect(state->sdl_renderer, &bg_rect);
             }
-        } else
-#endif
-        {
-            SDL_SetRenderDrawColor(state->sdl_renderer, bg_r, bg_g, bg_b, 255);
-            SDL_Rect bg_rect = {col * cell_w + PADDING_X, row * cell_h + PADDING_Y, cell_w, cell_h};
-            SDL_RenderFillRect(state->sdl_renderer, &bg_rect);
         }
     }
 
