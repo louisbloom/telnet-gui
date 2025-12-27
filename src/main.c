@@ -1230,7 +1230,7 @@ int main(int argc, char **argv) {
 
                 mouse_x = event.button.x;
                 mouse_y = event.button.y;
-                /* Get window size to check if mouse is in input area */
+                /* Get window size to check bounds */
                 int window_width, window_height;
                 window_get_size(win, &window_width, &window_height);
 
@@ -1238,26 +1238,18 @@ int main(int argc, char **argv) {
                 float line_height = lisp_x_get_terminal_line_height();
                 int effective_cell_h = (int)(cell_h * line_height);
 
-                /* Calculate input area height: top divider + bottom divider + visible input rows */
-                int dock_height = dock_height_rows(dock_get_text_rows(&dock)) * effective_cell_h;
-
-                /* Handle clicks in terminal area (not in input area or padding) */
-                /* Check if click is within terminal area (excluding padding) */
+                /* Handle clicks in terminal area (excluding padding) */
                 if (mouse_x >= PADDING_X && mouse_x < window_width - PADDING_X && mouse_y >= PADDING_Y &&
                     mouse_y < window_height - PADDING_Y) {
-                    /* Check if click is in terminal scrolling area (not input area) */
-                    if (mouse_y < window_height - dock_height - PADDING_Y) {
-                        /* Start selection only if no selection was cleared */
-                        if (event.button.button == SDL_BUTTON_LEFT && !had_selection) {
-                            /* Convert mouse coordinates to terminal cell coordinates, subtracting padding */
-                            int term_row = (mouse_y - PADDING_Y) / effective_cell_h;
-                            int term_col = (mouse_x - PADDING_X) / cell_w;
-                            /* Start selection and freeze viewport */
-                            start_terminal_selection(term, term_row, term_col);
-                        }
+                    /* Start selection only if no selection was cleared */
+                    if (event.button.button == SDL_BUTTON_LEFT && !had_selection) {
+                        /* Convert mouse coordinates to terminal cell coordinates, subtracting padding */
+                        int term_row = (mouse_y - PADDING_Y) / effective_cell_h;
+                        int term_col = (mouse_x - PADDING_X) / cell_w;
+                        /* Start selection and freeze viewport */
+                        start_terminal_selection(term, term_row, term_col);
                     }
                 }
-                /* Mouse clicks in input area are ignored (input area is always active) */
                 break;
             }
 
@@ -1715,11 +1707,9 @@ int main(int argc, char **argv) {
                     window_get_size(win, &motion_win_width, &motion_win_height);
                     float line_height = lisp_x_get_terminal_line_height();
                     int effective_cell_h = (int)(cell_h * line_height);
-                    int dock_height = dock_height_rows(dock_get_text_rows(&dock)) * effective_cell_h;
-                    /* Check if motion is within terminal area (excluding padding) and not in input area */
+                    /* Check if motion is within terminal area (excluding padding) */
                     if (event.motion.x >= PADDING_X && event.motion.x < motion_win_width - PADDING_X &&
-                        event.motion.y >= PADDING_Y && event.motion.y < motion_win_height - PADDING_Y &&
-                        event.motion.y < motion_win_height - dock_height - PADDING_Y) {
+                        event.motion.y >= PADDING_Y && event.motion.y < motion_win_height - PADDING_Y) {
                         /* Convert mouse coordinates to terminal cell coordinates, subtracting padding */
                         int term_row = (event.motion.y - PADDING_Y) / effective_cell_h;
                         int term_col = (event.motion.x - PADDING_X) / cell_w;
