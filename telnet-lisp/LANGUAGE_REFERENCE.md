@@ -614,7 +614,7 @@ String equality - returns true if `str1` and `str2` have identical character seq
 
 - `concat` - Concatenate multiple strings
 - `split` - Split string by pattern (supports wildcards: `*`, `?`, `[]`)
-- `length` - Get length of sequence (list, string, or vector). For strings, returns Unicode codepoint count.
+- `length` - Get length of sequence (list, string, or vector). For strings, returns grapheme cluster count (human-visible characters).
 - `substring` - Extract substring by character indices (UTF-8 aware)
 - `string-ref` - Get character at index (UTF-8 aware, returns character type)
 - `string-append` - Alias for `concat`
@@ -1654,7 +1654,7 @@ Convert to tail recursion by:
 (string-prefix? "lis" "lisp")        ; => 1
 
 ; UTF-8 string operations
-(length "Hello, 世界!")               ; => 10 (codepoint count)
+(length "Hello, 世界! 🌍")            ; => 12 (grapheme clusters)
 (substring "Hello, 世界!" 7 9)        ; => "世界"
 (string-ref "Hello, 世界!" 7)        ; => "世"
 

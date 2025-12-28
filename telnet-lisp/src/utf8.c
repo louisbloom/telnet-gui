@@ -1,7 +1,31 @@
 #include "../include/utf8.h"
 #include <stdlib.h>
 
-/* Count UTF-8 characters in string (not bytes) */
+/* Check if codepoint is a grapheme extender (variation selector, combining mark, ZWJ) */
+static int is_grapheme_extender(int cp) {
+    /* Variation selectors */
+    if ((cp >= 0xFE00 && cp <= 0xFE0F) || /* Variation Selectors */
+        (cp >= 0xE0100 && cp <= 0xE01EF)) /* Variation Selectors Supplement */
+        return 1;
+
+    /* Zero-width joiner (used in emoji sequences) */
+    if (cp == 0x200D)
+        return 1;
+
+    /* Combining diacritical marks */
+    if ((cp >= 0x0300 && cp <= 0x036F) || /* Combining Diacritical Marks */
+        (cp >= 0x1AB0 && cp <= 0x1AFF) || /* Combining Diacritical Marks Extended */
+        (cp >= 0x1DC0 && cp <= 0x1DFF) || /* Combining Diacritical Marks Supplement */
+        (cp >= 0x20D0 && cp <= 0x20FF) || /* Combining Diacritical Marks for Symbols */
+        (cp >= 0xFE20 && cp <= 0xFE2F))   /* Combining Half Marks */
+        return 1;
+
+    return 0;
+}
+
+/* Count UTF-8 grapheme clusters in string (human-visible characters).
+ * This counts the number of times you'd press backspace to clear the string.
+ * Variation selectors, combining marks, and ZWJ are not counted separately. */
 size_t utf8_strlen(const char *str) {
     if (str == NULL)
         return 0;
@@ -9,27 +33,15 @@ size_t utf8_strlen(const char *str) {
     size_t count = 0;
     const char *ptr = str;
     while (*ptr) {
-        /* Check if this is start of UTF-8 character */
-        if ((*ptr & 0x80) == 0) {
-            /* ASCII character */
+        int cp = utf8_get_codepoint(ptr);
+        int bytes = utf8_char_bytes(ptr);
+
+        /* Count this codepoint only if it's not a grapheme extender */
+        if (cp >= 0 && !is_grapheme_extender(cp)) {
             count++;
-            ptr++;
-        } else if ((*ptr & 0xE0) == 0xC0) {
-            /* 2-byte character */
-            count++;
-            ptr += 2;
-        } else if ((*ptr & 0xF0) == 0xE0) {
-            /* 3-byte character */
-            count++;
-            ptr += 3;
-        } else if ((*ptr & 0xF8) == 0xF0) {
-            /* 4-byte character */
-            count++;
-            ptr += 4;
-        } else {
-            /* Invalid UTF-8 sequence */
-            ptr++;
         }
+
+        ptr += bytes > 0 ? bytes : 1;
     }
     return count;
 }
@@ -120,7 +132,7 @@ int utf8_validate(const char *str) {
     return 1;
 }
 
-/* Get byte offset to character at char_index */
+/* Get byte offset to codepoint at char_index (codepoint-based indexing) */
 size_t utf8_byte_offset(const char *str, size_t char_index) {
     if (str == NULL)
         return 0;
@@ -137,6 +149,62 @@ size_t utf8_byte_offset(const char *str, size_t char_index) {
     }
 
     return byte_offset;
+}
+
+/* Get byte offset to grapheme cluster at grapheme_index (grapheme-based indexing).
+ * This counts visible characters, skipping variation selectors, combining marks, and ZWJ. */
+size_t utf8_grapheme_byte_offset(const char *str, size_t grapheme_index) {
+    if (str == NULL)
+        return 0;
+
+    size_t count = 0;
+    const char *ptr = str;
+
+    while (*ptr) {
+        int cp = utf8_get_codepoint(ptr);
+
+        /* Check if this is a grapheme start (non-extender) */
+        if (cp >= 0 && !is_grapheme_extender(cp)) {
+            if (count >= grapheme_index) {
+                /* We've reached the target grapheme start */
+                return ptr - str;
+            }
+            count++;
+        }
+
+        /* Move to next codepoint */
+        ptr += utf8_char_bytes(ptr);
+    }
+
+    /* Reached end of string */
+    return ptr - str;
+}
+
+/* Get byte length of grapheme cluster starting at ptr.
+ * Returns the total bytes including any following extenders (VS, combining marks, ZWJ). */
+size_t utf8_grapheme_bytes(const char *ptr) {
+    if (ptr == NULL || *ptr == '\0')
+        return 0;
+
+    size_t total_bytes = 0;
+    const char *p = ptr;
+
+    /* Get the base character */
+    int bytes = utf8_char_bytes(p);
+    total_bytes += bytes;
+    p += bytes;
+
+    /* Include any following grapheme extenders */
+    while (*p) {
+        int cp = utf8_get_codepoint(p);
+        if (cp < 0 || !is_grapheme_extender(cp))
+            break;
+        bytes = utf8_char_bytes(p);
+        total_bytes += bytes;
+        p += bytes;
+    }
+
+    return total_bytes;
 }
 
 /* Count bytes in UTF-8 character at ptr */

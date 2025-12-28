@@ -3849,7 +3849,7 @@ static LispObject *builtin_substring(LispObject *args, Environment *env) {
     long long end;
 
     if (end_obj == NIL || end_obj == NULL) {
-        /* No end specified, use string length */
+        /* No end specified, use string length (grapheme count) */
         end = utf8_strlen(str_obj->value.string);
     } else {
         if (end_obj->type != LISP_INTEGER) {
@@ -3862,8 +3862,9 @@ static LispObject *builtin_substring(LispObject *args, Environment *env) {
         return lisp_make_error("substring: invalid start/end indices");
     }
 
-    size_t start_offset = utf8_byte_offset(str_obj->value.string, start);
-    size_t end_offset = utf8_byte_offset(str_obj->value.string, end);
+    /* Use grapheme-based indexing for consistency with length */
+    size_t start_offset = utf8_grapheme_byte_offset(str_obj->value.string, start);
+    size_t end_offset = utf8_grapheme_byte_offset(str_obj->value.string, end);
 
     size_t result_len = end_offset - start_offset;
     char *result = GC_malloc(result_len + 1);

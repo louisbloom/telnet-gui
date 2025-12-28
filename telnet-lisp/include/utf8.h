@@ -213,9 +213,17 @@ const char *utf8_prev_char(const char *str, const char *ptr);
 /* Returns 1 if valid, 0 if invalid */
 int utf8_validate(const char *str);
 
-/* Get byte length of UTF-8 string up to character index */
-/* Returns byte count from start of string to start of character at index */
+/* Get byte length of UTF-8 string up to character index (codepoint-based) */
+/* Returns byte count from start of string to start of codepoint at index */
 size_t utf8_byte_offset(const char *str, size_t char_index);
+
+/* Get byte offset to grapheme cluster at index (grapheme-based indexing) */
+/* This counts visible characters, skipping variation selectors, combining marks, and ZWJ */
+size_t utf8_grapheme_byte_offset(const char *str, size_t grapheme_index);
+
+/* Get byte length of grapheme cluster starting at ptr */
+/* Returns total bytes including any following extenders (VS, combining marks, ZWJ) */
+size_t utf8_grapheme_bytes(const char *ptr);
 
 /* Count bytes in a UTF-8 character starting at ptr */
 /* Returns number of bytes (1-4) or 0 if invalid */
