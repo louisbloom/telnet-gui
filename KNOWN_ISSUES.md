@@ -55,7 +55,7 @@ Potential solutions that were not attempted:
 
 This issue may be resolved in future SDL2 versions or with different renderer configurations.
 
-## Windows: Delayed Detection of Server Connection Closure
+## Windows: Delayed Detection of Intermediate RST Packets
 
 **Platform:** Windows
 **Status:** Known Issue - Platform Limitation
@@ -63,14 +63,16 @@ This issue may be resolved in future SDL2 versions or with different renderer co
 
 ### Description
 
-On Windows, when the server closes the telnet connection while the client is idle (e.g., server idle timeout), the client does not immediately detect the closure. The connection appears active until the user attempts to send data, at which point the closure is detected and reported.
+On Windows, when an intermediate network device (NAT router, firewall, load balancer) drops an idle connection and sends an RST packet, the client does not immediately detect the closure. The connection appears active until the user attempts to send data, at which point the closure is detected and reported.
+
+Note: Server-initiated closes (FIN packets) are detected normally. This issue only affects RST packets from intermediate devices.
 
 ### Root Cause
 
-This is a fundamental Windows Winsock limitation. When a server sends a TCP FIN (graceful close) or RST (reset) packet, Windows does not update the socket state for non-blocking sockets until actual I/O is attempted. Multiple detection methods were tested and all failed:
+This is a fundamental Windows Winsock limitation. When an RST packet is received, Windows does not update the socket state for non-blocking sockets until actual I/O is attempted. Multiple detection methods were tested and all failed:
 
-1. **`select()` with `exceptfds`** - Does not report the socket as exceptional after RST/FIN
-2. **`recv()` with `MSG_PEEK`** - Returns `WSAEWOULDBLOCK` even after the connection is closed
+1. **`select()` with `exceptfds`** - Does not report the socket as exceptional after RST
+2. **`recv()` with `MSG_PEEK`** - Returns `WSAEWOULDBLOCK` even after RST is received
 3. **`getsockopt(SO_ERROR)`** - Returns 0 (no error) even after RST is received
 
 Only when actual send/receive I/O is attempted does Windows report the connection error (e.g., `WSAECONNRESET` error 10054).
@@ -83,11 +85,11 @@ The connection closure will be detected and reported when the user next attempts
 
 TCP keepalive can help prevent NAT/firewall timeouts from dropping idle connections, but does not solve the RST detection problem:
 
-- **Helps with:** NAT routers and firewalls that drop idle connections
-- **Does not help with:** Detecting server-initiated RST packets on Windows
+- **Helps with:** Preventing NAT routers and firewalls from timing out idle connections (keepalive probes count as activity)
+- **Does not help with:** Detecting RST packets that have already been sent
 
 ### Impact
 
-- Users may not immediately realize the connection has been closed by the server
-- The connection state indicator may show "connected" briefly after server closes
+- Users may not immediately realize the connection was dropped by an intermediate device
+- The connection state indicator may show "connected" after an intermediate RST
 - Detection occurs reliably when user next interacts with the connection
