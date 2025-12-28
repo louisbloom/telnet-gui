@@ -94,10 +94,16 @@ typedef struct Dock {
     UndoOpType undo_last_op;  /* For coalescing */
     int undo_last_cursor;     /* Cursor pos after last op */
     int undo_coalesce_active; /* Whether grouping is active */
+
+    /* User input notification */
+    int user_input_received; /* Set on ANY dock interaction, cleared after handling */
 } Dock;
 
 /* Initialize input area */
 void dock_init(Dock *area);
+
+/* Core content modification function - ALL content changes go through this */
+void dock_replace_range(Dock *area, int start, int end, const char *text, int len, int save_to_kill_ring);
 
 /* Insert text at cursor position */
 void dock_insert_text(Dock *area, const char *text, int text_len);

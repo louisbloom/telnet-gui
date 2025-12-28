@@ -1319,11 +1319,6 @@ int main(int argc, char **argv) {
                             /* Process command */
                             process_command(text, telnet, term, &connected_mode, &dock, &quit_requested);
 
-                            /* Scroll to bottom on command */
-                            if (lisp_x_get_scroll_to_bottom_on_user_input()) {
-                                terminal_scroll_to_bottom(term);
-                            }
-
                             /* Add to history and clear input area */
                             dock_history_add(&dock);
                             dock_clear(&dock);
@@ -1332,11 +1327,6 @@ int main(int argc, char **argv) {
                             if (dock.eval_buf && lisp_x_eval_and_echo(text, dock.eval_buf) == 0) {
                                 terminal_feed_data(term, dynamic_buffer_data(dock.eval_buf),
                                                    dynamic_buffer_len(dock.eval_buf));
-                            }
-
-                            /* Scroll to bottom */
-                            if (lisp_x_get_scroll_to_bottom_on_user_input()) {
-                                terminal_scroll_to_bottom(term);
                             }
 
                             /* Add to history and clear input area */
@@ -1353,21 +1343,12 @@ int main(int argc, char **argv) {
 
                             if (transformed_length > 0) {
                                 /* DON'T echo again - raw input was already echoed above */
-                                /* Scroll to bottom on user input if configured */
-                                if (lisp_x_get_scroll_to_bottom_on_user_input()) {
-                                    terminal_scroll_to_bottom(term);
-                                }
-
                                 /* Send transformed text to telnet (unified function handles LF->CRLF, CRLF appending,
                                  * and errors) */
                                 send_to_telnet(telnet, term, &dock, &connected_mode, transformed_text,
                                                transformed_length, 1); /* append_crlf = 1 */
-                            } else {
-                                /* Empty string from hook - scroll to bottom only */
-                                if (lisp_x_get_scroll_to_bottom_on_user_input()) {
-                                    terminal_scroll_to_bottom(term);
-                                }
                             }
+                            /* Empty string from hook - user_input_received already set by dock operations */
 
                             /* Add to history and clear input area */
                             dock_history_add(&dock);
@@ -1378,11 +1359,6 @@ int main(int argc, char **argv) {
                         send_to_telnet(telnet, term, &dock, &connected_mode, "", 0, 1); /* append_crlf = 1 */
                         /* Echo newline to terminal (vterm_feed_data will normalize LF to CRLF) */
                         terminal_feed_data(term, "\n", 1);
-
-                        /* Scroll to bottom on user input if configured */
-                        if (lisp_x_get_scroll_to_bottom_on_user_input()) {
-                            terminal_scroll_to_bottom(term);
-                        }
                     }
                     break;
                 }
@@ -1556,10 +1532,6 @@ int main(int argc, char **argv) {
                             if (text) {
                                 dock_paste(&dock, text);
                                 SDL_free(text);
-                                /* Scroll to bottom on paste (same as typing) */
-                                if (lisp_x_get_scroll_to_bottom_on_user_input()) {
-                                    terminal_scroll_to_bottom(term);
-                                }
                             }
                         }
                     }
@@ -1674,10 +1646,6 @@ int main(int argc, char **argv) {
                 /* Accept tab completion if active (any text input exits tab mode) */
                 if (lisp_x_is_tab_mode_active()) {
                     lisp_x_accept_tab_completion();
-                }
-                /* Scroll to bottom when user starts typing */
-                if (lisp_x_get_scroll_to_bottom_on_user_input()) {
-                    terminal_scroll_to_bottom(term);
                 }
                 /* All text input goes to input area */
                 dock_insert_text(&dock, text, text_len);
@@ -1795,6 +1763,14 @@ int main(int argc, char **argv) {
                 }
                 break;
             }
+            }
+        }
+
+        /* Handle scroll-to-bottom on dock content change (unified handling) */
+        if (dock.user_input_received) {
+            dock.user_input_received = 0;
+            if (lisp_x_get_scroll_to_bottom_on_user_input()) {
+                terminal_scroll_to_bottom(term);
             }
         }
 

@@ -71,58 +71,6 @@ static void redo_clear(Dock *area) {
     area->redo_head = -1;
 }
 
-/* Helper: Check if operation should coalesce with previous */
-static int should_coalesce(Dock *area, UndoOpType op_type, const char *text, int text_len) {
-    if (!area)
-        return 0;
-
-    /* Never coalesce if no previous operation or coalescing disabled */
-    if (!area->undo_coalesce_active || area->undo_count == 0)
-        return 0;
-
-    /* Different operation type breaks coalescing */
-    if (area->undo_last_op != op_type)
-        return 0;
-
-    /* Cursor moved since last operation breaks coalescing */
-    if (area->cursor_pos != area->undo_last_cursor)
-        return 0;
-
-    /* Only coalesce single-character insert operations */
-    if (op_type != UNDO_OP_INSERT)
-        return 0;
-
-    /* Multi-character insert (paste) never coalesces */
-    if (text_len != 1)
-        return 0;
-
-    /* Word boundary detection: space, newline, or punctuation breaks coalescing */
-    char ch = text[0];
-    if (isspace((unsigned char)ch) || ispunct((unsigned char)ch))
-        return 0;
-
-    return 1; /* Coalesce! */
-}
-
-/* Helper: Save state before modification (with coalescing logic) */
-static void undo_save_state(Dock *area, UndoOpType op_type, const char *text, int text_len) {
-    if (!area)
-        return;
-
-    /* Check if we should coalesce with previous operation */
-    if (!should_coalesce(area, op_type, text, text_len)) {
-        /* Push current state to undo stack */
-        undo_push(area);
-    }
-
-    /* Clear redo stack on any modification */
-    redo_clear(area);
-
-    /* Update coalescing state */
-    area->undo_last_op = op_type;
-    area->undo_coalesce_active = 1;
-}
-
 void dock_init(Dock *area) {
     if (!area)
         return;
@@ -167,104 +115,93 @@ void dock_init(Dock *area) {
     area->undo_last_op = UNDO_OP_NONE;
     area->undo_last_cursor = 0;
     area->undo_coalesce_active = 0;
+
+    /* Initialize content change flag */
+    area->user_input_received = 0;
+}
+
+/* Core content modification function - ALL content changes go through this */
+void dock_replace_range(Dock *area, int start, int end, const char *text, int len, int save_to_kill_ring) {
+    if (!area)
+        return;
+    if (start < 0)
+        start = 0;
+    if (end > area->length)
+        end = area->length;
+    if (start > end)
+        return;
+
+    /* Save to kill ring if requested */
+    if (save_to_kill_ring && end > start) {
+        int kill_len = end - start;
+        if (kill_len >= DOCK_MAX_LENGTH)
+            kill_len = DOCK_MAX_LENGTH - 1;
+        memcpy(area->kill_ring, &area->buffer[start], kill_len);
+        area->kill_ring[kill_len] = '\0';
+    }
+
+    /* Perform the replacement */
+    int delete_len = end - start;
+    int delta = len - delete_len;
+
+    /* Check for overflow */
+    if (area->length + delta >= DOCK_MAX_LENGTH)
+        return;
+
+    /* No-op check: nothing to delete and nothing to insert */
+    if (delete_len == 0 && len == 0)
+        return;
+
+    /* Save undo state before modification */
+    undo_push(area);
+    redo_clear(area);
+
+    /* Make room for new text (or shrink) */
+    if (delta != 0) {
+        memmove(&area->buffer[start + len], &area->buffer[end], area->length - end + 1);
+    }
+
+    /* Insert new text */
+    if (len > 0 && text) {
+        memcpy(&area->buffer[start], text, len);
+    }
+
+    area->length += delta;
+    area->buffer[area->length] = '\0';
+    area->cursor_pos = start + len;
+
+    /* ALL bookkeeping in one place */
+    area->needs_redraw = 1;
+    area->needs_layout_recalc = 1;
+    area->user_input_received = 1;
+    area->undo_last_cursor = area->cursor_pos;
+    area->undo_coalesce_active = 0; /* Reset coalescing on any modification */
+    area->undo_last_op = UNDO_OP_NONE;
+    reset_history_search(area);
+    clear_selection_if_active(area);
 }
 
 void dock_insert_text(Dock *area, const char *text, int text_len) {
     if (!area || !text || text_len <= 0)
         return;
-
-    if (area->length + text_len < DOCK_MAX_LENGTH) {
-        /* Save undo state before modification */
-        undo_save_state(area, UNDO_OP_INSERT, text, text_len);
-
-        /* Make room for new text */
-        memmove(&area->buffer[area->cursor_pos + text_len], &area->buffer[area->cursor_pos],
-                area->length - area->cursor_pos);
-        /* Insert new text */
-        memcpy(&area->buffer[area->cursor_pos], text, text_len);
-        area->cursor_pos += text_len;
-        area->length += text_len;
-        /* Null-terminate to ensure no stale data is read */
-        if (area->length < DOCK_MAX_LENGTH) {
-            area->buffer[area->length] = '\0';
-        }
-        area->needs_redraw = 1;
-        area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
-
-        /* Update undo cursor tracking */
-        area->undo_last_cursor = area->cursor_pos;
-
-        /* Reset history prefix search when text is edited */
-        reset_history_search(area);
-        /* Clear selection when text is edited */
-        clear_selection_if_active(area);
-    }
+    dock_replace_range(area, area->cursor_pos, area->cursor_pos, text, text_len, 0);
 }
 
 void dock_delete_char(Dock *area) {
-    if (!area)
+    if (!area || area->cursor_pos >= area->length)
         return;
-
-    if (area->cursor_pos < area->length) {
-        /* Save undo state before modification */
-        undo_save_state(area, UNDO_OP_DELETE, NULL, 0);
-
-        /* Get byte length of UTF-8 character at cursor */
-        int char_bytes = utf8_char_bytes(&area->buffer[area->cursor_pos]);
-        if (char_bytes <= 0)
-            char_bytes = 1;
-
-        memmove(&area->buffer[area->cursor_pos], &area->buffer[area->cursor_pos + char_bytes],
-                area->length - area->cursor_pos - char_bytes);
-        area->length -= char_bytes;
-        /* Clear stale bytes at end */
-        if (area->length < DOCK_MAX_LENGTH) {
-            area->buffer[area->length] = '\0';
-        }
-        area->needs_redraw = 1;
-        area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
-
-        /* Update undo cursor tracking */
-        area->undo_last_cursor = area->cursor_pos;
-
-        /* Reset history prefix search when text is edited */
-        reset_history_search(area);
-        /* Clear selection when text is edited */
-        clear_selection_if_active(area);
-    }
+    int char_bytes = utf8_char_bytes(&area->buffer[area->cursor_pos]);
+    if (char_bytes <= 0)
+        char_bytes = 1;
+    dock_replace_range(area, area->cursor_pos, area->cursor_pos + char_bytes, "", 0, 0);
 }
 
 void dock_backspace(Dock *area) {
-    if (!area)
+    if (!area || area->cursor_pos <= 0)
         return;
-
-    if (area->cursor_pos > 0) {
-        /* Save undo state before modification */
-        undo_save_state(area, UNDO_OP_BACKSPACE, NULL, 0);
-
-        /* Find start of previous UTF-8 character */
-        const char *prev = utf8_prev_char(area->buffer, &area->buffer[area->cursor_pos]);
-        int prev_pos = prev - area->buffer;
-        int bytes_to_delete = area->cursor_pos - prev_pos;
-
-        memmove(&area->buffer[prev_pos], &area->buffer[area->cursor_pos], area->length - area->cursor_pos);
-        area->cursor_pos = prev_pos;
-        area->length -= bytes_to_delete;
-        /* Clear stale bytes at end */
-        if (area->length < DOCK_MAX_LENGTH) {
-            area->buffer[area->length] = '\0';
-        }
-        area->needs_redraw = 1;
-        area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
-
-        /* Update undo cursor tracking */
-        area->undo_last_cursor = area->cursor_pos;
-
-        /* Reset history prefix search when text is edited */
-        reset_history_search(area);
-        /* Clear selection when text is edited */
-        clear_selection_if_active(area);
-    }
+    const char *prev = utf8_prev_char(area->buffer, &area->buffer[area->cursor_pos]);
+    int prev_pos = prev - area->buffer;
+    dock_replace_range(area, prev_pos, area->cursor_pos, "", 0, 0);
 }
 
 void dock_move_cursor(Dock *area, int pos) {
@@ -275,6 +212,9 @@ void dock_move_cursor(Dock *area, int pos) {
         pos = 0;
     if (pos > area->length)
         pos = area->length;
+
+    /* Always mark user input, even if position doesn't change */
+    area->user_input_received = 1;
 
     if (area->cursor_pos != pos) {
         area->cursor_pos = pos;
@@ -287,63 +227,35 @@ void dock_move_cursor(Dock *area, int pos) {
 }
 
 void dock_move_cursor_left(Dock *area) {
-    if (!area)
+    if (!area || area->cursor_pos <= 0) {
+        if (area)
+            area->user_input_received = 1; /* Still mark input even if no movement */
         return;
-
-    if (area->cursor_pos > 0) {
-        /* Move to start of previous UTF-8 character */
-        const char *prev = utf8_prev_char(area->buffer, &area->buffer[area->cursor_pos]);
-        area->cursor_pos = prev - area->buffer;
-        /* Update selection end if selection is active */
-        if (area->selection_active) {
-            area->selection_end = area->cursor_pos;
-        }
-        area->needs_redraw = 1;
     }
+    const char *prev = utf8_prev_char(area->buffer, &area->buffer[area->cursor_pos]);
+    dock_move_cursor(area, prev - area->buffer);
 }
 
 void dock_move_cursor_right(Dock *area) {
-    if (!area)
+    if (!area || area->cursor_pos >= area->length) {
+        if (area)
+            area->user_input_received = 1;
         return;
-
-    if (area->cursor_pos < area->length) {
-        /* Move past current UTF-8 character */
-        int char_bytes = utf8_char_bytes(&area->buffer[area->cursor_pos]);
-        area->cursor_pos += (char_bytes > 0) ? char_bytes : 1;
-        /* Update selection end if selection is active */
-        if (area->selection_active) {
-            area->selection_end = area->cursor_pos;
-        }
-        area->needs_redraw = 1;
     }
+    int char_bytes = utf8_char_bytes(&area->buffer[area->cursor_pos]);
+    dock_move_cursor(area, area->cursor_pos + ((char_bytes > 0) ? char_bytes : 1));
 }
 
 void dock_move_cursor_home(Dock *area) {
     if (!area)
         return;
-
-    if (area->cursor_pos != 0) {
-        area->cursor_pos = 0;
-        /* Update selection end if selection is active */
-        if (area->selection_active) {
-            area->selection_end = area->cursor_pos;
-        }
-        area->needs_redraw = 1;
-    }
+    dock_move_cursor(area, 0);
 }
 
 void dock_move_cursor_end(Dock *area) {
     if (!area)
         return;
-
-    if (area->cursor_pos != area->length) {
-        area->cursor_pos = area->length;
-        /* Update selection end if selection is active */
-        if (area->selection_active) {
-            area->selection_end = area->cursor_pos;
-        }
-        area->needs_redraw = 1;
-    }
+    dock_move_cursor(area, area->length);
 }
 
 /* Find start of word before cursor */
@@ -387,31 +299,13 @@ static int find_word_end(const char *buffer, int length, int cursor_pos) {
 void dock_move_cursor_word_left(Dock *area) {
     if (!area)
         return;
-
-    int new_pos = find_word_start(area->buffer, area->cursor_pos);
-    if (new_pos != area->cursor_pos) {
-        area->cursor_pos = new_pos;
-        /* Update selection end if selection is active */
-        if (area->selection_active) {
-            area->selection_end = area->cursor_pos;
-        }
-        area->needs_redraw = 1;
-    }
+    dock_move_cursor(area, find_word_start(area->buffer, area->cursor_pos));
 }
 
 void dock_move_cursor_word_right(Dock *area) {
     if (!area)
         return;
-
-    int new_pos = find_word_end(area->buffer, area->length, area->cursor_pos);
-    if (new_pos != area->cursor_pos) {
-        area->cursor_pos = new_pos;
-        /* Update selection end if selection is active */
-        if (area->selection_active) {
-            area->selection_end = area->cursor_pos;
-        }
-        area->needs_redraw = 1;
-    }
+    dock_move_cursor(area, find_word_end(area->buffer, area->length, area->cursor_pos));
 }
 
 void dock_move_cursor_beginning(Dock *area) {
@@ -423,116 +317,31 @@ void dock_move_cursor_end_line(Dock *area) {
 }
 
 void dock_kill_to_end(Dock *area) {
-    if (!area)
+    if (!area || area->cursor_pos >= area->length)
         return;
-
-    if (area->cursor_pos < area->length) {
-        /* Save undo state before modification */
-        undo_save_state(area, UNDO_OP_KILL, NULL, 0);
-
-        /* Copy killed text to kill ring */
-        int kill_len = area->length - area->cursor_pos;
-        memcpy(area->kill_ring, &area->buffer[area->cursor_pos], kill_len);
-        area->kill_ring[kill_len] = '\0';
-
-        /* Remove killed text */
-        area->length = area->cursor_pos;
-        area->buffer[area->length] = '\0';
-        area->needs_redraw = 1;
-
-        /* Update undo cursor tracking */
-        area->undo_last_cursor = area->cursor_pos;
-
-        /* Reset history prefix search when text is edited */
-        reset_history_search(area);
-    }
+    dock_replace_range(area, area->cursor_pos, area->length, "", 0, 1);
 }
 
 void dock_kill_from_start(Dock *area) {
-    if (!area)
+    if (!area || area->cursor_pos <= 0)
         return;
-
-    if (area->cursor_pos > 0) {
-        /* Save undo state before modification */
-        undo_save_state(area, UNDO_OP_KILL, NULL, 0);
-
-        /* Copy killed text to kill ring */
-        memcpy(area->kill_ring, area->buffer, area->cursor_pos);
-        area->kill_ring[area->cursor_pos] = '\0';
-
-        /* Remove killed text */
-        memmove(area->buffer, &area->buffer[area->cursor_pos], area->length - area->cursor_pos);
-        area->length -= area->cursor_pos;
-        area->cursor_pos = 0;
-        area->buffer[area->length] = '\0';
-        area->needs_redraw = 1;
-
-        /* Update undo cursor tracking */
-        area->undo_last_cursor = area->cursor_pos;
-
-        /* Reset history prefix search when text is edited */
-        reset_history_search(area);
-    }
+    dock_replace_range(area, 0, area->cursor_pos, "", 0, 1);
 }
 
 void dock_kill_word(Dock *area) {
-    if (!area)
+    if (!area || area->cursor_pos <= 0)
         return;
-
-    if (area->cursor_pos > 0) {
-        int word_start = find_word_start(area->buffer, area->cursor_pos);
-        int kill_len = area->cursor_pos - word_start;
-
-        /* Only proceed if there's something to kill */
-        if (kill_len > 0) {
-            /* Save undo state before modification */
-            undo_save_state(area, UNDO_OP_KILL, NULL, 0);
-
-            /* Copy killed text to kill ring */
-            memcpy(area->kill_ring, &area->buffer[word_start], kill_len);
-            area->kill_ring[kill_len] = '\0';
-
-            /* Remove killed text */
-            memmove(&area->buffer[word_start], &area->buffer[area->cursor_pos], area->length - area->cursor_pos);
-            area->length -= kill_len;
-            area->cursor_pos = word_start;
-            area->buffer[area->length] = '\0';
-            area->needs_redraw = 1;
-
-            /* Update undo cursor tracking */
-            area->undo_last_cursor = area->cursor_pos;
-
-            /* Reset history prefix search when text is edited */
-            reset_history_search(area);
-        }
-    }
+    int word_start = find_word_start(area->buffer, area->cursor_pos);
+    if (word_start < area->cursor_pos)
+        dock_replace_range(area, word_start, area->cursor_pos, "", 0, 1);
 }
 
 void dock_yank(Dock *area) {
     if (!area)
         return;
-
     int kill_len = strlen(area->kill_ring);
-    if (kill_len > 0 && area->length + kill_len < DOCK_MAX_LENGTH) {
-        /* Save undo state before modification */
-        undo_save_state(area, UNDO_OP_YANK, NULL, 0);
-
-        /* Make room for yanked text */
-        memmove(&area->buffer[area->cursor_pos + kill_len], &area->buffer[area->cursor_pos],
-                area->length - area->cursor_pos);
-        /* Insert yanked text */
-        memcpy(&area->buffer[area->cursor_pos], area->kill_ring, kill_len);
-        area->cursor_pos += kill_len;
-        area->length += kill_len;
-        area->buffer[area->length] = '\0';
-        area->needs_redraw = 1;
-
-        /* Update undo cursor tracking */
-        area->undo_last_cursor = area->cursor_pos;
-
-        /* Reset history prefix search when text is edited */
-        reset_history_search(area);
-    }
+    if (kill_len > 0)
+        dock_replace_range(area, area->cursor_pos, area->cursor_pos, area->kill_ring, kill_len, 0);
 }
 
 const char *dock_copy(Dock *area) {
@@ -546,29 +355,9 @@ const char *dock_copy(Dock *area) {
 void dock_paste(Dock *area, const char *text) {
     if (!area || !text)
         return;
-
     int text_len = strlen(text);
-    if (text_len > 0 && area->length + text_len < DOCK_MAX_LENGTH) {
-        /* Save undo state before modification (multi-char insert, never coalesces) */
-        undo_save_state(area, UNDO_OP_INSERT, text, text_len);
-
-        /* Make room for pasted text */
-        memmove(&area->buffer[area->cursor_pos + text_len], &area->buffer[area->cursor_pos],
-                area->length - area->cursor_pos);
-        /* Insert pasted text */
-        memcpy(&area->buffer[area->cursor_pos], text, text_len);
-        area->cursor_pos += text_len;
-        area->length += text_len;
-        area->buffer[area->length] = '\0';
-        area->needs_redraw = 1;
-        area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
-
-        /* Update undo cursor tracking */
-        area->undo_last_cursor = area->cursor_pos;
-
-        /* Reset history prefix search when text is edited */
-        reset_history_search(area);
-    }
+    if (text_len > 0)
+        dock_replace_range(area, area->cursor_pos, area->cursor_pos, text, text_len, 0);
 }
 
 const char *dock_get_kill_ring(Dock *area) {
@@ -662,7 +451,8 @@ void dock_history_restore_current(Dock *area) {
     area->cursor_pos = area->length;
     area->history_index = -1;
     area->needs_redraw = 1;
-    area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
+    area->needs_layout_recalc = 1;
+    area->user_input_received = 1;
 
     /* Reset prefix search */
     area->history_search_active = 0;
@@ -751,7 +541,8 @@ void dock_history_prev(Dock *area) {
             area->length = strlen(area->buffer);
             area->cursor_pos = area->length;
             area->needs_redraw = 1;
-            area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
+            area->needs_layout_recalc = 1;
+            area->user_input_received = 1;
             return;
         }
     }
@@ -788,7 +579,8 @@ void dock_history_next(Dock *area) {
             area->length = strlen(area->buffer);
             area->cursor_pos = area->length;
             area->needs_redraw = 1;
-            area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
+            area->needs_layout_recalc = 1;
+            area->user_input_received = 1;
             return;
         }
     }
@@ -800,20 +592,9 @@ void dock_history_next(Dock *area) {
 }
 
 void dock_clear(Dock *area) {
-    if (!area)
+    if (!area || area->length <= 0)
         return;
-
-    /* Save undo state before clearing (only if there's content) */
-    if (area->length > 0) {
-        undo_save_state(area, UNDO_OP_CLEAR, NULL, 0);
-        area->undo_last_cursor = 0;
-    }
-
-    area->buffer[0] = '\0';
-    area->length = 0;
-    area->cursor_pos = 0;
-    area->needs_redraw = 1;
-    area->needs_layout_recalc = 1; /* Recalculate visual rows for multi-line */
+    dock_replace_range(area, 0, area->length, "", 0, 0);
 }
 
 /* Undo/Redo operations */
@@ -842,6 +623,7 @@ int dock_undo(Dock *area) {
     /* Request redraw */
     area->needs_redraw = 1;
     area->needs_layout_recalc = 1;
+    area->user_input_received = 1;
 
     /* Reset history search */
     reset_history_search(area);
@@ -873,6 +655,7 @@ int dock_redo(Dock *area) {
     /* Request redraw */
     area->needs_redraw = 1;
     area->needs_layout_recalc = 1;
+    area->user_input_received = 1;
 
     /* Reset history search */
     reset_history_search(area);
@@ -1144,43 +927,42 @@ void dock_move_cursor_up_line(Dock *area, int cols) {
     int cursor_row, cursor_col;
     dock_get_cursor_visual_position(area, cols, &cursor_row, &cursor_col);
 
-    if (cursor_row == 0)
-        return; /* Already at first line */
+    int target_pos = area->cursor_pos; /* Default: stay at current position */
 
-    /* Find position in previous visual line at same column */
-    int target_row = cursor_row - 1;
-    int current_row = 0;
-    int current_col = 0;
-    int target_pos = 0;
+    if (cursor_row > 0) {
+        /* Find position in previous visual line at same column */
+        int target_row = cursor_row - 1;
+        int current_row = 0;
+        int current_col = 0;
+        target_pos = 0;
 
-    for (int i = 0; i <= area->length; i++) {
-        if (current_row == target_row && current_col == cursor_col) {
-            target_pos = i;
-            break;
-        }
-        if (current_row == target_row && current_col > cursor_col) {
-            /* Target column doesn't exist on previous line, use end of line */
-            target_pos = i;
-            break;
-        }
-        if (i == area->length) {
-            target_pos = i;
-            break;
-        }
-
-        if (area->buffer[i] == '\n') {
-            current_row++;
-            current_col = 0;
-            if (current_row == target_row + 1 && current_col == 0) {
-                /* Previous line ends with newline */
+        for (int i = 0; i <= area->length; i++) {
+            if (current_row == target_row && current_col == cursor_col) {
                 target_pos = i;
                 break;
             }
-        } else {
-            current_col++;
-            if (current_col >= cols) {
+            if (current_row == target_row && current_col > cursor_col) {
+                target_pos = i;
+                break;
+            }
+            if (i == area->length) {
+                target_pos = i;
+                break;
+            }
+
+            if (area->buffer[i] == '\n') {
                 current_row++;
                 current_col = 0;
+                if (current_row == target_row + 1 && current_col == 0) {
+                    target_pos = i;
+                    break;
+                }
+            } else {
+                current_col++;
+                if (current_col >= cols) {
+                    current_row++;
+                    current_col = 0;
+                }
             }
         }
     }
@@ -1195,43 +977,42 @@ void dock_move_cursor_down_line(Dock *area, int cols) {
     int cursor_row, cursor_col;
     dock_get_cursor_visual_position(area, cols, &cursor_row, &cursor_col);
 
-    if (cursor_row >= area->visual_rows - 1)
-        return; /* Already at last line */
+    int target_pos = area->cursor_pos; /* Default: stay at current position */
 
-    /* Find position in next visual line at same column */
-    int target_row = cursor_row + 1;
-    int current_row = 0;
-    int current_col = 0;
-    int target_pos = area->length;
+    if (cursor_row < area->visual_rows - 1) {
+        /* Find position in next visual line at same column */
+        int target_row = cursor_row + 1;
+        int current_row = 0;
+        int current_col = 0;
+        target_pos = area->length;
 
-    for (int i = 0; i <= area->length; i++) {
-        if (current_row == target_row && current_col == cursor_col) {
-            target_pos = i;
-            break;
-        }
-        if (current_row == target_row && current_col > cursor_col) {
-            /* Target column doesn't exist on next line, use end of line */
-            target_pos = i;
-            break;
-        }
-        if (i == area->length) {
-            target_pos = i;
-            break;
-        }
-
-        if (area->buffer[i] == '\n') {
-            current_row++;
-            current_col = 0;
-            if (current_row == target_row + 1) {
-                /* Next line ends with newline */
+        for (int i = 0; i <= area->length; i++) {
+            if (current_row == target_row && current_col == cursor_col) {
                 target_pos = i;
                 break;
             }
-        } else {
-            current_col++;
-            if (current_col >= cols) {
+            if (current_row == target_row && current_col > cursor_col) {
+                target_pos = i;
+                break;
+            }
+            if (i == area->length) {
+                target_pos = i;
+                break;
+            }
+
+            if (area->buffer[i] == '\n') {
                 current_row++;
                 current_col = 0;
+                if (current_row == target_row + 1) {
+                    target_pos = i;
+                    break;
+                }
+            } else {
+                current_col++;
+                if (current_col >= cols) {
+                    current_row++;
+                    current_col = 0;
+                }
             }
         }
     }
