@@ -571,6 +571,13 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
                     int cw = cell_w;
                     int ch = cell_h;
                     int hw = cw / 2, hh = ch / 2; /* half width/height */
+#if HAVE_RLOTTIE
+                    /* Set clip rect to prevent block elements from drawing outside cell bounds */
+                    if (g_animation && animation_is_loaded(g_animation)) {
+                        SDL_Rect block_clip = {cx, cy, cw, ch};
+                        SDL_RenderSetClipRect(state->sdl_renderer, &block_clip);
+                    }
+#endif
                     SDL_SetRenderDrawColor(state->sdl_renderer, fg_color.r, fg_color.g, fg_color.b, 255);
                     SDL_Rect r;
                     switch (cp) {
@@ -689,6 +696,12 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
                         break;
                     }
                     SDL_RenderFillRect(state->sdl_renderer, &r);
+#if HAVE_RLOTTIE
+                    /* Reset clip rect after block element rendering */
+                    if (g_animation && animation_is_loaded(g_animation)) {
+                        SDL_RenderSetClipRect(state->sdl_renderer, NULL);
+                    }
+#endif
                 } else {
                     /* Regular text: use vertical offset for line height centering */
                     dst_y = row * cell_h + PADDING_Y + vertical_offset;
