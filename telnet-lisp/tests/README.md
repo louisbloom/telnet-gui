@@ -11,33 +11,26 @@ For complete language documentation, see **[LANGUAGE_REFERENCE.md](../LANGUAGE_R
 
 ```
 tests/
-├── basic/          # Core functionality tests
-├── advanced/       # Advanced features
-├── regression/     # Regression tests
-├── test_runner.sh  # Test harness script
-└── README.md       # This file
+├── basic/           # Core functionality tests
+├── advanced/        # Advanced features
+├── regression/      # Regression tests
+├── test-helpers.lisp # Assertion macros for tests
+└── README.md        # This file
 ```
 
 ## Test Format
 
-Each test file is a Lisp program that demonstrates features and validates behavior.
-
-### Expected Output Format
-
-Add comments to specify expected outputs:
+Tests use assertion macros from `test-helpers.lisp`:
 
 ```lisp
-(+ 1 2 3)                 ; => 6
-(define x 5)              ; ignore (define has no output)
-(* x 10)                  ; => 50
-(factorial 5)             ; => 120
+(load "telnet-lisp/tests/test-helpers.lisp")
+
+(assert-equal (+ 1 2) 3 "addition works")
+(assert-true (> 5 3) "5 is greater than 3")
+(assert-false (null? '(1 2)) "non-empty list is not null")
+(assert-error (/ 1 0) "division by zero throws error")
+(assert-nil (assoc 'z '((a 1) (b 2))) "missing key returns nil")
 ```
-
-### Comment Markers
-
-- `; => value` - Exact expected output
-- `; ignore` - Skip validation (for define, comments, etc.)
-- Multiple expressions with `; =>` comments are validated in sequence
 
 ## Running Tests
 
@@ -56,27 +49,27 @@ ctest --verbose              # Show detailed output
 
 ```bash
 # Run a specific test
-./lisp-repl.exe tests/basic/recursion.lisp
-
-# Run with validation harness
-./test_runner.sh tests/basic/recursion.lisp
+./lisp-repl tests/basic/recursion.lisp
 ```
 
 ## Adding New Tests
 
 1. Create a `.lisp` file in the appropriate category
-2. Add test expressions with expected output comments
-3. The test harness automatically validates outputs
-4. Tests are discovered automatically by CMake
+2. Load test-helpers.lisp and use assertion macros
+3. Tests are discovered automatically by CMake
 
 ### Example Test File
 
 ```lisp
-; Test description
-(+ 2 2)                     ; => 4
-(- 10 5)                    ; => 5
+(load "telnet-lisp/tests/test-helpers.lisp")
+
+(assert-equal (+ 2 2) 4 "basic addition")
+(assert-equal (* 3 3) 9 "basic multiplication")
+
 (define square (lambda (x) (* x x)))
-(square 5)                  ; => 25
+(assert-equal (square 5) 25 "square function")
+
+(princ "All tests passed!\n")
 ```
 
 ## Categories
@@ -85,79 +78,67 @@ ctest --verbose              # Show detailed output
 
 Core functionality tests:
 
+- **alists.lisp** - Association list operations (assoc, assq, alist-get)
+- **and_or_list.lisp** - Boolean operators and list operations
+- **characters.lisp** - Character type and operations
+- **format.lisp** - String formatting with `format`
+- **hash_tables.lisp** - Hash table operations (make-hash-table, hash-ref, hash-set!, hash-keys, hash-values)
+- **integer_ops.lisp** - Integer operations (quotient, remainder, modulo)
+- **integers.lisp** - Integer arithmetic, type coercion, even?, odd?
+- **length.lisp** - Unified `length` function and `substring` with grapheme cluster support
+- **list_reverse.lisp** - List reversal
+- **path_expansion.lisp** - Path expansion (home-directory, expand-path)
+- **printing.lisp** - Print functions (princ, prin1, print)
 - **recursion.lisp** - Recursive functions (factorial, Fibonacci)
-- **integers.lisp** - Integer arithmetic, type coercion, integer operations (quotient, remainder, even?, odd?)
-- **vectors.lisp** - Vector operations (make-vector, vector-ref, vector-set!, vector-push!, vector-pop!, vector-length)
-  - **Includes regression tests** for `make-vector` with initial values (bug fix: Nov 2024)
-- **hash_tables.lisp** - Hash table operations (make-hash-table, hash-ref, hash-set!, hash-keys, hash-values, etc.)
-- **strings.lisp** - String operations (concat, split, string-length, substring, string-replace, case conversion)
-  - **Includes regression tests** for `string?` predicate (Nov 2024)
+- **string_number_conversion.lisp** - String/number conversion
+- **string-index.lisp** - String indexing operations
+- **strings.lisp** - String operations (concat, split, length, substring, string-replace, case conversion)
+- **symbols.lisp** - Symbol operations
+- **vectors.lisp** - Vector operations (make-vector, vector-ref, vector-set!, vector-push!, vector-pop!, length)
 
 ### advanced/
 
 Advanced features:
 
-- **named_functions.lisp** - Named function definitions with `define`
-- **let_star.lisp** - Sequential let bindings with `let*`
-  - **Includes regression tests** for `let*` body evaluation (bug fix: Nov 2024)
-- **do_loop.lisp** - Iteration with `do` loops
+- **collection_iteration.lisp** - Collection iteration (dolist, dotimes)
 - **cond_case.lisp** - Multi-way conditionals (`cond`, `case`)
+- **condition-system.lisp** - Error handling (condition-case, unwind-protect)
+- **do_loop.lisp** - Iteration with `do` loops
+- **docstrings.lisp** - Documentation strings
+- **equality.lisp** - Equality predicates (eq?, equal?, string=?)
+- **file_io.lisp** - File reading and writing
+- **let_star.lisp** - Sequential let bindings with `let*`
+- **load.lisp** - File loading with `load`
+- **macros.lisp** - Macro definition and expansion
+- **named_functions.lisp** - Named function definitions with `define`
+- **optional-parameters.lisp** - Optional and rest parameters
 - **progn.lisp** - Sequential evaluation with `progn`
-- **regex.lisp** - PCRE2 regex operations (match, find, extract, replace, split, escape)
-  - **Includes detailed parameter documentation** for `regex-replace` (Nov 2024)
-- **utf8.lisp** - UTF-8 string support (character-based length, substring, string-ref)
-- **file_io.lisp** - File reading and writing (open, close, read-line, write-line, read-sexp, read-json)
+- **quasiquote.lisp** - Quasiquotation and unquote
+- **regex.lisp** - PCRE2 regex operations (match, find, extract, replace, split)
+- **tail_recursion.lisp** - Tail call optimization
+- **utf8.lisp** - UTF-8 string support (grapheme-based length, substring, string-ref)
 
 ### regression/
 
-Regression tests for:
+Regression tests for bug fixes:
 
-- **core_features.lisp** - Core feature validation
+- **cond_case_multi_expr.lisp** - Multiple expressions in cond/case clauses
+- **list_ref_type_check.lisp** - Type checking in list-ref
 - **multiline_parsing.lisp** - Multi-line expression parsing
-- Bug fixes and edge cases
+- **nested-unknown-hash-syntax.lisp** - Nested hash syntax handling
+- **tail_call_unwrap.lisp** - Tail call result unwrapping
 
-## Test Validation
+## Test Helpers
 
-The `test_runner.sh` harness:
+The `test-helpers.lisp` file provides assertion macros:
 
-1. Runs the Lisp file through the interpreter (`lisp-repl`)
-2. Captures all output from the program
-3. Extracts expected outputs from `; =>` comments
-4. Compares actual vs expected output line by line
-5. Reports pass/fail with details on mismatches
-6. Provides meaningful error messages with context
-
-### How It Works
-
-```bash
-# The test runner compares actual output with expected comments
-# Example test file:
-(+ 1 2 3)                 ; => 6
-
-# The runner:
-# 1. Runs: ./lisp-repl test_file.lisp
-# 2. Captures output: "6"
-# 3. Extracts expected: "6" (from ; => comment)
-# 4. Compares: "6" == "6" → PASS
-```
-
-## Benefits
-
-- **Dual purpose**: Tests serve as both validation and examples
-- **Self-documenting**: Expected outputs show feature behavior
-- **Maintainable**: One file per feature/functionality
-- **Automated**: CMake discovers and runs all tests automatically
-- **Validated**: Actual output checking, not just exit codes
-- **Regression prevention**: Recent bug fixes have regression tests to prevent recurrence
-
-## Recent Test Additions (November 2024)
-
-New regression tests added to prevent future bugs:
-
-- **`make-vector` initialization**: Test that `(make-vector size initial-value)` correctly initializes all elements
-- **`let*` body evaluation**: Test that `let*` evaluates all body expressions and returns the last value
-- **`string?` predicate**: Test that `string?` correctly identifies strings
-- **`regex-replace` clarity**: Added parameter names and descriptions to avoid argument order confusion
+| Macro          | Usage                                  | Description            |
+| -------------- | -------------------------------------- | ---------------------- |
+| `assert-equal` | `(assert-equal actual expected "msg")` | Check equality         |
+| `assert-true`  | `(assert-true condition "msg")`        | Check truthy value     |
+| `assert-false` | `(assert-false condition "msg")`       | Check falsy value      |
+| `assert-error` | `(assert-error expr "msg")`            | Check that expr throws |
+| `assert-nil`   | `(assert-nil expr "msg")`              | Check for nil result   |
 
 ## See Also
 
