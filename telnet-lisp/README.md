@@ -8,176 +8,43 @@ A minimal, embeddable Lisp interpreter library written in C. This implementation
 
 ### Core Language
 
-- **Data Types**: Numbers, integers, booleans, strings (UTF-8), lists, vectors, hash tables, lambdas, errors
+- **Data Types**: Numbers, integers, booleans, strings (UTF-8), characters, lists, vectors, hash tables, lambdas, errors
 - **Special Forms**: `quote`, `quasiquote`, `if`, `define`, `set!`, `lambda`, `defmacro`, `let`/`let*`, `progn`, `do`, `cond`, `case`, `condition-case`, `unwind-protect`
 - **Macros**: Code transformation with `defmacro`, quasiquote (`` ` ``), unquote (`,`), unquote-splicing (`,@`), and built-in `defun` macro
 - **Error Handling**: Emacs Lisp-style condition system with `signal`, `condition-case`, `unwind-protect`, and error introspection
 - **Functions**: Arithmetic, strings, lists, vectors, hash tables, regex (PCRE2), file I/O
-- **Type Predicates**: `null?`, `atom?`, `integer?`, `boolean?`, `number?`, `string?`, `vector?`, `hash-table?`, `error?`
+- **Type Predicates**: `null?`, `atom?`, `integer?`, `boolean?`, `number?`, `string?`, `char?`, `vector?`, `hash-table?`, `error?`
 
-See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for all function listings and examples.
+See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for complete function listings and examples.
 
 ### Advanced Features
 
 - **Condition System**: Emacs Lisp-style error handling with typed errors, catch/handle, and guaranteed cleanup
-  - `signal` - Raise typed errors with symbols (e.g., `'division-by-zero`)
-  - `condition-case` - Catch and handle specific error types
-  - `unwind-protect` - Guarantee cleanup code execution (like try-finally)
-  - Error introspection: `error?`, `error-type`, `error-message`, `error-stack`, `error-data`
-  - Symbol-based error types allow user-defined errors
 - **Tail Call Optimization**: Trampoline-based tail recursion enables efficient recursive algorithms without stack overflow
 - **Lexical Scoping**: Lambdas capture their environment
-- **First-Class Functions**: Functions can be passed as arguments
-- **Higher-Order Functions**: Functions that operate on functions
+- **First-Class Functions**: Functions can be passed as arguments and returned from functions
 - **Closures**: Functions with captured variables
-- **Global State Management**: Variables persist and can be updated across the REPL session
-- **Quote Syntax**: `'expr` shorthand for `(quote expr)`, `` `expr`` for `(quasiquote expr)`, `,expr` for unquote, `,@expr` for unquote-splicing
-- **Truthy/Falsy**: Traditional Lisp semantics (only nil is false, everything else including 0, "", empty collections is true)
-- **Memory Management**: Automatic garbage collection with Boehm GC
 - **Regex Support**: Full PCRE2 integration for advanced pattern matching with UTF-8 support
-- **Wildcard Patterns**: Enhanced wildcard matching in `string-match?` and `split`
-- **UTF-8 Support**: Full Unicode string support with character-based operations (not byte-based)
-  - Strings stored as UTF-8 byte sequences internally
-  - UTF-8 aware string operations: `string-length`, `substring`, `string-ref`
-  - Line ending support for Unix (`\n`), Windows (`\r\n`), and Mac (`\r`) in file I/O
-  - PCRE2 regex compiled with UTF-8 and Unicode character property support
+- **UTF-8 Support**: Full Unicode string support with grapheme-based operations
+  - `length` returns grapheme cluster count (human-visible characters)
+  - `substring` and `string-ref` use grapheme-based indexing
+  - Variation selectors and combining marks handled correctly
+- **Memory Management**: Automatic garbage collection with Boehm GC
 
 ## Building
 
-### Prerequisites
+For build prerequisites and platform-specific setup (MSYS2, Linux, macOS), see the [main README](../README.md#building-from-source).
 
-Install required packages for your platform:
-
-**Windows (MSYS2 UCRT64):**
+**Quick build:**
 
 ```bash
-pacman -S mingw-w64-ucrt-x86_64-gc mingw-w64-ucrt-x86_64-pcre2 mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake
-```
-
-**Linux/macOS:**
-
-```bash
-# Install via package manager
-sudo apt-get install libgc-dev libpcre2-8-dev      # Linux
-brew install bdw-gc pcre2                          # macOS
-```
-
-### Building
-
-```bash
+cd telnet-lisp
 mkdir build && cd build
-cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+cmake ..
 cmake --build .
 ```
 
-**Running Tests:**
-
-```bash
-cd build && ctest  # Full test suite
-ctest -R basic     # Specific category
-ctest -R advanced  # Advanced tests
-ctest -R regression # Regression tests
-ctest --verbose    # Detailed output
-
-# Run individual test files
-cd build
-./lisp-repl ../tests/basic/recursion.lisp
-
-# Or use the test runner (from project root)
-./test_runner.sh tests/basic/vectors.lisp
-VERBOSE=1 ./test_runner.sh tests/basic/hash_tables.lisp  # Verbose output
-```
-
-See [tests/README.md](tests/README.md) for more details.
-
-## Windows Development
-
-### MSYS2 UCRT64 Environment
-
-This project is built for MSYS2 UCRT64 on Windows.
-
-**⚠️ Compiler Requirements:**
-
-- **Supported**: GCC (via MSYS2 UCRT64)
-- **NOT Supported**: MSVC (Visual Studio)
-
-**Installing MSYS2:**
-
-1. Download MSYS2 from [https://www.msys2.org/](https://www.msys2.org/)
-2. Run the installer and follow the setup wizard
-3. Launch "MSYS2 UCRT64" from the Start menu
-4. Update packages: `pacman -Syu` (may need to run twice)
-5. Install toolchain: `pacman -S mingw-w64-ucrt-x86_64-toolchain`
-
-**⚠️ CRITICAL REQUIREMENT**: The final executable must NOT depend on `msys-2.0.dll`
-
-**Interactive Shell:**
-
-```bash
-# Adjust path for your MSYS2 installation
-C:\msys64\msys2_shell.cmd -defterm -here -no-start -ucrt64
-```
-
-**PowerShell Commands with UCRT64 Tools:**
-
-```powershell
-# Adjust MSYS2 path for your installation
-C:\msys64\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "<command>"
-
-# If installed via Scoop
-C:\Users\YourUser\scoop\apps\msys2\current\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "<command>"
-```
-
-**Example Build Commands:**
-
-```powershell
-# Find your MSYS2 installation path, then:
-$MSYS2_ROOT = "C:\msys64"  # Or wherever MSYS2 is installed
-
-# Install dependencies
-& "$MSYS2_ROOT\msys2_shell.cmd" -defterm -here -no-start -ucrt64 -c "pacman -S mingw-w64-ucrt-x86_64-gc mingw-w64-ucrt-x86_64-pcre2"
-
-# Build project
-& "$MSYS2_ROOT\msys2_shell.cmd" -defterm -here -no-start -ucrt64 -c "mkdir -p build && cd build && cmake .. && cmake --build ."
-
-# Format source code
-& "$MSYS2_ROOT\msys2_shell.cmd" -defterm -here -no-start -ucrt64 -c "cd build && cmake --build . --target format"
-
-# Generate compile_commands.json for clangd
-& "$MSYS2_ROOT\msys2_shell.cmd" -defterm -here -no-start -ucrt64 -c "mkdir -p build && cd build && cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
-```
-
-**Note**: MSYS2 may be installed in different locations:
-
-- Default: `C:\msys64\`
-- Scoop: `C:\Users\<user>\scoop\apps\msys2\current\`
-- Chocolatey: `C:\ProgramData\chocolatey\lib\msys2\`
-
-### Verification
-
-After building, verify the executable has no `msys-2.0.dll` dependency:
-
-```bash
-# Check dependencies (should NOT show msys-2.0.dll)
-ldd lisp-repl.exe
-
-# Or use objdump
-objdump -p lisp-repl.exe | grep DLL
-```
-
-**Installation:**
-
-```bash
-# Using CMake install target
-cd build
-sudo cmake --install .  # Linux/macOS
-cmake --install .       # Windows (MSYS2)
-
-# Or use the install scripts (located in parent directory)
-cd ..
-sudo ./install.sh       # Linux/macOS
-./install.bat           # Windows
-```
+**Running tests:** See [tests/README.md](tests/README.md)
 
 ## Usage
 
@@ -192,14 +59,8 @@ lisp-repl -h, --help      # Show help message
 
 ### REPL Mode
 
-Run the REPL interactively:
-
 ```bash
-# Linux/macOS
 ./lisp-repl
-
-# Windows
-./lisp-repl.exe
 ```
 
 REPL Commands:
@@ -209,46 +70,23 @@ REPL Commands:
 
 ### Command-Line Execution
 
-Execute Lisp code directly from the command line using the `-c` flag:
-
 ```bash
-# Simple expressions
-./lisp-repl -c "(+ 1 2 3)"           # Output: 6
-
-# Multiple expressions
-./lisp-repl -c "(define x 10) (* x 5)"   # Output: 10, 50
-
-# Complex operations
-./lisp-repl -c "(map (lambda (x) (* x 2)) '(1 2 3 4 5))"  # Output: (2 4 6 8 10)
-
-# String operations
-./lisp-repl -c '(concat "hello" " " "world")'  # Output: "hello world"
+./lisp-repl -c "(+ 1 2 3)"                                    # => 6
+./lisp-repl -c "(map (lambda (x) (* x 2)) '(1 2 3 4 5))"     # => (2 4 6 8 10)
+./lisp-repl -c '(concat "hello" " " "world")'                 # => "hello world"
 ```
 
 Exit code is 0 on success, 1 on error.
 
 ### Running Files
 
-Execute Lisp files directly:
-
 ```bash
-# Linux/macOS
 ./lisp-repl script.lisp
-
-# Windows
-./lisp-repl.exe script.lisp
 ```
 
-### Embedding in Your Application
+## Embedding in Your Application
 
 The library is self-contained and can be copied into any project. For detailed packaging instructions, see [PACKAGING.md](PACKAGING.md).
-
-**Simple Integration:**
-
-```bash
-# Copy this entire directory (telnet-lisp library) into your project
-cp -r /path/to/telnet-lisp/telnet-lisp/telnet-lisp ./libs/telnet-lisp
-```
 
 **CMake Integration:**
 
@@ -260,192 +98,87 @@ target_link_libraries(myapp lisp)
 **Using the Library:**
 
 ```c
-#include "lisp.h"  // If copied into project
-// OR #include <lisp.h>  // If installed system-wide
+#include "lisp.h"
 
 int main() {
-    // Initialize the interpreter (includes GC initialization)
     lisp_init();
-
-    // Create a global environment
     Environment* env = env_create_global();
 
-    // Evaluate a string
     LispObject* result = lisp_eval_string("(+ 1 2 3)", env);
-
-    // Print the result
     char* output = lisp_print(result);
     printf("%s\n", output);  // Prints: 6
-    // No need to free output - GC handles it
 
-    // Load a file
-    result = lisp_load_file("script.lisp", env);
-
-    // Cleanup (GC handles most cleanup automatically)
     env_free(env);
     lisp_cleanup();
-
     return 0;
 }
 ```
 
-## Examples
-
-The `tests/` directory contains validated examples that serve as both documentation and test cases. Each file demonstrates specific features with expected outputs:
-
-**Basic Features:**
-
-- `tests/basic/recursion.lisp` - Recursive functions and factorial
-- `tests/basic/vectors.lisp` - Vector operations and manipulation
-- `tests/basic/hash_tables.lisp` - Hash table operations
-- `tests/basic/integers.lisp` - Integer arithmetic and type coercion
-- `tests/basic/strings.lisp` - String operations
-
-**Advanced Features:**
-
-- `tests/advanced/condition-system.lisp` - Error handling with signal, condition-case, and unwind-protect
-- `tests/advanced/tail_recursion.lisp` - Tail call optimization examples (factorial, fibonacci, mutual recursion)
-- `tests/advanced/named_functions.lisp` - Named function definitions
-- `tests/advanced/do_loop.lisp` - Iteration with `do` loops
-- `tests/advanced/cond_case.lisp` - Multi-way conditionals
-- `tests/advanced/progn.lisp` - Sequential evaluation
-- `tests/advanced/regex.lisp` - PCRE2 regex operations
-- `tests/advanced/utf8.lisp` - UTF-8 string support
-- `tests/advanced/file_io.lisp` - File reading and writing
-
-**Regression Tests:**
-
-- `tests/regression/tail_call_unwrap.lisp` - Tail call unwrapping regression tests
-- `tests/regression/tail_call_basic.lisp` - Basic tail call scenarios
-- `tests/regression/simple_tail.lisp` - Minimal tail call test
-- `tests/regression/core_features.lisp` - Core feature tests
-- `tests/regression/multiline_parsing.lisp` - Multi-line expression parsing
-
-Run the examples:
-
-```bash
-./lisp-repl.exe tests/basic/recursion.lisp
-./lisp-repl.exe tests/advanced/cond_case.lisp
-```
-
-View all examples:
-
-```bash
-find tests -name "*.lisp"
-```
-
 ## Quick Start
-
-### Basic Example
 
 ```lisp
 ; Arithmetic and variables
 (define x 10)
-(define y 20)
-(+ x y)                              ; => 30
+(+ x 20)                             ; => 30
 
 ; Functions
 (define square (lambda (n) (* n n)))
 (square 5)                           ; => 25
 
-; Lists and strings
-(list 1 2 3)                         ; => (1 2 3)
-(concat "Hello" " " "World")         ; => "Hello World"
+; Lists
+(map (lambda (x) (* x 2)) '(1 2 3))  ; => (2 4 6)
+(filter even? '(1 2 3 4 5 6))        ; => (2 4 6)
+
+; Strings with Unicode
+(length "Hello, 世界! 🌍")            ; => 12
 
 ; Conditionals
 (if (> 10 5) "yes" "no")             ; => "yes"
 ```
 
-**📖 For full language documentation with all functions and examples, see [LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)**
+**📖 For full documentation, see [LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)**
 
-**📁 For executable examples with expected outputs, see the `tests/` directory:**
+## C API Reference
 
-- `tests/basic/` - Core functionality examples (recursion, vectors, strings, etc.)
-- `tests/advanced/` - Advanced features (regex, file I/O, UTF-8, do loops, cond/case)
-- `tests/regression/` - Regression test cases
+### Core Functions
 
-Each test file is both executable code and documentation with expected outputs marked inline.
+| Function                        | Description                 |
+| ------------------------------- | --------------------------- |
+| `lisp_init()`                   | Initialize the interpreter  |
+| `lisp_eval_string(code, env)`   | Parse and evaluate a string |
+| `lisp_load_file(filename, env)` | Load and evaluate a file    |
+| `lisp_cleanup()`                | Free global resources       |
 
-## API Reference
+### Parsing and Evaluation
 
-### Simple API
-
-- `int lisp_init()` - Initialize the interpreter
-- `LispObject* lisp_eval_string(const char* code, Environment* env)` - Parse and evaluate a string
-- `void lisp_cleanup()` - Free global resources
-
-### Advanced API
-
-- `LispObject* lisp_read(const char** input)` - Parse input into AST
-- `LispObject* lisp_eval(LispObject* expr, Environment* env)` - Evaluate an expression
-- `char* lisp_print(LispObject* obj)` - Convert object to string (GC-managed, don't free)
-- `void lisp_princ(LispObject* obj)` - Print object in human-readable form (no quotes for strings)
-- `void lisp_prin1(LispObject* obj)` - Print object in readable representation (with quotes for strings)
-- `void lisp_print_cl(LispObject* obj)` - Print object like `prin1` but adds newline before and after
-- `LispObject* lisp_load_file(const char* filename, Environment* env)` - Load and evaluate a file
+| Function               | Description                           |
+| ---------------------- | ------------------------------------- |
+| `lisp_read(input)`     | Parse input into AST                  |
+| `lisp_eval(expr, env)` | Evaluate an expression                |
+| `lisp_print(obj)`      | Convert object to string (GC-managed) |
 
 ### Object Creation
 
-- `LispObject* lisp_make_number(double value)`
-- `LispObject* lisp_make_integer(long long value)`
-- `LispObject* lisp_make_string(const char* value)`
-- `LispObject* lisp_make_symbol(const char* name)`
-- `LispObject* lisp_make_boolean(int value)`
-- `LispObject* lisp_make_cons(LispObject* car, LispObject* cdr)`
-- `LispObject* lisp_make_error(const char* message)`
+| Function                   | Description                  |
+| -------------------------- | ---------------------------- |
+| `lisp_make_number(value)`  | Create floating-point number |
+| `lisp_make_integer(value)` | Create integer               |
+| `lisp_make_string(value)`  | Create string                |
+| `lisp_make_symbol(name)`   | Create symbol                |
+| `lisp_make_boolean(value)` | Create boolean               |
+| `lisp_make_cons(car, cdr)` | Create cons cell             |
+| `lisp_make_error(message)` | Create error object          |
 
 ### Environment Management
 
-- `Environment* env_create(Environment* parent)` - Create new environment
-- `Environment* env_create_global()` - Create global environment with built-ins
-- `void env_define(Environment* env, const char* name, LispObject* value)` - Define variable
-- `LispObject* env_lookup(Environment* env, const char* name)` - Look up variable
-- `void env_free(Environment* env)` - Free environment
+| Function                       | Description                              |
+| ------------------------------ | ---------------------------------------- |
+| `env_create(parent)`           | Create new environment                   |
+| `env_create_global()`          | Create global environment with built-ins |
+| `env_define(env, name, value)` | Define variable                          |
+| `env_lookup(env, name)`        | Look up variable                         |
+| `env_free(env)`                | Free environment                         |
 
 ## License
 
-This is a demonstration project. Feel free to use and modify as needed.
-
-## Future Enhancements
-
-Potential additions for future versions:
-
-### Recently Completed ✨
-
-- **Traditional Lisp Truthy/Falsy**: Changed to traditional Lisp semantics where only `nil` is false (December 5, 2025)
-- **Condition System**: Emacs Lisp-style error handling with `signal`, `condition-case`, `unwind-protect`, and full error introspection (December 5, 2025)
-- **Macro System**: Metaprogramming with `defmacro`, quasiquote (`` ` ``), unquote (`,`), and unquote-splicing (`,@`) for code transformation
-- **Tail Call Optimization**: Trampoline-based tail recursion for efficient recursive algorithms without stack overflow
-- **UTF-8 Support**: Full Unicode string support with character-based operations (`string-length`, `substring`, `string-ref`)
-- **Enhanced File I/O**: Support for Unix, Windows, and Mac line endings
-- **Improved REPL File Mode**: Now prints all expression results when running files
-- **New Data Types**: Integers, booleans, vectors, and hash tables with all operations
-- **Type Coercion**: Automatic integer/float promotion in arithmetic operations
-- **Modern Naming Conventions**: Scheme-style predicates (`?` suffix) and mutating functions (`!` suffix)
-- **Do Loop**: Efficient iteration construct for loops with variable updates
-- **Integer Operations**: Remainder, even?, odd? predicates for number operations
-- **Collection Iteration**: Hash table iteration (keys, values, entries) and list convenience functions (length, ref)
-- **Conditional Forms**: cond (multi-way conditional) and case (pattern matching)
-- **Error Recovery**: Lisp-level call stack traces show the call chain when errors occur
-
-### Recent Bug Fixes
-
-- **Lambda and `let` implicit progn** (November 15, 2025): Fixed to evaluate all body expressions (returns last value, not first)
-- **`make-vector` with initial value** (November 14, 2025): Fixed to properly initialize all vector elements with the provided initial value
-- **`string?` predicate** (November 12, 2025): Confirmed working for type checking strings
-- **`remainder` operation** (October 26, 2025): Confirmed working for integer modulo operations
-
-### High Priority
-
-(none - all high priority features completed!)
-
-### Medium Priority
-
-- More regex features (lookahead, lookbehind, non-capturing groups)
-- Performance optimizations (bytecode compilation)
-
-### Low Priority
-
-- Additional list operations (reverse, append, map, filter, fold)
-- Modules/packages for code organization
-- Namespaces for variable organization
+MIT License - see [LICENSE](../LICENSE) file for details.
