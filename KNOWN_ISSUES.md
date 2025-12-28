@@ -55,50 +55,6 @@ Potential solutions that were not attempted:
 
 This issue may be resolved in future SDL2 versions or with different renderer configurations.
 
-## Emoji with Variation Selectors Need Extra Spacing
-
-**Platform:** All
-**Status:** Known Limitation
-**Severity:** Minor Visual Issue
-
-### Description
-
-Some emoji that use variation selectors (U+FE0F) to request emoji presentation are reported as 1-cell width by libvterm, but visually render as 2-cell width. This causes the emoji to overlap with the following character.
-
-Affected emoji include:
-
-- 🗡️ (U+1F5E1 + U+FE0F) - Dagger
-- ⚔️ (U+2694 + U+FE0F) - Crossed Swords
-- ▶️ (U+25B6 + U+FE0F) - Play Button
-
-Unaffected emoji (inherently 2-cell width):
-
-- ✨ (U+2728) - Sparkles
-- 🎮 (U+1F3AE) - Game Controller
-- 🏰 (U+1F3F0) - Castle
-- 🐉 (U+1F409) - Dragon
-- 🔮 (U+1F52E) - Crystal Ball
-
-### Root Cause
-
-The base characters (U+1F5E1, U+2694, U+25B6) are classified as narrow or ambiguous width in Unicode's East Asian Width property. The variation selector U+FE0F requests emoji presentation but doesn't change the width classification used by terminal emulators.
-
-### Workaround
-
-Add an extra space after affected emoji:
-
-```lisp
-;; Incorrect - will overlap
-(tintin-echo "🗡️⚔️Text")
-
-;; Correct - add space after each affected emoji
-(tintin-echo "🗡️ ⚔️ Text")
-```
-
-### Technical Details
-
-The renderer detects variation selectors and renders affected emoji at 2-cell width for proper appearance, but cannot change the terminal's text layout which already allocated only 1 cell.
-
 ## Windows: Delayed Detection of Server Connection Closure
 
 **Platform:** Windows
@@ -123,10 +79,12 @@ Only when actual send/receive I/O is attempted does Windows report the connectio
 
 The connection closure will be detected and reported when the user next attempts to send data. The message "Connection lost" or "Connection closed" will appear at that time.
 
-Alternative approaches that were considered but rejected:
+### TCP Keepalive
 
-- **TCP Keepalive** - Would prevent server idle timeouts from triggering (sends periodic probes that count as activity)
-- **Application-level heartbeat** - Same issue as TCP keepalive
+TCP keepalive can help prevent NAT/firewall timeouts from dropping idle connections, but does not solve the RST detection problem:
+
+- **Helps with:** NAT routers and firewalls that drop idle connections
+- **Does not help with:** Detecting server-initiated RST packets on Windows
 
 ### Impact
 
