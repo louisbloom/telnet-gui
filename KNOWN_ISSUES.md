@@ -48,7 +48,7 @@ The artifact is cosmetic only and does not affect functionality. Users can:
 
 Potential solutions that were not attempted:
 
-- Using a different SDL2 renderer backend (software vs. accelerated)
+- Using the software renderer instead of hardware-accelerated
 - Setting a custom window background color via Windows API
 - Using SDL2's window flags to control resize behavior
 - Investigating SDL2 version-specific behavior
