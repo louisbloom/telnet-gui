@@ -9,7 +9,6 @@ Convert telnet session logs into beautiful, terminal-styled HTML pages with full
 - **Text formatting** - Bold, dim, italic, underline, blink, reverse, strikethrough
 - **Terminal-styled dark theme** - GitHub-inspired dark colors
 - **Color-coded labels** - SEND (green) vs RECV (cyan) direction labels
-- **Timestamps** - Gray timestamps for each log entry
 - **Self-contained** - No external dependencies, works offline
 - **Monospace font** - Authentic terminal look with Consolas/Monaco
 
@@ -225,4 +224,4 @@ This script is part of the telnet-gui project. See the main project LICENSE for 
 ## See Also
 
 - `telnet-gui` - The telnet client that generates these logs
-- `bootstrap.lisp` - Configuration for telnet logging (`*enable-telnet-logging*`)
+- `init.lisp` - Configuration for telnet logging (`*enable-telnet-logging*`)
