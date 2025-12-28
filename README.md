@@ -52,7 +52,6 @@ See [Building from Source](#building-from-source) for installation instructions.
 **Other Options:**
 
 - `-l, --lisp-file FILE` - Load Lisp configuration file. Supports relative paths (e.g., `contrib/practice.lisp`). Searches current directory first, then standard locations. Absolute paths are loaded directly.
-- `-t, --test FILE` - Run Lisp test file in headless mode
 - `-h, --help` - Show help message
 
 ### Built-in Features
@@ -251,6 +250,38 @@ Emacs-style timers for scheduling Lisp code:
 - `repeat-ms` - Repeat interval in ms (0 for one-shot)
 - `callback` - Function to call
 - `args` - Arguments list for callback
+
+### Notification System
+
+Temporary notifications displayed below the terminal divider:
+
+```lisp
+;; Show notification for 3 seconds
+(notify "Connection established!" 3000)
+
+;; Use default timeout (5 seconds)
+(notify "New message from Djurden")
+
+;; With ANSI colors
+(notify "\033[32m✓ Connected\033[0m to server")
+
+;; Clear current notification and queue
+(notification-clear)
+```
+
+**Notification functions:**
+
+| Function               | Arguments                     | Description                                  |
+| ---------------------- | ----------------------------- | -------------------------------------------- |
+| `notify`               | `(message &optional timeout)` | Display notification with auto-dismiss       |
+| `notification-clear`   | `()`                          | Clear current notification and pending queue |
+| `notification-active?` | `()`                          | Check if notification is showing             |
+
+**Configuration:**
+
+- `*notification-timeout*` - Default display time in milliseconds (5000)
+
+Notifications queue automatically - if one is showing when another is requested, the new one displays after the current one expires.
 
 ### Animation System
 
