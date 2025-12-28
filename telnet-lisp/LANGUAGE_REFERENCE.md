@@ -23,7 +23,7 @@ A reference for the Telnet Lisp language, covering data types, special forms, bu
 - **Strings**: C-style null-terminated strings with full UTF-8 support
 - **Characters**: Unicode characters (codepoints) with `#\a` reader syntax
 - **Lists**: Cons cells for linked lists
-- **Vectors**: Dynamic arrays (grow/shrink)
+- **Vectors**: Dynamic arrays with `#(elem ...)` literal syntax (grow/shrink)
 - **Hash Tables**: Key-value mappings
 - **Symbols**: Interned names with optional docstrings (used for variables, functions, keywords)
 - **Lambda Functions**: User-defined closures with lexical scoping
@@ -614,7 +614,7 @@ String equality - returns true if `str1` and `str2` have identical character seq
 
 - `concat` - Concatenate multiple strings
 - `split` - Split string by pattern (supports wildcards: `*`, `?`, `[]`)
-- `string-length` - Get character count (UTF-8 aware, not byte count)
+- `length` - Get length of sequence (list, string, or vector). For strings, returns Unicode codepoint count.
 - `substring` - Extract substring by character indices (UTF-8 aware)
 - `string-ref` - Get character at index (UTF-8 aware, returns character type)
 - `string-append` - Alias for `concat`
@@ -817,8 +817,9 @@ Convert number to string representation with optional radix parameter.
 - `car` - Get first element of list
 - `cdr` - Get rest of list
 - `cons` - Construct new list cell
+- `set-car!` - Set first element of cons cell (mutating)
+- `set-cdr!` - Set rest of cons cell (mutating)
 - `list` - Create list from arguments
-- `list-length` - Get length of list
 - `list-ref` - Get element at index (0-based)
 - `reverse` - Reverse a list (returns new list with elements in reverse order)
 - `append` - Concatenate multiple lists into a single list (returns new list)
@@ -881,6 +882,8 @@ Functions for transforming lists by applying a function to each element.
 
 - `map` - Apply function to each element of list, returns new list of results
 - `mapcar` - Same as map (Common Lisp compatibility)
+- `filter` - Filter list elements that satisfy predicate, returns new list
+- `apply` - Apply function to list of arguments
 
 **Examples:**
 
@@ -908,7 +911,6 @@ Functions for transforming lists by applying a function to each element.
 - `make-vector` - Create a vector of specified size, optionally with initial value for all elements
 - `vector-ref` - Get element at index
 - `vector-set!` - Set element at index (mutating)
-- `vector-length` - Get vector size
 - `vector-push!` - Append to end (mutating)
 - `vector-pop!` - Remove from end (mutating)
 - `vector?` - Check if value is a vector
@@ -1652,7 +1654,7 @@ Convert to tail recursion by:
 (string-prefix? "lis" "lisp")        ; => 1
 
 ; UTF-8 string operations
-(string-length "Hello, 世界! 🌍")     ; => 15 (character count)
+(length "Hello, 世界!")               ; => 10 (codepoint count)
 (substring "Hello, 世界!" 7 9)        ; => "世界"
 (string-ref "Hello, 世界!" 7)        ; => "世"
 
@@ -2005,6 +2007,13 @@ message_count                        ; => 2
 ### Vector Operations
 
 ```lisp
+; Vector literals
+#(1 2 3)                             ; => #(1 2 3)
+#()                                  ; => #() (empty vector)
+#(a b c)                             ; => #(a b c)
+(vector-ref #(a b c) 1)              ; => b
+(length #(1 2 3))                    ; => 3
+
 ; Create vector with initial value
 (define v (make-vector 5 42))        ; Create vector of 5 elements, all set to 42
 v                                    ; => #(42 42 42 42 42)
@@ -2022,7 +2031,7 @@ vec                                  ; => #(10 20 30)
 (vector-ref vec 1)                   ; => 20
 (vector-set! vec 1 99)
 vec                                  ; => #(10 99 30)
-(vector-length vec)                  ; => 3
+(length vec)                         ; => 3
 
 ; Pop elements
 (vector-pop! vec)                    ; => 30
