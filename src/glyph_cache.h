@@ -25,10 +25,11 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
 /* Create a new glyph cache with a specific backend */
 /* backend: GLYPH_CACHE_BACKEND_SDL_TTF or GLYPH_CACHE_BACKEND_DIRECTWRITE */
 /* use_cleartype: Enable ClearType rendering (DirectWrite only, ignored for SDL_ttf) */
+/* metrics_only: If true, only load main font for cell metrics (skip bold/emoji/symbol) */
 GlyphCache *glyph_cache_create_with_backend(GlyphCacheBackendType backend, SDL_Renderer *renderer,
                                              const char *font_path, const char *font_name, int font_size,
                                              int hinting_mode, SDL_ScaleMode scale_mode, int hdpi, int vdpi,
-                                             int use_cleartype);
+                                             int use_cleartype, int metrics_only);
 
 /* Get a cached texture for a glyph */
 /* is_emoji: if true and emoji font available, use it even if main font has the glyph */

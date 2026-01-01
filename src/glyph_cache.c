@@ -252,16 +252,17 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
 GlyphCache *glyph_cache_create_with_backend(GlyphCacheBackendType backend, SDL_Renderer *renderer,
                                             const char *font_path, const char *font_name, int font_size,
                                             int hinting_mode, SDL_ScaleMode scale_mode, int hdpi, int vdpi,
-                                            int use_cleartype) {
+                                            int use_cleartype, int metrics_only) {
 #ifdef _WIN32
     if (backend == GLYPH_CACHE_BACKEND_DIRECTWRITE) {
         return glyph_cache_create_directwrite(renderer, font_path, font_name, font_size, hinting_mode, scale_mode, hdpi,
-                                              vdpi, use_cleartype);
+                                              vdpi, use_cleartype, metrics_only);
     }
 #else
     (void)use_cleartype; /* Unused on non-Windows */
 #endif
-    (void)backend; /* Default to SDL_ttf */
+    (void)backend;      /* Default to SDL_ttf */
+    (void)metrics_only; /* SDL_ttf backend doesn't use this yet */
     return glyph_cache_create(renderer, font_path, font_name, font_size, hinting_mode, scale_mode, hdpi, vdpi);
 }
 

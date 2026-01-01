@@ -15,9 +15,10 @@ int directwrite_init(void);
 void directwrite_shutdown(void);
 
 /* Create a glyph cache using DirectWrite backend */
+/* metrics_only: If true, only load main font for cell metrics (skip bold/emoji/symbol) */
 GlyphCache *glyph_cache_create_directwrite(SDL_Renderer *renderer, const char *font_path, const char *font_name,
                                             int font_size, int hinting_mode, SDL_ScaleMode scale_mode, int hdpi,
-                                            int vdpi, int use_cleartype);
+                                            int vdpi, int use_cleartype, int metrics_only);
 
 /* Get a glyph texture using DirectWrite (called via dispatch from glyph_cache_get) */
 SDL_Texture *glyph_cache_directwrite_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg_color, SDL_Color bg_color,

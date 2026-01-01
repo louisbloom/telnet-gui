@@ -35,6 +35,7 @@ struct GlyphCache {
     void *dw_factory;          /* IDWriteFactory* */
     void *dw_gdi_interop;      /* IDWriteGdiInterop* */
     void *dw_font_face;        /* IDWriteFontFace* */
+    void *dw_bold_face;        /* IDWriteFontFace* for bold */
     void *dw_emoji_face;       /* IDWriteFontFace* for emoji */
     void *dw_symbol_face;      /* IDWriteFontFace* for symbols */
     void *dw_render_target;    /* IDWriteBitmapRenderTarget* */

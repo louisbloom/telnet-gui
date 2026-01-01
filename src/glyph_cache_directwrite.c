@@ -176,6 +176,86 @@ static const char *find_symbol_font_path(void) {
     return find_first_existing_font(fonts);
 }
 
+/* Derive bold font path from regular font path.
+ * Supports multiple naming conventions:
+ * - Distributed fonts: {Name}-Regular.ttf -> {Name}-Bold.ttf
+ * - DejaVu style: DejaVuSansMono.ttf -> DejaVuSansMono-Bold.ttf
+ * - Windows system fonts: consola.ttf -> consolab.ttf, cour.ttf -> courbd.ttf
+ * Returns allocated string (caller must free) or NULL if not found. */
+static char *find_bold_font_path(const char *regular_path) {
+    if (!regular_path)
+        return NULL;
+
+    size_t path_len = strlen(regular_path);
+    if (path_len < 5)
+        return NULL; /* Too short for .ttf */
+
+    /* Allocate buffer for bold path (extra space for "-Bold" suffix) */
+    char *bold_path = (char *)malloc(path_len + 16);
+    if (!bold_path)
+        return NULL;
+
+    /* Strategy 1: Replace -Regular.ttf with -Bold.ttf */
+    const char *regular_suffix = strstr(regular_path, "-Regular.ttf");
+    if (!regular_suffix)
+        regular_suffix = strstr(regular_path, "-Regular.TTF");
+    if (regular_suffix) {
+        size_t prefix_len = regular_suffix - regular_path;
+        memcpy(bold_path, regular_path, prefix_len);
+        strcpy(bold_path + prefix_len, "-Bold.ttf");
+        FILE *test = fopen(bold_path, "rb");
+        if (test) {
+            fclose(test);
+            return bold_path;
+        }
+    }
+
+    /* Strategy 2: Insert -Bold before .ttf (for fonts like DejaVuSansMono.ttf) */
+    const char *ttf_ext = strstr(regular_path, ".ttf");
+    if (!ttf_ext)
+        ttf_ext = strstr(regular_path, ".TTF");
+    if (ttf_ext && !strstr(regular_path, "-Regular")) {
+        size_t prefix_len = ttf_ext - regular_path;
+        memcpy(bold_path, regular_path, prefix_len);
+        strcpy(bold_path + prefix_len, "-Bold.ttf");
+        FILE *test = fopen(bold_path, "rb");
+        if (test) {
+            fclose(test);
+            return bold_path;
+        }
+    }
+
+    /* Strategy 3: Windows system font pattern - insert 'b' before .ttf (consola -> consolab) */
+    if (ttf_ext) {
+        size_t prefix_len = ttf_ext - regular_path;
+        memcpy(bold_path, regular_path, prefix_len);
+        bold_path[prefix_len] = 'b';
+        strcpy(bold_path + prefix_len + 1, ".ttf");
+        FILE *test = fopen(bold_path, "rb");
+        if (test) {
+            fclose(test);
+            return bold_path;
+        }
+    }
+
+    /* Strategy 4: Windows system font pattern - insert 'bd' before .ttf (cour -> courbd) */
+    if (ttf_ext) {
+        size_t prefix_len = ttf_ext - regular_path;
+        memcpy(bold_path, regular_path, prefix_len);
+        bold_path[prefix_len] = 'b';
+        bold_path[prefix_len + 1] = 'd';
+        strcpy(bold_path + prefix_len + 2, ".ttf");
+        FILE *test = fopen(bold_path, "rb");
+        if (test) {
+            fclose(test);
+            return bold_path;
+        }
+    }
+
+    free(bold_path);
+    return NULL;
+}
+
 /* Render color emoji using Direct2D with proper alpha channel support.
  * Creates a WIC bitmap, renders with D2D, and returns an SDL_Surface with correct alpha.
  * Returns NULL if color rendering failed or not available. */
@@ -346,7 +426,15 @@ static SDL_Surface *render_glyph_directwrite(GlyphCache *cache, uint32_t codepoi
     if (!cache || !cache->dw_font_face)
         return NULL;
 
-    IDWriteFontFace *face = (IDWriteFontFace *)cache->dw_font_face;
+    /* Select primary font face: bold face if requested and available, otherwise regular */
+    IDWriteFontFace *primary_face;
+    if (bold && cache->dw_bold_face && !is_emoji) {
+        primary_face = (IDWriteFontFace *)cache->dw_bold_face;
+    } else {
+        primary_face = (IDWriteFontFace *)cache->dw_font_face;
+    }
+
+    IDWriteFontFace *face = primary_face;
     IDWriteBitmapRenderTarget *render_target = (IDWriteBitmapRenderTarget *)cache->dw_render_target;
     IDWriteRenderingParams *render_params = (IDWriteRenderingParams *)cache->dw_render_params;
     int used_fallback_font = 0;
@@ -386,7 +474,7 @@ static SDL_Surface *render_glyph_directwrite(GlyphCache *cache, uint32_t codepoi
             used_fallback_font = 0;
         }
     } else {
-        /* For non-emoji, try main font first */
+        /* For non-emoji, try primary font first (bold or regular based on selection above) */
         hr = IDWriteFontFace_GetGlyphIndices(face, &cp, 1, &glyph_index);
 
         /* If main font doesn't have it, try fallback fonts */
@@ -687,7 +775,7 @@ SDL_Texture *glyph_cache_directwrite_get(GlyphCache *cache, uint32_t codepoint, 
 
 GlyphCache *glyph_cache_create_directwrite(SDL_Renderer *renderer, const char *font_path, const char *font_name,
                                            int font_size, int hinting_mode, SDL_ScaleMode scale_mode, int hdpi,
-                                           int vdpi, int use_cleartype) {
+                                           int vdpi, int use_cleartype, int metrics_only) {
     (void)hinting_mode; /* Not used for DirectWrite - it has its own rendering modes */
     (void)hdpi;         /* Only vdpi used for vertical font scaling */
 
@@ -833,19 +921,35 @@ GlyphCache *glyph_cache_create_directwrite(SDL_Renderer *renderer, const char *f
     }
     cache->dw_render_params = render_params;
 
-    /* Load emoji and symbol fonts */
-    const char *emoji_path = find_emoji_font_path();
-    if (emoji_path) {
-        cache->dw_emoji_face = load_font_from_path(emoji_path);
-    }
+    /* Skip loading fallback fonts if only metrics are needed */
+    if (!metrics_only) {
+        /* Load bold font (try to find bold variant of main font) */
+        char *bold_path = find_bold_font_path(font_path);
+        if (bold_path) {
+            cache->dw_bold_face = load_font_from_path(bold_path);
+            if (cache->dw_bold_face) {
+                fprintf(stderr, "DirectWrite: Loaded bold font from '%s'\n", bold_path);
+            }
+            free(bold_path);
+        }
+        if (!cache->dw_bold_face) {
+            fprintf(stderr, "DirectWrite: Bold font not found, will use algorithmic bold\n");
+        }
 
-    const char *symbol_path = find_symbol_font_path();
-    if (symbol_path) {
-        cache->dw_symbol_face = load_font_from_path(symbol_path);
-    }
+        /* Load emoji and symbol fonts */
+        const char *emoji_path = find_emoji_font_path();
+        if (emoji_path) {
+            cache->dw_emoji_face = load_font_from_path(emoji_path);
+        }
 
-    fprintf(stderr, "DirectWrite: Glyph cache created successfully (ClearType=%s)\n",
-            use_cleartype ? "enabled" : "disabled");
+        const char *symbol_path = find_symbol_font_path();
+        if (symbol_path) {
+            cache->dw_symbol_face = load_font_from_path(symbol_path);
+        }
+
+        fprintf(stderr, "DirectWrite: Glyph cache created successfully (ClearType=%s, Bold=%s)\n",
+                use_cleartype ? "enabled" : "disabled", cache->dw_bold_face ? "file" : "algorithmic");
+    }
     return cache;
 }
 
@@ -874,6 +978,9 @@ void glyph_cache_directwrite_destroy(GlyphCache *cache) {
     }
     if (cache->dw_emoji_face) {
         IDWriteFontFace_Release((IDWriteFontFace *)cache->dw_emoji_face);
+    }
+    if (cache->dw_bold_face) {
+        IDWriteFontFace_Release((IDWriteFontFace *)cache->dw_bold_face);
     }
     if (cache->dw_font_face) {
         IDWriteFontFace_Release((IDWriteFontFace *)cache->dw_font_face);

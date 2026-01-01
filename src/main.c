@@ -392,7 +392,7 @@ static void print_help(const char *program_name) {
     printf("    -f, --font-size SIZE   Set font size in points (default: 12)\n");
     printf("    -F<letter>             Select font (default: s = system font):\n");
     printf("                             s = System monospace font (best for platform),\n");
-    printf("                             m = Cascadia Mono, i = Inconsolata,\n");
+    printf("                             m = Cascadia Code, i = Inconsolata,\n");
     printf("                             p = IBM Plex Mono, d = DejaVu Sans Mono,\n");
     printf("                             c = Courier Prime\n");
     printf("    --font <name>          Select font by name:\n");
@@ -461,7 +461,7 @@ int main(int argc, char **argv) {
     int port = 0;
     const char *lisp_files[16]; /* Support up to 16 -l flags */
     int lisp_file_count = 0;
-    char font_choice = 's'; /* Font selection: s=System, m=Cascadia Mono, i=Inconsolata, p=Plex, d=DejaVu, c=Courier */
+    char font_choice = 's'; /* Font selection: s=System, m=Cascadia Code, i=Inconsolata, p=Plex, d=DejaVu, c=Courier */
     int font_size = 12;     /* Default font size */
     int terminal_cols = 80; /* Default terminal columns */
     int terminal_rows = 40; /* Default terminal rows */
@@ -748,8 +748,8 @@ int main(int argc, char **argv) {
     if (font_choice != 's') {
         switch (font_choice) {
         case 'm':
-            font_name = "Cascadia Mono";
-            font_filename = "CascadiaMono-Regular.ttf";
+            font_name = "Cascadia Code";
+            font_filename = "CascadiaCode-Regular.ttf";
             break;
         case 'i':
             font_name = "Inconsolata";
@@ -903,9 +903,10 @@ int main(int argc, char **argv) {
         }
 
         /* Use specified font size with specified hinting and antialiasing */
+        /* Pass metrics_only=1 since we only need cell dimensions here (skip loading bold/emoji/symbol fonts) */
         GlyphCacheBackendType backend = use_directwrite ? GLYPH_CACHE_BACKEND_DIRECTWRITE : GLYPH_CACHE_BACKEND_SDL_TTF;
         glyph_cache = glyph_cache_create_with_backend(backend, temp_renderer, font_paths[i], font_name, font_size,
-                                                      hinting_mode, scale_mode, (int)hdpi, (int)vdpi, use_cleartype);
+                                                      hinting_mode, scale_mode, (int)hdpi, (int)vdpi, use_cleartype, 1);
         if (glyph_cache) {
             loaded_font_path = font_paths[i];
             loaded_font_label = font_path_labels[i];
@@ -966,7 +967,7 @@ int main(int argc, char **argv) {
                 use_directwrite ? GLYPH_CACHE_BACKEND_DIRECTWRITE : GLYPH_CACHE_BACKEND_SDL_TTF;
             glyph_cache =
                 glyph_cache_create_with_backend(backend2, renderer, font_paths[i], font_name, font_size, hinting_mode,
-                                                scale_mode, (int)hdpi, (int)vdpi, use_cleartype);
+                                                scale_mode, (int)hdpi, (int)vdpi, use_cleartype, 0);
             if (glyph_cache) {
                 break;
             }
@@ -1244,7 +1245,7 @@ int main(int argc, char **argv) {
                                 use_directwrite ? GLYPH_CACHE_BACKEND_DIRECTWRITE : GLYPH_CACHE_BACKEND_SDL_TTF;
                             glyph_cache = glyph_cache_create_with_backend(
                                 backend3, renderer, font_path_copy, font_name_copy, font_size, hinting_mode, scale_mode,
-                                (int)new_hdpi, (int)new_vdpi, use_cleartype);
+                                (int)new_hdpi, (int)new_vdpi, use_cleartype, 0);
 
                             free(font_path_copy);
                             free(font_name_copy);
