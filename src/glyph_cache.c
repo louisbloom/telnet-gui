@@ -9,98 +9,6 @@
 #include "glyph_cache_directwrite.h"
 #endif
 
-/* Box filter (area averaging) downscaling for high-quality emoji rendering */
-/* This produces much better results than bilinear for large downscaling ratios */
-static SDL_Surface *box_filter_scale(SDL_Surface *src, int dst_w, int dst_h) {
-    if (!src || dst_w <= 0 || dst_h <= 0)
-        return NULL;
-
-    /* Create destination surface with same format as source */
-    SDL_Surface *dst = SDL_CreateRGBSurfaceWithFormat(0, dst_w, dst_h, src->format->BitsPerPixel, src->format->format);
-    if (!dst)
-        return NULL;
-
-    /* Lock surfaces for direct pixel access */
-    if (SDL_MUSTLOCK(src))
-        SDL_LockSurface(src);
-    if (SDL_MUSTLOCK(dst))
-        SDL_LockSurface(dst);
-
-    int src_w = src->w;
-    int src_h = src->h;
-
-    /* Get color masks for proper channel extraction */
-    SDL_PixelFormat *fmt = src->format;
-    uint32_t rmask = fmt->Rmask;
-    uint32_t gmask = fmt->Gmask;
-    uint32_t bmask = fmt->Bmask;
-    uint32_t amask = fmt->Amask;
-    uint8_t rshift = fmt->Rshift;
-    uint8_t gshift = fmt->Gshift;
-    uint8_t bshift = fmt->Bshift;
-    uint8_t ashift = fmt->Ashift;
-
-    /* Calculate scaling ratios */
-    float scale_x = (float)src_w / dst_w;
-    float scale_y = (float)src_h / dst_h;
-
-    uint32_t *dst_pixels = (uint32_t *)dst->pixels;
-    uint32_t *src_pixels = (uint32_t *)src->pixels;
-    int src_pitch = src->pitch / 4; /* pitch in uint32_t units */
-    int dst_pitch = dst->pitch / 4;
-
-    for (int dy = 0; dy < dst_h; dy++) {
-        for (int dx = 0; dx < dst_w; dx++) {
-            /* Calculate source region for this destination pixel */
-            int sx_start = (int)(dx * scale_x);
-            int sy_start = (int)(dy * scale_y);
-            int sx_end = (int)((dx + 1) * scale_x);
-            int sy_end = (int)((dy + 1) * scale_y);
-
-            /* Clamp to source bounds */
-            if (sx_end > src_w)
-                sx_end = src_w;
-            if (sy_end > src_h)
-                sy_end = src_h;
-
-            /* Accumulate color values */
-            uint32_t r_sum = 0, g_sum = 0, b_sum = 0, a_sum = 0;
-            int count = 0;
-
-            for (int sy = sy_start; sy < sy_end; sy++) {
-                for (int sx = sx_start; sx < sx_end; sx++) {
-                    uint32_t pixel = src_pixels[sy * src_pitch + sx];
-                    /* Extract channels using format masks */
-                    r_sum += (pixel & rmask) >> rshift;
-                    g_sum += (pixel & gmask) >> gshift;
-                    b_sum += (pixel & bmask) >> bshift;
-                    if (amask)
-                        a_sum += (pixel & amask) >> ashift;
-                    else
-                        a_sum += 255;
-                    count++;
-                }
-            }
-
-            /* Average and write destination pixel */
-            if (count > 0) {
-                uint32_t r = r_sum / count;
-                uint32_t g = g_sum / count;
-                uint32_t b = b_sum / count;
-                uint32_t a = a_sum / count;
-                dst_pixels[dy * dst_pitch + dx] = (r << rshift) | (g << gshift) | (b << bshift) | (a << ashift);
-            }
-        }
-    }
-
-    if (SDL_MUSTLOCK(dst))
-        SDL_UnlockSurface(dst);
-    if (SDL_MUSTLOCK(src))
-        SDL_UnlockSurface(src);
-
-    return dst;
-}
-
 /* Find first existing font from a NULL-terminated list of paths */
 static const char *find_first_existing_font(const char *fonts[]) {
     for (int i = 0; fonts[i] != NULL; i++) {
@@ -297,6 +205,9 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
     /* Store space character's minx as baseline for consistent positioning */
     cache->space_minx = minx;
 
+    /* Store font size for fallback font scaling */
+    cache->font_size = font_size;
+
 #if HAVE_SDL_TTF_DPI
     fprintf(stderr, "SDL_ttf: Loaded %s (cell %dx%d, DPI %dx%d)%s\n", font_name, cache->cell_w, cache->cell_h, hdpi,
             vdpi, metrics_only ? " [metrics only]" : "");
@@ -322,9 +233,9 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
             free(bold_path);
         }
 
-        /* Load emoji/symbol fonts at large fixed size (128pt) for quality scaling */
-        cache->emoji_font = load_emoji_font(find_emoji_font, "Emoji", 128, hdpi, vdpi);
-        cache->symbol_font = load_emoji_font(find_symbol_font, "Symbol", 128, hdpi, vdpi);
+        /* Load emoji/symbol fonts at same size as main font (renders at correct scale) */
+        cache->emoji_font = load_emoji_font(find_emoji_font, "Emoji", font_size, hdpi, vdpi);
+        cache->symbol_font = load_emoji_font(find_symbol_font, "Symbol", font_size, hdpi, vdpi);
 
         fprintf(stderr, "SDL_ttf: Fallback fonts: bold=%s, emoji=%s, symbol=%s\n", cache->bold_font ? "yes" : "no",
                 cache->emoji_font ? "yes" : "no", cache->symbol_font ? "yes" : "no");
@@ -473,25 +384,9 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
     if (!surface)
         return NULL;
 
-    /* For emoji font, pre-scale using box filter for better quality */
-    /* This is much better than SDL's bilinear for large downscaling ratios */
-    SDL_Surface *final_surface = surface;
-    if (used_emoji_font && surface->h > cache->cell_h * 2) {
-        /* Scale to approximately 2x cell height, maintaining aspect ratio */
-        int target_h = cache->cell_h * 2;
-        float scale = (float)target_h / surface->h;
-        int target_w = (int)(surface->w * scale);
-
-        SDL_Surface *scaled = box_filter_scale(surface, target_w, target_h);
-        if (scaled) {
-            SDL_FreeSurface(surface);
-            final_surface = scaled;
-        }
-    }
-
     /* Create texture with alpha channel for smooth anti-aliased rendering */
     /* Use SDL_TEXTUREACCESS_STATIC for best performance with cached glyphs */
-    SDL_Texture *texture = SDL_CreateTextureFromSurface(cache->renderer, final_surface);
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(cache->renderer, surface);
     if (texture) {
         /* Use linear scaling for any remaining scaling during render */
         /* Use configured scale mode for main font (usually nearest for pixel-perfect text) */
@@ -499,7 +394,7 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
         /* Enable alpha blending for smooth edges */
         SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
     }
-    SDL_FreeSurface(final_surface);
+    SDL_FreeSurface(surface);
 
     if (texture) {
         /* Get actual texture dimensions */

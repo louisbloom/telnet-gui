@@ -27,6 +27,7 @@ struct GlyphCache {
     CacheNode *cache;
     int cache_size;
     int cell_w, cell_h;
+    int font_size;  /* Point size used for main font (used for fallback font scaling) */
     int space_minx; /* Baseline minx from space character for consistent positioning */
     SDL_ScaleMode scale_mode;
     char *font_path; /* Path to loaded font file */
