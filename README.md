@@ -38,16 +38,20 @@ See [Building from Source](#building-from-source) for installation instructions.
 
 **Font Options:**
 
-- `-f, --font-size SIZE` - Set font size in points (default: 12)
-- `-F<letter>` - Select font: s=System, m=Cascadia, i=Inconsolata, p=Plex, d=DejaVu, c=Courier
-- `--font <name>` - Select font by name
-- `-H, --hinting MODE` - Font hinting: none (default), light, normal, mono
-- `-a, --antialiasing MODE` - Anti-aliasing: linear (default), nearest
+- `-s, --font-size SIZE` - Set font size in points (default: 12)
+- `-f, --font NAME` - Select font by name (system, cascadia, inconsolata, plex, dejavu, courier)
+- `--hinting MODE` - Font hinting: none (default), light, normal, mono
+- `--antialiasing MODE` - Anti-aliasing: nearest (default), linear
+
+**Windows Font Options:**
+
+- `--font-backend BACKEND` - Font rendering: directwrite (default), sdl
+- `--cleartype` / `--no-cleartype` - ClearType subpixel rendering (default: off)
 
 **Terminal Options:**
 
 - `-g, --geometry COLSxROWS` - Set terminal size (default: 80x40)
-- `-L, --line-height HEIGHT` - Line height multiplier (default: 1.0)
+- `--line-height HEIGHT` - Line height multiplier (default: 1.0)
 
 **Other Options:**
 
