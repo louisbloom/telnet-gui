@@ -405,7 +405,7 @@ static void print_help(const char *program_name) {
     printf("    --font-backend BACKEND  Font rendering backend (default: directwrite)\n");
     printf("                             sdl = SDL2_ttf (cross-platform)\n");
     printf("                             directwrite = Windows DirectWrite (native, default)\n");
-    printf("    --cleartype             Enable ClearType subpixel rendering (default: on)\n");
+    printf("    --cleartype             Enable ClearType subpixel rendering (default: off)\n");
     printf("    --no-cleartype          Disable ClearType subpixel rendering\n");
 #endif
     printf("\n");
@@ -469,7 +469,7 @@ int main(int argc, char **argv) {
     float cli_line_height = 0.0f; /* CLI line height (0.0 means not set, use default) */
 #ifdef _WIN32
     int use_directwrite = 1; /* Use DirectWrite font backend (Windows default) */
-    int use_cleartype = 1;   /* Use ClearType rendering with DirectWrite (Windows default) */
+    int use_cleartype = 0;   /* ClearType disabled by default (enable with --cleartype) */
 #else
     int use_directwrite = 0; /* DirectWrite not available on non-Windows */
     int use_cleartype = 0;   /* ClearType not available on non-Windows */
