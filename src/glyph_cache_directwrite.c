@@ -550,8 +550,14 @@ static SDL_Surface *render_glyph_directwrite(GlyphCache *cache, uint32_t codepoi
         /* D2D failed, fall through to GDI rendering */
     }
 
-    /* GDI-based rendering (monochrome or fallback) */
-    COLORREF text_color = RGB(fg_color.r, fg_color.g, fg_color.b);
+    /* GDI-based rendering (monochrome or fallback)
+     * IMPORTANT: Always render with WHITE regardless of fg_color. This ensures consistent
+     * alpha coverage for all colors. If we render with the actual fg_color, colored text
+     * gets lower alpha at edges because max(R,G,B) only sees the channels being used.
+     * Example: Cyan (0,255,255) edge pixel might be (0,180,180) → alpha=180
+     *          White (255,255,255) edge pixel might be (200,255,200) → alpha=255
+     * By rendering white and applying fg_color later, all text gets equal antialiasing. */
+    COLORREF text_color = RGB(255, 255, 255);
     hr = IDWriteBitmapRenderTarget_DrawGlyphRun(render_target, baseline_x, baseline_y, DWRITE_MEASURING_MODE_NATURAL,
                                                 &glyph_run, render_params, text_color, NULL);
     if (FAILED(hr)) {
