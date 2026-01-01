@@ -42,4 +42,19 @@ int file_remove(const char *utf8_path);
  */
 int file_mkdir(const char *utf8_path);
 
+#ifdef _WIN32
+#include <wchar.h>
+
+/* Convert UTF-8 string to UTF-16 (wide char) for Windows APIs.
+ * Caller must free the returned buffer with free().
+ *
+ * Parameters:
+ *   utf8_str - String in UTF-8 encoding
+ *
+ * Returns:
+ *   Wide char string on success, NULL on failure
+ */
+wchar_t *utf8_to_utf16(const char *utf8_str);
+#endif
+
 #endif /* FILE_UTILS_H */

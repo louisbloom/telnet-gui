@@ -1,9 +1,13 @@
 /* Glyph cache implementation */
 
-#include "glyph_cache.h"
+#include "glyph_cache_internal.h"
 #include "../../telnet-lisp/include/utf8.h"
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include "glyph_cache_directwrite.h"
+#endif
 
 /* Box filter (area averaging) downscaling for high-quality emoji rendering */
 /* This produces much better results than bilinear for large downscaling ratios */
@@ -97,29 +101,6 @@ static SDL_Surface *box_filter_scale(SDL_Surface *src, int dst_w, int dst_h) {
     return dst;
 }
 
-/* Simple LRU hash map node */
-typedef struct CacheNode {
-    uint32_t key; /* codepoint | (fg << 24) | (bg << 16) | (bold << 8) | italic */
-    SDL_Texture *texture;
-    int cell_width;  /* Advance width of this glyph */
-    int cell_height; /* Height of the glyph */
-    int minx;        /* Left bearing of the glyph for positioning */
-} CacheNode;
-
-struct GlyphCache {
-    TTF_Font *font;
-    TTF_Font *emoji_font;  /* Emoji font (color emoji) */
-    TTF_Font *symbol_font; /* Symbol font for dingbats/symbols */
-    SDL_Renderer *renderer;
-    CacheNode *cache;
-    int cache_size;
-    int cell_w, cell_h;
-    int space_minx; /* Baseline minx from space character for consistent positioning */
-    SDL_ScaleMode scale_mode;
-    char *font_path; /* Path to loaded font file */
-    char *font_name; /* Display name of font */
-};
-
 /* Find first existing font from a NULL-terminated list of paths */
 static const char *find_first_existing_font(const char *fonts[]) {
     for (int i = 0; fonts[i] != NULL; i++) {
@@ -179,28 +160,14 @@ static TTF_Font *load_emoji_font(const char *(*find_func)(void), const char *nam
     return font;
 }
 
-/* Hash function for cache key */
-static uint32_t hash_key(uint32_t codepoint, SDL_Color fg, SDL_Color bg, int bold, int italic) {
-    /* Use a proper hash function to avoid collisions */
-    /* Combine all values using a simple hash */
-    uint32_t hash = codepoint;
-    hash = hash * 31 + fg.r;
-    hash = hash * 31 + fg.g;
-    hash = hash * 31 + fg.b;
-    hash = hash * 31 + bg.r;
-    hash = hash * 31 + bg.g;
-    hash = hash * 31 + bg.b;
-    hash = hash * 31 + (bold ? 1 : 0);
-    hash = hash * 31 + (italic ? 1 : 0);
-    return hash;
-}
-
 GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, const char *font_name, int font_size,
                                int hinting_mode, SDL_ScaleMode scale_mode, int hdpi, int vdpi) {
     GlyphCache *cache = (GlyphCache *)malloc(sizeof(GlyphCache));
     if (!cache)
         return NULL;
 
+    memset(cache, 0, sizeof(GlyphCache));
+    cache->backend_type = GLYPH_CACHE_BACKEND_SDL_TTF;
     cache->renderer = renderer;
 
     /* Try to load the requested font with DPI awareness if available */
@@ -282,10 +249,32 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
     return cache;
 }
 
+GlyphCache *glyph_cache_create_with_backend(GlyphCacheBackendType backend, SDL_Renderer *renderer,
+                                            const char *font_path, const char *font_name, int font_size,
+                                            int hinting_mode, SDL_ScaleMode scale_mode, int hdpi, int vdpi,
+                                            int use_cleartype) {
+#ifdef _WIN32
+    if (backend == GLYPH_CACHE_BACKEND_DIRECTWRITE) {
+        return glyph_cache_create_directwrite(renderer, font_path, font_name, font_size, hinting_mode, scale_mode, hdpi,
+                                              vdpi, use_cleartype);
+    }
+#else
+    (void)use_cleartype; /* Unused on non-Windows */
+#endif
+    (void)backend; /* Default to SDL_ttf */
+    return glyph_cache_create(renderer, font_path, font_name, font_size, hinting_mode, scale_mode, hdpi, vdpi);
+}
+
 SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg_color, SDL_Color bg_color, int bold,
                              int italic, int is_emoji) {
+#ifdef _WIN32
+    /* Dispatch to DirectWrite backend if active */
+    if (cache->backend_type == GLYPH_CACHE_BACKEND_DIRECTWRITE) {
+        return glyph_cache_directwrite_get(cache, codepoint, fg_color, bg_color, bold, italic, is_emoji);
+    }
+#endif
     /* Create cache key - include is_emoji in key to cache both versions */
-    uint32_t key = hash_key(codepoint, fg_color, bg_color, bold, italic);
+    uint32_t key = glyph_cache_hash_key(codepoint, fg_color, bg_color, bold, italic);
     if (is_emoji)
         key ^= 0x80000000; /* Flip high bit for emoji variant */
     int slot = key % cache->cache_size;
@@ -462,7 +451,7 @@ int glyph_cache_get_glyph_width(GlyphCache *cache, uint32_t codepoint, SDL_Color
     glyph_cache_get(cache, codepoint, fg_color, black_bg, 0, 0, 0);
 
     /* Look up the cached entry */
-    uint32_t key = hash_key(codepoint, fg_color, black_bg, 0, 0);
+    uint32_t key = glyph_cache_hash_key(codepoint, fg_color, black_bg, 0, 0);
     uint32_t slot = key % cache->cache_size;
 
     if (cache->cache[slot].key == key && cache->cache[slot].texture) {
@@ -483,7 +472,7 @@ int glyph_cache_get_minx(GlyphCache *cache, uint32_t codepoint, SDL_Color fg_col
     glyph_cache_get(cache, codepoint, fg_color, black_bg, 0, 0, 0);
 
     /* Look up cache entry */
-    uint32_t key = hash_key(codepoint, fg_color, black_bg, 0, 0);
+    uint32_t key = glyph_cache_hash_key(codepoint, fg_color, black_bg, 0, 0);
     int slot = key % cache->cache_size;
 
     if (cache->cache[slot].key == key && cache->cache[slot].texture) {
@@ -513,6 +502,14 @@ const char *glyph_cache_get_font_name(GlyphCache *cache) {
 void glyph_cache_destroy(GlyphCache *cache) {
     if (!cache)
         return;
+
+#ifdef _WIN32
+    /* Dispatch to DirectWrite backend if active */
+    if (cache->backend_type == GLYPH_CACHE_BACKEND_DIRECTWRITE) {
+        glyph_cache_directwrite_destroy(cache);
+        return;
+    }
+#endif
 
     if (cache->font) {
         TTF_CloseFont(cache->font);

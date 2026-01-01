@@ -51,7 +51,8 @@ void renderer_render(Renderer *r, Terminal *term, const char *title, int selecti
                      int sel_end_col, int sel_end_offset, int sel_end_scrollback, Dock *dock, int terminal_cols) {
     if (!r || !term)
         return;
-    (void)title; /* unused for now */
+    (void)title;         /* unused for now */
+    (void)terminal_cols; /* cols obtained from terminal_get_size() instead */
 
     /* Get terminal size (scrolling area) and calculate total display size */
     int scrolling_rows, cols;

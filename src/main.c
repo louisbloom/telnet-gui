@@ -25,6 +25,9 @@
 #include "window.h"
 #include "renderer.h"
 #include "glyph_cache.h"
+#ifdef _WIN32
+#include "glyph_cache_directwrite.h"
+#endif
 #include "input.h"
 #include "dock.h"
 #include "commands.h"
@@ -398,6 +401,13 @@ static void print_help(const char *program_name) {
     printf("                             MODE can be: none, light, normal, mono\n");
     printf("    -a, --antialiasing MODE Set anti-aliasing mode (default: nearest)\n");
     printf("                             MODE can be: nearest, linear\n");
+#ifdef _WIN32
+    printf("    --font-backend BACKEND  Font rendering backend (default: directwrite)\n");
+    printf("                             sdl = SDL2_ttf (cross-platform)\n");
+    printf("                             directwrite = Windows DirectWrite (native, default)\n");
+    printf("    --cleartype             Enable ClearType subpixel rendering (default: on)\n");
+    printf("    --no-cleartype          Disable ClearType subpixel rendering\n");
+#endif
     printf("\n");
     printf("  Terminal Options:\n");
     printf("    -g, --geometry GEOM     Set terminal size in characters\n");
@@ -457,6 +467,13 @@ int main(int argc, char **argv) {
     int terminal_rows = 40; /* Default terminal rows */
     int debug_exit = 0;     /* Exit after initialization for debug output */
     float cli_line_height = 0.0f; /* CLI line height (0.0 means not set, use default) */
+#ifdef _WIN32
+    int use_directwrite = 1; /* Use DirectWrite font backend (Windows default) */
+    int use_cleartype = 1;   /* Use ClearType rendering with DirectWrite (Windows default) */
+#else
+    int use_directwrite = 0; /* DirectWrite not available on non-Windows */
+    int use_cleartype = 0;   /* ClearType not available on non-Windows */
+#endif
 
     /* Parse command-line arguments */
     int arg_idx = 1;
@@ -588,6 +605,37 @@ int main(int argc, char **argv) {
             }
         } else if (strcmp(argv[arg_idx], "--debug-exit") == 0) {
             debug_exit = 1;
+        } else if (strcmp(argv[arg_idx], "--font-backend") == 0) {
+            if (arg_idx + 1 >= argc) {
+                fprintf(stderr, "Error: --font-backend requires a backend name (sdl, directwrite)\n");
+                return 1;
+            }
+            arg_idx++;
+            if (strcmp(argv[arg_idx], "sdl") == 0 || strcmp(argv[arg_idx], "sdl_ttf") == 0) {
+                use_directwrite = 0;
+            } else if (strcmp(argv[arg_idx], "directwrite") == 0) {
+#ifdef _WIN32
+                use_directwrite = 1;
+#else
+                fprintf(stderr, "Error: DirectWrite backend is only available on Windows\n");
+                return 1;
+#endif
+            } else {
+                fprintf(stderr, "Error: Unknown font backend '%s'. Use: sdl, directwrite\n", argv[arg_idx]);
+                return 1;
+            }
+        } else if (strcmp(argv[arg_idx], "--cleartype") == 0) {
+#ifdef _WIN32
+            use_cleartype = 1;
+#else
+            fprintf(stderr, "Warning: --cleartype is only effective on Windows with DirectWrite backend\n");
+#endif
+        } else if (strcmp(argv[arg_idx], "--no-cleartype") == 0) {
+#ifdef _WIN32
+            use_cleartype = 0;
+#else
+            fprintf(stderr, "Warning: --no-cleartype is only effective on Windows with DirectWrite backend\n");
+#endif
         } else {
             /* Positional arguments: hostname and port */
             if (hostname == NULL) {
@@ -648,6 +696,16 @@ int main(int argc, char **argv) {
         SDL_Quit();
         return 1;
     }
+
+#ifdef _WIN32
+    /* Initialize DirectWrite if requested */
+    if (use_directwrite) {
+        if (directwrite_init() < 0) {
+            fprintf(stderr, "Warning: DirectWrite initialization failed, falling back to SDL_ttf\n");
+            use_directwrite = 0;
+        }
+    }
+#endif
 
     atexit(cleanup);
 
@@ -845,8 +903,9 @@ int main(int argc, char **argv) {
         }
 
         /* Use specified font size with specified hinting and antialiasing */
-        glyph_cache = glyph_cache_create(temp_renderer, font_paths[i], font_name, font_size, hinting_mode, scale_mode,
-                                         (int)hdpi, (int)vdpi);
+        GlyphCacheBackendType backend = use_directwrite ? GLYPH_CACHE_BACKEND_DIRECTWRITE : GLYPH_CACHE_BACKEND_SDL_TTF;
+        glyph_cache = glyph_cache_create_with_backend(backend, temp_renderer, font_paths[i], font_name, font_size,
+                                                      hinting_mode, scale_mode, (int)hdpi, (int)vdpi, use_cleartype);
         if (glyph_cache) {
             loaded_font_path = font_paths[i];
             loaded_font_label = font_path_labels[i];
@@ -903,8 +962,11 @@ int main(int argc, char **argv) {
 
     for (int i = 0; font_paths[i] != NULL; i++) {
         if (strcmp(font_paths[i], loaded_font_path) == 0) {
-            glyph_cache = glyph_cache_create(renderer, font_paths[i], font_name, font_size, hinting_mode, scale_mode,
-                                             (int)hdpi, (int)vdpi);
+            GlyphCacheBackendType backend2 =
+                use_directwrite ? GLYPH_CACHE_BACKEND_DIRECTWRITE : GLYPH_CACHE_BACKEND_SDL_TTF;
+            glyph_cache =
+                glyph_cache_create_with_backend(backend2, renderer, font_paths[i], font_name, font_size, hinting_mode,
+                                                scale_mode, (int)hdpi, (int)vdpi, use_cleartype);
             if (glyph_cache) {
                 break;
             }
@@ -1178,8 +1240,11 @@ int main(int argc, char **argv) {
                             glyph_cache_destroy(glyph_cache);
 
                             /* Create new glyph cache with new DPI */
-                            glyph_cache = glyph_cache_create(renderer, font_path_copy, font_name_copy, font_size,
-                                                             hinting_mode, scale_mode, (int)new_hdpi, (int)new_vdpi);
+                            GlyphCacheBackendType backend3 =
+                                use_directwrite ? GLYPH_CACHE_BACKEND_DIRECTWRITE : GLYPH_CACHE_BACKEND_SDL_TTF;
+                            glyph_cache = glyph_cache_create_with_backend(
+                                backend3, renderer, font_path_copy, font_name_copy, font_size, hinting_mode, scale_mode,
+                                (int)new_hdpi, (int)new_vdpi, use_cleartype);
 
                             free(font_path_copy);
                             free(font_name_copy);

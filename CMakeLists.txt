@@ -306,6 +306,8 @@ set(GUI_SOURCES
 # Add Windows resource file for icon
 if(WIN32)
     list(APPEND GUI_SOURCES telnet-gui.rc)
+    # Add DirectWrite font rendering backend
+    list(APPEND GUI_SOURCES src/glyph_cache_directwrite.c)
 endif()
 
 # Create telnet-gui executable
@@ -1436,6 +1438,10 @@ endif()
 
 if(WIN32)
     target_link_libraries(telnet-gui PRIVATE ws2_32)
+    # DirectWrite for Windows native font rendering backend
+    # windowscodecs for WIC (proper alpha channel support in color emoji)
+    # ole32 for COM initialization (CoCreateInstance)
+    target_link_libraries(telnet-gui PRIVATE dwrite d2d1 gdi32 windowscodecs ole32)
 endif()
 
 # Include directories

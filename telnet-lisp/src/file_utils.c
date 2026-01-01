@@ -13,7 +13,7 @@
  *
  * Returns: Wide char string on success, NULL on failure
  */
-static wchar_t *utf8_to_utf16(const char *utf8_str) {
+wchar_t *utf8_to_utf16(const char *utf8_str) {
     if (!utf8_str)
         return NULL;
 

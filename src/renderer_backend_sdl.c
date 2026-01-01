@@ -294,15 +294,14 @@ static void sdl_render_cell(void *vstate, Terminal *term, int row, int col, cons
                 /* Skip for both true emoji and emoji-style (both render at 2-cell width) */
                 int prev_is_2wide = utf8_is_emoji_2wide(pcp, prev_cell.chars[1]);
                 if (prev_is_2wide) {
-                    /* Only skip if this cell is empty (the overflow area) */
+                    /* Only skip entirely if this cell is empty (the overflow area) */
                     /* If this cell has its own character, render it (consecutive emoji) */
                     if (cell->chars[0] == 0 || cell->chars[0] == ' ') {
                         return;
                     }
-                    /* If current cell is also 2-wide emoji, skip background to avoid erasing prev emoji's overflow */
-                    if (utf8_is_emoji_2wide(cell->chars[0], cell->chars[1])) {
-                        skip_background = 1;
-                    }
+                    /* Previous cell overflows into this one - skip background to preserve overflow */
+                    /* The current cell's glyph will still render on top */
+                    skip_background = 1;
                 }
             }
         }
