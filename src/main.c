@@ -389,17 +389,12 @@ static void print_help(const char *program_name) {
     printf("  -h, --help              Show this help message and exit\n");
     printf("\n");
     printf("  Font Options:\n");
-    printf("    -f, --font-size SIZE   Set font size in points (default: 12)\n");
-    printf("    -F<letter>             Select font (default: s = system font):\n");
-    printf("                             s = System monospace font (best for platform),\n");
-    printf("                             m = Cascadia Code, i = Inconsolata,\n");
-    printf("                             p = IBM Plex Mono, d = DejaVu Sans Mono,\n");
-    printf("                             c = Courier Prime\n");
-    printf("    --font <name>          Select font by name:\n");
+    printf("    -s, --font-size SIZE   Set font size in points (default: 12)\n");
+    printf("    -f, --font NAME        Select font (default: system):\n");
     printf("                             system, cascadia, inconsolata, plex, dejavu, courier\n");
-    printf("    -H, --hinting MODE     Set font hinting mode (default: none)\n");
+    printf("    --hinting MODE         Set font hinting mode (default: none)\n");
     printf("                             MODE can be: none, light, normal, mono\n");
-    printf("    -a, --antialiasing MODE Set anti-aliasing mode (default: nearest)\n");
+    printf("    --antialiasing MODE    Set anti-aliasing mode (default: nearest)\n");
     printf("                             MODE can be: nearest, linear\n");
 #ifdef _WIN32
     printf("    --font-backend BACKEND  Font rendering backend (default: directwrite)\n");
@@ -418,7 +413,7 @@ static void print_help(const char *program_name) {
     printf("    -l, --lisp-file FILE   Load and evaluate Lisp file on startup\n");
     printf("                            Can be specified multiple times (loads in order)\n");
     printf("                            Used to customize completion hooks and scroll settings\n");
-    printf("    -L, --line-height HEIGHT Set line height multiplier (default: 1.0)\n");
+    printf("    --line-height HEIGHT   Set line height multiplier (default: 1.0)\n");
     printf("                            HEIGHT can be 0.5 to 3.0 (e.g., 1.5 for 50%% more spacing)\n");
     printf("    --debug-exit           Exit after initialization (for debug output)\n");
     printf("\n");
@@ -433,14 +428,12 @@ static void print_help(const char *program_name) {
     printf("      Start in unconnected mode\n");
     printf("  %s telnet-server 4449\n", program_name);
     printf("      Connect to telnet-server on port 4449\n");
-    printf("  %s -f 20 telnet-server 4449\n", program_name);
+    printf("  %s -s 20 telnet-server 4449\n", program_name);
     printf("      Connect with 20pt font size\n");
-    printf("  %s -Fi telnet-server 4449\n", program_name);
+    printf("  %s -f inconsolata telnet-server 4449\n", program_name);
     printf("      Connect using Inconsolata font\n");
-    printf("  %s -Fp telnet-server 4449\n", program_name);
+    printf("  %s -f plex telnet-server 4449\n", program_name);
     printf("      Connect using IBM Plex Mono font\n");
-    printf("  %s --font system telnet-server 4449\n", program_name);
-    printf("      Connect using system monospace font (default)\n");
     printf("  %s -g 100x40 telnet-server 4449\n", program_name);
     printf("      Connect with 100x40 terminal size\n");
     printf("  %s -l completion.lisp telnet-server 4449\n", program_name);
@@ -461,7 +454,7 @@ int main(int argc, char **argv) {
     int port = 0;
     const char *lisp_files[16]; /* Support up to 16 -l flags */
     int lisp_file_count = 0;
-    char font_choice = 's'; /* Font selection: s=System, m=Cascadia Code, i=Inconsolata, p=Plex, d=DejaVu, c=Courier */
+    char font_choice = 's'; /* Internal font code: s=system, m=cascadia, i=inconsolata, p=plex, d=dejavu, c=courier */
     int font_size = 12;     /* Default font size */
     int terminal_cols = 80; /* Default terminal columns */
     int terminal_rows = 40; /* Default terminal rows */
@@ -481,7 +474,7 @@ int main(int argc, char **argv) {
         if (strcmp(argv[arg_idx], "-h") == 0 || strcmp(argv[arg_idx], "--help") == 0) {
             print_help(argv[0]);
             return 0;
-        } else if (strcmp(argv[arg_idx], "-H") == 0 || strcmp(argv[arg_idx], "--hinting") == 0) {
+        } else if (strcmp(argv[arg_idx], "--hinting") == 0) {
             if (arg_idx + 1 >= argc) {
                 fprintf(stderr, "Error: --hinting requires a mode (none, light, normal, mono)\n");
                 return 1;
@@ -499,7 +492,7 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Error: Invalid hinting mode '%s'. Use: none, light, normal, mono\n", argv[arg_idx]);
                 return 1;
             }
-        } else if (strcmp(argv[arg_idx], "-a") == 0 || strcmp(argv[arg_idx], "--antialiasing") == 0) {
+        } else if (strcmp(argv[arg_idx], "--antialiasing") == 0) {
             if (arg_idx + 1 >= argc) {
                 fprintf(stderr, "Error: --antialiasing requires a mode (nearest, linear)\n");
                 return 1;
@@ -513,7 +506,7 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Error: Invalid antialiasing mode '%s'. Use: nearest, linear\n", argv[arg_idx]);
                 return 1;
             }
-        } else if (strcmp(argv[arg_idx], "-f") == 0 || strcmp(argv[arg_idx], "--font-size") == 0) {
+        } else if (strcmp(argv[arg_idx], "-s") == 0 || strcmp(argv[arg_idx], "--font-size") == 0) {
             if (arg_idx + 1 >= argc) {
                 fprintf(stderr, "Error: --font-size requires a size (positive integer)\n");
                 return 1;
@@ -524,14 +517,7 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Error: Invalid font size '%s'. Must be between 1 and 100\n", argv[arg_idx]);
                 return 1;
             }
-        } else if (strncmp(argv[arg_idx], "-F", 2) == 0 && strlen(argv[arg_idx]) == 3) {
-            font_choice = argv[arg_idx][2];
-            if (font_choice != 's' && font_choice != 'm' && font_choice != 'i' && font_choice != 'p' &&
-                font_choice != 'd' && font_choice != 'c') {
-                fprintf(stderr, "Error: Invalid font flag -F%c. Use: s, m, i, p, d, or c\n", font_choice);
-                return 1;
-            }
-        } else if (strcmp(argv[arg_idx], "--font") == 0) {
+        } else if (strcmp(argv[arg_idx], "-f") == 0 || strcmp(argv[arg_idx], "--font") == 0) {
             if (arg_idx + 1 >= argc) {
                 fprintf(stderr, "Error: --font requires a font name\n");
                 return 1;
@@ -592,7 +578,7 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Error: Too many -l flags (maximum 16)\n");
                 return 1;
             }
-        } else if (strcmp(argv[arg_idx], "-L") == 0 || strcmp(argv[arg_idx], "--line-height") == 0) {
+        } else if (strcmp(argv[arg_idx], "--line-height") == 0) {
             if (arg_idx + 1 >= argc) {
                 fprintf(stderr, "Error: --line-height requires a value (0.5 to 3.0)\n");
                 return 1;
