@@ -19,8 +19,9 @@ typedef enum {
 /* hinting_mode: TTF_HINTING_NONE, TTF_HINTING_LIGHT, TTF_HINTING_NORMAL, or TTF_HINTING_MONO */
 /* scale_mode: SDL_ScaleModeNearest or SDL_ScaleModeLinear */
 /* hdpi, vdpi: Horizontal and vertical DPI for font rendering (e.g., 96, 96 for Windows default) */
-GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, const char *font_name,
-                                int font_size, int hinting_mode, SDL_ScaleMode scale_mode, int hdpi, int vdpi);
+/* metrics_only: If true, only load main font for cell metrics (skip bold/emoji/symbol) */
+GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, const char *font_name, int font_size,
+                               int hinting_mode, SDL_ScaleMode scale_mode, int hdpi, int vdpi, int metrics_only);
 
 /* Create a new glyph cache with a specific backend */
 /* backend: GLYPH_CACHE_BACKEND_SDL_TTF or GLYPH_CACHE_BACKEND_DIRECTWRITE */

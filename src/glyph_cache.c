@@ -140,11 +140,91 @@ static const char *find_emoji_font(void) {
     return find_first_existing_font(fonts);
 }
 
+/* Derive bold font path from regular font path.
+ * Supports multiple naming conventions:
+ * - Distributed fonts: {Name}-Regular.ttf -> {Name}-Bold.ttf
+ * - DejaVu style: DejaVuSansMono.ttf -> DejaVuSansMono-Bold.ttf
+ * - Windows system fonts: consola.ttf -> consolab.ttf, cour.ttf -> courbd.ttf
+ * Returns allocated string (caller must free) or NULL if not found. */
+static char *find_bold_font_path(const char *regular_path) {
+    if (!regular_path)
+        return NULL;
+
+    size_t path_len = strlen(regular_path);
+    if (path_len < 5)
+        return NULL; /* Too short for .ttf */
+
+    /* Allocate buffer for bold path (extra space for "-Bold" suffix) */
+    char *bold_path = (char *)malloc(path_len + 16);
+    if (!bold_path)
+        return NULL;
+
+    /* Strategy 1: Replace -Regular.ttf with -Bold.ttf */
+    const char *regular_suffix = strstr(regular_path, "-Regular.ttf");
+    if (!regular_suffix)
+        regular_suffix = strstr(regular_path, "-Regular.TTF");
+    if (regular_suffix) {
+        size_t prefix_len = regular_suffix - regular_path;
+        memcpy(bold_path, regular_path, prefix_len);
+        strcpy(bold_path + prefix_len, "-Bold.ttf");
+        FILE *test = fopen(bold_path, "rb");
+        if (test) {
+            fclose(test);
+            return bold_path;
+        }
+    }
+
+    /* Strategy 2: Insert -Bold before .ttf (for fonts like DejaVuSansMono.ttf) */
+    const char *ttf_ext = strstr(regular_path, ".ttf");
+    if (!ttf_ext)
+        ttf_ext = strstr(regular_path, ".TTF");
+    if (ttf_ext && !strstr(regular_path, "-Regular")) {
+        size_t prefix_len = ttf_ext - regular_path;
+        memcpy(bold_path, regular_path, prefix_len);
+        strcpy(bold_path + prefix_len, "-Bold.ttf");
+        FILE *test = fopen(bold_path, "rb");
+        if (test) {
+            fclose(test);
+            return bold_path;
+        }
+    }
+
+    /* Strategy 3: Windows system font pattern - insert 'b' before .ttf (consola -> consolab) */
+    if (ttf_ext) {
+        size_t prefix_len = ttf_ext - regular_path;
+        memcpy(bold_path, regular_path, prefix_len);
+        bold_path[prefix_len] = 'b';
+        strcpy(bold_path + prefix_len + 1, ".ttf");
+        FILE *test = fopen(bold_path, "rb");
+        if (test) {
+            fclose(test);
+            return bold_path;
+        }
+    }
+
+    /* Strategy 4: Windows system font pattern - insert 'bd' before .ttf (cour -> courbd) */
+    if (ttf_ext) {
+        size_t prefix_len = ttf_ext - regular_path;
+        memcpy(bold_path, regular_path, prefix_len);
+        bold_path[prefix_len] = 'b';
+        bold_path[prefix_len + 1] = 'd';
+        strcpy(bold_path + prefix_len + 2, ".ttf");
+        FILE *test = fopen(bold_path, "rb");
+        if (test) {
+            fclose(test);
+            return bold_path;
+        }
+    }
+
+    free(bold_path);
+    return NULL;
+}
+
 /* Load an emoji/symbol font at fixed size, returns NULL if not found or failed */
 static TTF_Font *load_emoji_font(const char *(*find_func)(void), const char *name, int size, int hdpi, int vdpi) {
+    (void)name; /* Used only for debugging if needed */
     const char *path = find_func();
     if (!path) {
-        fprintf(stderr, "No %s font found on system\n", name);
         return NULL;
     }
 #if HAVE_SDL_TTF_DPI
@@ -152,16 +232,11 @@ static TTF_Font *load_emoji_font(const char *(*find_func)(void), const char *nam
 #else
     TTF_Font *font = TTF_OpenFont(path, size);
 #endif
-    if (font) {
-        fprintf(stderr, "%s font loaded at %dpt: %s\n", name, size, path);
-    } else {
-        fprintf(stderr, "Failed to load %s font: %s (%s)\n", name, path, TTF_GetError());
-    }
     return font;
 }
 
 GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, const char *font_name, int font_size,
-                               int hinting_mode, SDL_ScaleMode scale_mode, int hdpi, int vdpi) {
+                               int hinting_mode, SDL_ScaleMode scale_mode, int hdpi, int vdpi, int metrics_only) {
     GlyphCache *cache = (GlyphCache *)malloc(sizeof(GlyphCache));
     if (!cache)
         return NULL;
@@ -174,43 +249,23 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
 #if HAVE_SDL_TTF_DPI
     cache->font = TTF_OpenFontDPI(font_path, font_size, hdpi, vdpi);
     if (!cache->font) {
-        fprintf(stderr, "Font loading error: Failed to load font from '%s' with DPI (%d, %d): %s\n", font_path, hdpi,
-                vdpi, TTF_GetError());
+        fprintf(stderr, "SDL_ttf: Failed to load font '%s': %s\n", font_path, TTF_GetError());
         free(cache);
         return NULL;
     }
-    fprintf(stderr, "Font loaded with DPI: %dx%d at %dpt\n", hdpi, vdpi, font_size);
 #else
     /* Fallback to non-DPI version for older SDL_ttf */
     cache->font = TTF_OpenFont(font_path, font_size);
     if (!cache->font) {
-        fprintf(stderr, "Font loading error: Failed to load font from '%s': %s\n", font_path, TTF_GetError());
+        fprintf(stderr, "SDL_ttf: Failed to load font '%s': %s\n", font_path, TTF_GetError());
         free(cache);
         return NULL;
     }
-    fprintf(stderr, "Font loaded (no DPI support) at %dpt\n", font_size);
 #endif
-
-    /* Verify font loaded successfully */
-    fprintf(stderr, "Font loaded successfully from: %s\n", font_path);
 
     /* Store font path and name */
     cache->font_path = strdup(font_path);
     cache->font_name = strdup(font_name);
-
-    /* Try to get font style to verify it loaded correctly */
-    int font_style = TTF_GetFontStyle(cache->font);
-    fprintf(stderr, "Font style flags: %d (normal=0, bold=1, italic=2, underline=4, strikethrough=8)\n", font_style);
-
-    /* Test rendering a character to verify font is working */
-    SDL_Color test_color = {255, 255, 255, 255};
-    SDL_Surface *test_surface = TTF_RenderGlyph_Blended(cache->font, 'M', test_color);
-    if (test_surface) {
-        fprintf(stderr, "Font test render successful: glyph size %dx%d\n", test_surface->w, test_surface->h);
-        SDL_FreeSurface(test_surface);
-    } else {
-        fprintf(stderr, "Font test render failed: %s\n", TTF_GetError());
-    }
 
     /* Set font rendering style - use provided hinting mode */
     TTF_SetFontHinting(cache->font, hinting_mode);
@@ -242,9 +297,38 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
     /* Store space character's minx as baseline for consistent positioning */
     cache->space_minx = minx;
 
-    /* Load emoji/symbol fonts at large fixed size (128pt) for quality scaling */
-    cache->emoji_font = load_emoji_font(find_emoji_font, "Emoji", 128, hdpi, vdpi);
-    cache->symbol_font = load_emoji_font(find_symbol_font, "Symbol", 128, hdpi, vdpi);
+#if HAVE_SDL_TTF_DPI
+    fprintf(stderr, "SDL_ttf: Loaded %s (cell %dx%d, DPI %dx%d)%s\n", font_name, cache->cell_w, cache->cell_h, hdpi,
+            vdpi, metrics_only ? " [metrics only]" : "");
+#else
+    fprintf(stderr, "SDL_ttf: Loaded %s (cell %dx%d, no DPI)%s\n", font_name, cache->cell_w, cache->cell_h,
+            metrics_only ? " [metrics only]" : "");
+#endif
+
+    /* Skip loading fallback fonts if only metrics are needed */
+    if (!metrics_only) {
+        /* Load bold font if available */
+        char *bold_path = find_bold_font_path(font_path);
+        if (bold_path) {
+#if HAVE_SDL_TTF_DPI
+            cache->bold_font = TTF_OpenFontDPI(bold_path, font_size, hdpi, vdpi);
+#else
+            cache->bold_font = TTF_OpenFont(bold_path, font_size);
+#endif
+            if (cache->bold_font) {
+                TTF_SetFontHinting(cache->bold_font, hinting_mode);
+                TTF_SetFontKerning(cache->bold_font, 0);
+            }
+            free(bold_path);
+        }
+
+        /* Load emoji/symbol fonts at large fixed size (128pt) for quality scaling */
+        cache->emoji_font = load_emoji_font(find_emoji_font, "Emoji", 128, hdpi, vdpi);
+        cache->symbol_font = load_emoji_font(find_symbol_font, "Symbol", 128, hdpi, vdpi);
+
+        fprintf(stderr, "SDL_ttf: Fallback fonts: bold=%s, emoji=%s, symbol=%s\n", cache->bold_font ? "yes" : "no",
+                cache->emoji_font ? "yes" : "no", cache->symbol_font ? "yes" : "no");
+    }
 
     return cache;
 }
@@ -261,9 +345,9 @@ GlyphCache *glyph_cache_create_with_backend(GlyphCacheBackendType backend, SDL_R
 #else
     (void)use_cleartype; /* Unused on non-Windows */
 #endif
-    (void)backend;      /* Default to SDL_ttf */
-    (void)metrics_only; /* SDL_ttf backend doesn't use this yet */
-    return glyph_cache_create(renderer, font_path, font_name, font_size, hinting_mode, scale_mode, hdpi, vdpi);
+    (void)backend; /* Default to SDL_ttf */
+    return glyph_cache_create(renderer, font_path, font_name, font_size, hinting_mode, scale_mode, hdpi, vdpi,
+                              metrics_only);
 }
 
 SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg_color, SDL_Color bg_color, int bold,
@@ -328,21 +412,29 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
     }
 
     if (main_font_has_glyph) {
-        /* Apply style to font */
-        TTF_SetFontStyle(cache->font, style);
+        /* Select font: use bold font file if available and bold requested, otherwise main font */
+        TTF_Font *render_font = (bold && cache->bold_font) ? cache->bold_font : cache->font;
+
+        /* Apply style: only use algorithmic bold if bold requested but no bold font file */
+        int render_style = TTF_STYLE_NORMAL;
+        if (bold && !cache->bold_font)
+            render_style |= TTF_STYLE_BOLD; /* Algorithmic fallback */
+        if (italic)
+            render_style |= TTF_STYLE_ITALIC;
+        TTF_SetFontStyle(render_font, render_style);
 
         /* For BMP characters (< 0x10000), use glyph rendering */
         if (codepoint < 0x10000) {
-            surface = TTF_RenderGlyph_Blended(cache->font, (uint16_t)codepoint, fg_color);
+            surface = TTF_RenderGlyph_Blended(render_font, (uint16_t)codepoint, fg_color);
         } else {
             /* For higher codepoints, use UTF-8 rendering */
             char utf8[5];
             utf8_put_codepoint(codepoint, utf8);
-            surface = TTF_RenderUTF8_Blended(cache->font, utf8, fg_color);
+            surface = TTF_RenderUTF8_Blended(render_font, utf8, fg_color);
         }
 
-        /* Reset main font style */
-        TTF_SetFontStyle(cache->font, TTF_STYLE_NORMAL);
+        /* Reset font style */
+        TTF_SetFontStyle(render_font, TTF_STYLE_NORMAL);
     }
 
     /* Track if we used an emoji/symbol font (for scale mode selection) */
@@ -514,6 +606,10 @@ void glyph_cache_destroy(GlyphCache *cache) {
 
     if (cache->font) {
         TTF_CloseFont(cache->font);
+    }
+
+    if (cache->bold_font) {
+        TTF_CloseFont(cache->bold_font);
     }
 
     if (cache->emoji_font) {

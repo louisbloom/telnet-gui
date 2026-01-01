@@ -721,12 +721,6 @@ int main(int argc, char **argv) {
         vdpi = 96.0f;
     }
 
-#if HAVE_SDL_TTF_DPI
-    fprintf(stderr, "Using TTF_OpenFontDPI for DPI-aware font rendering\n");
-#else
-    fprintf(stderr, "SDL_ttf DPI support not available - font sizes may not match system expectations\n");
-#endif
-
     /* Determine font based on user preference */
     const char *font_filename = NULL;
     const char *font_name = NULL;

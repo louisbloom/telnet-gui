@@ -20,6 +20,7 @@ typedef struct CacheNode {
 struct GlyphCache {
     GlyphCacheBackendType backend_type; /* Which backend is being used */
     TTF_Font *font;
+    TTF_Font *bold_font;   /* Bold font (NULL if not available, uses algorithmic bold) */
     TTF_Font *emoji_font;  /* Emoji font (color emoji) */
     TTF_Font *symbol_font; /* Symbol font for dingbats/symbols */
     SDL_Renderer *renderer;

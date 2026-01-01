@@ -148,7 +148,6 @@ static IDWriteFontFace *load_font_from_path(const char *utf8_path) {
         return NULL;
     }
 
-    fprintf(stderr, "DirectWrite: Loaded font face from '%s'\n", utf8_path);
     return font_face;
 }
 
@@ -836,7 +835,8 @@ GlyphCache *glyph_cache_create_directwrite(SDL_Renderer *renderer, const char *f
     cache->cell_h = (int)ceilf((metrics.ascent + metrics.descent) * design_to_px);
     cache->space_minx = 0; /* DirectWrite handles positioning differently */
 
-    fprintf(stderr, "DirectWrite: Cell size %dx%d, em_size=%.1f\n", cache->cell_w, cache->cell_h, cache->dw_em_size);
+    fprintf(stderr, "DirectWrite: Loaded %s (cell %dx%d, em %.1f)%s\n", font_name, cache->cell_w, cache->cell_h,
+            cache->dw_em_size, metrics_only ? " [metrics only]" : "");
 
     /* Create reusable pixel buffer for bitmap extraction */
     cache->dw_pixel_buf = dynamic_buffer_create(cache->cell_w * cache->cell_h * 4);
@@ -927,13 +927,7 @@ GlyphCache *glyph_cache_create_directwrite(SDL_Renderer *renderer, const char *f
         char *bold_path = find_bold_font_path(font_path);
         if (bold_path) {
             cache->dw_bold_face = load_font_from_path(bold_path);
-            if (cache->dw_bold_face) {
-                fprintf(stderr, "DirectWrite: Loaded bold font from '%s'\n", bold_path);
-            }
             free(bold_path);
-        }
-        if (!cache->dw_bold_face) {
-            fprintf(stderr, "DirectWrite: Bold font not found, will use algorithmic bold\n");
         }
 
         /* Load emoji and symbol fonts */
@@ -947,8 +941,9 @@ GlyphCache *glyph_cache_create_directwrite(SDL_Renderer *renderer, const char *f
             cache->dw_symbol_face = load_font_from_path(symbol_path);
         }
 
-        fprintf(stderr, "DirectWrite: Glyph cache created successfully (ClearType=%s, Bold=%s)\n",
-                use_cleartype ? "enabled" : "disabled", cache->dw_bold_face ? "file" : "algorithmic");
+        fprintf(stderr, "DirectWrite: Fallback fonts: bold=%s, emoji=%s, symbol=%s\n",
+                cache->dw_bold_face ? "yes" : "no", cache->dw_emoji_face ? "yes" : "no",
+                cache->dw_symbol_face ? "yes" : "no");
     }
     return cache;
 }
