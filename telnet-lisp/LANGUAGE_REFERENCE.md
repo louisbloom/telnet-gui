@@ -20,7 +20,7 @@ A reference for the Telnet Lisp language, covering data types, special forms, bu
 - **Numbers**: Double precision floating-point numbers
 - **Integers**: 64-bit signed integers
 - **Booleans**: True (#t) and false (#f)
-- **Strings**: C-style null-terminated strings with full UTF-8 support
+- **Strings**: Unicode strings with full UTF-8 support
 - **Characters**: Unicode characters (codepoints) with `#\a` reader syntax
 - **Lists**: Cons cells for linked lists
 - **Vectors**: Dynamic arrays with `#(elem ...)` literal syntax (grow/shrink)
