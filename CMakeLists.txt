@@ -974,6 +974,10 @@ message(STATUS "  SDL2_TTF_INCLUDE_DIRS: ${SDL2_TTF_INCLUDE_DIRS}")
 message(STATUS "  SDL2_INCLUDE_DIRS: ${SDL2_INCLUDE_DIRS}")
 message(STATUS "  SDL2_TTF_LIBRARIES: ${SDL2_TTF_LIBRARIES}")
 message(STATUS "  SDL2_LIBRARIES: ${SDL2_LIBRARIES}")
+message(STATUS "  SDL2_TTF_LIBRARY_DIRS: ${SDL2_TTF_LIBRARY_DIRS}")
+message(STATUS "  SDL2_LIBRARY_DIRS: ${SDL2_LIBRARY_DIRS}")
+message(STATUS "  SDL2_TTF_LDFLAGS: ${SDL2_TTF_LDFLAGS}")
+message(STATUS "  SDL2_LDFLAGS: ${SDL2_LDFLAGS}")
 message(STATUS "  SDL2_TTF_CFLAGS_OTHER: ${SDL2_TTF_CFLAGS_OTHER}")
 message(STATUS "  SDL2_CFLAGS_OTHER: ${SDL2_CFLAGS_OTHER}")
 
@@ -1010,6 +1014,13 @@ set(SDL_TTF_TEST_CFLAGS "")
 # pkg-config returns "-framework;SDL2" as separate list items, so we need to
 # capture both the flag and the framework name together
 if(APPLE)
+    # Add library directories as -L flags for linking
+    foreach(LIBDIR IN LISTS SDL2_TTF_LIBRARY_DIRS SDL2_LIBRARY_DIRS)
+        if(LIBDIR)
+            list(APPEND SDL_TTF_TEST_LINK_OPTIONS "-L${LIBDIR}")
+        endif()
+    endforeach()
+
     # Process CFLAGS to extract -F framework search paths and -I include paths
     set(ALL_CFLAGS ${SDL2_TTF_CFLAGS_OTHER} ${SDL2_CFLAGS_OTHER})
     set(EXPECT_FRAMEWORK_PATH FALSE)
