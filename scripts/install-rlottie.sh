@@ -71,33 +71,6 @@ else
   echo "Warning: CMakeLists.txt pattern not found, skipping patch"
 fi
 
-# Patch STB CMakeLists.txt to skip DLL installs for static builds
-# The STB image loader tries to install a DLL even for static builds
-if [ "$BUILD_SHARED" = "OFF" ]; then
-  echo "=== Patching STB CMakeLists.txt to skip DLL installs for static build ==="
-  STB_CMAKE="src/vector/stb/CMakeLists.txt"
-  if [ -f "$STB_CMAKE" ]; then
-    echo "Patching $STB_CMAKE"
-    # Find install() commands that install DLLs and wrap them in if(BUILD_SHARED_LIBS)
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-      # Insert if(BUILD_SHARED_LIBS) before install lines with .dll
-      sed -i '' -E '/install.*\.dll/ {
-        i\
-if(BUILD_SHARED_LIBS)
-        a\
-endif()
-      }' "$STB_CMAKE" || echo "Warning: sed patch may have failed, continuing..."
-    else
-      # Insert if(BUILD_SHARED_LIBS) before install lines with .dll
-      sed -i -E '/install.*\.dll/ {
-        i\
-if(BUILD_SHARED_LIBS)
-        a\
-endif()
-      }' "$STB_CMAKE" || echo "Warning: sed patch may have failed, continuing..."
-    fi
-  fi
-fi
 
 # Detect C++ compiler
 if command -v g++ &>/dev/null; then
@@ -145,6 +118,13 @@ CMAKE_ARGS=(
   -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DBUILD_EXAMPLES=OFF # Skip building examples to avoid extra dependencies
 )
+
+# Disable LOTTIE_MODULE for static builds to avoid DLL install issues
+# LOTTIE_MODULE builds a separate DLL (rlottie-image-loader.dll) which
+# isn't needed for static builds and causes install errors
+if [ "$BUILD_SHARED" = "OFF" ]; then
+  CMAKE_ARGS+=(-DLOTTIE_MODULE=OFF)
+fi
 
 # Add C++ compiler if found
 if [ -n "$CXX_COMPILER" ]; then
