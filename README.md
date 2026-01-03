@@ -365,68 +365,83 @@ C:\Users\<username>\scoop\apps\msys2\current\msys2_shell.cmd -defterm -here -no-
 Then install dependencies:
 
 ```bash
-# All dependencies
-pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,gc,pcre2,SDL2,SDL2_ttf} libtool
+# Build tools and libraries
+pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,gc,pcre2,SDL2,SDL2_ttf,libvterm}
 
-# Install libvterm from source (recommended for full features)
-./scripts/install-libvterm.sh
+# Tools for building optional dependencies from source
+pacman -S libtool git make perl
 
-# Optional: Install rlottie for Lottie animations
+# Optional: Install rlottie for Lottie animations (from source)
 ./scripts/install-rlottie.sh
 ```
 
-**Linux:**
+**Linux (Debian/Ubuntu):**
 
 ```bash
-# Core dependencies
-sudo apt install build-essential cmake ninja-build pkg-config libgc-dev libpcre2-dev libsdl2-dev libsdl2-ttf-dev
+# Build tools and libraries
+sudo apt-get install build-essential cmake ninja-build pkg-config \
+    libgc-dev libpcre2-dev libsdl2-dev libsdl2-ttf-dev libvterm-dev
 
-# libvterm: install from source for full features
-./scripts/install-libvterm.sh
+# Optional: rlottie for animations
+sudo apt-get install librlottie-dev
 
-# Optional: rlottie
-sudo apt install librlottie-dev
+# Tools for building from source (if needed)
+sudo apt-get install git make libtool perl
 ```
 
-**macOS:**
+**macOS (Homebrew):**
 
 ```bash
-# Core dependencies
-brew install cmake ninja pkg-config bdw-gc pcre2 sdl2 sdl2_ttf
+# Build tools and libraries
+brew install cmake ninja pkg-config bdw-gc pcre2 sdl2 sdl2_ttf libvterm
 
-# libvterm: install from source for full features
-./scripts/install-libvterm.sh
-
-# Optional: rlottie
-brew install rlottie
+# Optional: rlottie for animations (from source, requires pixman)
+brew install pixman
+./scripts/install-rlottie.sh
 ```
 
 ### Dependencies
 
-**Required:**
+**Build Tools:**
 
-- **SDL2**: Graphics and windowing
+- **CMake** (3.16+): Build system generator
+- **Ninja**: Fast build tool (recommended) or Make
+- **pkg-config**: Library discovery
+- **C compiler**: GCC (Windows/Linux) or Clang (macOS)
+
+**Required Libraries:**
+
+- **SDL2**: Graphics, windowing, and input
 - **SDL2_ttf**: TrueType font rendering
-- **libvterm**: Terminal emulation (source build recommended for text reflow)
-- **Boehm GC**: Garbage collector
-- **PCRE2**: Regular expressions
+- **libvterm**: Terminal emulation
+- **Boehm GC** (bdw-gc): Garbage collector for Lisp
+- **PCRE2**: Regular expressions with Unicode support
 
-**Optional:**
+**Optional Libraries:**
 
-- **rlottie**: Lottie animation support
+- **rlottie**: Lottie animation support (background animations)
 
-**libvterm Installation:**
+**Source Build Tools** (for building libvterm/rlottie from source):
 
-Distribution packages (v0.3.3) provide basic scrollback only. Source build (nvim branch) enables full text reflow support:
+- git, make, libtool, perl
+
+### libvterm Notes
+
+Distribution packages work out of the box. For enhanced text reflow support, build the nvim branch from source:
 
 ```bash
-# Use the install script (recommended)
+# Use the install script
 ./scripts/install-libvterm.sh
 
 # Or manually
 git clone -b nvim https://github.com/neovim/libvterm.git
 cd libvterm && make && make install PREFIX=/usr/local
 ```
+
+### rlottie Notes
+
+- **Linux**: Available as `librlottie-dev` package
+- **macOS/Windows**: Build from source using `./scripts/install-rlottie.sh`
 
 ### Building
 
