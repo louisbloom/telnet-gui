@@ -968,19 +968,6 @@ set(SDL_TTF_TEST_INCLUDES "")
 list(APPEND SDL_TTF_TEST_INCLUDES ${SDL2_TTF_INCLUDE_DIRS})
 list(APPEND SDL_TTF_TEST_INCLUDES ${SDL2_INCLUDE_DIRS})
 
-# Debug output for SDL_ttf DPI test setup
-message(STATUS "SDL_ttf DPI test setup:")
-message(STATUS "  SDL2_TTF_INCLUDE_DIRS: ${SDL2_TTF_INCLUDE_DIRS}")
-message(STATUS "  SDL2_INCLUDE_DIRS: ${SDL2_INCLUDE_DIRS}")
-message(STATUS "  SDL2_TTF_LIBRARIES: ${SDL2_TTF_LIBRARIES}")
-message(STATUS "  SDL2_LIBRARIES: ${SDL2_LIBRARIES}")
-message(STATUS "  SDL2_TTF_LIBRARY_DIRS: ${SDL2_TTF_LIBRARY_DIRS}")
-message(STATUS "  SDL2_LIBRARY_DIRS: ${SDL2_LIBRARY_DIRS}")
-message(STATUS "  SDL2_TTF_LDFLAGS: ${SDL2_TTF_LDFLAGS}")
-message(STATUS "  SDL2_LDFLAGS: ${SDL2_LDFLAGS}")
-message(STATUS "  SDL2_TTF_CFLAGS_OTHER: ${SDL2_TTF_CFLAGS_OTHER}")
-message(STATUS "  SDL2_CFLAGS_OTHER: ${SDL2_CFLAGS_OTHER}")
-
 # Add UCRT64 system includes when running on Windows
 if(WIN32 AND DEFINED UCRT64_ROOT)
     list(APPEND SDL_TTF_TEST_INCLUDES "${UCRT64_ROOT}/include")
@@ -1071,12 +1058,6 @@ if(SDL_TTF_TEST_CFLAGS)
     set(CMAKE_REQUIRED_FLAGS "${SDL_TTF_TEST_CFLAGS_STR}")
 endif()
 
-# Debug output showing final test configuration
-message(STATUS "  Final test includes: ${CMAKE_REQUIRED_INCLUDES}")
-message(STATUS "  Final test libraries: ${CMAKE_REQUIRED_LIBRARIES}")
-message(STATUS "  Final test link options: ${CMAKE_REQUIRED_LINK_OPTIONS}")
-message(STATUS "  Final test flags: ${CMAKE_REQUIRED_FLAGS}")
-
 check_c_source_compiles("
     #include <SDL_ttf.h>
     int main(int argc, char *argv[]) {
@@ -1087,15 +1068,6 @@ check_c_source_compiles("
         return 0;
     }
 " HAVE_SDL_TTF_DPI)
-
-# If test failed, show the error log
-if(NOT HAVE_SDL_TTF_DPI)
-    if(EXISTS "${CMAKE_BINARY_DIR}/CMakeFiles/CMakeError.log")
-        file(READ "${CMAKE_BINARY_DIR}/CMakeFiles/CMakeError.log" ERROR_LOG)
-        message(STATUS "SDL_ttf DPI compile test error log:")
-        message(STATUS "${ERROR_LOG}")
-    endif()
-endif()
 
 # Restore previous values
 set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_SAVE})
