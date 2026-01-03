@@ -13,3 +13,10 @@
 - **Author**: NisAnth PrAbhu
 - **Source**: [LottieFiles](https://lottiefiles.com/free-animation/ripple-nudge-DbGqlgObOA)
 - **License**: [Lottie Simple License](https://lottiefiles.com/page/license) - Free for personal and commercial use with attribution
+
+## loading-dots-blue.json
+
+- **Title**: Loading Dots Blue
+- **Author**: Umer Khawer
+- **Source**: [LottieFiles](https://lottiefiles.com/free-animation/loading-dots-blue-FKLnla7VWy)
+- **License**: [Lottie Simple License](https://lottiefiles.com/page/license) - Free for personal and commercial use with attribution

@@ -2491,7 +2491,7 @@ void lisp_x_get_cursor_color(int *r, int *g, int *b) {
 
 /* Terminal default colors */
 void lisp_x_get_terminal_fg_color(int *r, int *g, int *b) {
-    get_color_from_lisp("*terminal-fg-color*", r, g, b, 255, 255, 255); /* White */
+    get_color_from_lisp("*terminal-fg-color*", r, g, b, 200, 200, 200); /* Dimmed white */
 }
 
 void lisp_x_get_terminal_bg_color(int *r, int *g, int *b) {

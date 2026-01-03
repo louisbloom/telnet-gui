@@ -1514,14 +1514,14 @@ ANSI text attributes to terminal defaults.")
 ;; Terminal Default Colors
 ;; ----------------------------------------------------------------------------
 
-(defvar *terminal-fg-color* '(255 255 255)
+(defvar *terminal-fg-color* '(200 200 200)
   "Default terminal foreground (text) color.
 
 ## Format
 RGB list: (R G B) where each component is 0-255.
 
 ## Default
-White (255, 255, 255)
+Dimmed white (200, 200, 200)
 
 ## Description
 Used for terminal text when no ANSI color codes are present. Server output
@@ -1529,8 +1529,8 @@ with ANSI color codes will override this for specific text.
 
 ## Examples
 ```lisp
-(define *terminal-fg-color* '(255 255 255))  ; White (default)
-(define *terminal-fg-color* '(200 200 200))  ; Light gray
+(define *terminal-fg-color* '(200 200 200))  ; Dimmed white (default)
+(define *terminal-fg-color* '(192 192 192))  ; Darker gray
 (define *terminal-fg-color* '(0 255 0))      ; Green (retro terminal)
 ```")
 

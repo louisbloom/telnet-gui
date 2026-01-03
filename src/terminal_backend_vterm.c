@@ -513,6 +513,17 @@ static void *vterm_create(int rows, int cols) {
         /* If not found, libvterm's default xterm color is used */
     }
 
+    /* Set default terminal fg/bg colors from Lisp config */
+    {
+        int fg_r, fg_g, fg_b, bg_r, bg_g, bg_b;
+        lisp_x_get_terminal_fg_color(&fg_r, &fg_g, &fg_b);
+        lisp_x_get_terminal_bg_color(&bg_r, &bg_g, &bg_b);
+        VTermColor default_fg, default_bg;
+        vterm_color_rgb(&default_fg, (uint8_t)fg_r, (uint8_t)fg_g, (uint8_t)fg_b);
+        vterm_color_rgb(&default_bg, (uint8_t)bg_r, (uint8_t)bg_g, (uint8_t)bg_b);
+        vterm_state_set_default_colors(vstate, &default_fg, &default_bg);
+    }
+
     char seq[32];
     ansi_format_scroll_region(seq, sizeof(seq), 1, rows);
     vterm_input_write(state->vterm, seq, strlen(seq));

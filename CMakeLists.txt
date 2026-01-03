@@ -376,6 +376,8 @@ set(ANIM_NOTIFICATION_ICON_SRC "${CMAKE_SOURCE_DIR}/animations/notification-icon
 set(ANIM_NOTIFICATION_ICON_DST "${CMAKE_BINARY_DIR}/animations/notification-icon.json")
 set(ANIM_RIPPLE_NUDGE_SRC "${CMAKE_SOURCE_DIR}/animations/ripple-nudge.json")
 set(ANIM_RIPPLE_NUDGE_DST "${CMAKE_BINARY_DIR}/animations/ripple-nudge.json")
+set(ANIM_LOADING_DOTS_BLUE_SRC "${CMAKE_SOURCE_DIR}/animations/loading-dots-blue.json")
+set(ANIM_LOADING_DOTS_BLUE_DST "${CMAKE_BINARY_DIR}/animations/loading-dots-blue.json")
 set(ANIM_LICENSE_SRC "${CMAKE_SOURCE_DIR}/animations/LICENSE.md")
 set(ANIM_LICENSE_DST "${CMAKE_BINARY_DIR}/animations/LICENSE.md")
 
@@ -413,6 +415,7 @@ add_custom_command(TARGET telnet-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_FIREWORKS_SRC}" "${ANIM_FIREWORKS_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_NOTIFICATION_ICON_SRC}" "${ANIM_NOTIFICATION_ICON_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_RIPPLE_NUDGE_SRC}" "${ANIM_RIPPLE_NUDGE_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_LOADING_DOTS_BLUE_SRC}" "${ANIM_LOADING_DOTS_BLUE_DST}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_LICENSE_SRC}" "${ANIM_LICENSE_DST}"
     COMMENT "Copying resources to build directory"
 )
@@ -497,6 +500,7 @@ install(FILES
     "${ANIM_FIREWORKS_SRC}"
     "${ANIM_NOTIFICATION_ICON_SRC}"
     "${ANIM_RIPPLE_NUDGE_SRC}"
+    "${ANIM_LOADING_DOTS_BLUE_SRC}"
     "${ANIM_LICENSE_SRC}"
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/animations"
     COMPONENT Runtime
