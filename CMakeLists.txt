@@ -1219,27 +1219,6 @@ if(RLOTTIE_FOUND)
         target_link_libraries(telnet-gui PRIVATE stdc++)
     endif()
 
-    # rlottie depends on pixman
-    # Check if pixman is already included in RLOTTIE_LIBRARIES
-    string(FIND "${RLOTTIE_LIBRARIES}" "pixman" PIXMAN_IN_RLOTTIE)
-    if(PIXMAN_IN_RLOTTIE EQUAL -1)
-        # pixman not found in rlottie libraries, try to find it separately
-        pkg_check_modules(PIXMAN QUIET pixman-1)
-        if(PIXMAN_FOUND)
-            target_link_libraries(telnet-gui PRIVATE ${PIXMAN_LIBRARIES})
-            target_include_directories(telnet-gui PRIVATE ${PIXMAN_INCLUDE_DIRS})
-            if(PIXMAN_LIBRARY_DIRS)
-                target_link_directories(telnet-gui PRIVATE ${PIXMAN_LIBRARY_DIRS})
-            endif()
-        else()
-            # On macOS, pixman is required for rlottie
-            # On Linux, librlottie-dev should include pixman as a dependency
-            # If not found, rlottie might not work properly, but we'll try to continue
-            if(APPLE)
-                message(WARNING "pixman not found - rlottie may not work properly on macOS")
-            endif()
-        endif()
-    endif()
 endif()
 
 if(WIN32)

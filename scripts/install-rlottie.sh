@@ -134,8 +134,6 @@ cmake "${CMAKE_ARGS[@]}"
 # Build
 echo "=== Building rlottie ==="
 # Build only the library target to avoid example program linking issues
-# The example program may fail to link due to missing pixman symbols,
-# but we only need the library itself
 if ! cmake --build build --target rlottie 2>&1; then
   echo "Warning: Building rlottie target failed, trying full build (examples may fail)..."
   # Try full build but don't fail if examples fail - we only need the library

@@ -395,8 +395,7 @@ sudo apt-get install git make libtool perl
 # Build tools and libraries
 brew install cmake ninja pkg-config bdw-gc pcre2 sdl2 sdl2_ttf libvterm
 
-# Optional: rlottie for animations (from source, requires pixman)
-brew install pixman
+# Optional: rlottie for animations (from source)
 ./scripts/install-rlottie.sh
 ```
 
