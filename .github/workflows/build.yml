@@ -189,19 +189,19 @@ jobs:
           export HOMEBREW_PREFIX
           echo "Homebrew prefix: $HOMEBREW_PREFIX"
           echo "Installing rlottie to: $HOMEBREW_PREFIX"
-          
+
           echo "Checking build tools..."
           g++ --version || echo "Warning: g++ not found"
           clang++ --version || echo "Warning: clang++ not found"
           cmake --version
           ninja --version
-          
+
           echo "=== Installing rlottie from source ==="
           set +e  # Don't exit on error, we'll check exit code
           bash scripts/install-rlottie.sh --prefix "$HOMEBREW_PREFIX" 2>&1 | tee rlottie-install.log
           RLOTTIE_EXIT_CODE=${PIPESTATUS[0]}
           set -e
-          
+
           if [ $RLOTTIE_EXIT_CODE -ne 0 ]; then
             echo "=== rlottie installation failed with exit code $RLOTTIE_EXIT_CODE ==="
             echo "Last 100 lines of log:"
@@ -215,7 +215,7 @@ jobs:
             echo "Continuing without rlottie (optional dependency)"
             exit 0
           fi
-          
+
           echo "=== Verifying rlottie installation ==="
           if [ -f "$HOMEBREW_PREFIX/include/rlottiecommon.h" ] && \
              [ -f "$HOMEBREW_PREFIX/lib/pkgconfig/rlottie.pc" ]; then
