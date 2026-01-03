@@ -266,6 +266,6 @@
 (add-hook 'telnet-input-filter-hook 'spell-translator-filter)
 
 ;; Startup message
-(princ "Spell translator loaded. Utterances will be translated automatically.\n")
-(princ "  Add overrides: (spell-add \"garbled\" \"correct\")\n")
-(princ "  Remove:        (spell-remove \"garbled\")\n")
+(terminal-echo "Spell translator loaded. Utterances will be translated automatically.\r\n")
+(terminal-echo "  Add overrides: (spell-add \"garbled\" \"correct\")\r\n")
+(terminal-echo "  Remove:        (spell-remove \"garbled\")\r\n")

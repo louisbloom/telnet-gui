@@ -5537,8 +5537,8 @@ Maps attribute names to their ANSI SGR codes.")
     (tintin-post-process-ansi-stack (tintin-apply-highlights text))
     text))
 
-;; Install telnet-input-filter-hook
-(define telnet-input-filter-hook tintin-telnet-input-filter)
+;; Install telnet-input-filter-hook (use add-hook to chain with other filters)
+(add-hook 'telnet-input-filter-hook 'tintin-telnet-input-filter)
 
 ;; Save the existing telnet-input-hook before overriding
 ;; This preserves bootstrap.lisp's behavior (word collection, scroll-lock notification, etc.)

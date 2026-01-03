@@ -594,6 +594,38 @@ static LispObject *builtin_divider_mode_remove(LispObject *args, Environment *en
     return NIL;
 }
 
+/* Builtin function: strip-ansi - Remove ANSI escape sequences from text */
+static LispObject *builtin_strip_ansi(LispObject *args, Environment *env) {
+    (void)env;
+
+    if (args == NIL) {
+        return lisp_make_error("strip-ansi requires 1 argument");
+    }
+
+    LispObject *text_obj = lisp_car(args);
+    if (text_obj->type != LISP_STRING) {
+        return lisp_make_error("strip-ansi requires a string argument");
+    }
+
+    const char *text = text_obj->value.string;
+    size_t len = strlen(text);
+
+    if (len == 0) {
+        return lisp_make_string("");
+    }
+
+    size_t out_len = 0;
+    char *stripped = strip_ansi_codes(text, len, &out_len);
+
+    if (!stripped) {
+        return lisp_make_string("");
+    }
+
+    /* Create Lisp string from stripped text */
+    LispObject *result = lisp_make_string(stripped);
+    return result;
+}
+
 /* Builtin function: terminal-echo - Echo text to terminal display */
 static LispObject *builtin_terminal_echo(LispObject *args, Environment *env) {
     (void)env;
@@ -1233,6 +1265,42 @@ int lisp_x_init(void) {
         if (hook && hook->type != LISP_ERROR)                                                                          \
             env_define(lisp_env, name, hook);                                                                          \
     } while (0)
+
+    /* Register strip-ansi builtin */
+    const char *strip_ansi_doc = "Remove ANSI escape sequences from text.\n"
+                                 "\n"
+                                 "## Parameters\n"
+                                 "- `text` - String possibly containing ANSI escape codes\n"
+                                 "\n"
+                                 "## Returns\n"
+                                 "String with all ANSI escape sequences removed.\n"
+                                 "\n"
+                                 "## Description\n"
+                                 "Strips ANSI escape sequences (CSI sequences like colors, cursor movement)\n"
+                                 "and control characters from the input string. Preserves printable characters,\n"
+                                 "newlines, carriage returns, and tabs.\n"
+                                 "\n"
+                                 "## Examples\n"
+                                 "```lisp\n"
+                                 "(strip-ansi \"\\033[32mgreen text\\033[0m\")\n"
+                                 "; => \"green text\"\n"
+                                 "\n"
+                                 "(strip-ansi \"normal text\")\n"
+                                 "; => \"normal text\"\n"
+                                 "\n"
+                                 "(strip-ansi \"\\033[1;31mred bold\\033[0m and normal\")\n"
+                                 "; => \"red bold and normal\"\n"
+                                 "```\n"
+                                 "\n"
+                                 "## Notes\n"
+                                 "- Handles SGR codes (colors, bold, etc.)\n"
+                                 "- Handles CSI sequences (cursor movement, etc.)\n"
+                                 "- Preserves whitespace (spaces, tabs, newlines)\n"
+                                 "- Useful for pattern matching on colored server output\n"
+                                 "\n"
+                                 "## See Also\n"
+                                 "- `telnet-input-filter-hook` - Hook that receives raw ANSI text";
+    REGISTER_BUILTIN("strip-ansi", builtin_strip_ansi, strip_ansi_doc);
 
     /* Register terminal-echo builtin */
     const char *terminal_echo_doc = "Output text to terminal display (local echo).\n"

@@ -1,24 +1,10 @@
 ;; TinTin++ Test Suite
 
-;; Setup - define terminal-echo and telnet-send stubs that capture calls
-(define *telnet-send-log* '())              ; ignore
-(define *terminal-echo-log* '())            ; ignore
-
-(define terminal-echo
-  (lambda (text)
-    (set! *terminal-echo-log* (cons text *terminal-echo-log*))
-    nil))  ; ignore
-
-(define telnet-send
-  (lambda (text)
-    (set! *telnet-send-log* (cons text *telnet-send-log*))
-    nil))  ; ignore
-
-(define terminal-info
-  (lambda ()
-    '((cols . 80) (rows . 24))))  ; ignore
-
-;; Load test helper macros (includes mock hook system)
+;; Load test helper macros FIRST - provides:
+;; - Assert macros (assert-equal, assert-true, etc.)
+;; - Mock functions (terminal-echo, telnet-send, terminal-info, etc.)
+;; - Capture lists (*mock-terminal-echoes*, *mock-telnet-sends*, etc.)
+;; - Hook system from init.lisp
 (load "test-helpers.lisp")  ; ignore
 
 ;; Load TinTin++ implementation
@@ -258,77 +244,77 @@
 ;; ============================================================================
 
 ;; Clear logs
-(set! *telnet-send-log* '())
-(set! *terminal-echo-log* '())
+(set! *mock-telnet-sends* '())
+(set! *mock-terminal-echoes* '())
 
 ;; Test: "s;s" should send two separate telnet commands with CRLF
 ;; Note: logs are in reverse order (most recent first)
 (tintin-user-input-hook "s;s" 0)
-(assert-equal (length *telnet-send-log*) 2
+(assert-equal (length *mock-telnet-sends*) 2
   "Should send 2 commands for 's;s'")
-(assert-equal (list-ref *telnet-send-log* 1) "s\r\n"
+(assert-equal (list-ref *mock-telnet-sends* 1) "s\r\n"
   "First command should be 's\\r\\n'")
-(assert-equal (list-ref *telnet-send-log* 0) "s\r\n"
+(assert-equal (list-ref *mock-telnet-sends* 0) "s\r\n"
   "Second command should be 's\\r\\n'")
 
 ;; Clear logs
-(set! *telnet-send-log* '())
-(set! *terminal-echo-log* '())
+(set! *mock-telnet-sends* '())
+(set! *mock-terminal-echoes* '())
 
 ;; Test: "3n" should send three "n" commands with CRLF
 (tintin-user-input-hook "3n" 0)
-(assert-equal (length *telnet-send-log*) 3
+(assert-equal (length *mock-telnet-sends*) 3
   "Should send 3 commands for '3n'")
-(assert-equal (list-ref *telnet-send-log* 2) "n\r\n"
+(assert-equal (list-ref *mock-telnet-sends* 2) "n\r\n"
   "First command should be 'n\\r\\n'")
-(assert-equal (list-ref *telnet-send-log* 1) "n\r\n"
+(assert-equal (list-ref *mock-telnet-sends* 1) "n\r\n"
   "Second command should be 'n\\r\\n'")
-(assert-equal (list-ref *telnet-send-log* 0) "n\r\n"
+(assert-equal (list-ref *mock-telnet-sends* 0) "n\r\n"
   "Third command should be 'n\\r\\n'")
 
 ;; Clear logs
-(set! *telnet-send-log* '())
-(set! *terminal-echo-log* '())
+(set! *mock-telnet-sends* '())
+(set! *mock-terminal-echoes* '())
 
 ;; Test: Alias expansion then multiple sends with CRLF
 (tintin-process-command "#alias {go} {n;s;e;w}")
 (tintin-user-input-hook "go" 0)
-(assert-equal (length *telnet-send-log*) 4
+(assert-equal (length *mock-telnet-sends*) 4
   "Should send 4 commands for alias 'go'")
-(assert-equal (list-ref *telnet-send-log* 3) "n\r\n"
+(assert-equal (list-ref *mock-telnet-sends* 3) "n\r\n"
   "First command should be 'n\\r\\n'")
-(assert-equal (list-ref *telnet-send-log* 2) "s\r\n"
+(assert-equal (list-ref *mock-telnet-sends* 2) "s\r\n"
   "Second command should be 's\\r\\n'")
-(assert-equal (list-ref *telnet-send-log* 1) "e\r\n"
+(assert-equal (list-ref *mock-telnet-sends* 1) "e\r\n"
   "Third command should be 'e\\r\\n'")
-(assert-equal (list-ref *telnet-send-log* 0) "w\r\n"
+(assert-equal (list-ref *mock-telnet-sends* 0) "w\r\n"
   "Fourth command should be 'w\\r\\n'")
 
 ;; Clear logs
-(set! *telnet-send-log* '())
-(set! *terminal-echo-log* '())
+(set! *mock-telnet-sends* '())
+(set! *mock-terminal-echoes* '())
 
 ;; Test: Each command echoed to terminal with CRLF
 ;; Note: main.c now handles echoing the original input, so the hook only echoes the commands
 (tintin-user-input-hook "n;s" 0)
-(assert-equal (length *terminal-echo-log*) 2
+(assert-equal (length *mock-terminal-echoes*) 2
   "Should echo 2 items (2 commands) for 'n;s'")
-(assert-equal (list-ref *terminal-echo-log* 1) "n\r\n"
+(assert-equal (list-ref *mock-terminal-echoes* 1) "n\r\n"
   "First echo should be 'n\\r\\n'")
-(assert-equal (list-ref *terminal-echo-log* 0) "s\r\n"
+(assert-equal (list-ref *mock-terminal-echoes* 0) "s\r\n"
   "Second echo should be 's\\r\\n'")
 
 ;; Clear logs
-(set! *telnet-send-log* '())
-(set! *terminal-echo-log* '())
+(set! *mock-telnet-sends* '())
+(set! *mock-terminal-echoes* '())
 
 ;; Test: Empty commands are skipped
 (tintin-user-input-hook "n;;s" 0)
-(assert-equal (length *telnet-send-log*) 2
+(assert-equal (length *mock-telnet-sends*) 2
   "Empty commands should be skipped")
-(assert-equal (list-ref *telnet-send-log* 1) "n\r\n"
+(assert-equal (list-ref *mock-telnet-sends* 1) "n\r\n"
   "First command should be 'n\\r\\n'")
-(assert-equal (list-ref *telnet-send-log* 0) "s\r\n"
+(assert-equal (list-ref *mock-telnet-sends* 0) "s\r\n"
   "Second command should be 's\\r\\n'")
 ;; ============================================================================
 ;; Test 14: Partial Command Matching
@@ -359,36 +345,36 @@
 ;; ============================================================================
 
 ;; Clear echo log
-(set! *terminal-echo-log* '())
+(set! *mock-terminal-echoes* '())
 
 ;; Unknown command shows error (not sent to telnet)
 (assert-equal (tintin-process-command "#foo bar") ""
   "Unknown command should return empty string")
-(assert-equal (length *terminal-echo-log*) 1
+(assert-equal (length *mock-terminal-echoes*) 1
   "Unknown command should echo error message")
-(assert-true (string-prefix? "Unknown TinTin++" (list-ref *terminal-echo-log* 0))
+(assert-true (string-prefix? "Unknown TinTin++" (list-ref *mock-terminal-echoes* 0))
   "Echo should be unknown command error")
 
 ;; Clear echo log
-(set! *terminal-echo-log* '())
+(set! *mock-terminal-echoes* '())
 
 ;; Invalid format (just # with space)
 (assert-equal (tintin-process-command "# ") ""
   "Invalid format should return empty string")
-(assert-equal (length *terminal-echo-log*) 1
+(assert-equal (length *mock-terminal-echoes*) 1
   "Invalid format should echo error message")
-(assert-true (string-prefix? "Invalid TinTin++" (list-ref *terminal-echo-log* 0))
+(assert-true (string-prefix? "Invalid TinTin++" (list-ref *mock-terminal-echoes* 0))
   "Echo should be invalid format error")
 
 ;; Clear echo log
-(set! *terminal-echo-log* '())
+(set! *mock-terminal-echoes* '())
 
 ;; Query non-existent alias (unbraced argument is valid)
 (assert-equal (tintin-process-command "#alias missing") ""
   "Query command should return empty string")
-(assert-equal (length *terminal-echo-log*) 1
+(assert-equal (length *mock-terminal-echoes*) 1
   "Query command should echo not found message")
-(assert-true (string-prefix? "Alias 'missing' not found" (list-ref *terminal-echo-log* 0))
+(assert-true (string-prefix? "Alias 'missing' not found" (list-ref *mock-terminal-echoes* 0))
   "Echo should be not found message")
 
 ;; ============================================================================
@@ -485,28 +471,28 @@
 ;; commands correctly without echoing the original input.
 
 ;; Clear logs
-(set! *telnet-send-log* '())
-(set! *terminal-echo-log* '())
+(set! *mock-telnet-sends* '())
+(set! *mock-terminal-echoes* '())
 
 ;; Create an alias
 (tintin-process-command "#alias {testcmd} {north}")
 
 ;; Clear logs after alias creation
-(set! *telnet-send-log* '())
-(set! *terminal-echo-log* '())
+(set! *mock-telnet-sends* '())
+(set! *mock-terminal-echoes* '())
 
 ;; Test that command is processed correctly (main.c handles original echo)
 (tintin-user-input-hook "testcmd" 0)
 ;; The hook should process the alias and send the expanded command
 ;; Note: main.c echoes the original input, so the hook doesn't need to
-(assert-equal (length *telnet-send-log*) 1
+(assert-equal (length *mock-telnet-sends*) 1
   "Should send 1 command for alias")
-(assert-equal (list-ref *telnet-send-log* 0) "north\r\n"
+(assert-equal (list-ref *mock-telnet-sends* 0) "north\r\n"
   "Should send expanded alias command")
 
 ;; Clear logs
-(set! *telnet-send-log* '())
-(set! *terminal-echo-log* '())
+(set! *mock-telnet-sends* '())
+(set! *mock-terminal-echoes* '())
 
 ;; Test # commands are processed correctly (main.c handles original echo)
 (tintin-user-input-hook "#alias {x} {test}" 0)
@@ -527,8 +513,8 @@
 ;; Note: Original command echo is now handled by main.c, not the hook
 
 ;; Clear logs
-(set! *telnet-send-log* '())
-(set! *terminal-echo-log* '())
+(set! *mock-telnet-sends* '())
+(set! *mock-terminal-echoes* '())
 
 ;; Create variable
 (tintin-process-command "#variable {food} {bread}")
@@ -537,27 +523,27 @@
 (tintin-process-command "#alias {ef} {get $food; eat $food}")
 
 ;; Clear logs after setup (to isolate the alias execution echoes)
-(set! *telnet-send-log* '())
-(set! *terminal-echo-log* '())
+(set! *mock-telnet-sends* '())
+(set! *mock-terminal-echoes* '())
 
 ;; Execute alias (tests all three fixes)
 (tintin-user-input-hook "ef" 0)
 
 ;; Verify variable was expanded and commands were sent
-(assert-equal (length *telnet-send-log*) 2
+(assert-equal (length *mock-telnet-sends*) 2
   "Should send 2 commands")
-(assert-equal (list-ref *telnet-send-log* 1) "get bread\r\n"
+(assert-equal (list-ref *mock-telnet-sends* 1) "get bread\r\n"
   "First command should have expanded variable")
-(assert-equal (list-ref *telnet-send-log* 0) "eat bread\r\n"
+(assert-equal (list-ref *mock-telnet-sends* 0) "eat bread\r\n"
   "Second command should have expanded variable")
 
 ;; Verify expanded commands were echoed (hook echoes when commands differ from original)
 ;; Note: main.c handles echoing the original input "ef", so the hook only echoes the expanded commands
-(assert-equal (length *terminal-echo-log*) 2
+(assert-equal (length *mock-terminal-echoes*) 2
   "Hook should echo 2 expanded commands")
-(assert-equal (list-ref *terminal-echo-log* 1) "get bread\r\n"
+(assert-equal (list-ref *mock-terminal-echoes* 1) "get bread\r\n"
   "First echo should be expanded command")
-(assert-equal (list-ref *terminal-echo-log* 0) "eat bread\r\n"
+(assert-equal (list-ref *mock-terminal-echoes* 0) "eat bread\r\n"
   "Second echo should be expanded command")
 
 ;; ============================================================================
@@ -570,31 +556,31 @@
 (close test-load-file)
 
 ;; Clear logs
-(set! *telnet-send-log* '())
-(set! *terminal-echo-log* '())
+(set! *mock-telnet-sends* '())
+(set! *mock-terminal-echoes* '())
 
 ;; Test #load command WITHOUT braces (should now work - braces are optional)
 (tintin-process-command "#load tintin-load-test.lisp")
 
 ;; Check what was echoed
-(assert-true (>= (length *terminal-echo-log*) 1)
+(assert-true (>= (length *mock-terminal-echoes*) 1)
   "#load without braces should echo")
 ;; Most recent echo should be success message
-(assert-true (string-prefix? "State loaded from" (list-ref *terminal-echo-log* 0))
+(assert-true (string-prefix? "State loaded from" (list-ref *mock-terminal-echoes* 0))
   "Echo should show success message")
 
 ;; Clear logs
-(set! *telnet-send-log* '())
-(set! *terminal-echo-log* '())
+(set! *mock-telnet-sends* '())
+(set! *mock-terminal-echoes* '())
 
 ;; Test #load command WITH braces (should still work)
 (tintin-process-command "#load {tintin-load-test.lisp}")
 
 ;; Check what was echoed
-(assert-true (>= (length *terminal-echo-log*) 1)
+(assert-true (>= (length *mock-terminal-echoes*) 1)
   "#load with braces should echo")
 ;; Most recent echo should be success message
-(assert-true (string-prefix? "State loaded from" (list-ref *terminal-echo-log* 0))
+(assert-true (string-prefix? "State loaded from" (list-ref *mock-terminal-echoes* 0))
   "Echo should show success message")
 
 ;; Test #alias with mixed format (braced and unbraced)
@@ -692,9 +678,9 @@
 
 ;; Test #load command without braces (single-word argument)
 ;; Clear logs first
-(set! *terminal-echo-log* '())
+(set! *mock-terminal-echoes* '())
 (tintin-process-command "#load tintin-load-test.lisp")
-(assert-true (>= (length *terminal-echo-log*) 1)
+(assert-true (>= (length *mock-terminal-echoes*) 1)
   "#load should echo when called")
 
 ;; Test nested braces are preserved after stripping outer braces
@@ -705,7 +691,7 @@
 ;; Test that command processing works correctly
 ;; Note: main.c handles echoing when commands come through the hook,
 ;; so tintin-process-command no longer echoes directly
-(set! *terminal-echo-log* '())
+(set! *mock-terminal-echoes* '())
 (tintin-process-command "#alias bag {#var bag %0}")
 ;; Verify the alias was created correctly (echo is handled by main.c in hook path)
 (assert-true (hash-ref *tintin-aliases* "bag")
@@ -721,13 +707,13 @@
   "Save should return a string result")
 
 ;; Test load non-existent file (should return empty string, not crash)
-(set! *terminal-echo-log* '())
+(set! *mock-terminal-echoes* '())
 (assert-equal (tintin-handle-load (list "nonexistent-file.lisp")) ""
   "Loading non-existent file should return empty string")
 ;; Should have error message
-(assert-true (> (length *terminal-echo-log*) 0)
+(assert-true (> (length *mock-terminal-echoes*) 0)
   "Should have error message in log")
-(assert-true (string-prefix? "Failed to load" (list-ref *terminal-echo-log* 0))
+(assert-true (string-prefix? "Failed to load" (list-ref *mock-terminal-echoes* 0))
   "Error message should start with 'Failed to load'")
 
 ;; ============================================================================
