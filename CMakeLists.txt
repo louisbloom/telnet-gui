@@ -1496,6 +1496,26 @@ if(RLOTTIE_FOUND)
     endif()
     target_link_libraries(telnet-gui PRIVATE ${RLOTTIE_LIBRARIES})
     target_include_directories(telnet-gui PRIVATE ${RLOTTIE_INCLUDE_DIRS})
+    
+    # rlottie is a C++ library, so we need to link the C++ standard library
+    # On macOS, link libc++ (Apple's C++ standard library)
+    if(APPLE)
+        target_link_libraries(telnet-gui PRIVATE c++)
+    elseif(UNIX AND NOT APPLE)
+        # On Linux, link libstdc++ or libc++ depending on compiler
+        target_link_libraries(telnet-gui PRIVATE stdc++)
+    endif()
+    
+    # rlottie depends on pixman
+    pkg_check_modules(PIXMAN pixman-1)
+    if(PIXMAN_FOUND)
+        target_link_libraries(telnet-gui PRIVATE ${PIXMAN_LIBRARIES})
+        target_include_directories(telnet-gui PRIVATE ${PIXMAN_INCLUDE_DIRS})
+        target_link_directories(telnet-gui PRIVATE ${PIXMAN_LIBRARY_DIRS})
+    else()
+        # Fallback: try to link pixman directly
+        target_link_libraries(telnet-gui PRIVATE pixman-1)
+    endif()
 endif()
 
 if(WIN32)
