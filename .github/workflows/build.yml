@@ -184,20 +184,17 @@ jobs:
           g++ --version || echo "Warning: g++ not found"
           cmake --version
           ninja --version
-          echo "Installing rlottie from source to local directory..."
-          # Install to workspace directory (no sudo needed)
-          RLOTTIE_PREFIX="${{ github.workspace }}/rlottie-install"
-          bash scripts/install-rlottie.sh --prefix "$RLOTTIE_PREFIX" 2>&1 | tee rlottie-install.log || {
+          echo "Installing rlottie from source..."
+          bash scripts/install-rlottie.sh --prefix /usr/local 2>&1 | tee rlottie-install.log || {
             echo "=== rlottie installation failed ==="
             echo "Last 100 lines of log:"
             tail -100 rlottie-install.log || true
             echo "Continuing without rlottie (optional dependency)"
             exit 0
           }
-          echo "rlottie installed successfully to $RLOTTIE_PREFIX"
+          echo "rlottie installed successfully"
         env:
-          PKG_CONFIG_PATH: ${{ github.workspace }}/rlottie-install/lib/pkgconfig:$PKG_CONFIG_PATH
-          CMAKE_PREFIX_PATH: ${{ github.workspace }}/rlottie-install
+          PKG_CONFIG_PATH: /usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
 
       - name: Configure CMake
         run: |
@@ -210,14 +207,14 @@ jobs:
           export HOMEBREW_PREFIX
           echo "Homebrew prefix: $HOMEBREW_PREFIX"
           # Set PKG_CONFIG_PATH to include Homebrew paths
-          export PKG_CONFIG_PATH="$HOMEBREW_PREFIX/lib/pkgconfig:${{ github.workspace }}/rlottie-install/lib/pkgconfig:$PKG_CONFIG_PATH"
+          export PKG_CONFIG_PATH="$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
           # Verify pkg-config can find bdw-gc
           pkg-config --modversion bdw-gc || echo "Warning: pkg-config cannot find bdw-gc"
           pkg-config --cflags bdw-gc || echo "Warning: pkg-config cannot get cflags for bdw-gc"
           mkdir -p build
           cd build
           cmake .. -G Ninja \
-            -DCMAKE_PREFIX_PATH="$HOMEBREW_PREFIX;${{ github.workspace }}/rlottie-install"
+            -DCMAKE_PREFIX_PATH="$HOMEBREW_PREFIX:/usr/local"
 
       - name: Build
         run: |
@@ -227,7 +224,7 @@ jobs:
           else
             HOMEBREW_PREFIX="/usr/local"
           fi
-          export PKG_CONFIG_PATH="$HOMEBREW_PREFIX/lib/pkgconfig:${{ github.workspace }}/rlottie-install/lib/pkgconfig:$PKG_CONFIG_PATH"
+          export PKG_CONFIG_PATH="$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
           cd build
           cmake --build . --config Release
 
