@@ -1077,6 +1077,15 @@ check_c_source_compiles("
     }
 " HAVE_SDL_TTF_DPI)
 
+# If test failed, show the error log
+if(NOT HAVE_SDL_TTF_DPI)
+    if(EXISTS "${CMAKE_BINARY_DIR}/CMakeFiles/CMakeError.log")
+        file(READ "${CMAKE_BINARY_DIR}/CMakeFiles/CMakeError.log" ERROR_LOG)
+        message(STATUS "SDL_ttf DPI compile test error log:")
+        message(STATUS "${ERROR_LOG}")
+    endif()
+endif()
+
 # Restore previous values
 set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_SAVE})
 set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES_SAVE})
