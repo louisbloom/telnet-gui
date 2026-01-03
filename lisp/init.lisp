@@ -759,6 +759,47 @@ If the hook doesn't exist or has no functions, does nothing.
         (apply (eval (car syms)) args))))
   nil)
 
+(defun run-filter-hook (hook-name initial-value)
+  "Run all functions in a filter hook, chaining return values.
+
+## Parameters
+- `hook-name` - Symbol identifying the hook
+- `initial-value` - Initial value to pass to first function
+
+## Returns
+The final transformed value after all functions have been applied.
+
+## Description
+Unlike `run-hook` which ignores return values, `run-filter-hook` passes
+each function's return value as input to the next function. This allows
+building transformation pipelines.
+
+If the hook doesn't exist or has no functions, returns `initial-value` unchanged.
+
+## Examples
+```lisp
+;; Add filters that transform text
+(defun add-prefix (text) (concat \">> \" text))
+(defun upcase-it (text) (string-upcase text))
+
+(add-hook 'my-filter-hook 'add-prefix)
+(add-hook 'my-filter-hook 'upcase-it)
+
+(run-filter-hook 'my-filter-hook \"hello\")
+; => \">> HELLO\"
+```
+
+## See Also
+- `run-hook` - Run hooks for side-effects only
+- `add-hook` - Add a function to a hook"
+  (let ((entry (assoc hook-name *hooks*)))
+    (if entry
+      (do ((syms (cdr entry) (cdr syms))
+            (result initial-value))
+        ((null? syms) result)
+        (set! result ((eval (car syms)) result)))
+      initial-value)))
+
 ;; ============================================================================
 ;; TELNET-GUI HOOK IMPLEMENTATIONS
 ;; ============================================================================
@@ -1095,8 +1136,9 @@ to control the return value. First handler to set these wins.
   what actually gets displayed. This hook receives raw ANSI-encoded data and
   can modify the visual output before rendering.
 
-  **Default Behavior:**
-  - Pass-through: Returns text unchanged (identity function)
+  **Extensible via add-hook:**
+  Use `(add-hook 'telnet-input-filter-hook 'my-filter)` to add filter functions.
+  Multiple filters are chained - each receives the output of the previous one.
 
   **Data Flow:**
   1. Server sends data → telnet.c receives
@@ -1106,37 +1148,19 @@ to control the return value. First handler to set these wins.
 
   ## Examples
   ```lisp
-  ; Default (no transformation)
-  (defun telnet-input-filter-hook (text)
-    text)
-
-  ; Remove ANSI color codes (strip all formatting)
-  (defun telnet-input-filter-hook (text)
-    (strip-ansi text))
-
-  ; Filter out sensitive patterns
-  (defun telnet-input-filter-hook (text)
-    (if (string-contains? text \"PASSWORD\")
-      \"\"  ; Suppress output
-      text))
-
-  ; Highlight errors in red
-  (defun telnet-input-filter-hook (text)
+  ;; Add a filter function (recommended approach)
+  (defun my-error-highlighter (text)
     (string-replace text \"ERROR\"
-      \"\\033[1;31mERROR\\033[0m\"))  ; Bold red
+      \"\\033[1;31mERROR\\033[0m\"))
 
-  ; Add timestamp prefix to all output
-  (defun telnet-input-filter-hook (text)
-    (concat \"[\" (current-time-string) \"] \" text))
+  (add-hook 'telnet-input-filter-hook 'my-error-highlighter)
 
-  ; Conditional transformation based on content
-  (defun telnet-input-filter-hook (text)
-    (cond
-      ((string-prefix? \">\" text)
-        (concat \"\\033[1;32m\" text \"\\033[0m\"))  ; Green prompts
-      ((string-contains? text \"You died\")
-        (concat \"\\033[1;31m\" text \"\\033[0m\"))  ; Red death messages
-      (#t text)))  ; Default: unchanged
+  ;; Multiple filters chain together
+  (defun strip-passwords (text)
+    (if (string-contains? text \"PASSWORD\") \"\" text))
+
+  (add-hook 'telnet-input-filter-hook 'strip-passwords)
+  ;; Now both filters run: strip-passwords first, then my-error-highlighter
   ```
 
   ## Important Notes
@@ -1154,13 +1178,14 @@ to control the return value. First handler to set these wins.
   - Adding visual markers or prefixes
   - ANSI color removal (accessibility)
   - Custom text styling
+  - Spell translation annotations
 
   ## See Also
+  - `add-hook` - Add a filter function
   - `telnet-input-hook` - Side-effect hook (word collection, logging)
   - `strip-ansi` - Remove ANSI escape codes from text
-  - `terminal-echo` - Echo text directly to terminal
-  - TinTin++ highlight system - Pattern-based coloring"
-  text)
+  - `run-filter-hook` - How filter chaining works"
+  (run-filter-hook 'telnet-input-filter-hook text))
 
 ;; ============================================================================
 ;; USER INPUT HOOK CONFIGURATION
