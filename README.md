@@ -354,11 +354,11 @@ Lottie animations render behind terminal content with configurable visibility mo
 
 First, launch the UCRT64 shell:
 
-```bash
-# Standard MSYS2 installation
+```cmd
+:: Standard MSYS2 installation
 C:\msys64\msys2_shell.cmd -defterm -here -no-start -ucrt64
 
-# Or for Scoop installation
+:: Or for Scoop installation
 C:\Users\<username>\scoop\apps\msys2\current\msys2_shell.cmd -defterm -here -no-start -ucrt64
 ```
 
