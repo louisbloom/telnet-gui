@@ -71,7 +71,6 @@ else
   echo "Warning: CMakeLists.txt pattern not found, skipping patch"
 fi
 
-
 # Detect C++ compiler
 if command -v g++ &>/dev/null; then
   CXX_COMPILER_MSYS=$(which g++)
@@ -157,9 +156,9 @@ echo "=== Installing rlottie ==="
 if ! cmake --install build 2>&1; then
   echo "Warning: Some components failed to install (likely DLL files for static build)"
   # Check if essential files were installed
-  if [ -f "$INSTALL_PREFIX/lib/pkgconfig/rlottie.pc" ] && \
-     [ -f "$INSTALL_PREFIX/include/rlottiecommon.h" ] && \
-     ([ -f "$INSTALL_PREFIX/lib/librlottie.a" ] || [ -f "$INSTALL_PREFIX/lib/librlottie.dll.a" ]); then
+  if [ -f "$INSTALL_PREFIX/lib/pkgconfig/rlottie.pc" ] &&
+    [ -f "$INSTALL_PREFIX/include/rlottiecommon.h" ] &&
+    ([ -f "$INSTALL_PREFIX/lib/librlottie.a" ] || [ -f "$INSTALL_PREFIX/lib/librlottie.dll.a" ]); then
     echo "Essential rlottie files installed successfully despite warnings"
   else
     echo "Error: Essential rlottie files not found after install"

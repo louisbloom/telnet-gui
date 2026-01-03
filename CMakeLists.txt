@@ -546,59 +546,90 @@ set(RLOTTIE_FOUND FALSE)
 if(WIN32)
     set(RLOTTIE_PKG_CONFIG "")
 
-    # First check /usr/local by deriving MSYS2 root from UCRT64_ROOT (PRIORITY)
-    if(DEFINED UCRT64_ROOT)
-        get_filename_component(MSYS2_ROOT_FROM_UCRT64 "${UCRT64_ROOT}" DIRECTORY)
-        if(EXISTS "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib/pkgconfig/rlottie.pc")
-            set(RLOTTIE_PKG_CONFIG "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib/pkgconfig")
-            message(STATUS "Found rlottie.pc in /usr/local: ${RLOTTIE_PKG_CONFIG}")
-        endif()
-    endif()
-
-    # Check /usr/local via MSYS2_ROOT env var (fallback)
-    if(NOT RLOTTIE_PKG_CONFIG AND DEFINED ENV{MSYS2_ROOT})
-        if(EXISTS "$ENV{MSYS2_ROOT}/usr/local/lib/pkgconfig/rlottie.pc")
-            set(RLOTTIE_PKG_CONFIG "$ENV{MSYS2_ROOT}/usr/local/lib/pkgconfig")
-            message(STATUS "Found rlottie.pc in /usr/local: ${RLOTTIE_PKG_CONFIG}")
-        endif()
-    endif()
-
-    # Check UCRT64 (distribution package - FALLBACK)
-    if(NOT RLOTTIE_PKG_CONFIG AND DEFINED UCRT64_ROOT)
-        if(EXISTS "${UCRT64_ROOT}/lib/pkgconfig/rlottie.pc")
-            set(RLOTTIE_PKG_CONFIG "${UCRT64_ROOT}/lib/pkgconfig")
-            message(STATUS "Found rlottie.pc in UCRT64: ${RLOTTIE_PKG_CONFIG}")
-        endif()
-    endif()
-
-    # Search common MSYS2 locations
-    if(NOT RLOTTIE_PKG_CONFIG)
-        set(RLOTTIE_PKG_SEARCH_PATHS
-            # /usr/local source build locations (PRIORITY)
-            "C:/msys64/usr/local/lib/pkgconfig"
-            "C:/tools/msys64/usr/local/lib/pkgconfig"
-            "$ENV{USERPROFILE}/scoop/apps/msys2/current/usr/local/lib/pkgconfig"
-            "$ENV{ProgramFiles}/msys64/usr/local/lib/pkgconfig"
-            # UCRT64 package locations (FALLBACK)
-            "C:/msys64/ucrt64/lib/pkgconfig"
-            "C:/tools/msys64/ucrt64/lib/pkgconfig"
-            "$ENV{USERPROFILE}/scoop/apps/msys2/current/ucrt64/lib/pkgconfig"
-            "$ENV{ProgramFiles}/msys64/ucrt64/lib/pkgconfig"
+    # First try pkg-config directly if PKG_CONFIG_PATH is set (fastest)
+    if(PKG_CONFIG_EXECUTABLE)
+        execute_process(
+            COMMAND ${PKG_CONFIG_EXECUTABLE} --exists rlottie
+            RESULT_VARIABLE RLOTTIE_PKG_RESULT
+            OUTPUT_QUIET
+            ERROR_QUIET
         )
-        # Add Scoop versioned directories
-        if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
-            file(GLOB SCOOP_PKG_USRLOCAL "$ENV{USERPROFILE}/scoop/apps/msys2/*/usr/local/lib/pkgconfig")
-            file(GLOB SCOOP_PKG_UCRT64 "$ENV{USERPROFILE}/scoop/apps/msys2/*/ucrt64/lib/pkgconfig")
-            list(APPEND RLOTTIE_PKG_SEARCH_PATHS ${SCOOP_PKG_USRLOCAL} ${SCOOP_PKG_UCRT64})
+        if(RLOTTIE_PKG_RESULT EQUAL 0)
+            # pkg-config found it, get the path
+            execute_process(
+                COMMAND ${PKG_CONFIG_EXECUTABLE} --variable=prefix rlottie
+                OUTPUT_VARIABLE RLOTTIE_PREFIX
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET
+            )
+            if(RLOTTIE_PREFIX)
+                set(RLOTTIE_PKG_CONFIG "${RLOTTIE_PREFIX}/lib/pkgconfig")
+                message(STATUS "Found rlottie via pkg-config at: ${RLOTTIE_PKG_CONFIG}")
+            endif()
+        endif()
+    endif()
+
+    # If not found via pkg-config, search for .pc file manually
+    if(NOT RLOTTIE_PKG_CONFIG)
+        # First check /usr/local by deriving MSYS2 root from UCRT64_ROOT (PRIORITY)
+        if(DEFINED UCRT64_ROOT)
+            get_filename_component(MSYS2_ROOT_FROM_UCRT64 "${UCRT64_ROOT}" DIRECTORY)
+            if(EXISTS "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib/pkgconfig/rlottie.pc")
+                set(RLOTTIE_PKG_CONFIG "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib/pkgconfig")
+                message(STATUS "Found rlottie.pc in /usr/local: ${RLOTTIE_PKG_CONFIG}")
+            endif()
         endif()
 
-        foreach(PKG_PATH IN LISTS RLOTTIE_PKG_SEARCH_PATHS)
-            if(EXISTS "${PKG_PATH}/rlottie.pc")
-                set(RLOTTIE_PKG_CONFIG "${PKG_PATH}")
-                message(STATUS "Found rlottie.pc at: ${RLOTTIE_PKG_CONFIG}")
-                break()
+        # Check /usr/local via MSYS2_ROOT env var (fallback)
+        if(NOT RLOTTIE_PKG_CONFIG AND DEFINED ENV{MSYS2_ROOT})
+            if(EXISTS "$ENV{MSYS2_ROOT}/usr/local/lib/pkgconfig/rlottie.pc")
+                set(RLOTTIE_PKG_CONFIG "$ENV{MSYS2_ROOT}/usr/local/lib/pkgconfig")
+                message(STATUS "Found rlottie.pc in /usr/local: ${RLOTTIE_PKG_CONFIG}")
             endif()
-        endforeach()
+        endif()
+
+        # Check UCRT64 (distribution package - FALLBACK)
+        if(NOT RLOTTIE_PKG_CONFIG AND DEFINED UCRT64_ROOT)
+            if(EXISTS "${UCRT64_ROOT}/lib/pkgconfig/rlottie.pc")
+                set(RLOTTIE_PKG_CONFIG "${UCRT64_ROOT}/lib/pkgconfig")
+                message(STATUS "Found rlottie.pc in UCRT64: ${RLOTTIE_PKG_CONFIG}")
+            endif()
+        endif()
+
+        # Search common MSYS2 locations
+        if(NOT RLOTTIE_PKG_CONFIG)
+            # Common MSYS2 root locations
+            set(MSYS2_ROOTS
+                "C:/msys64"
+                "C:/tools/msys64"
+                "$ENV{USERPROFILE}/scoop/apps/msys2/current"
+                "$ENV{ProgramFiles}/msys64"
+                "D:/a/_temp/msys64"  # GitHub Actions
+            )
+
+            # Build search paths: /usr/local first (source builds), then /ucrt64 (packages)
+            set(RLOTTIE_PKG_SEARCH_PATHS "")
+            foreach(ROOT IN LISTS MSYS2_ROOTS)
+                list(APPEND RLOTTIE_PKG_SEARCH_PATHS "${ROOT}/usr/local/lib/pkgconfig")
+            endforeach()
+            foreach(ROOT IN LISTS MSYS2_ROOTS)
+                list(APPEND RLOTTIE_PKG_SEARCH_PATHS "${ROOT}/ucrt64/lib/pkgconfig")
+            endforeach()
+            # Add Scoop versioned directories
+            if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
+                file(GLOB SCOOP_PKG_USRLOCAL "$ENV{USERPROFILE}/scoop/apps/msys2/*/usr/local/lib/pkgconfig")
+                file(GLOB SCOOP_PKG_UCRT64 "$ENV{USERPROFILE}/scoop/apps/msys2/*/ucrt64/lib/pkgconfig")
+                list(APPEND RLOTTIE_PKG_SEARCH_PATHS ${SCOOP_PKG_USRLOCAL} ${SCOOP_PKG_UCRT64})
+            endif()
+
+            foreach(PKG_PATH IN LISTS RLOTTIE_PKG_SEARCH_PATHS)
+                if(EXISTS "${PKG_PATH}/rlottie.pc")
+                    set(RLOTTIE_PKG_CONFIG "${PKG_PATH}")
+                    message(STATUS "Found rlottie.pc at: ${RLOTTIE_PKG_CONFIG}")
+                    break()
+                endif()
+            endforeach()
+        endif()
     endif()
 
     # Try pkg-config with the found path
@@ -1103,94 +1134,105 @@ endif()
 # Add libvterm include directories
 # Search both /ucrt64/include (MSYS2 package) and /usr/local/include (source build)
 if(WIN32)
-    set(VTERM_INCLUDE_DIR "")
-    if(NOT DEFINED PROGRAM_FILES_X86)
-        set(PROGRAM_FILES_X86 "$ENV{ProgramFiles\(x86\)}")
+    # Use VTERM_INCLUDE_DIRS from pkg_check_modules if already set
+    if(VTERM_FOUND AND VTERM_INCLUDE_DIRS AND NOT VTERM_INCLUDE_DIR)
+        set(VTERM_INCLUDE_DIR "${VTERM_INCLUDE_DIRS}")
+        message(STATUS "Using libvterm include directories from pkg_check_modules: ${VTERM_INCLUDE_DIR}")
     endif()
 
-    # First check /usr/local by deriving MSYS2 root from UCRT64_ROOT (PRIORITY)
-    if(DEFINED UCRT64_ROOT)
-        get_filename_component(MSYS2_ROOT_FROM_UCRT64 "${UCRT64_ROOT}" DIRECTORY)
-        if(EXISTS "${MSYS2_ROOT_FROM_UCRT64}/usr/local/include/vterm.h")
-            set(VTERM_INCLUDE_DIR "${MSYS2_ROOT_FROM_UCRT64}/usr/local/include")
-            message(STATUS "Found libvterm headers in /usr/local: ${VTERM_INCLUDE_DIR}")
-        endif()
-    endif()
-
-    # Then check /usr/local via MSYS2_ROOT env var (fallback)
-    if(NOT VTERM_INCLUDE_DIR AND DEFINED ENV{MSYS2_ROOT})
-        if(EXISTS "$ENV{MSYS2_ROOT}/usr/local/include/vterm.h")
-            set(VTERM_INCLUDE_DIR "$ENV{MSYS2_ROOT}/usr/local/include")
-            message(STATUS "Found libvterm headers in /usr/local: ${VTERM_INCLUDE_DIR}")
-        endif()
-    endif()
-
-    # Then check UCRT64_ROOT if defined (FALLBACK)
-    if(NOT VTERM_INCLUDE_DIR AND DEFINED UCRT64_ROOT)
-        if(EXISTS "${UCRT64_ROOT}/include/vterm.h")
-            set(VTERM_INCLUDE_DIR "${UCRT64_ROOT}/include")
-            message(STATUS "Found libvterm headers in UCRT64: ${VTERM_INCLUDE_DIR}")
-        endif()
-    endif()
-
-    # Search common MSYS2 locations for both UCRT64 and /usr/local
+    # Only search manually if not already found
     if(NOT VTERM_INCLUDE_DIR)
-        set(MSYS2_PATHS
+        if(NOT DEFINED PROGRAM_FILES_X86)
+            set(PROGRAM_FILES_X86 "$ENV{ProgramFiles\(x86\)}")
+        endif()
+
+        # First check /usr/local by deriving MSYS2 root from UCRT64_ROOT (PRIORITY)
+        if(DEFINED UCRT64_ROOT)
+            get_filename_component(MSYS2_ROOT_FROM_UCRT64 "${UCRT64_ROOT}" DIRECTORY)
+            if(EXISTS "${MSYS2_ROOT_FROM_UCRT64}/usr/local/include/vterm.h")
+                set(VTERM_INCLUDE_DIR "${MSYS2_ROOT_FROM_UCRT64}/usr/local/include")
+                message(STATUS "Found libvterm headers in /usr/local: ${VTERM_INCLUDE_DIR}")
+            endif()
+        endif()
+
+        # Then check /usr/local via MSYS2_ROOT env var (fallback)
+        if(NOT VTERM_INCLUDE_DIR AND DEFINED ENV{MSYS2_ROOT})
+            if(EXISTS "$ENV{MSYS2_ROOT}/usr/local/include/vterm.h")
+                set(VTERM_INCLUDE_DIR "$ENV{MSYS2_ROOT}/usr/local/include")
+                message(STATUS "Found libvterm headers in /usr/local: ${VTERM_INCLUDE_DIR}")
+            endif()
+        endif()
+
+        # Then check UCRT64_ROOT if defined (FALLBACK)
+        if(NOT VTERM_INCLUDE_DIR AND DEFINED UCRT64_ROOT)
+            if(EXISTS "${UCRT64_ROOT}/include/vterm.h")
+                set(VTERM_INCLUDE_DIR "${UCRT64_ROOT}/include")
+                message(STATUS "Found libvterm headers in UCRT64: ${VTERM_INCLUDE_DIR}")
+            endif()
+        endif()
+
+        # Search common MSYS2 locations for both UCRT64 and /usr/local
+        if(NOT VTERM_INCLUDE_DIR)
+            set(MSYS2_PATHS
             # /usr/local source build locations (PRIORITY)
             "C:/msys64"
             "C:/tools/msys64"
             "$ENV{USERPROFILE}/scoop/apps/msys2/current"
             "$ENV{ProgramFiles}/msys64"
             "${PROGRAM_FILES_X86}/msys64"
+            # GitHub Actions MSYS2 location (D:/a/_temp/msys64)
+            "D:/a/_temp/msys64"
             # UCRT64 package locations (FALLBACK)
             "C:/msys64/ucrt64"
             "C:/tools/msys64/ucrt64"
             "$ENV{USERPROFILE}/scoop/apps/msys2/current/ucrt64"
             "$ENV{ProgramFiles}/msys64/ucrt64"
-        )
+            "D:/a/_temp/msys64/ucrt64"
+            )
 
-        # Also check for versioned Scoop installations
-        if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
-            file(GLOB SCOOP_ROOT_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*")
-            file(GLOB SCOOP_UCRT64_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*/ucrt64")
-            list(APPEND MSYS2_PATHS ${SCOOP_ROOT_VERSIONS} ${SCOOP_UCRT64_VERSIONS})
+            # Also check for versioned Scoop installations
+            if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
+                file(GLOB SCOOP_ROOT_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*")
+                file(GLOB SCOOP_UCRT64_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*/ucrt64")
+                list(APPEND MSYS2_PATHS ${SCOOP_ROOT_VERSIONS} ${SCOOP_UCRT64_VERSIONS})
+            endif()
+
+            foreach(ROOT IN LISTS MSYS2_PATHS)
+                # Check /usr/local/include first
+                if(EXISTS "${ROOT}/usr/local/include/vterm.h")
+                    set(VTERM_INCLUDE_DIR "${ROOT}/usr/local/include")
+                    message(STATUS "Found libvterm headers at: ${VTERM_INCLUDE_DIR}")
+                    break()
+                endif()
+                # Then check UCRT64 include location
+                if(EXISTS "${ROOT}/include/vterm.h")
+                    set(VTERM_INCLUDE_DIR "${ROOT}/include")
+                    message(STATUS "Found libvterm headers at: ${VTERM_INCLUDE_DIR}")
+                    break()
+                endif()
+            endforeach()
         endif()
 
-        foreach(ROOT IN LISTS MSYS2_PATHS)
-            # Check /usr/local/include first
-            if(EXISTS "${ROOT}/usr/local/include/vterm.h")
-                set(VTERM_INCLUDE_DIR "${ROOT}/usr/local/include")
-                message(STATUS "Found libvterm headers at: ${VTERM_INCLUDE_DIR}")
-                break()
+        # Fallback: try Unix-style paths (works in MSYS2 shell)
+        if(NOT VTERM_INCLUDE_DIR)
+            if(EXISTS "/usr/local/include/vterm.h")
+                set(VTERM_INCLUDE_DIR "/usr/local/include")
+                message(STATUS "Found libvterm headers at: /usr/local/include")
+            elseif(EXISTS "/ucrt64/include/vterm.h")
+                set(VTERM_INCLUDE_DIR "/ucrt64/include")
+                message(STATUS "Found libvterm headers at: /ucrt64/include")
             endif()
-            # Then check UCRT64 include location
-            if(EXISTS "${ROOT}/include/vterm.h")
-                set(VTERM_INCLUDE_DIR "${ROOT}/include")
-                message(STATUS "Found libvterm headers at: ${VTERM_INCLUDE_DIR}")
-                break()
-            endif()
-        endforeach()
-    endif()
+        endif()
 
-    # Fallback: try Unix-style paths (works in MSYS2 shell)
-    if(NOT VTERM_INCLUDE_DIR)
-        if(EXISTS "/usr/local/include/vterm.h")
-            set(VTERM_INCLUDE_DIR "/usr/local/include")
-            message(STATUS "Found libvterm headers at: /usr/local/include")
-        elseif(EXISTS "/ucrt64/include/vterm.h")
-            set(VTERM_INCLUDE_DIR "/ucrt64/include")
-            message(STATUS "Found libvterm headers at: /ucrt64/include")
+        if(NOT VTERM_INCLUDE_DIR)
+            message(WARNING "libvterm headers not found. Please install libvterm:")
+            message(WARNING "  MSYS2 package: pacman -S mingw-w64-ucrt-x86_64-libvterm")
+            message(WARNING "  Source build: https://github.com/neovim/libvterm -> make install")
+            # Fallback: add both possible locations
+            set(VTERM_INCLUDE_DIR "/ucrt64/include;/usr/local/include")
         endif()
     endif()
-
-    if(NOT VTERM_INCLUDE_DIR)
-        message(WARNING "libvterm headers not found. Please install libvterm:")
-        message(WARNING "  MSYS2 package: pacman -S mingw-w64-ucrt-x86_64-libvterm")
-        message(WARNING "  Source build: https://github.com/neovim/libvterm -> make install")
-        # Fallback: add both possible locations
-        set(VTERM_INCLUDE_DIR "/ucrt64/include;/usr/local/include")
-    endif()
-    else()
+else()
     # Unix/Linux/macOS: check standard locations and Homebrew
     set(VTERM_INCLUDE_DIR "")
     # Check Homebrew locations (Apple Silicon uses /opt/homebrew, Intel uses /usr/local)
