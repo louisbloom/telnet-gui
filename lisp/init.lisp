@@ -641,22 +641,30 @@ when the hook is run.
 - `remove-hook` - Remove a function from a hook
 - `run-hook` - Run all functions in a hook")
 
-(defun add-hook (hook-name fn-symbol)
-  "Add a function to a hook by symbol name.
+(defun add-hook (hook-name fn-symbol &optional priority)
+  "Add a function to a hook by symbol name with optional priority.
 
 ## Parameters
 - `hook-name` - Symbol identifying the hook (e.g., 'telnet-input-hook)
 - `fn-symbol` - Symbol naming the function to add (e.g., 'my-handler)
+- `priority` - Optional integer priority (default 50). Lower = runs first.
 
 ## Returns
 `nil`
 
 ## Description
-Adds a function symbol to the hook's list. If the symbol is already present,
-does nothing (idempotent). Functions are called in the order they were added.
+Adds a function symbol to the hook's list at the specified priority.
+If the symbol is already present, does nothing (idempotent).
+Functions are called in priority order (lower first), with same-priority
+functions called in registration order.
 
 Using symbols instead of function objects allows scripts to be reloaded
 without creating duplicate hook entries.
+
+## Priority Conventions
+- 10-19: Interceptors (slash commands, special handlers)
+- 50: Default (normal handlers)
+- 90-99: Fallbacks, logging, cleanup
 
 ## Examples
 ```lisp
@@ -664,27 +672,45 @@ without creating duplicate hook entries.
 (defun my-telnet-logger (text)
   (log-to-file text))
 
-;; Add it to the hook by symbol
+;; Add with default priority (50)
 (add-hook 'telnet-input-hook 'my-telnet-logger)
 
-;; Reloading the script won't create duplicates
+;; Add with high priority (runs first)
+(add-hook 'user-input-hook 'my-interceptor 10)
 ```
 
 ## See Also
 - `remove-hook` - Remove a function from a hook
 - `run-hook` - Run all functions in a hook"
-  (let ((entry (assoc hook-name *hooks*)))
-    (if entry
-      ;; Hook exists - add symbol if not already present
-      (unless (memq fn-symbol (cdr entry))
-        (set! *hooks*
-          (map (lambda (e)
-                 (if (eq? (car e) hook-name)
-                   (cons hook-name (append (cdr e) (list fn-symbol)))
-                   e))
-            *hooks*)))
-      ;; New hook - create entry
-      (set! *hooks* (cons (cons hook-name (list fn-symbol)) *hooks*))))
+  (let ((prio (if priority priority 50)))
+    (let ((entry (assoc hook-name *hooks*)))
+      (if entry
+        ;; Hook exists - add if symbol not already present
+        (unless (assoc fn-symbol (map (lambda (p) (cons (cdr p) (car p))) (cdr entry)))
+          ;; Insert in sorted order by priority
+          (let ((new-pair (cons prio fn-symbol))
+                 (inserted #f)
+                 (new-list '()))
+            ;; Build new list with insertion
+            (do ((pairs (cdr entry) (cdr pairs)))
+              ((null? pairs))
+              (let ((cur (car pairs)))
+                (when (and (not inserted) (< prio (car cur)))
+                  (set! new-list (cons new-pair new-list))
+                  (set! inserted #t))
+                (set! new-list (cons cur new-list))))
+            ;; Append at end if not inserted
+            (unless inserted
+              (set! new-list (cons new-pair new-list)))
+            ;; Update *hooks* with reversed list
+            (set! *hooks*
+              (map (lambda (e)
+                     (if (eq? (car e) hook-name)
+                       (cons hook-name (reverse new-list))
+                       e))
+                *hooks*))))
+        ;; New hook - create entry with priority pair
+        (set! *hooks* (cons (cons hook-name (list (cons prio fn-symbol))) *hooks*)))))
   nil)
 
 (defun remove-hook (hook-name fn-symbol)
@@ -698,7 +724,7 @@ without creating duplicate hook entries.
 `nil`
 
 ## Description
-Removes the function symbol from the hook's list.
+Removes the function symbol from the hook's list (regardless of priority).
 
 ## Examples
 ```lisp
@@ -714,11 +740,11 @@ Removes the function symbol from the hook's list.
 - `run-hook` - Run all functions in a hook"
   (let ((entry (assoc hook-name *hooks*)))
     (when entry
-      ;; Rebuild *hooks* with the symbol removed from this hook's list
+      ;; Rebuild *hooks* filtering out pairs with matching fn-symbol
       (set! *hooks*
         (map (lambda (e)
                (if (eq? (car e) hook-name)
-                 (cons hook-name (filter (lambda (s) (not (eq? s fn-symbol))) (cdr e)))
+                 (cons hook-name (filter (lambda (pair) (not (eq? (cdr pair) fn-symbol))) (cdr e)))
                  e))
           *hooks*))))
   nil)
@@ -735,7 +761,7 @@ Removes the function symbol from the hook's list.
 
 ## Description
 Looks up each function symbol and calls it with the provided arguments.
-Functions are called in the order they were added. Return values are
+Functions are called in priority order (lower first). Return values are
 ignored - this is for side-effect-only hooks like `telnet-input-hook`.
 
 If the hook doesn't exist or has no functions, does nothing.
@@ -754,9 +780,9 @@ If the hook doesn't exist or has no functions, does nothing.
 - `remove-hook` - Remove a function from a hook"
   (let ((entry (assoc hook-name *hooks*)))
     (when entry
-      (do ((syms (cdr entry) (cdr syms)))
-        ((null? syms))
-        (apply (eval (car syms)) args))))
+      (do ((pairs (cdr entry) (cdr pairs)))
+        ((null? pairs))
+        (apply (eval (cdr (car pairs))) args))))  ;; Extract fn-symbol from (priority . fn-symbol)
   nil)
 
 (defun run-filter-hook (hook-name initial-value)
@@ -794,10 +820,10 @@ If the hook doesn't exist or has no functions, returns `initial-value` unchanged
 - `add-hook` - Add a function to a hook"
   (let ((entry (assoc hook-name *hooks*)))
     (if entry
-      (do ((syms (cdr entry) (cdr syms))
+      (do ((pairs (cdr entry) (cdr pairs))
             (result initial-value))
-        ((null? syms) result)
-        (set! result ((eval (car syms)) result)))
+        ((null? pairs) result)
+        (set! result ((eval (cdr (car pairs))) result)))  ;; Extract fn-symbol from (priority . fn-symbol)
       initial-value)))
 
 ;; ============================================================================
@@ -840,9 +866,9 @@ To transform the data before display, use `telnet-input-filter-hook`.
   "Run all functions in 'user-input-hook. First hook to set *user-input-handled* wins."
   (let ((entry (assoc 'user-input-hook *hooks*)))
     (when entry
-      (do ((syms (cdr entry) (cdr syms)))
-        ((or (null? syms) *user-input-handled*))
-        ((eval (car syms)) text cursor-pos)))))
+      (do ((pairs (cdr entry) (cdr pairs)))
+        ((or (null? pairs) *user-input-handled*))
+        ((eval (cdr (car pairs))) text cursor-pos)))))
 
 (defun user-input-hook (text cursor-pos)
   "Transform user input before sending to telnet server.

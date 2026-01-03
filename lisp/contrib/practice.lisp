@@ -264,8 +264,9 @@
       (set! *user-input-handled* #t)
       (set! *user-input-result* nil))))
 
-;; Register the user input hook (symbol-based, prevents duplicates on reload)
-(add-hook 'user-input-hook 'practice-user-input-hook)
+;; Register the user input hook with high priority (runs before tintin)
+;; Priority 10 = interceptor (handles /practice commands before tintin processes input)
+(add-hook 'user-input-hook 'practice-user-input-hook 10)
 
 ;; ============================================================================
 ;; INITIALIZATION MESSAGE
