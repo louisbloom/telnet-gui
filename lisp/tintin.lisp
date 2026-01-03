@@ -2077,78 +2077,6 @@ Maps attribute names to their ANSI SGR codes.")
     (char=? ch #\_)
     (char=? ch #\-)))
 
-;; Expand $variable references in a string
-(defun tintin-expand-variables (str)
-  "Expand $variable references in string (legacy O(n*m) version).
-
-  ## Parameters
-  - `str` - String potentially containing $variable references
-
-  ## Returns
-  String with all $variable references replaced by their values. Returns input
-  unchanged if invalid or no variables defined.
-
-  ## Description
-  **DEPRECATED**: Use `tintin-expand-variables-fast` instead for O(m) performance.
-
-  Replaces all `$variable` references with their values from the `*tintin-variables*`
-  hash table. This legacy implementation iterates through all variable names and
-  performs string replacement for each, resulting in O(n*m) complexity where n is
-  number of variables and m is string length.
-
-  **Algorithm (O(n*m)):**
-  1. Get list of all variable names from hash table
-  2. For each variable:
-     - Replace all occurrences of `$varname` with value
-  3. Return modified string
-
-  **Performance**: Slow for large variable sets or long strings. Prefer
-  `tintin-expand-variables-fast` for production use.
-
-  ## Examples
-  ```lisp
-  ; Define variables
-  (hash-set! *tintin-variables* \"target\" \"orc\")
-  (hash-set! *tintin-variables* \"weapon\" \"sword\")
-
-  ; Expand single variable
-  (tintin-expand-variables \"kill $target\")
-  ; => \"kill orc\"
-
-  ; Expand multiple variables
-  (tintin-expand-variables \"attack $target with $weapon\")
-  ; => \"attack orc with sword\"
-
-  ; Undefined variable (kept as literal)
-  (tintin-expand-variables \"$undefined\")
-  ; => \"$undefined\"
-
-  ; No variables
-  (tintin-expand-variables \"no variables here\")
-  ; => \"no variables here\"
-  ```
-
-  ## Notes
-  - Variable names: `[a-zA-Z0-9_-]+`
-  - Undefined variables kept as literal `$name`
-  - Case-sensitive matching
-  - O(n*m) complexity (n=variables, m=string length)
-
-  ## See Also
-  - `tintin-expand-variables-fast` - O(m) optimized version (preferred)
-  - `#variable` command - Define variables
-  - `tintin-is-varname-char?` - Valid variable name characters"
-  (if (not (string? str))
-    str
-    (let ((result str)
-           (var-names (hash-keys *tintin-variables*)))
-      ;; Replace each variable
-      (do ((i 0 (+ i 1)))
-        ((>= i (length var-names)) result)
-        (let* ((var-name (list-ref var-names i))
-                (var-value (hash-ref *tintin-variables* var-name)))
-          (set! result (string-replace result (concat "$" var-name) var-value)))))))
-
 ;; Expand $variable references in a string (optimized O(m) single-pass)
 (defun tintin-expand-variables-fast (str)
   "Expand $variable references in string (optimized O(m) single-pass version).
@@ -2162,8 +2090,7 @@ Maps attribute names to their ANSI SGR codes.")
 
   ## Description
   Replaces all `$variable` references with their values from the `*tintin-variables*`
-  hash table using a single-pass O(m) algorithm. This is the **preferred** variable
-  expansion function for production use.
+  hash table using a single-pass O(m) algorithm.
 
   **Algorithm (O(m) single-pass):**
   1. Scan string character-by-character
@@ -2175,7 +2102,6 @@ Maps attribute names to their ANSI SGR codes.")
   4. Return result string
 
   **Performance**: O(m) where m is string length. Hash lookups are O(1) average.
-  Much faster than `tintin-expand-variables` for large variable sets.
 
   ## Examples
   ```lisp
@@ -2215,7 +2141,6 @@ Maps attribute names to their ANSI SGR codes.")
   - **Case-sensitive**: `$Var` and `$var` are different variables
   - **Single-pass**: O(m) complexity (m = string length)
   - **Hash lookup**: O(1) average per variable reference
-  - **Preferred over**: `tintin-expand-variables` (legacy O(n*m) version)
 
   ## Common Use Cases
   - Alias command expansion: `\"get $item;go $direction\"`
@@ -2223,7 +2148,6 @@ Maps attribute names to their ANSI SGR codes.")
   - Dynamic command generation: `\"tell $friend about $topic\"`
 
   ## See Also
-  - `tintin-expand-variables` - Legacy O(n*m) version (deprecated)
   - `#variable` command - Define variables
   - `tintin-is-varname-char?` - Valid variable name characters
   - `tintin-substitute-captures` - Replace %1-%99 in templates"
@@ -4024,11 +3948,6 @@ Maps attribute names to their ANSI SGR codes.")
             (set! line (concat line right)))))
       (concat line "\r\n"))))
 
-;; DEPRECATED: Old function kept for compatibility
-;; Use tintin-draw-border instead
-(defun tintin-draw-table-border (widths style)
-  (tintin-draw-border widths style))
-
 ;; Draw table row with wrapping support
 ;; cells: list of cell values (strings)
 ;; widths: list of column widths
@@ -4139,15 +4058,6 @@ Maps attribute names to their ANSI SGR codes.")
                   (set! line (concat line " │ "))
                   (set! line (concat line " │\r\n")))))
             (set! result (cons line result))))))))
-
-;; DEPRECATED: Old function kept for compatibility
-;; Use tintin-draw-row instead
-(defun tintin-draw-table-row (values widths)
-  (let ((lines (tintin-draw-row values widths)))
-    ;; Return first line only (no wrapping in old version)
-    (if (null? lines)
-      ""
-      (car lines))))
 
 ;; Calculate optimal column widths that fit within max-width
 ;; data: list of lists (rows x columns)
@@ -4326,11 +4236,6 @@ Maps attribute names to their ANSI SGR codes.")
                   (do ((k 0 (+ k 1)))
                     ((>= k num-cols) (reverse result))
                     (set! result (cons (vector-ref widths k) result))))))))))))
-
-;; DEPRECATED: Old function kept for compatibility
-;; Use tintin-calculate-optimal-widths instead
-(defun tintin-calculate-column-widths (rows)
-  (tintin-calculate-optimal-widths rows 80 8))
 
 ;; ============================================================================
 ;; GENERIC TABLE PRINTER

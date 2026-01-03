@@ -726,7 +726,7 @@
 
 ;; Test undefined variable expansion (should keep literal text)
 (define *tintin-variables* (make-hash-table))
-(assert-equal (tintin-expand-variables "$undefined") "$undefined"
+(assert-equal (tintin-expand-variables-fast "$undefined") "$undefined"
   "Undefined variable should keep literal text")
 
 ;; Test empty string split (should not crash)
