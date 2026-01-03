@@ -61,7 +61,12 @@ cd rlottie
 # The original adds /MT flag which is MSVC-only
 echo "=== Patching CMakeLists.txt for MinGW compatibility ==="
 if grep -q "if (WIN32 AND NOT BUILD_SHARED_LIBS)" CMakeLists.txt; then
-  sed -i 's/if (WIN32 AND NOT BUILD_SHARED_LIBS)/if (WIN32 AND NOT BUILD_SHARED_LIBS)\n    target_compile_definitions(rlottie PUBLIC -DRLOTTIE_BUILD=0)\nendif()\n\nif (WIN32 AND NOT BUILD_SHARED_LIBS AND MSVC)/' CMakeLists.txt || echo "Warning: sed patch may have failed, continuing..."
+  # macOS sed requires a backup extension, Linux/GNU sed doesn't
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' 's/if (WIN32 AND NOT BUILD_SHARED_LIBS)/if (WIN32 AND NOT BUILD_SHARED_LIBS)\n    target_compile_definitions(rlottie PUBLIC -DRLOTTIE_BUILD=0)\nendif()\n\nif (WIN32 AND NOT BUILD_SHARED_LIBS AND MSVC)/' CMakeLists.txt || echo "Warning: sed patch may have failed, continuing..."
+  else
+    sed -i 's/if (WIN32 AND NOT BUILD_SHARED_LIBS)/if (WIN32 AND NOT BUILD_SHARED_LIBS)\n    target_compile_definitions(rlottie PUBLIC -DRLOTTIE_BUILD=0)\nendif()\n\nif (WIN32 AND NOT BUILD_SHARED_LIBS AND MSVC)/' CMakeLists.txt || echo "Warning: sed patch may have failed, continuing..."
+  fi
 else
   echo "Warning: CMakeLists.txt pattern not found, skipping patch"
 fi
@@ -99,7 +104,22 @@ cmake "${CMAKE_ARGS[@]}"
 
 # Build
 echo "=== Building rlottie ==="
-cmake --build build
+# Build only the library target to avoid example program linking issues
+# The example program may fail to link due to missing pixman symbols,
+# but we only need the library itself
+if ! cmake --build build --target rlottie 2>&1; then
+  echo "Warning: Building rlottie target failed, trying full build (examples may fail)..."
+  # Try full build but don't fail if examples fail - we only need the library
+  cmake --build build || {
+    # Check if the library was actually built
+    if [ -f "build/librlottie.a" ] || [ -f "build/librlottie.dll.a" ]; then
+      echo "Library was built successfully despite example build failure"
+    else
+      echo "Error: Library build failed"
+      exit 1
+    fi
+  }
+fi
 
 # Install
 echo "=== Installing rlottie ==="

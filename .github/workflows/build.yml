@@ -174,6 +174,7 @@ jobs:
             sdl2 \
             sdl2_ttf \
             libvterm \
+            pixman \
             git \
             libtool
 
@@ -235,7 +236,7 @@ jobs:
           fi
           export HOMEBREW_PREFIX
           echo "Homebrew prefix: $HOMEBREW_PREFIX"
-          
+
           # Add rlottie prefix if it exists
           RLOTTIE_PREFIX="${{ github.workspace }}/rlottie-install"
           CMAKE_PREFIX_PATHS="$HOMEBREW_PREFIX:/usr/local"
@@ -245,7 +246,7 @@ jobs:
             PKG_CONFIG_PATHS="$RLOTTIE_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATHS"
             echo "Including rlottie from: $RLOTTIE_PREFIX"
           fi
-          
+
           # Set PKG_CONFIG_PATH to include Homebrew and rlottie paths
           export PKG_CONFIG_PATH="$PKG_CONFIG_PATHS:$PKG_CONFIG_PATH"
           # Verify pkg-config can find bdw-gc
@@ -264,7 +265,7 @@ jobs:
           else
             HOMEBREW_PREFIX="/usr/local"
           fi
-          
+
           # Add rlottie prefix if it exists
           RLOTTIE_PREFIX="${{ github.workspace }}/rlottie-install"
           PKG_CONFIG_PATHS="$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig"
@@ -283,7 +284,7 @@ jobs:
           else
             HOMEBREW_PREFIX="/usr/local"
           fi
-          
+
           # Add rlottie prefix if it exists
           RLOTTIE_PREFIX="${{ github.workspace }}/rlottie-install"
           PKG_CONFIG_PATHS="$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig"
