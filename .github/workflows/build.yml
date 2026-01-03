@@ -173,6 +173,14 @@ jobs:
           TO_INSTALL=""
 
           for pkg in $PACKAGES; do
+            # pkg-config is an alias for pkgconf in Homebrew, check for both
+            if [ "$pkg" = "pkg-config" ]; then
+              if echo "$INSTALLED" | grep -qE "^(pkg-config|pkgconf)$"; then
+                echo "✓ $pkg is already installed (as pkgconf)"
+                continue
+              fi
+            fi
+
             if echo "$INSTALLED" | grep -q "^${pkg}$"; then
               echo "✓ $pkg is already installed"
             else
