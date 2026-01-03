@@ -174,7 +174,19 @@ fi
 
 # Install
 echo "=== Installing rlottie ==="
-cmake --install build
+# For static builds, some DLL components may not exist - install with error tolerance
+if ! cmake --install build 2>&1; then
+  echo "Warning: Some components failed to install (likely DLL files for static build)"
+  # Check if essential files were installed
+  if [ -f "$INSTALL_PREFIX/lib/pkgconfig/rlottie.pc" ] && \
+     [ -f "$INSTALL_PREFIX/include/rlottiecommon.h" ] && \
+     ([ -f "$INSTALL_PREFIX/lib/librlottie.a" ] || [ -f "$INSTALL_PREFIX/lib/librlottie.dll.a" ]); then
+    echo "Essential rlottie files installed successfully despite warnings"
+  else
+    echo "Error: Essential rlottie files not found after install"
+    exit 1
+  fi
+fi
 
 # Copy DLL if shared build (rlottie's install doesn't copy it)
 if [ "$BUILD_SHARED" = "ON" ]; then
