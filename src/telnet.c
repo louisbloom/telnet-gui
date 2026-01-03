@@ -337,12 +337,16 @@ int telnet_connect(Telnet *t, const char *hostname, int port) {
                 if (setsockopt(t->socket, IPPROTO_TCP, TCP_KEEPIDLE, &keepalive_time, sizeof(keepalive_time)) < 0) {
                     fprintf(stderr, "Warning: Failed to set TCP_KEEPIDLE: %s\n", strerror(errno));
                 }
+#else
+                (void)keepalive_time; /* Not available on this platform */
 #endif
 #ifdef TCP_KEEPINTVL
                 if (setsockopt(t->socket, IPPROTO_TCP, TCP_KEEPINTVL, &keepalive_interval, sizeof(keepalive_interval)) <
                     0) {
                     fprintf(stderr, "Warning: Failed to set TCP_KEEPINTVL: %s\n", strerror(errno));
                 }
+#else
+                (void)keepalive_interval; /* Not available on this platform */
 #endif
             }
 #endif

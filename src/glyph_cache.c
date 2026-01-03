@@ -138,6 +138,8 @@ static TTF_Font *load_emoji_font(const char *(*find_func)(void), const char *nam
 #if HAVE_SDL_TTF_DPI
     TTF_Font *font = TTF_OpenFontDPI(path, size, hdpi, vdpi);
 #else
+    (void)hdpi; /* Not used when DPI support is not available */
+    (void)vdpi; /* Not used when DPI support is not available */
     TTF_Font *font = TTF_OpenFont(path, size);
 #endif
     return font;
