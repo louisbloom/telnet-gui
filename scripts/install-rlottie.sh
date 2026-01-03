@@ -172,22 +172,6 @@ if [ "$BUILD_SHARED" = "ON" ]; then
   cp build/librlottie.dll "$INSTALL_PREFIX/bin/"
 fi
 
-# Patch header for RLOTTIE_STATIC support (needed for static linking on Windows)
-echo "=== Patching rlottiecommon.h for static linking support ==="
-HEADER="$INSTALL_PREFIX/include/rlottiecommon.h"
-if [ -f "$HEADER" ]; then
-  # Add RLOTTIE_STATIC support to the header
-  # macOS sed requires -i '' (empty extension), Linux/MSYS2 uses -i without extension
-  if [[ "$OSTYPE" == "darwin"* ]]; then
-    sed -i '' 's/#ifdef RLOTTIE_BUILD/#ifdef RLOTTIE_STATIC\n    #define RLOTTIE_API\n  #elif defined RLOTTIE_BUILD/' "$HEADER"
-  else
-    sed -i 's/#ifdef RLOTTIE_BUILD/#ifdef RLOTTIE_STATIC\n    #define RLOTTIE_API\n  #elif defined RLOTTIE_BUILD/' "$HEADER"
-  fi
-  echo "Patched $HEADER"
-else
-  echo "Warning: Header not found at $HEADER"
-fi
-
 # Cleanup
 echo "=== Cleaning up ==="
 cd /
