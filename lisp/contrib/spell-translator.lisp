@@ -197,13 +197,15 @@
 ;; Filter function for telnet-input-filter-hook
 (defun spell-translator-filter (text)
   "Add spell translation annotations to utterance lines"
-  (let ((groups (regex-extract *spell-utter-pattern* text)))
+  ;; Strip ANSI codes for matching (telnet data contains escape sequences)
+  (let* ((clean-text (strip-ansi text))
+         (groups (regex-extract *spell-utter-pattern* clean-text)))
     (if groups
       ;; Found an utterance - translate and annotate
       ;; groups is (name-match garbled-match), we want the second one
       (let* ((garbled (car (cdr groups)))
               (translated (translate-garbled-phrase garbled)))
-        ;; Append translation in brackets
+        ;; Append translation in brackets to original text (preserving ANSI)
         (string-append text " [" translated "]"))
       ;; No match - pass through unchanged
       text)))
@@ -213,7 +215,7 @@
 ;;; ============================================================================
 
 ;; Register the filter hook
-(add-hook 'telnet-input-filter-hook spell-translator-filter)
+(add-hook 'telnet-input-filter-hook 'spell-translator-filter)
 
 ;; Startup message
 (princ "Spell translator loaded. Utterances will be translated automatically.\n")
