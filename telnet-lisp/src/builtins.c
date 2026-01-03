@@ -46,6 +46,7 @@ static LispObject *builtin_concat(LispObject *args, Environment *env);
 static LispObject *builtin_number_to_string(LispObject *args, Environment *env);
 static LispObject *builtin_string_to_number(LispObject *args, Environment *env);
 static LispObject *builtin_split(LispObject *args, Environment *env);
+static LispObject *builtin_join(LispObject *args, Environment *env);
 static LispObject *builtin_string_lt(LispObject *args, Environment *env);
 static LispObject *builtin_string_gt(LispObject *args, Environment *env);
 static LispObject *builtin_string_lte(LispObject *args, Environment *env);
@@ -1581,6 +1582,21 @@ static const char *doc_split = "Split string by pattern (supports wildcards).\n"
                                "(split \"hello world\" \" \")        ; => (\"hello\" \"world\")\n"
                                "```";
 
+static const char *doc_join = "Join a list of strings with a separator.\n"
+                              "\n"
+                              "## Parameters\n"
+                              "- `list` - List of strings to join\n"
+                              "- `separator` - String to insert between elements\n"
+                              "\n"
+                              "## Returns\n"
+                              "A single string with all elements joined.\n"
+                              "\n"
+                              "## Examples\n"
+                              "```lisp\n"
+                              "(join '(\"a\" \"b\" \"c\") \",\")       ; => \"a,b,c\"\n"
+                              "(join '(\"hello\" \"world\") \" \")  ; => \"hello world\"\n"
+                              "```";
+
 static const char *doc_string_replace = "Replace all occurrences of substring in string.\n"
                                         "\n"
                                         "## Parameters\n"
@@ -2760,6 +2776,7 @@ void register_builtins(Environment *env) {
     REGISTER("number->string", builtin_number_to_string, doc_number_to_string);
     REGISTER("string->number", builtin_string_to_number, doc_string_to_number);
     REGISTER("split", builtin_split, doc_split);
+    REGISTER("join", builtin_join, doc_join);
     REGISTER("string<?", builtin_string_lt, doc_string_lt);
     REGISTER("string>?", builtin_string_gt, doc_string_gt);
     REGISTER("string<=?", builtin_string_lte, doc_string_lte);
@@ -3671,6 +3688,65 @@ static LispObject *builtin_split(LispObject *args, Environment *env) {
     }
 
     return result;
+}
+
+static LispObject *builtin_join(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL || lisp_cdr(args) == NIL) {
+        return lisp_make_error("join requires 2 arguments: (join list separator)");
+    }
+
+    LispObject *list_obj = lisp_car(args);
+    LispObject *sep_obj = lisp_car(lisp_cdr(args));
+
+    if (sep_obj->type != LISP_STRING) {
+        return lisp_make_error("join: separator must be a string");
+    }
+
+    const char *sep = sep_obj->value.string;
+    size_t sep_len = strlen(sep);
+
+    /* Handle empty list */
+    if (list_obj == NIL) {
+        return lisp_make_string("");
+    }
+
+    /* Calculate total length */
+    size_t total_len = 0;
+    size_t count = 0;
+    LispObject *curr = list_obj;
+    while (curr != NIL && curr != NULL && curr->type == LISP_CONS) {
+        LispObject *elem = lisp_car(curr);
+        if (elem->type != LISP_STRING) {
+            return lisp_make_error("join: all list elements must be strings");
+        }
+        total_len += strlen(elem->value.string);
+        count++;
+        curr = lisp_cdr(curr);
+    }
+
+    /* Add separator lengths (count - 1 separators) */
+    if (count > 1) {
+        total_len += sep_len * (count - 1);
+    }
+
+    /* Build result string */
+    char *result = GC_malloc(total_len + 1);
+    result[0] = '\0';
+
+    curr = list_obj;
+    int first = 1;
+    while (curr != NIL && curr != NULL && curr->type == LISP_CONS) {
+        if (!first) {
+            strcat(result, sep);
+        }
+        first = 0;
+        LispObject *elem = lisp_car(curr);
+        strcat(result, elem->value.string);
+        curr = lisp_cdr(curr);
+    }
+
+    return lisp_make_string(result);
 }
 
 static LispObject *builtin_string_lt(LispObject *args, Environment *env) {

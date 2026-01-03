@@ -245,12 +245,12 @@ set(FONT_FILES
 )
 
 set(LISP_FILES init.lisp init-post.lisp tintin.lisp)
-set(LISP_CONTRIB_FILES practice.lisp seaport.lisp scan-tracker.lisp)
+set(LISP_CONTRIB_FILES practice.lisp seaport.lisp scan-tracker.lisp spell-translator.lisp)
 
 set(TEST_FILES
     tintin-test.lisp completion-test.lisp init-test.lisp
     timer-test.lisp practice-test.lisp notification-test.lisp
-    test-helpers.lisp
+    spell-translator-test.lisp test-helpers.lisp
 )
 
 set(ANIMATION_FILES
@@ -1371,6 +1371,11 @@ add_test(NAME gui_practice-test
 
 add_test(NAME gui_notification-test
     COMMAND $<TARGET_FILE:lisp-repl> notification-test.lisp
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
+)
+
+add_test(NAME gui_spell-translator-test
+    COMMAND $<TARGET_FILE:lisp-repl> spell-translator-test.lisp
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
 )
 

@@ -16,6 +16,14 @@
 
 ;; Split test
 (assert-equal (split "apple-banana-cherry" "-") '("apple" "banana" "cherry") "split string by delimiter")
+(assert-equal (string-split "a,b,c" ",") '("a" "b" "c") "string-split alias works")
+
+;; Join test
+(assert-equal (join '("a" "b" "c") ",") "a,b,c" "join strings with comma")
+(assert-equal (join '("hello" "world") " ") "hello world" "join strings with space")
+(assert-equal (join '("one") "-") "one" "join single element list")
+(assert-equal (join '() ",") "" "join empty list returns empty string")
+(assert-equal (string-join '("x" "y" "z") "-") "x-y-z" "string-join alias works")
 
 ;; String contains
 (assert-true (string-contains? "hello world" "world") "string-contains? finds substring")

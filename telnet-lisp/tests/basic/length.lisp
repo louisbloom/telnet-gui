@@ -10,6 +10,7 @@
 ;; Basic ASCII
 (assert-equal (length "hello") 5 "ASCII string length")
 (assert-equal (length "") 0 "Empty string length")
+(assert-equal (string-length "test") 4 "string-length alias works")
 
 ;; CJK characters (each is one grapheme)
 (assert-equal (length "世界") 2 "CJK characters")

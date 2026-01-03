@@ -614,10 +614,14 @@ String equality - returns true if `str1` and `str2` have identical character seq
 
 - `concat` - Concatenate multiple strings
 - `split` - Split string by pattern (supports wildcards: `*`, `?`, `[]`)
+- `join` - Join a list of strings with a separator
 - `length` - Get length of sequence (list, string, or vector). For strings, returns grapheme cluster count (human-visible characters).
 - `substring` - Extract substring by character indices (UTF-8 aware)
 - `string-ref` - Get character at index (UTF-8 aware, returns character type)
 - `string-append` - Alias for `concat`
+- `string-split` - Alias for `split`
+- `string-join` - Alias for `join`
+- `string-length` - Alias for `length` (also works on lists and vectors)
 - `string-replace` - Replace all occurrences of substring in string
 - `string-upcase` - Convert string to uppercase (UTF-8 aware, ASCII only)
 - `string-downcase` - Convert string to lowercase (UTF-8 aware, ASCII only)
@@ -1642,6 +1646,10 @@ Convert to tail recursion by:
 ; Split by pattern
 (split "a,b,c" ",")                  ; => ("a" "b" "c")
 (split "foo*bar*baz" "*")            ; => ("foo" "bar" "baz")
+
+; Join strings
+(join '("a" "b" "c") ",")            ; => "a,b,c"
+(join '("hello" "world") " ")        ; => "hello world"
 
 ; String comparisons
 (string=? "hello" "hello")           ; => 1
