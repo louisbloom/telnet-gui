@@ -165,24 +165,28 @@ jobs:
       - name: Install dependencies
         run: |
           brew update
-          # Filter out "Warning: X is already installed" messages
-          # Save brew install exit code separately from grep
-          set +o pipefail
-          brew install \
-            cmake \
-            ninja \
-            pkg-config \
-            bdw-gc \
-            pcre2 \
-            sdl2 \
-            sdl2_ttf \
-            libvterm \
-            pixman \
-            git \
-            libtool 2>&1 | grep -v "^Warning:.*already installed" || true
-          BREW_EXIT=${PIPESTATUS[0]}
-          set -o pipefail
-          exit $BREW_EXIT
+          # List of required packages
+          PACKAGES="cmake ninja pkg-config bdw-gc pcre2 sdl2 sdl2_ttf libvterm pixman git libtool"
+          
+          # Check which packages are already installed
+          INSTALLED=$(brew list --formula 2>/dev/null || true)
+          TO_INSTALL=""
+          
+          for pkg in $PACKAGES; do
+            if echo "$INSTALLED" | grep -q "^${pkg}$"; then
+              echo "✓ $pkg is already installed"
+            else
+              TO_INSTALL="$TO_INSTALL $pkg"
+            fi
+          done
+          
+          # Only install missing packages
+          if [ -n "$TO_INSTALL" ]; then
+            echo "Installing missing packages:$TO_INSTALL"
+            brew install $TO_INSTALL
+          else
+            echo "All required packages are already installed"
+          fi
 
       - name: Install rlottie from source
         continue-on-error: true
