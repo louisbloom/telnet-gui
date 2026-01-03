@@ -71,6 +71,28 @@ else
   echo "Warning: CMakeLists.txt pattern not found, skipping patch"
 fi
 
+# Patch CMakeLists.txt to skip installing DLLs for static builds
+# The STB image loader tries to install a DLL even for static builds
+if [ "$BUILD_SHARED" = "OFF" ]; then
+  echo "=== Patching CMakeLists.txt to skip DLL installs for static build ==="
+  # Find CMakeLists.txt files that install DLLs and make them conditional
+  find . -name "CMakeLists.txt" -type f | while read -r cmake_file; do
+    # Skip the root CMakeLists.txt - we only want to patch subdirectories
+    if [ "$cmake_file" != "./CMakeLists.txt" ] && grep -q "install.*\.dll" "$cmake_file"; then
+      echo "Patching $cmake_file to make DLL installs conditional on BUILD_SHARED_LIBS"
+      # Wrap DLL install commands with a condition checking BUILD_SHARED_LIBS
+      # This is a bit complex, so we'll use a Python/perl one-liner or sed
+      # For now, let's just comment out DLL install lines for static builds
+      if [[ "$OSTYPE" == "darwin"* ]]; then
+        # Comment out install commands that reference .dll files
+        sed -i '' -E 's/^([[:space:]]*install\([^)]*\.dll[^)]*\))/# \1 # Disabled for static build/' "$cmake_file" || true
+      else
+        sed -i -E 's/^([[:space:]]*install\([^)]*\.dll[^)]*\))/# \1 # Disabled for static build/' "$cmake_file" || true
+      fi
+    fi
+  done
+fi
+
 # Detect C++ compiler
 if command -v g++ &>/dev/null; then
   CXX_COMPILER_MSYS=$(which g++)
@@ -145,19 +167,7 @@ fi
 
 # Install
 echo "=== Installing rlottie ==="
-# For static builds, some DLL components may not exist - install with error tolerance
-if ! cmake --install build 2>&1; then
-  echo "Warning: Some components failed to install (likely DLL files for static build)"
-  # Check if essential files were installed
-  if [ -f "$INSTALL_PREFIX/lib/pkgconfig/rlottie.pc" ] && \
-     [ -f "$INSTALL_PREFIX/include/rlottiecommon.h" ] && \
-     ([ -f "$INSTALL_PREFIX/lib/librlottie.a" ] || [ -f "$INSTALL_PREFIX/lib/librlottie.dll.a" ]); then
-    echo "Essential rlottie files installed successfully despite warnings"
-  else
-    echo "Error: Essential rlottie files not found after install"
-    exit 1
-  fi
-fi
+cmake --install build
 
 # Copy DLL if shared build (rlottie's install doesn't copy it)
 if [ "$BUILD_SHARED" = "ON" ]; then
