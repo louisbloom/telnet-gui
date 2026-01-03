@@ -71,26 +71,32 @@ else
   echo "Warning: CMakeLists.txt pattern not found, skipping patch"
 fi
 
-# Patch CMakeLists.txt to skip installing DLLs for static builds
+# Patch STB CMakeLists.txt to skip DLL installs for static builds
 # The STB image loader tries to install a DLL even for static builds
 if [ "$BUILD_SHARED" = "OFF" ]; then
-  echo "=== Patching CMakeLists.txt to skip DLL installs for static build ==="
-  # Find CMakeLists.txt files that install DLLs and make them conditional
-  find . -name "CMakeLists.txt" -type f | while read -r cmake_file; do
-    # Skip the root CMakeLists.txt - we only want to patch subdirectories
-    if [ "$cmake_file" != "./CMakeLists.txt" ] && grep -q "install.*\.dll" "$cmake_file"; then
-      echo "Patching $cmake_file to make DLL installs conditional on BUILD_SHARED_LIBS"
-      # Wrap DLL install commands with a condition checking BUILD_SHARED_LIBS
-      # This is a bit complex, so we'll use a Python/perl one-liner or sed
-      # For now, let's just comment out DLL install lines for static builds
-      if [[ "$OSTYPE" == "darwin"* ]]; then
-        # Comment out install commands that reference .dll files
-        sed -i '' -E 's/^([[:space:]]*install\([^)]*\.dll[^)]*\))/# \1 # Disabled for static build/' "$cmake_file" || true
-      else
-        sed -i -E 's/^([[:space:]]*install\([^)]*\.dll[^)]*\))/# \1 # Disabled for static build/' "$cmake_file" || true
-      fi
+  echo "=== Patching STB CMakeLists.txt to skip DLL installs for static build ==="
+  STB_CMAKE="src/vector/stb/CMakeLists.txt"
+  if [ -f "$STB_CMAKE" ]; then
+    echo "Patching $STB_CMAKE"
+    # Find install() commands that install DLLs and wrap them in if(BUILD_SHARED_LIBS)
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      # Insert if(BUILD_SHARED_LIBS) before install lines with .dll
+      sed -i '' -E '/install.*\.dll/ {
+        i\
+if(BUILD_SHARED_LIBS)
+        a\
+endif()
+      }' "$STB_CMAKE" || echo "Warning: sed patch may have failed, continuing..."
+    else
+      # Insert if(BUILD_SHARED_LIBS) before install lines with .dll
+      sed -i -E '/install.*\.dll/ {
+        i\
+if(BUILD_SHARED_LIBS)
+        a\
+endif()
+      }' "$STB_CMAKE" || echo "Warning: sed patch may have failed, continuing..."
     fi
-  done
+  fi
 fi
 
 # Detect C++ compiler
@@ -137,6 +143,7 @@ CMAKE_ARGS=(
   -DLIB_INSTALL_DIR="$INSTALL_PREFIX/lib"
   -DBUILD_SHARED_LIBS="$BUILD_SHARED"
   -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+  -DBUILD_EXAMPLES=OFF # Skip building examples to avoid extra dependencies
 )
 
 # Add C++ compiler if found
