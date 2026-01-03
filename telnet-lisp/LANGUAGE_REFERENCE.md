@@ -4,6 +4,7 @@ A reference for the Telnet Lisp language, covering data types, special forms, bu
 
 ## Table of Contents
 
+- [Understanding Lisp Evaluation](#understanding-lisp-evaluation)
 - [Data Types](#data-types)
 - [Special Forms](#special-forms)
 - [Built-in Functions](#built-in-functions)
@@ -14,6 +15,107 @@ A reference for the Telnet Lisp language, covering data types, special forms, bu
 - [Error Handling](#error-handling)
 - [Tail Recursion Optimization](#tail-recursion-optimization)
 - [Quick Examples](#quick-examples)
+
+## Understanding Lisp Evaluation
+
+Before diving into the language details, it helps to understand how Lisp evaluates code. When you write `(foo x y)`, Lisp evaluates this as a function call—but _how_ that call works depends on what `foo` is. There are four main categories:
+
+### Special Forms
+
+Special forms are **hard-coded in the interpreter** (in C). They have magical evaluation rules that can't be replicated by user code.
+
+**Why special?** Normal function calls evaluate all arguments first, then call the function. Special forms break this rule—they control _if_ and _when_ their arguments get evaluated.
+
+**Examples:**
+
+- `if` - Only evaluates one branch (the true or false part, not both)
+- `define` - The first argument is a symbol name, not evaluated
+- `quote` - Returns its argument completely unevaluated
+- `lambda` - The body isn't evaluated until the function is called
+- `and`/`or` - Short-circuit: stop evaluating after finding the answer
+
+```lisp
+(if #t (print "yes") (launch-missiles))  ; Only prints "yes", missiles safe!
+(define x 10)                            ; x is not evaluated, it's the name
+'(+ 1 2)                                 ; => (+ 1 2), not 3
+```
+
+**You can't write `if` as a function** because both branches would be evaluated before the function even runs.
+
+### Built-in Functions
+
+Built-in functions are **implemented in C** for performance, but follow normal evaluation rules—all arguments are evaluated before the function runs.
+
+**Why C?** Speed and access to system capabilities (file I/O, regex, etc.).
+
+**Examples:**
+
+- Arithmetic: `+`, `-`, `*`, `/`, `mod`
+- Lists: `car`, `cdr`, `cons`, `list`, `append`
+- Strings: `string-append`, `string-length`, `substring`
+- I/O: `print`, `read-file`, `write-file`
+
+```lisp
+(+ 1 2 3)              ; All args evaluated, then summed
+(string-append "a" "b") ; Both strings evaluated, then concatenated
+```
+
+### Macros
+
+Macros are **code transformers written in Lisp**. They receive their arguments **unevaluated**, transform them into new code, and that new code gets evaluated.
+
+**Why macros?** To extend the language syntax without modifying the interpreter. They're like special forms you can write yourself.
+
+**Examples:**
+
+- `when`/`unless` - Conditional execution (defined as macros expanding to `if`)
+- `defun` - Named function definition (expands to `define` + `lambda`)
+- `defvar` - Variable definition with optional docstring
+
+```lisp
+; This macro...
+(when (> x 0)
+  (print "positive")
+  (+ x 1))
+
+; ...expands to this code, which then runs:
+(if (> x 0)
+    (progn
+      (print "positive")
+      (+ x 1))
+    nil)
+```
+
+**Macros vs special forms:** Both control evaluation, but macros are written in Lisp and work by code transformation. Special forms are primitive—they're the building blocks macros use.
+
+### User-Defined Functions (Lambdas)
+
+Regular functions written in Lisp using `lambda` or `defun`. Arguments are evaluated before the function runs (normal evaluation).
+
+```lisp
+(define square (lambda (x) (* x x)))
+(defun cube (x) (* x x x))
+
+(square (+ 2 3))  ; (+ 2 3) evaluated to 5, then squared => 25
+```
+
+### Comparison Table
+
+| Type              | Implemented In  | Args Evaluated?    | Can Control Evaluation?  | Extensible? |
+| ----------------- | --------------- | ------------------ | ------------------------ | ----------- |
+| Special Form      | C (interpreter) | Depends on form    | Yes                      | No          |
+| Built-in Function | C               | Yes, all           | No                       | No          |
+| Macro             | Lisp            | No (receives code) | Yes (via transformation) | Yes         |
+| User Function     | Lisp            | Yes, all           | No                       | Yes         |
+
+### When to Use What
+
+- **Need to control evaluation?** → Macro (or use existing special forms)
+- **Performance-critical operation?** → Built-in (already in C)
+- **Normal computation?** → User function
+- **Extending syntax?** → Macro
+
+Most code you write will be user functions. Macros are powerful but should be used sparingly—prefer functions when possible, since they're simpler to understand and debug.
 
 ## Data Types
 
