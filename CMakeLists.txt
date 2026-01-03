@@ -988,17 +988,41 @@ endif()
 set(CMAKE_REQUIRED_INCLUDES_SAVE ${CMAKE_REQUIRED_INCLUDES})
 set(CMAKE_REQUIRED_LIBRARIES_SAVE ${CMAKE_REQUIRED_LIBRARIES})
 set(CMAKE_REQUIRED_LINK_OPTIONS_SAVE ${CMAKE_REQUIRED_LINK_OPTIONS})
+set(CMAKE_REQUIRED_FLAGS_SAVE ${CMAKE_REQUIRED_FLAGS})
 set(CMAKE_REQUIRED_INCLUDES ${SDL_TTF_TEST_INCLUDES})
 
 # SDL2_ttf depends on SDL2, so include both libraries
 # On macOS, pkg-config may return framework flags that need to be handled separately
 set(SDL_TTF_TEST_LIBRARIES ${SDL2_TTF_LIBRARIES} ${SDL2_LIBRARIES})
 set(SDL_TTF_TEST_LINK_OPTIONS "")
+set(SDL_TTF_TEST_CFLAGS "")
 
-# Extract framework flags from library lists for macOS
+# Extract framework flags from library lists and cflags for macOS
 # pkg-config returns "-framework;SDL2" as separate list items, so we need to
 # capture both the flag and the framework name together
 if(APPLE)
+    # Process CFLAGS to extract -F framework search paths and -I include paths
+    set(ALL_CFLAGS ${SDL2_TTF_CFLAGS_OTHER} ${SDL2_CFLAGS_OTHER})
+    set(EXPECT_FRAMEWORK_PATH FALSE)
+    foreach(FLAG IN LISTS ALL_CFLAGS)
+        if(EXPECT_FRAMEWORK_PATH)
+            # This is the path following -F
+            list(APPEND SDL_TTF_TEST_CFLAGS "-F${FLAG}")
+            set(EXPECT_FRAMEWORK_PATH FALSE)
+        elseif(FLAG STREQUAL "-F")
+            # Next item will be the framework path
+            set(EXPECT_FRAMEWORK_PATH TRUE)
+        elseif(FLAG MATCHES "^-F")
+            # Combined -F/path format
+            list(APPEND SDL_TTF_TEST_CFLAGS "${FLAG}")
+        elseif(FLAG MATCHES "^-I")
+            # Include path - add to includes
+            string(SUBSTRING "${FLAG}" 2 -1 INC_PATH)
+            list(APPEND SDL_TTF_TEST_INCLUDES "${INC_PATH}")
+        endif()
+    endforeach()
+
+    # Process libraries to extract -framework flags
     set(SDL_TTF_TEST_LIBRARIES_FILTERED "")
     set(EXPECT_FRAMEWORK_NAME FALSE)
     foreach(LIB IN LISTS SDL_TTF_TEST_LIBRARIES)
@@ -1017,9 +1041,14 @@ if(APPLE)
     set(SDL_TTF_TEST_LIBRARIES ${SDL_TTF_TEST_LIBRARIES_FILTERED})
 endif()
 
+set(CMAKE_REQUIRED_INCLUDES ${SDL_TTF_TEST_INCLUDES})
 set(CMAKE_REQUIRED_LIBRARIES ${SDL_TTF_TEST_LIBRARIES})
 if(SDL_TTF_TEST_LINK_OPTIONS)
     set(CMAKE_REQUIRED_LINK_OPTIONS ${SDL_TTF_TEST_LINK_OPTIONS})
+endif()
+if(SDL_TTF_TEST_CFLAGS)
+    string(REPLACE ";" " " SDL_TTF_TEST_CFLAGS_STR "${SDL_TTF_TEST_CFLAGS}")
+    set(CMAKE_REQUIRED_FLAGS "${SDL_TTF_TEST_CFLAGS_STR}")
 endif()
 
 check_c_source_compiles("
@@ -1037,6 +1066,7 @@ check_c_source_compiles("
 set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_SAVE})
 set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES_SAVE})
 set(CMAKE_REQUIRED_LINK_OPTIONS ${CMAKE_REQUIRED_LINK_OPTIONS_SAVE})
+set(CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS_SAVE})
 
 # ============================================================================
 # Toolchain String Detection
