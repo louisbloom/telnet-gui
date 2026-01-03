@@ -41,7 +41,19 @@ jobs:
         continue-on-error: true
         run: |
           cd ${{ github.workspace }}
-          bash scripts/install-rlottie.sh --prefix /usr/local || echo "rlottie installation failed, continuing without it (optional dependency)"
+          echo "Checking build tools..."
+          g++ --version || echo "Warning: g++ not found"
+          cmake --version
+          ninja --version
+          echo "Installing rlottie..."
+          bash scripts/install-rlottie.sh --prefix /usr/local 2>&1 | tee rlottie-install.log || {
+            echo "=== rlottie installation failed ==="
+            echo "Last 100 lines of log:"
+            tail -100 rlottie-install.log || true
+            echo "Continuing without rlottie (optional dependency)"
+            exit 0
+          }
+          echo "rlottie installed successfully"
         env:
           PKG_CONFIG_PATH: /usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
 

@@ -60,16 +60,42 @@ cd rlottie
 # Patch CMakeLists.txt for MinGW compatibility (static builds)
 # The original adds /MT flag which is MSVC-only
 echo "=== Patching CMakeLists.txt for MinGW compatibility ==="
-sed -i 's/if (WIN32 AND NOT BUILD_SHARED_LIBS)/if (WIN32 AND NOT BUILD_SHARED_LIBS)\n    target_compile_definitions(rlottie PUBLIC -DRLOTTIE_BUILD=0)\nendif()\n\nif (WIN32 AND NOT BUILD_SHARED_LIBS AND MSVC)/' CMakeLists.txt
+if grep -q "if (WIN32 AND NOT BUILD_SHARED_LIBS)" CMakeLists.txt; then
+  sed -i 's/if (WIN32 AND NOT BUILD_SHARED_LIBS)/if (WIN32 AND NOT BUILD_SHARED_LIBS)\n    target_compile_definitions(rlottie PUBLIC -DRLOTTIE_BUILD=0)\nendif()\n\nif (WIN32 AND NOT BUILD_SHARED_LIBS AND MSVC)/' CMakeLists.txt || echo "Warning: sed patch may have failed, continuing..."
+else
+  echo "Warning: CMakeLists.txt pattern not found, skipping patch"
+fi
+
+# Detect C++ compiler
+if command -v g++ &>/dev/null; then
+  CXX_COMPILER=$(which g++)
+  echo "Found C++ compiler: $CXX_COMPILER"
+elif command -v clang++ &>/dev/null; then
+  CXX_COMPILER=$(which clang++)
+  echo "Found C++ compiler: $CXX_COMPILER"
+else
+  echo "Warning: No C++ compiler found, CMake will try to detect one"
+  CXX_COMPILER=""
+fi
 
 # Configure
 echo "=== Configuring rlottie ==="
-cmake -B build -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-  -DLIB_INSTALL_DIR="$INSTALL_PREFIX/lib" \
-  -DBUILD_SHARED_LIBS="$BUILD_SHARED" \
+CMAKE_ARGS=(
+  -B build
+  -G Ninja
+  -DCMAKE_BUILD_TYPE=Release
+  -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX"
+  -DLIB_INSTALL_DIR="$INSTALL_PREFIX/lib"
+  -DBUILD_SHARED_LIBS="$BUILD_SHARED"
   -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+)
+
+# Add C++ compiler if found
+if [ -n "$CXX_COMPILER" ]; then
+  CMAKE_ARGS+=(-DCMAKE_CXX_COMPILER="$CXX_COMPILER")
+fi
+
+cmake "${CMAKE_ARGS[@]}"
 
 # Build
 echo "=== Building rlottie ==="
