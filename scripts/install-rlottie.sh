@@ -116,7 +116,6 @@ CMAKE_ARGS=(
   -DLIB_INSTALL_DIR="$INSTALL_PREFIX/lib"
   -DBUILD_SHARED_LIBS="$BUILD_SHARED"
   -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-  -DBUILD_EXAMPLES=OFF # Skip building examples to avoid extra dependencies
 )
 
 # Disable LOTTIE_MODULE for static builds to avoid DLL install issues
