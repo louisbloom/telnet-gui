@@ -1405,9 +1405,33 @@ endif()
 # Save current values and set up for test
 set(CMAKE_REQUIRED_INCLUDES_SAVE ${CMAKE_REQUIRED_INCLUDES})
 set(CMAKE_REQUIRED_LIBRARIES_SAVE ${CMAKE_REQUIRED_LIBRARIES})
+set(CMAKE_REQUIRED_LINK_OPTIONS_SAVE ${CMAKE_REQUIRED_LINK_OPTIONS})
 set(CMAKE_REQUIRED_INCLUDES ${SDL_TTF_TEST_INCLUDES})
+
 # SDL2_ttf depends on SDL2, so include both libraries
-set(CMAKE_REQUIRED_LIBRARIES ${SDL2_TTF_LIBRARIES} ${SDL2_LIBRARIES})
+# On macOS, pkg-config may return framework flags that need to be handled separately
+set(SDL_TTF_TEST_LIBRARIES ${SDL2_TTF_LIBRARIES} ${SDL2_LIBRARIES})
+set(SDL_TTF_TEST_LINK_OPTIONS "")
+
+# Extract framework flags from library lists for macOS
+if(APPLE)
+    set(SDL_TTF_TEST_LIBRARIES_FILTERED "")
+    foreach(LIB IN LISTS SDL_TTF_TEST_LIBRARIES)
+        if(LIB MATCHES "^-framework")
+            # Framework flag - add to link options
+            list(APPEND SDL_TTF_TEST_LINK_OPTIONS ${LIB})
+        else()
+            # Regular library - keep in libraries list
+            list(APPEND SDL_TTF_TEST_LIBRARIES_FILTERED ${LIB})
+        endif()
+    endforeach()
+    set(SDL_TTF_TEST_LIBRARIES ${SDL_TTF_TEST_LIBRARIES_FILTERED})
+endif()
+
+set(CMAKE_REQUIRED_LIBRARIES ${SDL_TTF_TEST_LIBRARIES})
+if(SDL_TTF_TEST_LINK_OPTIONS)
+    set(CMAKE_REQUIRED_LINK_OPTIONS ${SDL_TTF_TEST_LINK_OPTIONS})
+endif()
 
 check_c_source_compiles("
     #include <SDL_ttf.h>
@@ -1423,6 +1447,7 @@ check_c_source_compiles("
 # Restore previous values
 set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_SAVE})
 set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES_SAVE})
+set(CMAKE_REQUIRED_LINK_OPTIONS ${CMAKE_REQUIRED_LINK_OPTIONS_SAVE})
 
 # ============================================================================
 # Toolchain String Detection
