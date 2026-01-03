@@ -973,6 +973,17 @@ if(WIN32 AND DEFINED UCRT64_ROOT)
     list(APPEND SDL_TTF_TEST_INCLUDES "${UCRT64_ROOT}/include")
 endif()
 
+# Add Homebrew include paths on macOS
+if(APPLE)
+    if(EXISTS "/opt/homebrew/include")
+        list(APPEND SDL_TTF_TEST_INCLUDES "/opt/homebrew/include")
+        list(APPEND SDL_TTF_TEST_INCLUDES "/opt/homebrew/include/SDL2")
+    elseif(EXISTS "/usr/local/include")
+        list(APPEND SDL_TTF_TEST_INCLUDES "/usr/local/include")
+        list(APPEND SDL_TTF_TEST_INCLUDES "/usr/local/include/SDL2")
+    endif()
+endif()
+
 # Save current values and set up for test
 set(CMAKE_REQUIRED_INCLUDES_SAVE ${CMAKE_REQUIRED_INCLUDES})
 set(CMAKE_REQUIRED_LIBRARIES_SAVE ${CMAKE_REQUIRED_LIBRARIES})
