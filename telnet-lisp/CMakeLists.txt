@@ -59,6 +59,9 @@ target_include_directories(lisp PUBLIC include)
 # Add include directories from pkg-config
 target_include_directories(lisp PRIVATE ${GC_INCLUDE_DIRS} ${PCRE2_INCLUDE_DIRS})
 
+# Add library directories from pkg-config so linker can find libraries
+target_link_directories(lisp PRIVATE ${GC_LIBRARY_DIRS} ${PCRE2_LIBRARY_DIRS})
+
 # Link libraries
 target_link_libraries(lisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
 
@@ -85,6 +88,7 @@ install(FILES include/lisp.h include/utf8.h include/file_utils.h
 add_executable(lisp-repl repl/main.c)
 target_include_directories(lisp-repl PRIVATE include)
 target_include_directories(lisp-repl PRIVATE ${GC_INCLUDE_DIRS} ${PCRE2_INCLUDE_DIRS})
+target_link_directories(lisp-repl PRIVATE ${GC_LIBRARY_DIRS} ${PCRE2_LIBRARY_DIRS})
 target_link_libraries(lisp-repl lisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
 
 # Pass version information to lisp library and repl
