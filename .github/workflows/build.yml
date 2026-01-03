@@ -166,7 +166,7 @@ jobs:
         run: |
           brew update
           # List of required packages
-          PACKAGES="cmake ninja pkg-config bdw-gc pcre2 sdl2 sdl2_ttf libvterm git libtool"
+          PACKAGES="cmake ninja pkg-config bdw-gc pcre2 sdl2 sdl2_ttf libvterm pixman git libtool"
 
           # Check which packages are already installed
           INSTALLED=$(brew list --formula 2>/dev/null || true)
