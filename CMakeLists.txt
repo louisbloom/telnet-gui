@@ -46,29 +46,48 @@ if(WIN32 AND NOT CMAKE_C_COMPILER)
 
     if(UCRT64_ROOT)
         message(STATUS "Found MSYS2 UCRT64 at: ${UCRT64_ROOT}")
-        message(STATUS "Configuring UCRT64 toolchain before project initialization")
+        
+        # Verify compiler actually exists before setting it
+        # In CI environments (like GitHub Actions), the compiler may be in PATH instead
+        set(UCRT64_GCC "${UCRT64_ROOT}/bin/gcc.exe")
+        if(EXISTS "${UCRT64_GCC}")
+            message(STATUS "Configuring UCRT64 toolchain before project initialization")
 
-        # Set UCRT64 compiler BEFORE project() command
-        set(CMAKE_C_COMPILER "${UCRT64_ROOT}/bin/gcc.exe" CACHE FILEPATH "C compiler" FORCE)
-        set(CMAKE_CXX_COMPILER "${UCRT64_ROOT}/bin/g++.exe" CACHE FILEPATH "C++ compiler" FORCE)
-        set(CMAKE_RC_COMPILER "${UCRT64_ROOT}/bin/windres.exe" CACHE FILEPATH "RC compiler" FORCE)
+            # Set UCRT64 compiler BEFORE project() command
+            set(CMAKE_C_COMPILER "${UCRT64_GCC}" CACHE FILEPATH "C compiler" FORCE)
+            set(CMAKE_CXX_COMPILER "${UCRT64_ROOT}/bin/g++.exe" CACHE FILEPATH "C++ compiler" FORCE)
+            set(CMAKE_RC_COMPILER "${UCRT64_ROOT}/bin/windres.exe" CACHE FILEPATH "RC compiler" FORCE)
 
-        # Force pkg-config to use UCRT64 packages
-        set(UCRT64_PKG_CONFIG "${UCRT64_ROOT}/bin/pkg-config.exe")
-        if(EXISTS "${UCRT64_PKG_CONFIG}")
-            set(PKG_CONFIG_EXECUTABLE "${UCRT64_PKG_CONFIG}" CACHE FILEPATH "pkg-config" FORCE)
-        endif()
+            # Force pkg-config to use UCRT64 packages
+            set(UCRT64_PKG_CONFIG "${UCRT64_ROOT}/bin/pkg-config.exe")
+            if(EXISTS "${UCRT64_PKG_CONFIG}")
+                set(PKG_CONFIG_EXECUTABLE "${UCRT64_PKG_CONFIG}" CACHE FILEPATH "pkg-config" FORCE)
+            endif()
 
-        # Prepend UCRT64 pkg-config paths
-        set(UCRT64_PKG_CONFIG_PATH "${UCRT64_ROOT}/lib/pkgconfig")
-        if(DEFINED ENV{PKG_CONFIG_PATH})
-            set(ENV{PKG_CONFIG_PATH} "${UCRT64_PKG_CONFIG_PATH}:$ENV{PKG_CONFIG_PATH}")
+            # Prepend UCRT64 pkg-config paths
+            set(UCRT64_PKG_CONFIG_PATH "${UCRT64_ROOT}/lib/pkgconfig")
+            if(DEFINED ENV{PKG_CONFIG_PATH})
+                set(ENV{PKG_CONFIG_PATH} "${UCRT64_PKG_CONFIG_PATH}:$ENV{PKG_CONFIG_PATH}")
+            else()
+                set(ENV{PKG_CONFIG_PATH} "${UCRT64_PKG_CONFIG_PATH}")
+            endif()
+
+            message(STATUS "  Using UCRT64 compiler: ${CMAKE_C_COMPILER}")
+            message(STATUS "  Using UCRT64 pkg-config: ${PKG_CONFIG_EXECUTABLE}")
         else()
-            set(ENV{PKG_CONFIG_PATH} "${UCRT64_PKG_CONFIG_PATH}")
+            message(STATUS "UCRT64 compiler not found at ${UCRT64_GCC}, letting CMake detect from PATH")
+            # Still set pkg-config paths if they exist
+            set(UCRT64_PKG_CONFIG "${UCRT64_ROOT}/bin/pkg-config.exe")
+            if(EXISTS "${UCRT64_PKG_CONFIG}")
+                set(PKG_CONFIG_EXECUTABLE "${UCRT64_PKG_CONFIG}" CACHE FILEPATH "pkg-config" FORCE)
+            endif()
+            set(UCRT64_PKG_CONFIG_PATH "${UCRT64_ROOT}/lib/pkgconfig")
+            if(DEFINED ENV{PKG_CONFIG_PATH})
+                set(ENV{PKG_CONFIG_PATH} "${UCRT64_PKG_CONFIG_PATH}:$ENV{PKG_CONFIG_PATH}")
+            else()
+                set(ENV{PKG_CONFIG_PATH} "${UCRT64_PKG_CONFIG_PATH}")
+            endif()
         endif()
-
-        message(STATUS "  Using UCRT64 compiler: ${CMAKE_C_COMPILER}")
-        message(STATUS "  Using UCRT64 pkg-config: ${PKG_CONFIG_EXECUTABLE}")
     endif()
 endif()
 
