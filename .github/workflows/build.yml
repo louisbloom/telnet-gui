@@ -38,9 +38,10 @@ jobs:
 
       - name: Install rlottie from source
         shell: msys2 {0}
+        continue-on-error: true
         run: |
           cd ${{ github.workspace }}
-          bash scripts/install-rlottie.sh --prefix /usr/local
+          bash scripts/install-rlottie.sh --prefix /usr/local || echo "rlottie installation failed, continuing without it (optional dependency)"
         env:
           PKG_CONFIG_PATH: /usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
 
