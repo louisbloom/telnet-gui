@@ -3287,6 +3287,7 @@ Maps attribute names to their ANSI SGR codes.")
         ;; Mark as handled via hook system
         (set! *user-input-handled* #t)
         (set! *user-input-result* nil)))))
+
 ;; Toggle TinTin++ processing on/off
 (defun tintin-toggle! ()
   "Toggle TinTin++ processing on or off.
@@ -5540,21 +5541,12 @@ Maps attribute names to their ANSI SGR codes.")
 ;; Install telnet-input-filter-hook (use add-hook to chain with other filters)
 (add-hook 'telnet-input-filter-hook 'tintin-telnet-input-filter)
 
-;; Save the existing telnet-input-hook before overriding
-;; This preserves bootstrap.lisp's behavior (word collection, scroll-lock notification, etc.)
-;; Use bound? to handle case where bootstrap.lisp wasn't loaded (e.g., in tests)
-(define *tintin-original-telnet-input-hook*
-  (if (bound? 'telnet-input-hook) telnet-input-hook nil))
-
-;; Extend telnet-input-hook to add action triggering
+;; TinTin++ telnet input hook handler for triggering actions
 ;; This hook is called when data arrives from the telnet server
 ;; It sees stripped text (no ANSI codes), better for pattern matching
-(defun telnet-input-hook (text)
-  ;; Step 1: Call original hook (preserves all bootstrap.lisp behavior)
-  (if *tintin-original-telnet-input-hook*
-    (*tintin-original-telnet-input-hook* text))
-
-  ;; Step 2: Trigger actions (if TinTin++ enabled)
+(defun tintin-telnet-input-hook (text)
+  "Process telnet input for TinTin++ action triggering.
+   Called via telnet-input-hook for each chunk of server output."
   (if (and *tintin-enabled*
         (not *tintin-action-executing*)
         (> (hash-count *tintin-actions*) 0))
@@ -5562,6 +5554,9 @@ Maps attribute names to their ANSI SGR codes.")
       (do ((i 0 (+ i 1)))
         ((>= i (length lines)))
         (tintin-trigger-actions-for-line (list-ref lines i))))))
+
+;; Install telnet-input-hook (use add-hook to chain with other hooks)
+(add-hook 'telnet-input-hook 'tintin-telnet-input-hook)
 
 ;; Announce activation (terminal is ready when this file loads via -l)
 (tintin-echo "TinTin++ loaded and activated\r\n")
