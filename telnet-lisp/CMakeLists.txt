@@ -53,11 +53,14 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(GC REQUIRED bdw-gc)
 pkg_check_modules(PCRE2 REQUIRED libpcre2-8)
 
-# Link libraries
-target_link_libraries(lisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
-
 # Include directories for library
 target_include_directories(lisp PUBLIC include)
+
+# Add include directories from pkg-config
+target_include_directories(lisp PRIVATE ${GC_INCLUDE_DIRS} ${PCRE2_INCLUDE_DIRS})
+
+# Link libraries
+target_link_libraries(lisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
 
 # Add UCRT64 system include paths for clangd on Windows
 if(WIN32 AND MINGW)
@@ -80,8 +83,9 @@ install(FILES include/lisp.h include/utf8.h include/file_utils.h
 
 # REPL executable
 add_executable(lisp-repl repl/main.c)
-target_link_libraries(lisp-repl lisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
 target_include_directories(lisp-repl PRIVATE include)
+target_include_directories(lisp-repl PRIVATE ${GC_INCLUDE_DIRS} ${PCRE2_INCLUDE_DIRS})
+target_link_libraries(lisp-repl lisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
 
 # Pass version information to lisp library and repl
 target_compile_definitions(lisp PRIVATE
