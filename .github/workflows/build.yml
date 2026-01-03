@@ -167,11 +167,11 @@ jobs:
           brew update
           # List of required packages
           PACKAGES="cmake ninja pkg-config bdw-gc pcre2 sdl2 sdl2_ttf libvterm pixman git libtool"
-          
+
           # Check which packages are already installed
           INSTALLED=$(brew list --formula 2>/dev/null || true)
           TO_INSTALL=""
-          
+
           for pkg in $PACKAGES; do
             if echo "$INSTALLED" | grep -q "^${pkg}$"; then
               echo "✓ $pkg is already installed"
@@ -179,7 +179,7 @@ jobs:
               TO_INSTALL="$TO_INSTALL $pkg"
             fi
           done
-          
+
           # Only install missing packages
           if [ -n "$TO_INSTALL" ]; then
             echo "Installing missing packages:$TO_INSTALL"
