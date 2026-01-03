@@ -36,12 +36,18 @@ jobs:
             make
             perl
 
+      - name: Setup environment
+        shell: msys2 {0}
+        run: |
+          # Set up environment variables for all subsequent steps
+          WORKSPACE=$(cygpath -u "${{ github.workspace }}")
+          echo "WORKSPACE=$WORKSPACE" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig" >> $GITHUB_ENV
+
       - name: Install rlottie from source
         shell: msys2 {0}
         continue-on-error: true
         run: |
-          # Convert Windows path to MSYS2 path using cygpath
-          WORKSPACE=$(cygpath -u "${{ github.workspace }}")
           cd "$WORKSPACE"
           echo "Working directory: $(pwd)"
           echo "Checking build tools..."
@@ -57,36 +63,24 @@ jobs:
             exit 0
           }
           echo "rlottie installed successfully"
-        env:
-          PKG_CONFIG_PATH: /usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
 
       - name: Configure CMake
         shell: msys2 {0}
         run: |
-          # Convert Windows path to MSYS2 path using cygpath
-          WORKSPACE=$(cygpath -u "${{ github.workspace }}")
           cd "$WORKSPACE"
           mkdir -p build
           cd build
           cmake .. -G Ninja
-        env:
-          PKG_CONFIG_PATH: /usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
 
       - name: Build
         shell: msys2 {0}
         run: |
-          # Convert Windows path to MSYS2 path using cygpath
-          WORKSPACE=$(cygpath -u "${{ github.workspace }}")
           cd "$WORKSPACE/build"
           cmake --build . --config Release
-        env:
-          PKG_CONFIG_PATH: /usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
 
       - name: Test
         shell: msys2 {0}
         run: |
-          # Convert Windows path to MSYS2 path using cygpath
-          WORKSPACE=$(cygpath -u "${{ github.workspace }}")
           cd "$WORKSPACE/build"
           ctest --output-on-failure || true
 
@@ -196,14 +190,20 @@ jobs:
             echo "All required packages are already installed"
           fi
 
+      - name: Setup environment
+        run: |
+          # Detect Homebrew prefix (Apple Silicon uses /opt/homebrew, Intel uses /usr/local)
+          if [ -d "/opt/homebrew" ]; then
+            echo "HOMEBREW_PREFIX=/opt/homebrew" >> $GITHUB_ENV
+          else
+            echo "HOMEBREW_PREFIX=/usr/local" >> $GITHUB_ENV
+          fi
+          echo "RLOTTIE_PREFIX=${{ github.workspace }}/rlottie-install" >> $GITHUB_ENV
+
       - name: Install rlottie from source
         continue-on-error: true
         run: |
-          # Install to local directory to avoid permission issues
-          RLOTTIE_PREFIX="${{ github.workspace }}/rlottie-install"
-          export RLOTTIE_PREFIX
           echo "Installing rlottie to: $RLOTTIE_PREFIX"
-
           echo "Checking build tools..."
           g++ --version || echo "Warning: g++ not found"
           clang++ --version || echo "Warning: clang++ not found"
@@ -220,12 +220,6 @@ jobs:
             echo "=== rlottie installation failed with exit code $RLOTTIE_EXIT_CODE ==="
             echo "Last 100 lines of log:"
             tail -100 rlottie-install.log || true
-            echo ""
-            echo "Checking if rlottie files exist:"
-            ls -la "$RLOTTIE_PREFIX/include/rlottie"* 2>/dev/null || echo "  No rlottie headers found"
-            ls -la "$RLOTTIE_PREFIX/lib/librlottie"* 2>/dev/null || echo "  No rlottie libraries found"
-            ls -la "$RLOTTIE_PREFIX/lib/pkgconfig/rlottie.pc" 2>/dev/null || echo "  No rlottie.pc found"
-            echo ""
             echo "Continuing without rlottie (optional dependency)"
             exit 0
           fi
@@ -234,82 +228,41 @@ jobs:
           if [ -f "$RLOTTIE_PREFIX/include/rlottiecommon.h" ] && \
              [ -f "$RLOTTIE_PREFIX/lib/pkgconfig/rlottie.pc" ]; then
             echo "✓ rlottie installed successfully"
-            echo "  Headers: $RLOTTIE_PREFIX/include/rlottie*.h"
-            echo "  pkg-config: $RLOTTIE_PREFIX/lib/pkgconfig/rlottie.pc"
-            echo "RLOTTIE_PREFIX=$RLOTTIE_PREFIX" >> $GITHUB_ENV
           else
             echo "⚠ Warning: rlottie installation may be incomplete"
-            echo "  Checking for files:"
-            ls -la "$RLOTTIE_PREFIX/include/rlottie"* 2>/dev/null || echo "    No headers found"
-            ls -la "$RLOTTIE_PREFIX/lib/pkgconfig/rlottie.pc" 2>/dev/null || echo "    No pkg-config file found"
           fi
 
       - name: Configure CMake
         run: |
-          # Detect Homebrew prefix (Apple Silicon uses /opt/homebrew, Intel uses /usr/local)
-          if [ -d "/opt/homebrew" ]; then
-            HOMEBREW_PREFIX="/opt/homebrew"
-          else
-            HOMEBREW_PREFIX="/usr/local"
-          fi
-          export HOMEBREW_PREFIX
-          echo "Homebrew prefix: $HOMEBREW_PREFIX"
-
-          # Add rlottie prefix if it exists
-          RLOTTIE_PREFIX="${{ github.workspace }}/rlottie-install"
-          CMAKE_PREFIX_PATHS="$HOMEBREW_PREFIX:/usr/local"
+          # Build PKG_CONFIG_PATH with rlottie if it exists
           PKG_CONFIG_PATHS="$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig"
-          if [ -d "$RLOTTIE_PREFIX" ]; then
-            CMAKE_PREFIX_PATHS="$RLOTTIE_PREFIX:$CMAKE_PREFIX_PATHS"
+          CMAKE_PREFIX_PATHS="$HOMEBREW_PREFIX:/usr/local"
+          if [ -d "$RLOTTIE_PREFIX/lib/pkgconfig" ]; then
             PKG_CONFIG_PATHS="$RLOTTIE_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATHS"
+            CMAKE_PREFIX_PATHS="$RLOTTIE_PREFIX:$CMAKE_PREFIX_PATHS"
             echo "Including rlottie from: $RLOTTIE_PREFIX"
           fi
+          export PKG_CONFIG_PATH="$PKG_CONFIG_PATHS"
 
-          # Set PKG_CONFIG_PATH to include Homebrew and rlottie paths
-          export PKG_CONFIG_PATH="$PKG_CONFIG_PATHS:$PKG_CONFIG_PATH"
           # Verify pkg-config can find bdw-gc
           pkg-config --modversion bdw-gc || echo "Warning: pkg-config cannot find bdw-gc"
-          pkg-config --cflags bdw-gc || echo "Warning: pkg-config cannot get cflags for bdw-gc"
           mkdir -p build
           cd build
-          cmake .. -G Ninja \
-            -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATHS"
+          cmake .. -G Ninja -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATHS"
 
       - name: Build
         run: |
-          # Detect Homebrew prefix (same as Configure step)
-          if [ -d "/opt/homebrew" ]; then
-            HOMEBREW_PREFIX="/opt/homebrew"
-          else
-            HOMEBREW_PREFIX="/usr/local"
-          fi
-
-          # Add rlottie prefix if it exists
-          RLOTTIE_PREFIX="${{ github.workspace }}/rlottie-install"
           PKG_CONFIG_PATHS="$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig"
-          if [ -d "$RLOTTIE_PREFIX" ]; then
-            PKG_CONFIG_PATHS="$RLOTTIE_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATHS"
-          fi
-          export PKG_CONFIG_PATH="$PKG_CONFIG_PATHS:$PKG_CONFIG_PATH"
+          [ -d "$RLOTTIE_PREFIX/lib/pkgconfig" ] && PKG_CONFIG_PATHS="$RLOTTIE_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATHS"
+          export PKG_CONFIG_PATH="$PKG_CONFIG_PATHS"
           cd build
           cmake --build . --config Release
 
       - name: Test
         run: |
-          # Detect Homebrew prefix (same as Configure step)
-          if [ -d "/opt/homebrew" ]; then
-            HOMEBREW_PREFIX="/opt/homebrew"
-          else
-            HOMEBREW_PREFIX="/usr/local"
-          fi
-
-          # Add rlottie prefix if it exists
-          RLOTTIE_PREFIX="${{ github.workspace }}/rlottie-install"
           PKG_CONFIG_PATHS="$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig"
-          if [ -d "$RLOTTIE_PREFIX" ]; then
-            PKG_CONFIG_PATHS="$RLOTTIE_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATHS"
-          fi
-          export PKG_CONFIG_PATH="$PKG_CONFIG_PATHS:$PKG_CONFIG_PATH"
+          [ -d "$RLOTTIE_PREFIX/lib/pkgconfig" ] && PKG_CONFIG_PATHS="$RLOTTIE_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATHS"
+          export PKG_CONFIG_PATH="$PKG_CONFIG_PATHS"
           cd build
           ctest --output-on-failure || true
 

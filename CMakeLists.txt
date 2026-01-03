@@ -7,42 +7,14 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(GitVersion)
 get_git_version()
 
+# Include MSYS2 path detection module
+include(MSYS2Paths)
+
 # IMPORTANT: Detect and set UCRT64 compiler BEFORE project() command
 # This ensures CMake uses the correct compiler from the start
 if(WIN32 AND NOT CMAKE_C_COMPILER)
-    # Detect MSYS2/UCRT64 installation in common locations
-    if(DEFINED ENV{MSYS2_ROOT})
-        set(UCRT64_ROOT "$ENV{MSYS2_ROOT}/ucrt64")
-    else()
-        # Try common installation paths
-        set(PROGRAM_FILES_X86 "$ENV{ProgramFiles\(x86\)}")
-
-        # Start with Scoop installations (user's intentional override)
-        set(MSYS2_INSTALLS)
-
-        # Scoop: Add both current symlink and versioned directories
-        if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
-            list(APPEND MSYS2_INSTALLS "$ENV{USERPROFILE}/scoop/apps/msys2/current")
-            file(GLOB SCOOP_MSYS2_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*")
-            list(APPEND MSYS2_INSTALLS ${SCOOP_MSYS2_VERSIONS})
-        endif()
-
-        # Then check official installations
-        list(APPEND MSYS2_INSTALLS
-            "C:/msys64"
-            "C:/tools/msys64"
-            "$ENV{ProgramFiles}/msys64"
-            "${PROGRAM_FILES_X86}/msys64"
-        )
-
-        # Find the first existing MSYS2 installation
-        foreach(path IN LISTS MSYS2_INSTALLS)
-            if(EXISTS "${path}")
-                set(UCRT64_ROOT "${path}/ucrt64")
-                break()
-            endif()
-        endforeach()
-    endif()
+    # Detect MSYS2/UCRT64 installation
+    detect_msys2_root()
 
     if(UCRT64_ROOT)
         message(STATUS "Found MSYS2 UCRT64 at: ${UCRT64_ROOT}")
@@ -126,46 +98,10 @@ set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
 if(WIN32)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
 
-    # UCRT64_ROOT was already set before project() if needed
-    # This section handles cases where we're already in UCRT64 environment
+    # Detect MSYS2/UCRT64 if not already done before project()
     if(NOT DEFINED UCRT64_ROOT)
-        # Detect MSYS2/UCRT64 installation in common locations
-        if(DEFINED ENV{MSYS2_ROOT})
-            set(UCRT64_ROOT "$ENV{MSYS2_ROOT}/ucrt64")
-        else()
-            # Try common installation paths
-            set(PROGRAM_FILES_X86 "$ENV{ProgramFiles\(x86\)}")
-
-            # Start with Scoop installations (user's intentional override)
-            set(MSYS2_INSTALLS)
-
-            # Scoop: Add both current symlink and versioned directories
-            if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
-                list(APPEND MSYS2_INSTALLS "$ENV{USERPROFILE}/scoop/apps/msys2/current")
-                file(GLOB SCOOP_MSYS2_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*")
-                list(APPEND MSYS2_INSTALLS ${SCOOP_MSYS2_VERSIONS})
-            endif()
-
-            # Then check official installations
-            list(APPEND MSYS2_INSTALLS
-                "C:/msys64"
-                "C:/tools/msys64"
-                "$ENV{ProgramFiles}/msys64"
-                "${PROGRAM_FILES_X86}/msys64"
-            )
-
-            # Find the first existing MSYS2 installation
-            foreach(path IN LISTS MSYS2_INSTALLS)
-                if(EXISTS "${path}")
-                    set(UCRT64_ROOT "${path}/ucrt64")
-                    break()
-                endif()
-            endforeach()
-        endif()
-
-        if(UCRT64_ROOT)
-            message(STATUS "Found MSYS2 UCRT64 at: ${UCRT64_ROOT}")
-        else()
+        detect_msys2_root()
+        if(NOT UCRT64_ROOT)
             message(WARNING "MSYS2 UCRT64 not found - some features may not be available")
             message(WARNING "Install MSYS2 UCRT64 packages: pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,bdw-gc,pcre2}")
         endif()
@@ -204,63 +140,28 @@ if(WIN32)
         OUTPUT_STRIP_TRAILING_WHITESPACE
         ERROR_QUIET
     )
-
-    # Normalize path (convert backslashes to forward slashes)
-    string(REPLACE "\\" "/" GC_LIBDIR "${GC_LIBDIR_RAW}")
-
-    # Check if static libraries exist
-    set(GC_STATIC_LIB "${GC_LIBDIR}/libgc.a")
-    set(PCRE2_STATIC_LIB "${GC_LIBDIR}/libpcre2-8.a")
+    normalize_path(GC_LIBDIR "${GC_LIBDIR_RAW}")
 
     # Search for static libraries
     set(GC_STATIC_LIB_FOUND "")
     set(PCRE2_STATIC_LIB_FOUND "")
 
-    # Helper function to normalize paths (prevents CMake from interpreting backslashes as escapes)
-    function(normalize_path VAR PATH)
-        string(REPLACE "\\" "/" NORMALIZED "${PATH}")
-        set(${VAR} "${NORMALIZED}" PARENT_SCOPE)
-    endfunction()
-
     # First try the pkg-config libdir
-    if(GC_LIBDIR AND EXISTS "${GC_STATIC_LIB}" AND EXISTS "${PCRE2_STATIC_LIB}")
-        normalize_path(GC_STATIC_LIB_FOUND "${GC_STATIC_LIB}")
-        normalize_path(PCRE2_STATIC_LIB_FOUND "${PCRE2_STATIC_LIB}")
+    if(GC_LIBDIR AND EXISTS "${GC_LIBDIR}/libgc.a" AND EXISTS "${GC_LIBDIR}/libpcre2-8.a")
+        normalize_path(GC_STATIC_LIB_FOUND "${GC_LIBDIR}/libgc.a")
+        normalize_path(PCRE2_STATIC_LIB_FOUND "${GC_LIBDIR}/libpcre2-8.a")
     else()
-        # Try to find UCRT64_ROOT and check there
-        if(DEFINED UCRT64_ROOT)
-            set(UCRT64_LIBDIR "${UCRT64_ROOT}/lib")
-            set(UCRT64_GC_STATIC "${UCRT64_LIBDIR}/libgc.a")
-            set(UCRT64_PCRE2_STATIC "${UCRT64_LIBDIR}/libpcre2-8.a")
-            if(EXISTS "${UCRT64_GC_STATIC}" AND EXISTS "${UCRT64_PCRE2_STATIC}")
-                normalize_path(GC_STATIC_LIB_FOUND "${UCRT64_GC_STATIC}")
-                normalize_path(PCRE2_STATIC_LIB_FOUND "${UCRT64_PCRE2_STATIC}")
+        # Try UCRT64_ROOT/lib directly
+        if(DEFINED UCRT64_ROOT AND EXISTS "${UCRT64_ROOT}/lib/libgc.a")
+            normalize_path(GC_STATIC_LIB_FOUND "${UCRT64_ROOT}/lib/libgc.a")
+            normalize_path(PCRE2_STATIC_LIB_FOUND "${UCRT64_ROOT}/lib/libpcre2-8.a")
+        else()
+            # Search common MSYS2 locations
+            find_in_msys2_paths(GC_LIBDIR "libgc.a" SUFFIX "lib" PRIORITY "ucrt64")
+            if(GC_LIBDIR)
+                normalize_path(GC_STATIC_LIB_FOUND "${GC_LIBDIR}/libgc.a")
+                normalize_path(PCRE2_STATIC_LIB_FOUND "${GC_LIBDIR}/libpcre2-8.a")
             endif()
-        endif()
-
-        # If still not found, try common MSYS2 locations
-        if(NOT GC_STATIC_LIB_FOUND)
-            set(MSYS2_PATHS
-                "C:/msys64/ucrt64/lib"
-                "C:/tools/msys64/ucrt64/lib"
-                "$ENV{USERPROFILE}/scoop/apps/msys2/current/ucrt64/lib"
-                "$ENV{ProgramFiles}/msys64/ucrt64/lib"
-            )
-            # Also check for versioned Scoop installations
-            if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
-                file(GLOB SCOOP_UCRT64_LIBS "$ENV{USERPROFILE}/scoop/apps/msys2/*/ucrt64/lib")
-                list(APPEND MSYS2_PATHS ${SCOOP_UCRT64_LIBS})
-            endif()
-
-            foreach(LIBDIR IN LISTS MSYS2_PATHS)
-                set(TEST_GC_STATIC "${LIBDIR}/libgc.a")
-                set(TEST_PCRE2_STATIC "${LIBDIR}/libpcre2-8.a")
-                if(EXISTS "${TEST_GC_STATIC}" AND EXISTS "${TEST_PCRE2_STATIC}")
-                    normalize_path(GC_STATIC_LIB_FOUND "${TEST_GC_STATIC}")
-                    normalize_path(PCRE2_STATIC_LIB_FOUND "${TEST_PCRE2_STATIC}")
-                    break()
-                endif()
-            endforeach()
         endif()
     endif()
 
@@ -332,111 +233,60 @@ endif()
 # Create telnet-gui executable
 add_executable(telnet-gui ${GUI_SOURCES})
 
-# Copy font files to build directory (regular and bold variants)
-set(FONT_INCONSOLATA_SRC "${CMAKE_SOURCE_DIR}/fonts/Inconsolata-Regular.ttf")
-set(FONT_INCONSOLATA_DST "${CMAKE_BINARY_DIR}/fonts/Inconsolata-Regular.ttf")
-set(FONT_INCONSOLATA_BOLD_SRC "${CMAKE_SOURCE_DIR}/fonts/Inconsolata-Bold.ttf")
-set(FONT_INCONSOLATA_BOLD_DST "${CMAKE_BINARY_DIR}/fonts/Inconsolata-Bold.ttf")
-set(FONT_PLEX_SRC "${CMAKE_SOURCE_DIR}/fonts/IBMPlexMono-Regular.ttf")
-set(FONT_PLEX_DST "${CMAKE_BINARY_DIR}/fonts/IBMPlexMono-Regular.ttf")
-set(FONT_PLEX_BOLD_SRC "${CMAKE_SOURCE_DIR}/fonts/IBMPlexMono-Bold.ttf")
-set(FONT_PLEX_BOLD_DST "${CMAKE_BINARY_DIR}/fonts/IBMPlexMono-Bold.ttf")
-set(FONT_DEJAVU_SRC "${CMAKE_SOURCE_DIR}/fonts/DejaVuSansMono.ttf")
-set(FONT_DEJAVU_DST "${CMAKE_BINARY_DIR}/fonts/DejaVuSansMono.ttf")
-set(FONT_DEJAVU_BOLD_SRC "${CMAKE_SOURCE_DIR}/fonts/DejaVuSansMono-Bold.ttf")
-set(FONT_DEJAVU_BOLD_DST "${CMAKE_BINARY_DIR}/fonts/DejaVuSansMono-Bold.ttf")
-set(FONT_COURIER_SRC "${CMAKE_SOURCE_DIR}/fonts/CourierPrime-Regular.ttf")
-set(FONT_COURIER_DST "${CMAKE_BINARY_DIR}/fonts/CourierPrime-Regular.ttf")
-set(FONT_COURIER_BOLD_SRC "${CMAKE_SOURCE_DIR}/fonts/CourierPrime-Bold.ttf")
-set(FONT_COURIER_BOLD_DST "${CMAKE_BINARY_DIR}/fonts/CourierPrime-Bold.ttf")
-set(FONT_CASCADIA_SRC "${CMAKE_SOURCE_DIR}/fonts/CascadiaCode-Regular.ttf")
-set(FONT_CASCADIA_DST "${CMAKE_BINARY_DIR}/fonts/CascadiaCode-Regular.ttf")
-set(FONT_CASCADIA_BOLD_SRC "${CMAKE_SOURCE_DIR}/fonts/CascadiaCode-Bold.ttf")
-set(FONT_CASCADIA_BOLD_DST "${CMAKE_BINARY_DIR}/fonts/CascadiaCode-Bold.ttf")
+# ============================================================================
+# Resource Files - Define file lists for copying and installation
+# ============================================================================
+set(FONT_FILES
+    Inconsolata-Regular.ttf Inconsolata-Bold.ttf
+    IBMPlexMono-Regular.ttf IBMPlexMono-Bold.ttf
+    DejaVuSansMono.ttf DejaVuSansMono-Bold.ttf
+    CourierPrime-Regular.ttf CourierPrime-Bold.ttf
+    CascadiaCode-Regular.ttf CascadiaCode-Bold.ttf
+)
 
-# Copy init Lisp files to build directory
-set(INIT_SRC "${CMAKE_SOURCE_DIR}/lisp/init.lisp")
-set(INIT_DST "${CMAKE_BINARY_DIR}/lisp/init.lisp")
-set(INIT_POST_SRC "${CMAKE_SOURCE_DIR}/lisp/init-post.lisp")
-set(INIT_POST_DST "${CMAKE_BINARY_DIR}/lisp/init-post.lisp")
+set(LISP_FILES init.lisp init-post.lisp tintin.lisp)
+set(LISP_CONTRIB_FILES practice.lisp seaport.lisp scan-tracker.lisp)
 
-# Copy test-related Lisp files to build directory
-set(TINTIN_SRC "${CMAKE_SOURCE_DIR}/lisp/tintin.lisp")
-set(TINTIN_DST "${CMAKE_BINARY_DIR}/lisp/tintin.lisp")
-set(PRACTICE_SRC "${CMAKE_SOURCE_DIR}/lisp/contrib/practice.lisp")
-set(PRACTICE_DST "${CMAKE_BINARY_DIR}/lisp/contrib/practice.lisp")
-set(SEAPORT_SRC "${CMAKE_SOURCE_DIR}/lisp/contrib/seaport.lisp")
-set(SEAPORT_DST "${CMAKE_BINARY_DIR}/lisp/contrib/seaport.lisp")
-set(SCAN_TRACKER_SRC "${CMAKE_SOURCE_DIR}/lisp/contrib/scan-tracker.lisp")
-set(SCAN_TRACKER_DST "${CMAKE_BINARY_DIR}/lisp/contrib/scan-tracker.lisp")
-set(TINTIN_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/tintin-test.lisp")
-set(TINTIN_TEST_DST "${CMAKE_BINARY_DIR}/tests/tintin-test.lisp")
-set(COMPLETION_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/completion-test.lisp")
-set(COMPLETION_TEST_DST "${CMAKE_BINARY_DIR}/tests/completion-test.lisp")
-set(INIT_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/init-test.lisp")
-set(INIT_TEST_DST "${CMAKE_BINARY_DIR}/tests/init-test.lisp")
-set(TIMER_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/timer-test.lisp")
-set(TIMER_TEST_DST "${CMAKE_BINARY_DIR}/tests/timer-test.lisp")
-set(PRACTICE_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/practice-test.lisp")
-set(PRACTICE_TEST_DST "${CMAKE_BINARY_DIR}/tests/practice-test.lisp")
-set(NOTIFICATION_TEST_SRC "${CMAKE_SOURCE_DIR}/tests/notification-test.lisp")
-set(NOTIFICATION_TEST_DST "${CMAKE_BINARY_DIR}/tests/notification-test.lisp")
-set(TEST_HELPERS_SRC "${CMAKE_SOURCE_DIR}/tests/test-helpers.lisp")
-set(TEST_HELPERS_DST "${CMAKE_BINARY_DIR}/tests/test-helpers.lisp")
+set(TEST_FILES
+    tintin-test.lisp completion-test.lisp init-test.lisp
+    timer-test.lisp practice-test.lisp notification-test.lisp
+    test-helpers.lisp
+)
 
-# Copy telnet-gui-log2html.py script to build directory
+set(ANIMATION_FILES
+    fireworks.json notification-icon.json ripple-nudge.json
+    loading-dots-blue.json LICENSE.md
+)
+
 set(LOG2HTML_SRC "${CMAKE_SOURCE_DIR}/scripts/telnet-gui-log2html.py")
-set(LOG2HTML_DST "${CMAKE_BINARY_DIR}/telnet-gui-log2html.py")
 
-# Copy sample animation files to build directory
-set(ANIM_FIREWORKS_SRC "${CMAKE_SOURCE_DIR}/animations/fireworks.json")
-set(ANIM_FIREWORKS_DST "${CMAKE_BINARY_DIR}/animations/fireworks.json")
-set(ANIM_NOTIFICATION_ICON_SRC "${CMAKE_SOURCE_DIR}/animations/notification-icon.json")
-set(ANIM_NOTIFICATION_ICON_DST "${CMAKE_BINARY_DIR}/animations/notification-icon.json")
-set(ANIM_RIPPLE_NUDGE_SRC "${CMAKE_SOURCE_DIR}/animations/ripple-nudge.json")
-set(ANIM_RIPPLE_NUDGE_DST "${CMAKE_BINARY_DIR}/animations/ripple-nudge.json")
-set(ANIM_LOADING_DOTS_BLUE_SRC "${CMAKE_SOURCE_DIR}/animations/loading-dots-blue.json")
-set(ANIM_LOADING_DOTS_BLUE_DST "${CMAKE_BINARY_DIR}/animations/loading-dots-blue.json")
-set(ANIM_LICENSE_SRC "${CMAKE_SOURCE_DIR}/animations/LICENSE.md")
-set(ANIM_LICENSE_DST "${CMAKE_BINARY_DIR}/animations/LICENSE.md")
+# Helper function to copy resources to build directory
+function(copy_resources_to_build TARGET FILE_LIST SRC_DIR DST_DIR)
+    add_custom_command(TARGET ${TARGET} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/${DST_DIR}"
+        COMMENT "Creating ${DST_DIR} directory"
+    )
+    foreach(FILE IN LISTS ${FILE_LIST})
+        add_custom_command(TARGET ${TARGET} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/${SRC_DIR}/${FILE}"
+                "${CMAKE_BINARY_DIR}/${DST_DIR}/${FILE}"
+        )
+    endforeach()
+endfunction()
 
-# Create directories and copy resources to build directory
+# Copy resources to build directory
+copy_resources_to_build(telnet-gui FONT_FILES "fonts" "fonts")
+copy_resources_to_build(telnet-gui LISP_FILES "lisp" "lisp")
+copy_resources_to_build(telnet-gui LISP_CONTRIB_FILES "lisp/contrib" "lisp/contrib")
+copy_resources_to_build(telnet-gui TEST_FILES "tests" "tests")
+copy_resources_to_build(telnet-gui ANIMATION_FILES "animations" "animations")
+
+# Copy log2html script to build directory
 add_custom_command(TARGET telnet-gui POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/fonts"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_INCONSOLATA_SRC}" "${FONT_INCONSOLATA_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_INCONSOLATA_BOLD_SRC}" "${FONT_INCONSOLATA_BOLD_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_PLEX_SRC}" "${FONT_PLEX_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_PLEX_BOLD_SRC}" "${FONT_PLEX_BOLD_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_DEJAVU_SRC}" "${FONT_DEJAVU_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_DEJAVU_BOLD_SRC}" "${FONT_DEJAVU_BOLD_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_COURIER_SRC}" "${FONT_COURIER_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_COURIER_BOLD_SRC}" "${FONT_COURIER_BOLD_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_CASCADIA_SRC}" "${FONT_CASCADIA_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FONT_CASCADIA_BOLD_SRC}" "${FONT_CASCADIA_BOLD_DST}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/lisp"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${INIT_SRC}" "${INIT_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${INIT_POST_SRC}" "${INIT_POST_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_SRC}" "${TINTIN_DST}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/lisp/contrib"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PRACTICE_SRC}" "${PRACTICE_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SEAPORT_SRC}" "${SEAPORT_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SCAN_TRACKER_SRC}" "${SCAN_TRACKER_DST}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/tests"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TINTIN_TEST_SRC}" "${TINTIN_TEST_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${COMPLETION_TEST_SRC}" "${COMPLETION_TEST_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${INIT_TEST_SRC}" "${INIT_TEST_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TIMER_TEST_SRC}" "${TIMER_TEST_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PRACTICE_TEST_SRC}" "${PRACTICE_TEST_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${NOTIFICATION_TEST_SRC}" "${NOTIFICATION_TEST_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${TEST_HELPERS_SRC}" "${TEST_HELPERS_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LOG2HTML_SRC}" "${LOG2HTML_DST}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/animations"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_FIREWORKS_SRC}" "${ANIM_FIREWORKS_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_NOTIFICATION_ICON_SRC}" "${ANIM_NOTIFICATION_ICON_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_RIPPLE_NUDGE_SRC}" "${ANIM_RIPPLE_NUDGE_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_LOADING_DOTS_BLUE_SRC}" "${ANIM_LOADING_DOTS_BLUE_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ANIM_LICENSE_SRC}" "${ANIM_LICENSE_DST}"
-    COMMENT "Copying resources to build directory"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${LOG2HTML_SRC}" "${CMAKE_BINARY_DIR}/telnet-gui-log2html.py"
+    COMMENT "Copying telnet-gui-log2html.py to build directory"
 )
 
 # On Windows, copy required UCRT64 runtime DLLs to build directory
@@ -471,21 +321,23 @@ if(WIN32 AND DEFINED UCRT64_ROOT)
     )
 endif()
 
-# Install font files to share directory (POSIX-compliant)
-install(FILES
-    "${FONT_INCONSOLATA_SRC}"
-    "${FONT_INCONSOLATA_BOLD_SRC}"
-    "${FONT_PLEX_SRC}"
-    "${FONT_PLEX_BOLD_SRC}"
-    "${FONT_DEJAVU_SRC}"
-    "${FONT_DEJAVU_BOLD_SRC}"
-    "${FONT_COURIER_SRC}"
-    "${FONT_COURIER_BOLD_SRC}"
-    "${FONT_CASCADIA_SRC}"
-    "${FONT_CASCADIA_BOLD_SRC}"
-    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/fonts"
-    COMPONENT Runtime
-)
+# Helper function to install files from a list
+function(install_files_from_list FILE_LIST SRC_DIR DEST_DIR)
+    set(FULL_PATHS "")
+    foreach(FILE IN LISTS ${FILE_LIST})
+        list(APPEND FULL_PATHS "${CMAKE_SOURCE_DIR}/${SRC_DIR}/${FILE}")
+    endforeach()
+    install(FILES ${FULL_PATHS}
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/${DEST_DIR}"
+        COMPONENT Runtime
+    )
+endfunction()
+
+# Install resource files to share directory (POSIX-compliant)
+install_files_from_list(FONT_FILES "fonts" "fonts")
+install_files_from_list(LISP_FILES "lisp" "lisp")
+install_files_from_list(LISP_CONTRIB_FILES "lisp/contrib" "lisp/contrib")
+install_files_from_list(ANIMATION_FILES "animations" "animations")
 
 # Install icon files to share directory
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/icons/"
@@ -494,35 +346,6 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/icons/"
     FILES_MATCHING
     PATTERN "*.png"
     PATTERN "*.ico"
-)
-
-# Install Lisp files to share directory (POSIX-compliant)
-install(FILES
-    "${INIT_SRC}"
-    "${INIT_POST_SRC}"
-    "${TINTIN_SRC}"
-    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/lisp"
-    COMPONENT Runtime
-)
-
-# Install contrib Lisp files to share directory
-install(FILES
-    "${PRACTICE_SRC}"
-    "${SEAPORT_SRC}"
-    "${SCAN_TRACKER_SRC}"
-    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/lisp/contrib"
-    COMPONENT Runtime
-)
-
-# Install sample animation files to share directory
-install(FILES
-    "${ANIM_FIREWORKS_SRC}"
-    "${ANIM_NOTIFICATION_ICON_SRC}"
-    "${ANIM_RIPPLE_NUDGE_SRC}"
-    "${ANIM_LOADING_DOTS_BLUE_SRC}"
-    "${ANIM_LICENSE_SRC}"
-    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/telnet-gui/animations"
-    COMPONENT Runtime
 )
 
 # Install telnet-gui-log2html.py as telnet-gui-log2html (without .py extension)
@@ -571,64 +394,10 @@ if(WIN32)
 
     # If not found via pkg-config, search for .pc file manually
     if(NOT RLOTTIE_PKG_CONFIG)
-        # First check /usr/local by deriving MSYS2 root from UCRT64_ROOT (PRIORITY)
-        if(DEFINED UCRT64_ROOT)
-            get_filename_component(MSYS2_ROOT_FROM_UCRT64 "${UCRT64_ROOT}" DIRECTORY)
-            if(EXISTS "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib/pkgconfig/rlottie.pc")
-                set(RLOTTIE_PKG_CONFIG "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib/pkgconfig")
-                message(STATUS "Found rlottie.pc in /usr/local: ${RLOTTIE_PKG_CONFIG}")
-            endif()
-        endif()
-
-        # Check /usr/local via MSYS2_ROOT env var (fallback)
-        if(NOT RLOTTIE_PKG_CONFIG AND DEFINED ENV{MSYS2_ROOT})
-            if(EXISTS "$ENV{MSYS2_ROOT}/usr/local/lib/pkgconfig/rlottie.pc")
-                set(RLOTTIE_PKG_CONFIG "$ENV{MSYS2_ROOT}/usr/local/lib/pkgconfig")
-                message(STATUS "Found rlottie.pc in /usr/local: ${RLOTTIE_PKG_CONFIG}")
-            endif()
-        endif()
-
-        # Check UCRT64 (distribution package - FALLBACK)
-        if(NOT RLOTTIE_PKG_CONFIG AND DEFINED UCRT64_ROOT)
-            if(EXISTS "${UCRT64_ROOT}/lib/pkgconfig/rlottie.pc")
-                set(RLOTTIE_PKG_CONFIG "${UCRT64_ROOT}/lib/pkgconfig")
-                message(STATUS "Found rlottie.pc in UCRT64: ${RLOTTIE_PKG_CONFIG}")
-            endif()
-        endif()
-
-        # Search common MSYS2 locations
-        if(NOT RLOTTIE_PKG_CONFIG)
-            # Common MSYS2 root locations
-            set(MSYS2_ROOTS
-                "C:/msys64"
-                "C:/tools/msys64"
-                "$ENV{USERPROFILE}/scoop/apps/msys2/current"
-                "$ENV{ProgramFiles}/msys64"
-                "D:/a/_temp/msys64"  # GitHub Actions
-            )
-
-            # Build search paths: /usr/local first (source builds), then /ucrt64 (packages)
-            set(RLOTTIE_PKG_SEARCH_PATHS "")
-            foreach(ROOT IN LISTS MSYS2_ROOTS)
-                list(APPEND RLOTTIE_PKG_SEARCH_PATHS "${ROOT}/usr/local/lib/pkgconfig")
-            endforeach()
-            foreach(ROOT IN LISTS MSYS2_ROOTS)
-                list(APPEND RLOTTIE_PKG_SEARCH_PATHS "${ROOT}/ucrt64/lib/pkgconfig")
-            endforeach()
-            # Add Scoop versioned directories
-            if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
-                file(GLOB SCOOP_PKG_USRLOCAL "$ENV{USERPROFILE}/scoop/apps/msys2/*/usr/local/lib/pkgconfig")
-                file(GLOB SCOOP_PKG_UCRT64 "$ENV{USERPROFILE}/scoop/apps/msys2/*/ucrt64/lib/pkgconfig")
-                list(APPEND RLOTTIE_PKG_SEARCH_PATHS ${SCOOP_PKG_USRLOCAL} ${SCOOP_PKG_UCRT64})
-            endif()
-
-            foreach(PKG_PATH IN LISTS RLOTTIE_PKG_SEARCH_PATHS)
-                if(EXISTS "${PKG_PATH}/rlottie.pc")
-                    set(RLOTTIE_PKG_CONFIG "${PKG_PATH}")
-                    message(STATUS "Found rlottie.pc at: ${RLOTTIE_PKG_CONFIG}")
-                    break()
-                endif()
-            endforeach()
+        # Search MSYS2 paths (/usr/local first for source builds, then ucrt64 for packages)
+        find_in_msys2_paths(RLOTTIE_PKG_CONFIG "rlottie.pc" SUFFIX "lib/pkgconfig" PRIORITY "both")
+        if(RLOTTIE_PKG_CONFIG)
+            message(STATUS "Found rlottie.pc at: ${RLOTTIE_PKG_CONFIG}")
         endif()
     endif()
 
@@ -768,28 +537,12 @@ if(WIN32)
 
         # If still not found, try common MSYS2 locations
         if(NOT SDL2_STATIC_LIB_FOUND)
-            set(MSYS2_PATHS
-                "C:/msys64/ucrt64/lib"
-                "C:/tools/msys64/ucrt64/lib"
-                "$ENV{USERPROFILE}/scoop/apps/msys2/current/ucrt64/lib"
-                "$ENV{ProgramFiles}/msys64/ucrt64/lib"
-            )
-            # Also check for versioned Scoop installations
-            if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
-                file(GLOB SCOOP_UCRT64_LIBS "$ENV{USERPROFILE}/scoop/apps/msys2/*/ucrt64/lib")
-                list(APPEND MSYS2_PATHS ${SCOOP_UCRT64_LIBS})
+            find_in_msys2_paths(FOUND_SDL2_LIBDIR "libSDL2.a" SUFFIX "lib" PRIORITY "ucrt64")
+            if(FOUND_SDL2_LIBDIR AND EXISTS "${FOUND_SDL2_LIBDIR}/libSDL2_ttf.a")
+                normalize_path(SDL2_STATIC_LIB_FOUND "${FOUND_SDL2_LIBDIR}/libSDL2.a")
+                normalize_path(SDL2_TTF_STATIC_LIB_FOUND "${FOUND_SDL2_LIBDIR}/libSDL2_ttf.a")
+                normalize_path(SDL2_TTF_LIBDIR "${FOUND_SDL2_LIBDIR}")
             endif()
-
-            foreach(LIBDIR IN LISTS MSYS2_PATHS)
-                set(TEST_SDL2_STATIC "${LIBDIR}/libSDL2.a")
-                set(TEST_SDL2_TTF_STATIC "${LIBDIR}/libSDL2_ttf.a")
-                if(EXISTS "${TEST_SDL2_STATIC}" AND EXISTS "${TEST_SDL2_TTF_STATIC}")
-                    normalize_path(SDL2_STATIC_LIB_FOUND "${TEST_SDL2_STATIC}")
-                    normalize_path(SDL2_TTF_STATIC_LIB_FOUND "${TEST_SDL2_TTF_STATIC}")
-                    normalize_path(SDL2_TTF_LIBDIR "${LIBDIR}")
-                    break()
-                endif()
-            endforeach()
         endif()
     endif()
 
@@ -952,60 +705,10 @@ endif()
 # Find the pkg-config file location first
 set(VTERM_PKG_CONFIG "")
 if(WIN32)
-    # First check /usr/local by deriving MSYS2 root from UCRT64_ROOT (PRIORITY)
-    if(DEFINED UCRT64_ROOT)
-        # UCRT64_ROOT is like C:/msys64/ucrt64, so parent is C:/msys64
-        get_filename_component(MSYS2_ROOT_FROM_UCRT64 "${UCRT64_ROOT}" DIRECTORY)
-        if(EXISTS "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib/pkgconfig/vterm.pc")
-            set(VTERM_PKG_CONFIG "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib/pkgconfig")
-            message(STATUS "Found vterm.pc in /usr/local: ${VTERM_PKG_CONFIG}")
-        endif()
-    endif()
-
-    # If not found, check /usr/local via MSYS2_ROOT env var (fallback)
-    if(NOT VTERM_PKG_CONFIG AND DEFINED ENV{MSYS2_ROOT})
-        if(EXISTS "$ENV{MSYS2_ROOT}/usr/local/lib/pkgconfig/vterm.pc")
-            set(VTERM_PKG_CONFIG "$ENV{MSYS2_ROOT}/usr/local/lib/pkgconfig")
-            message(STATUS "Found vterm.pc in /usr/local: ${VTERM_PKG_CONFIG}")
-        endif()
-    endif()
-
-    # If not found in /usr/local, check UCRT64 (distribution package - FALLBACK)
-    if(NOT VTERM_PKG_CONFIG AND DEFINED UCRT64_ROOT)
-        if(EXISTS "${UCRT64_ROOT}/lib/pkgconfig/vterm.pc")
-            set(VTERM_PKG_CONFIG "${UCRT64_ROOT}/lib/pkgconfig")
-            message(STATUS "Found vterm.pc in UCRT64: ${VTERM_PKG_CONFIG}")
-        endif()
-    endif()
-
-    # Search common MSYS2 locations for both UCRT64 and /usr/local
-    if(NOT VTERM_PKG_CONFIG)
-        set(PKG_SEARCH_PATHS
-            # /usr/local source build locations (PRIORITY)
-            "C:/msys64/usr/local/lib/pkgconfig"
-            "C:/tools/msys64/usr/local/lib/pkgconfig"
-            "$ENV{USERPROFILE}/scoop/apps/msys2/current/usr/local/lib/pkgconfig"
-            "$ENV{ProgramFiles}/msys64/usr/local/lib/pkgconfig"
-            # UCRT64 package locations (FALLBACK)
-            "C:/msys64/ucrt64/lib/pkgconfig"
-            "C:/tools/msys64/ucrt64/lib/pkgconfig"
-            "$ENV{USERPROFILE}/scoop/apps/msys2/current/ucrt64/lib/pkgconfig"
-            "$ENV{ProgramFiles}/msys64/ucrt64/lib/pkgconfig"
-        )
-        # Add Scoop versioned directories - /usr/local first
-        if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
-            file(GLOB SCOOP_PKG_USRLOCAL "$ENV{USERPROFILE}/scoop/apps/msys2/*/usr/local/lib/pkgconfig")
-            file(GLOB SCOOP_PKG_UCRT64 "$ENV{USERPROFILE}/scoop/apps/msys2/*/ucrt64/lib/pkgconfig")
-            list(APPEND PKG_SEARCH_PATHS ${SCOOP_PKG_USRLOCAL} ${SCOOP_PKG_UCRT64})
-        endif()
-
-        foreach(PKG_PATH IN LISTS PKG_SEARCH_PATHS)
-            if(EXISTS "${PKG_PATH}/vterm.pc")
-                set(VTERM_PKG_CONFIG "${PKG_PATH}")
-                message(STATUS "Found vterm.pc at: ${VTERM_PKG_CONFIG}")
-                break()
-            endif()
-        endforeach()
+    # Search MSYS2 paths (/usr/local first for source builds, then ucrt64 for packages)
+    find_in_msys2_paths(VTERM_PKG_CONFIG "vterm.pc" SUFFIX "lib/pkgconfig" PRIORITY "both")
+    if(VTERM_PKG_CONFIG)
+        message(STATUS "Found vterm.pc at: ${VTERM_PKG_CONFIG}")
     endif()
 endif()
 
@@ -1142,94 +845,25 @@ if(WIN32)
 
     # Only search manually if not already found
     if(NOT VTERM_INCLUDE_DIR)
-        if(NOT DEFINED PROGRAM_FILES_X86)
-            set(PROGRAM_FILES_X86 "$ENV{ProgramFiles\(x86\)}")
-        endif()
-
-        # First check /usr/local by deriving MSYS2 root from UCRT64_ROOT (PRIORITY)
-        if(DEFINED UCRT64_ROOT)
-            get_filename_component(MSYS2_ROOT_FROM_UCRT64 "${UCRT64_ROOT}" DIRECTORY)
-            if(EXISTS "${MSYS2_ROOT_FROM_UCRT64}/usr/local/include/vterm.h")
-                set(VTERM_INCLUDE_DIR "${MSYS2_ROOT_FROM_UCRT64}/usr/local/include")
-                message(STATUS "Found libvterm headers in /usr/local: ${VTERM_INCLUDE_DIR}")
-            endif()
-        endif()
-
-        # Then check /usr/local via MSYS2_ROOT env var (fallback)
-        if(NOT VTERM_INCLUDE_DIR AND DEFINED ENV{MSYS2_ROOT})
-            if(EXISTS "$ENV{MSYS2_ROOT}/usr/local/include/vterm.h")
-                set(VTERM_INCLUDE_DIR "$ENV{MSYS2_ROOT}/usr/local/include")
-                message(STATUS "Found libvterm headers in /usr/local: ${VTERM_INCLUDE_DIR}")
-            endif()
-        endif()
-
-        # Then check UCRT64_ROOT if defined (FALLBACK)
-        if(NOT VTERM_INCLUDE_DIR AND DEFINED UCRT64_ROOT)
-            if(EXISTS "${UCRT64_ROOT}/include/vterm.h")
-                set(VTERM_INCLUDE_DIR "${UCRT64_ROOT}/include")
-                message(STATUS "Found libvterm headers in UCRT64: ${VTERM_INCLUDE_DIR}")
-            endif()
-        endif()
-
-        # Search common MSYS2 locations for both UCRT64 and /usr/local
-        if(NOT VTERM_INCLUDE_DIR)
-            set(MSYS2_PATHS
-            # /usr/local source build locations (PRIORITY)
-            "C:/msys64"
-            "C:/tools/msys64"
-            "$ENV{USERPROFILE}/scoop/apps/msys2/current"
-            "$ENV{ProgramFiles}/msys64"
-            "${PROGRAM_FILES_X86}/msys64"
-            # GitHub Actions MSYS2 location (D:/a/_temp/msys64)
-            "D:/a/_temp/msys64"
-            # UCRT64 package locations (FALLBACK)
-            "C:/msys64/ucrt64"
-            "C:/tools/msys64/ucrt64"
-            "$ENV{USERPROFILE}/scoop/apps/msys2/current/ucrt64"
-            "$ENV{ProgramFiles}/msys64/ucrt64"
-            "D:/a/_temp/msys64/ucrt64"
-            )
-
-            # Also check for versioned Scoop installations
-            if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
-                file(GLOB SCOOP_ROOT_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*")
-                file(GLOB SCOOP_UCRT64_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*/ucrt64")
-                list(APPEND MSYS2_PATHS ${SCOOP_ROOT_VERSIONS} ${SCOOP_UCRT64_VERSIONS})
-            endif()
-
-            foreach(ROOT IN LISTS MSYS2_PATHS)
-                # Check /usr/local/include first
-                if(EXISTS "${ROOT}/usr/local/include/vterm.h")
-                    set(VTERM_INCLUDE_DIR "${ROOT}/usr/local/include")
-                    message(STATUS "Found libvterm headers at: ${VTERM_INCLUDE_DIR}")
-                    break()
-                endif()
-                # Then check UCRT64 include location
-                if(EXISTS "${ROOT}/include/vterm.h")
-                    set(VTERM_INCLUDE_DIR "${ROOT}/include")
-                    message(STATUS "Found libvterm headers at: ${VTERM_INCLUDE_DIR}")
-                    break()
-                endif()
-            endforeach()
-        endif()
-
-        # Fallback: try Unix-style paths (works in MSYS2 shell)
-        if(NOT VTERM_INCLUDE_DIR)
+        # Search MSYS2 paths (/usr/local first for source builds, then ucrt64 for packages)
+        find_in_msys2_paths(VTERM_INCLUDE_DIR "vterm.h" SUFFIX "include" PRIORITY "both")
+        if(VTERM_INCLUDE_DIR)
+            message(STATUS "Found libvterm headers at: ${VTERM_INCLUDE_DIR}")
+        else()
+            # Fallback: try Unix-style paths (works in MSYS2 shell)
             if(EXISTS "/usr/local/include/vterm.h")
                 set(VTERM_INCLUDE_DIR "/usr/local/include")
                 message(STATUS "Found libvterm headers at: /usr/local/include")
             elseif(EXISTS "/ucrt64/include/vterm.h")
                 set(VTERM_INCLUDE_DIR "/ucrt64/include")
                 message(STATUS "Found libvterm headers at: /ucrt64/include")
+            else()
+                message(WARNING "libvterm headers not found. Please install libvterm:")
+                message(WARNING "  MSYS2 package: pacman -S mingw-w64-ucrt-x86_64-libvterm")
+                message(WARNING "  Source build: https://github.com/neovim/libvterm -> make install")
+                # Fallback: add both possible locations
+                set(VTERM_INCLUDE_DIR "/ucrt64/include;/usr/local/include")
             endif()
-        endif()
-
-        if(NOT VTERM_INCLUDE_DIR)
-            message(WARNING "libvterm headers not found. Please install libvterm:")
-            message(WARNING "  MSYS2 package: pacman -S mingw-w64-ucrt-x86_64-libvterm")
-            message(WARNING "  Source build: https://github.com/neovim/libvterm -> make install")
-            # Fallback: add both possible locations
-            set(VTERM_INCLUDE_DIR "/ucrt64/include;/usr/local/include")
         endif()
     endif()
 else()
@@ -1252,73 +886,10 @@ endif()
 # Add libvterm library directories if not found via pkg-config
 # Search both /ucrt64/lib (MSYS2 package) and /usr/local/lib (source build)
 if(WIN32 AND NOT VTERM_LIBDIR)
-    # Find MSYS2 root and search for libvterm in both UCRT64 and /usr/local
-    set(VTERM_LIB_DIR "")
-
-    # First check /usr/local by deriving MSYS2 root from UCRT64_ROOT (PRIORITY)
-    if(DEFINED UCRT64_ROOT)
-        get_filename_component(MSYS2_ROOT_FROM_UCRT64 "${UCRT64_ROOT}" DIRECTORY)
-        if(EXISTS "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib/libvterm.a" OR EXISTS "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib/libvterm.dll.a")
-            set(VTERM_LIB_DIR "${MSYS2_ROOT_FROM_UCRT64}/usr/local/lib")
-            message(STATUS "Found libvterm library in /usr/local: ${VTERM_LIB_DIR}")
-        endif()
-    endif()
-
-    # Then check /usr/local via MSYS2_ROOT env var (fallback)
-    if(NOT VTERM_LIB_DIR AND DEFINED ENV{MSYS2_ROOT})
-        if(EXISTS "$ENV{MSYS2_ROOT}/usr/local/lib/libvterm.a" OR EXISTS "$ENV{MSYS2_ROOT}/usr/local/lib/libvterm.dll.a")
-            set(VTERM_LIB_DIR "$ENV{MSYS2_ROOT}/usr/local/lib")
-            message(STATUS "Found libvterm library in /usr/local: ${VTERM_LIB_DIR}")
-        endif()
-    endif()
-
-    # Then check UCRT64_ROOT if defined (FALLBACK)
-    if(NOT VTERM_LIB_DIR AND DEFINED UCRT64_ROOT)
-        if(EXISTS "${UCRT64_ROOT}/lib/libvterm.a" OR EXISTS "${UCRT64_ROOT}/lib/libvterm.dll.a")
-            set(VTERM_LIB_DIR "${UCRT64_ROOT}/lib")
-            message(STATUS "Found libvterm library in UCRT64: ${VTERM_LIB_DIR}")
-        endif()
-    endif()
-
-    # Search common MSYS2 locations for both UCRT64 and /usr/local
-    if(NOT VTERM_LIB_DIR)
-        set(MSYS2_LIB_PATHS
-            # /usr/local source build locations (PRIORITY)
-            "C:/msys64"
-            "C:/tools/msys64"
-            "$ENV{USERPROFILE}/scoop/apps/msys2/current"
-            "$ENV{ProgramFiles}/msys64"
-            "${PROGRAM_FILES_X86}/msys64"
-            # UCRT64 package locations (FALLBACK)
-            "C:/msys64/ucrt64"
-            "C:/tools/msys64/ucrt64"
-            "$ENV{USERPROFILE}/scoop/apps/msys2/current/ucrt64"
-            "$ENV{ProgramFiles}/msys64/ucrt64"
-        )
-        if(EXISTS "$ENV{USERPROFILE}/scoop/apps/msys2")
-            file(GLOB SCOOP_ROOT_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*")
-            file(GLOB SCOOP_UCRT64_VERSIONS "$ENV{USERPROFILE}/scoop/apps/msys2/*/ucrt64")
-            list(APPEND MSYS2_LIB_PATHS ${SCOOP_ROOT_VERSIONS} ${SCOOP_UCRT64_VERSIONS})
-        endif()
-
-        foreach(ROOT IN LISTS MSYS2_LIB_PATHS)
-            # Check /usr/local/lib first
-            if(EXISTS "${ROOT}/usr/local/lib/libvterm.a" OR EXISTS "${ROOT}/usr/local/lib/libvterm.dll.a")
-                set(VTERM_LIB_DIR "${ROOT}/usr/local/lib")
-                message(STATUS "Found libvterm library at: ${VTERM_LIB_DIR}")
-                break()
-            endif()
-            # Then check UCRT64 lib location
-            if(EXISTS "${ROOT}/lib/libvterm.a" OR EXISTS "${ROOT}/lib/libvterm.dll.a")
-                set(VTERM_LIB_DIR "${ROOT}/lib")
-                message(STATUS "Found libvterm library at: ${VTERM_LIB_DIR}")
-                break()
-            endif()
-        endforeach()
-    endif()
-
-    if(VTERM_LIB_DIR)
-        set(VTERM_LIBDIR "${VTERM_LIB_DIR}")
+    # Search MSYS2 paths (/usr/local first for source builds, then ucrt64 for packages)
+    find_in_msys2_paths(VTERM_LIBDIR "libvterm.a" SUFFIX "lib" PRIORITY "both")
+    if(VTERM_LIBDIR)
+        message(STATUS "Found libvterm library at: ${VTERM_LIBDIR}")
     else()
         # Fallback: use both possible locations
         set(VTERM_LIBDIR "/ucrt64/lib;/usr/local/lib")
