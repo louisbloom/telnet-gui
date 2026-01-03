@@ -996,12 +996,19 @@ set(SDL_TTF_TEST_LIBRARIES ${SDL2_TTF_LIBRARIES} ${SDL2_LIBRARIES})
 set(SDL_TTF_TEST_LINK_OPTIONS "")
 
 # Extract framework flags from library lists for macOS
+# pkg-config returns "-framework;SDL2" as separate list items, so we need to
+# capture both the flag and the framework name together
 if(APPLE)
     set(SDL_TTF_TEST_LIBRARIES_FILTERED "")
+    set(EXPECT_FRAMEWORK_NAME FALSE)
     foreach(LIB IN LISTS SDL_TTF_TEST_LIBRARIES)
-        if(LIB MATCHES "^-framework")
-            # Framework flag - add to link options
-            list(APPEND SDL_TTF_TEST_LINK_OPTIONS ${LIB})
+        if(EXPECT_FRAMEWORK_NAME)
+            # This is the framework name following -framework
+            list(APPEND SDL_TTF_TEST_LINK_OPTIONS "-framework" "${LIB}")
+            set(EXPECT_FRAMEWORK_NAME FALSE)
+        elseif(LIB STREQUAL "-framework")
+            # Next item will be the framework name
+            set(EXPECT_FRAMEWORK_NAME TRUE)
         else()
             # Regular library - keep in libraries list
             list(APPEND SDL_TTF_TEST_LIBRARIES_FILTERED ${LIB})
