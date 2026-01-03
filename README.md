@@ -127,8 +127,9 @@ Lottie animations can render behind terminal content. See [Animation System](#an
 ## Platform Support
 
 - **Windows**: MSYS2 UCRT64 (GCC) - requires UCRT64, not MINGW64/MSVC
-- **Linux**: GCC with standard libraries
-- **macOS**: Clang/GCC with Homebrew
+- **GNU/Linux**: GCC with standard libraries
+- **macOS (ARM)**: Apple Silicon Macs with Homebrew
+- **macOS (Intel)**: Intel Macs with Homebrew
 
 ## Documentation
 
@@ -375,7 +376,7 @@ pacman -S libtool git make perl
 ./scripts/install-rlottie.sh
 ```
 
-**Linux (Debian/Ubuntu):**
+**GNU/Linux (Debian/Ubuntu):**
 
 ```bash
 # Build tools and libraries
@@ -395,8 +396,9 @@ sudo apt-get install git make libtool perl
 # Build tools and libraries
 brew install cmake ninja pkg-config bdw-gc pcre2 sdl2 sdl2_ttf libvterm
 
-# Optional: rlottie for animations (from source, requires pixman on ARM Macs)
-brew install pixman
+# Optional: rlottie for animations (from source)
+# ARM Macs require pixman for rlottie's NEON-optimized code
+brew install pixman  # ARM Macs only, skip on Intel
 ./scripts/install-rlottie.sh
 ```
 
