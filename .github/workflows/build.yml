@@ -184,28 +184,37 @@ jobs:
           g++ --version || echo "Warning: g++ not found"
           cmake --version
           ninja --version
-          echo "Installing rlottie from source..."
-          bash scripts/install-rlottie.sh --prefix /usr/local 2>&1 | tee rlottie-install.log || {
+          echo "Installing rlottie from source to local directory..."
+          # Install to workspace directory (no sudo needed)
+          RLOTTIE_PREFIX="${{ github.workspace }}/rlottie-install"
+          bash scripts/install-rlottie.sh --prefix "$RLOTTIE_PREFIX" 2>&1 | tee rlottie-install.log || {
             echo "=== rlottie installation failed ==="
             echo "Last 100 lines of log:"
             tail -100 rlottie-install.log || true
             echo "Continuing without rlottie (optional dependency)"
             exit 0
           }
-          echo "rlottie installed successfully"
+          echo "rlottie installed successfully to $RLOTTIE_PREFIX"
         env:
-          PKG_CONFIG_PATH: /usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+          PKG_CONFIG_PATH: ${{ github.workspace }}/rlottie-install/lib/pkgconfig:$PKG_CONFIG_PATH
+          CMAKE_PREFIX_PATH: ${{ github.workspace }}/rlottie-install
 
       - name: Configure CMake
         run: |
           mkdir -p build
           cd build
           cmake .. -G Ninja
+        env:
+          PKG_CONFIG_PATH: ${{ github.workspace }}/rlottie-install/lib/pkgconfig:$PKG_CONFIG_PATH
+          CMAKE_PREFIX_PATH: ${{ github.workspace }}/rlottie-install
 
       - name: Build
         run: |
           cd build
           cmake --build . --config Release
+        env:
+          PKG_CONFIG_PATH: ${{ github.workspace }}/rlottie-install/lib/pkgconfig:$PKG_CONFIG_PATH
+          CMAKE_PREFIX_PATH: ${{ github.workspace }}/rlottie-install
 
       - name: Test
         run: |
