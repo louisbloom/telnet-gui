@@ -1,5 +1,7 @@
 # Telnet GUI
 
+[![Build](https://github.com/louisbloom/telnet-gui/actions/workflows/build.yml/badge.svg)](https://github.com/louisbloom/telnet-gui/actions/workflows/build.yml)
+
 A graphical telnet client with terminal emulation, built using SDL2 and libvterm, powered by an embedded Lisp interpreter for scripting and automation.
 
 ## Features
