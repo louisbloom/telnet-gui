@@ -177,7 +177,12 @@ echo "=== Patching rlottiecommon.h for static linking support ==="
 HEADER="$INSTALL_PREFIX/include/rlottiecommon.h"
 if [ -f "$HEADER" ]; then
   # Add RLOTTIE_STATIC support to the header
-  sed -i 's/#ifdef RLOTTIE_BUILD/#ifdef RLOTTIE_STATIC\n    #define RLOTTIE_API\n  #elif defined RLOTTIE_BUILD/' "$HEADER"
+  # macOS sed requires -i '' (empty extension), Linux/MSYS2 uses -i without extension
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' 's/#ifdef RLOTTIE_BUILD/#ifdef RLOTTIE_STATIC\n    #define RLOTTIE_API\n  #elif defined RLOTTIE_BUILD/' "$HEADER"
+  else
+    sed -i 's/#ifdef RLOTTIE_BUILD/#ifdef RLOTTIE_STATIC\n    #define RLOTTIE_API\n  #elif defined RLOTTIE_BUILD/' "$HEADER"
+  fi
   echo "Patched $HEADER"
 else
   echo "Warning: Header not found at $HEADER"
