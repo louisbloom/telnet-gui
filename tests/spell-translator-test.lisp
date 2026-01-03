@@ -137,6 +137,42 @@
 (princ "  Filter hook tests passed.\n")
 
 ;;; ============================================================================
+;;; Test: Known Spell Whitelist (Same-class visibility)
+;;; ============================================================================
+(princ "Testing known spell whitelist...\n")
+
+;; known-spell? should return true for known spells
+(assert-true (known-spell? "fireball") "fireball is known")
+(assert-true (known-spell? "magic missile") "magic missile is known")
+(assert-true (known-spell? "cure light") "cure light is known")
+(assert-true (known-spell? "FIREBALL") "case-insensitive: FIREBALL")
+(assert-true (known-spell? "Magic Missile") "case-insensitive: Magic Missile")
+
+;; known-spell? should return false for unknown/garbled text
+(assert-false (known-spell? "yrl") "yrl is not known (garbled)")
+(assert-false (known-spell? "qaiyjcandus") "qaiyjcandus is not known (garbled)")
+(assert-false (known-spell? "zrzwunsohar") "zrzwunsohar is not known (garbled)")
+
+;; Filter should NOT add annotation for known spells (same class as caster)
+(let ((input "Det utters the words, 'fireball'."))
+  (let ((output (spell-translator-filter input)))
+    (assert-false (regex-match? "\\[" output)
+                  "no annotation for known spell 'fireball'")))
+
+(let ((input "A cleric utters the words, 'cure light'."))
+  (let ((output (spell-translator-filter input)))
+    (assert-false (regex-match? "\\[" output)
+                  "no annotation for known spell 'cure light'")))
+
+;; Filter should still add annotation for garbled spells
+(let ((input "Det utters the words, 'yucandusbarr'."))
+  (let ((output (spell-translator-filter input)))
+    (assert-true (regex-match? "\\[fireball\\]" output)
+                 "annotation added for garbled 'yucandusbarr'")))
+
+(princ "  Known spell whitelist tests passed.\n")
+
+;;; ============================================================================
 ;;; Test: Edge Cases
 ;;; ============================================================================
 (princ "Testing edge cases...\n")
