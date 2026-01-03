@@ -1,5 +1,6 @@
 #include "lisp.h"
 #include "file_utils.h"
+#include "lineedit.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,18 +11,112 @@
 #define TELNET_LISP_VERSION "unknown"
 #endif
 
-#define REPL_INPUT_SIZE 4096
+/* Global environment for completion callback */
+static Environment *g_env = NULL;
+
+/*
+ * Detect completion context by scanning backwards from cursor position.
+ * Returns LISP_COMPLETE_CALLABLE if we're completing the first element after '('
+ * (i.e., function/macro position), LISP_COMPLETE_VARIABLE if we're in the first
+ * argument of set!, otherwise LISP_COMPLETE_ALL.
+ */
+static LispCompleteContext detect_context(const char *buffer, int cursor_pos) {
+    /* Scan backwards from cursor, skipping the word being typed */
+    int i = cursor_pos - 1;
+
+    /* Skip current word (non-separator characters) */
+    while (i >= 0 && buffer[i] != ' ' && buffer[i] != '\t' && buffer[i] != '(' && buffer[i] != ')' &&
+           buffer[i] != '\'' && buffer[i] != '`') {
+        i--;
+    }
+
+    /* Skip whitespace */
+    while (i >= 0 && (buffer[i] == ' ' || buffer[i] == '\t')) {
+        i--;
+    }
+
+    /* Check what's before the whitespace */
+    if (i >= 0 && buffer[i] == '(') {
+        /* We're right after an open paren - function position */
+        return LISP_COMPLETE_CALLABLE;
+    }
+
+    /* Check if we're in the first argument of a special form like set! */
+    /* Look for pattern: "(set! " before our position */
+    int j = i;
+    /* We already skipped whitespace, now check for function name */
+    if (j >= 0) {
+        /* Find start of the function name */
+        int func_end = j + 1;
+        while (j >= 0 && buffer[j] != ' ' && buffer[j] != '\t' && buffer[j] != '(') {
+            j--;
+        }
+        int func_start = j + 1;
+        int func_len = func_end - func_start;
+
+        /* Check if it's set! */
+        if (func_len == 4 && strncmp(buffer + func_start, "set!", 4) == 0) {
+            /* Skip whitespace before function name */
+            while (j >= 0 && (buffer[j] == ' ' || buffer[j] == '\t')) {
+                j--;
+            }
+            /* Check if there's an open paren */
+            if (j >= 0 && buffer[j] == '(') {
+                return LISP_COMPLETE_VARIABLE;
+            }
+        }
+    }
+
+    /* Otherwise, we're in argument position or top-level */
+    return LISP_COMPLETE_ALL;
+}
+
+/*
+ * Find the start of the word being typed (for extracting prefix).
+ */
+static int find_word_start(const char *buffer, int cursor_pos) {
+    int i = cursor_pos;
+    while (i > 0 && buffer[i - 1] != ' ' && buffer[i - 1] != '\t' && buffer[i - 1] != '(' && buffer[i - 1] != ')' &&
+           buffer[i - 1] != '\'' && buffer[i - 1] != '`') {
+        i--;
+    }
+    return i;
+}
+
+/*
+ * Completion callback for lineedit.
+ * Returns NULL-terminated array of completion strings.
+ */
+static char **repl_completer(const char *buffer, int cursor_pos, void *userdata) {
+    Environment *env = (Environment *)userdata;
+    if (!env || !buffer)
+        return NULL;
+
+    /* Find the prefix being typed */
+    int word_start = find_word_start(buffer, cursor_pos);
+    int prefix_len = cursor_pos - word_start;
+
+    /* Extract prefix */
+    char *prefix = malloc(prefix_len + 1);
+    if (!prefix)
+        return NULL;
+    strncpy(prefix, buffer + word_start, prefix_len);
+    prefix[prefix_len] = '\0';
+
+    /* Detect context */
+    LispCompleteContext ctx = detect_context(buffer, cursor_pos);
+
+    /* Get completions */
+    char **completions = lisp_get_completions(env, prefix, ctx);
+
+    free(prefix);
+    return completions;
+}
 
 static void print_welcome(void) {
     printf("Telnet Lisp Interpreter v%s\n", TELNET_LISP_VERSION);
     printf("Type expressions to evaluate, :quit to exit, :load <file> to load a file\n");
-    printf(">>> ");
-    fflush(stdout);
-}
-
-static void print_prompt(void) {
-    printf(">>> ");
-    fflush(stdout);
+    printf("Tab for completion, Up/Down for history\n\n");
 }
 
 static void print_help(void) {
@@ -42,6 +137,16 @@ static void print_help(void) {
     printf("REPL Commands:\n");
     printf("  :quit             Exit the REPL\n");
     printf("  :load <filename>  Load and execute a Lisp file\n");
+    printf("\n");
+    printf("Editing Keys:\n");
+    printf("  Tab               Complete symbol\n");
+    printf("  Tab Tab           Show all completions\n");
+    printf("  Up/Down           Navigate history\n");
+    printf("  Left/Right        Move cursor\n");
+    printf("  Ctrl+A/Ctrl+E     Beginning/End of line\n");
+    printf("  Ctrl+U            Clear line\n");
+    printf("  Ctrl+L            Clear screen\n");
+    printf("  Ctrl+D            Exit (on empty line)\n");
     printf("\n");
     printf("See LANGUAGE_REFERENCE.md for complete language documentation.\n");
 }
@@ -65,11 +170,8 @@ static int handle_command(const char *input, Environment *env) {
             return 0;
         }
 
-        /* Remove trailing newline */
+        /* Copy filename (already trimmed, no newline from lineedit) */
         char *fname = GC_strdup(filename);
-        char *newline = strchr(fname, '\n');
-        if (newline)
-            *newline = '\0';
 
         LispObject *result = lisp_load_file(fname, env);
 
@@ -100,6 +202,7 @@ int main(int argc, char **argv) {
     /* Initialize interpreter */
     lisp_init();
     Environment *env = env_create_global();
+    g_env = env; /* Store globally for completion callback */
 
     /* Handle -e/--eval/-c flag for executing code from command line */
     if (argc > 2 && (strcmp(argv[1], "-e") == 0 || strcmp(argv[1], "--eval") == 0 || strcmp(argv[1], "-c") == 0)) {
@@ -165,7 +268,8 @@ int main(int argc, char **argv) {
             const char *input = buffer;
 
             while (*input) {
-                /* Parse expression - let lisp_read handle whitespace and comments */
+                /* Parse expression - let lisp_read handle whitespace and comments
+                 */
                 const char *parse_start = input;
                 LispObject *expr = lisp_read(&input);
 
@@ -200,49 +304,65 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    /* REPL */
+    /* Interactive REPL with line editing */
     print_welcome();
 
-    char input[REPL_INPUT_SIZE];
+    /* Create line editor */
+    LineEditState *le = lineedit_create();
+    if (!le) {
+        fprintf(stderr, "ERROR: Failed to create line editor\n");
+        env_free(env);
+        lisp_cleanup();
+        return 1;
+    }
+
+    /* Set up completion */
+    lineedit_set_completer(le, repl_completer, env);
 
     /* Buffer for multi-line expressions */
     static char expr_buffer[8192] = {0};
     static int expr_pos = 0;
 
-    while (fgets(input, sizeof(input), stdin) != NULL) {
-        /* Remove trailing newline */
-        size_t len = strlen(input);
-        if (len > 0 && input[len - 1] == '\n') {
-            input[len - 1] = '\0';
-        }
+    const char *prompt = ">>> ";
+    const char *cont_prompt = "... ";
+
+    char *line;
+    while ((line = lineedit_readline(le, expr_pos > 0 ? cont_prompt : prompt)) != NULL) {
 
         /* Skip empty lines only if not accumulating */
-        if (input[0] == '\0' && expr_pos == 0) {
-            print_prompt();
+        if (line[0] == '\0' && expr_pos == 0) {
+            free(line);
             continue;
         }
 
         /* Handle commands only on first line of input */
         if (expr_pos == 0) {
-            int cmd_result = handle_command(input, env);
+            int cmd_result = handle_command(line, env);
             if (cmd_result == 1) {
+                free(line);
                 break; /* Exit */
             } else if (cmd_result == 0) {
-                print_prompt();
+                free(line);
                 continue; /* Command handled */
             }
         }
 
+        /* Add non-empty lines to history */
+        if (line[0] != '\0' && expr_pos == 0) {
+            lineedit_history_add(le, line);
+        }
+
         /* Read and accumulate input until expression is complete */
-        /* Append this line to buffer */
-        size_t input_len = strlen(input);
-        if (input_len > 0 && expr_pos + input_len < sizeof(expr_buffer) - 1) {
+        size_t line_len = strlen(line);
+        if (line_len > 0 && expr_pos + line_len < sizeof(expr_buffer) - 2) {
             if (expr_pos > 0) {
                 expr_buffer[expr_pos++] = ' ';
             }
-            strcpy(expr_buffer + expr_pos, input);
-            expr_pos += input_len;
+            strcpy(expr_buffer + expr_pos, line);
+            expr_pos += line_len;
         }
+
+        free(line);
 
         /* Try to parse the buffer */
         const char *input_ptr = expr_buffer;
@@ -251,18 +371,16 @@ int main(int argc, char **argv) {
         /* If we got an error and it's an unclosed list, continue reading */
         if (expr != NULL && expr->type == LISP_ERROR && strstr(expr->value.error, "Unclosed") != NULL) {
             /* Need more input, continue reading */
-            print_prompt();
             continue;
         }
 
         if (expr == NULL) {
-            /* Empty input or incomplete, continue reading if buffer has content */
+            /* Empty input or incomplete, continue reading if buffer has content
+             */
             if (expr_pos == 0) {
-                print_prompt();
                 continue;
             }
             /* We're accumulating, so continue reading */
-            print_prompt();
             continue;
         }
 
@@ -270,7 +388,6 @@ int main(int argc, char **argv) {
             printf("ERROR: %s\n", expr->value.error);
             expr_pos = 0;
             expr_buffer[0] = '\0';
-            print_prompt();
             continue;
         }
 
@@ -290,13 +407,12 @@ int main(int argc, char **argv) {
             expr_pos = 0;
             expr_buffer[0] = '\0';
         }
-
-        print_prompt();
     }
 
     printf("\nGoodbye!\n");
 
     /* Cleanup */
+    lineedit_destroy(le);
     env_free(env);
     lisp_cleanup();
 

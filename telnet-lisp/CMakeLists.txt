@@ -84,9 +84,9 @@ install(FILES include/lisp.h include/utf8.h include/file_utils.h
     DESTINATION include
 )
 
-# REPL executable
-add_executable(lisp-repl repl/main.c)
-target_include_directories(lisp-repl PRIVATE include)
+# REPL executable (includes lineedit for interactive line editing)
+add_executable(lisp-repl repl/main.c src/lineedit.c)
+target_include_directories(lisp-repl PRIVATE include src)
 target_include_directories(lisp-repl PRIVATE ${GC_INCLUDE_DIRS} ${PCRE2_INCLUDE_DIRS})
 target_link_directories(lisp-repl PRIVATE ${GC_LIBRARY_DIRS} ${PCRE2_LIBRARY_DIRS})
 target_link_libraries(lisp-repl lisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)

@@ -7087,3 +7087,225 @@ static LispObject *builtin_set_documentation(LispObject *args, Environment *env)
 
     return LISP_TRUE;
 }
+
+/* ========================================================================== */
+/* Completion API for REPL and eval mode                                       */
+/* ========================================================================== */
+
+/*
+ * Check if a value is callable (function, macro, special form, builtin).
+ */
+static int is_callable(LispObject *value) {
+    if (!value)
+        return 0;
+
+    switch (value->type) {
+    case LISP_BUILTIN:
+    case LISP_LAMBDA:
+    case LISP_MACRO:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+/*
+ * Check if a symbol name is a special form.
+ */
+static int is_special_form(const char *name) {
+    static const char *special_forms[] = {
+        "if",       "define", "set!",   "lambda",         "quote",          "quasiquote",
+        "let",      "let*",   "progn",  "begin",          "cond",           "case",
+        "and",      "or",     "do",     "defmacro",       "defun",          "defvar",
+        "defconst", "when",   "unless", "condition-case", "unwind-protect", NULL};
+
+    for (int i = 0; special_forms[i]; i++) {
+        if (strcmp(name, special_forms[i]) == 0)
+            return 1;
+    }
+    return 0;
+}
+
+/*
+ * Case-insensitive prefix match.
+ */
+static int prefix_match(const char *str, const char *prefix) {
+    while (*prefix) {
+        if (tolower((unsigned char)*str) != tolower((unsigned char)*prefix))
+            return 0;
+        str++;
+        prefix++;
+    }
+    return 1;
+}
+
+/*
+ * Get completion candidates from environment.
+ *
+ * Traverses env and all parent scopes, collecting symbol names that
+ * match the given prefix. When ctx is LISP_COMPLETE_CALLABLE, only
+ * callable symbols are included.
+ *
+ * Returns NULL-terminated array of strings. Caller must free with
+ * lisp_free_completions().
+ */
+char **lisp_get_completions(Environment *env, const char *prefix, LispCompleteContext ctx) {
+    if (!env || !prefix)
+        return NULL;
+
+    /* First pass: count matches */
+    int count = 0;
+    int capacity = 64;
+    char **results = malloc(capacity * sizeof(char *));
+    if (!results)
+        return NULL;
+
+    /* Track seen names to avoid duplicates (shadowed bindings) */
+    char **seen = malloc(capacity * sizeof(char *));
+    int seen_count = 0;
+    if (!seen) {
+        free(results);
+        return NULL;
+    }
+
+    /* Traverse environment chain */
+    for (Environment *e = env; e != NULL; e = e->parent) {
+        for (struct Binding *b = e->bindings; b != NULL; b = b->next) {
+            /* Check prefix match */
+            if (!prefix_match(b->name, prefix))
+                continue;
+
+            /* Check if already seen (shadowed) */
+            int already_seen = 0;
+            for (int i = 0; i < seen_count; i++) {
+                if (strcmp(seen[i], b->name) == 0) {
+                    already_seen = 1;
+                    break;
+                }
+            }
+            if (already_seen)
+                continue;
+
+            /* Check callable filter */
+            if (ctx == LISP_COMPLETE_CALLABLE) {
+                if (!is_callable(b->value) && !is_special_form(b->name))
+                    continue;
+            }
+
+            /* Check variable filter (exclude callables) */
+            if (ctx == LISP_COMPLETE_VARIABLE) {
+                if (is_callable(b->value))
+                    continue;
+            }
+
+            /* Add to results */
+            if (count >= capacity - 1) {
+                int new_capacity = capacity * 2;
+                char **new_results = realloc(results, new_capacity * sizeof(char *));
+                if (!new_results) {
+                    for (int i = 0; i < count; i++)
+                        free(results[i]);
+                    free(results);
+                    free(seen);
+                    return NULL;
+                }
+                results = new_results;
+
+                char **new_seen = realloc(seen, new_capacity * sizeof(char *));
+                if (!new_seen) {
+                    for (int i = 0; i < count; i++)
+                        free(results[i]);
+                    free(results);
+                    return NULL;
+                }
+                seen = new_seen;
+                capacity = new_capacity;
+            }
+
+            results[count] = strdup(b->name);
+            seen[seen_count++] = results[count]; /* Point to same string */
+            count++;
+        }
+    }
+
+    /* Add special forms (they're not in the environment, handled by eval) */
+    /* Skip for variable context - special forms are not variables */
+    if (ctx != LISP_COMPLETE_VARIABLE) {
+        static const char *special_forms[] = {
+            "if",       "define", "set!",   "lambda",         "quote",          "quasiquote",
+            "let",      "let*",   "progn",  "begin",          "cond",           "case",
+            "and",      "or",     "do",     "defmacro",       "defun",          "defvar",
+            "defconst", "when",   "unless", "condition-case", "unwind-protect", NULL};
+
+        for (int i = 0; special_forms[i]; i++) {
+            /* Check prefix match */
+            if (!prefix_match(special_forms[i], prefix))
+                continue;
+
+            /* Check if already seen (some may be bound as macros too) */
+            int already_seen = 0;
+            for (int j = 0; j < seen_count; j++) {
+                if (strcmp(seen[j], special_forms[i]) == 0) {
+                    already_seen = 1;
+                    break;
+                }
+            }
+            if (already_seen)
+                continue;
+
+            /* Add to results */
+            if (count >= capacity - 1) {
+                int new_capacity = capacity * 2;
+                char **new_results = realloc(results, new_capacity * sizeof(char *));
+                if (!new_results) {
+                    for (int j = 0; j < count; j++)
+                        free(results[j]);
+                    free(results);
+                    free(seen);
+                    return NULL;
+                }
+                results = new_results;
+
+                char **new_seen = realloc(seen, new_capacity * sizeof(char *));
+                if (!new_seen) {
+                    for (int j = 0; j < count; j++)
+                        free(results[j]);
+                    free(results);
+                    return NULL;
+                }
+                seen = new_seen;
+                capacity = new_capacity;
+            }
+
+            results[count] = strdup(special_forms[i]);
+            seen[seen_count++] = results[count];
+            count++;
+        }
+    }
+
+    /* Null-terminate */
+    results[count] = NULL;
+
+    free(seen);
+
+    /* Return NULL if no matches */
+    if (count == 0) {
+        free(results);
+        return NULL;
+    }
+
+    return results;
+}
+
+/*
+ * Free completion array.
+ */
+void lisp_free_completions(char **completions) {
+    if (!completions)
+        return;
+
+    for (int i = 0; completions[i]; i++) {
+        free(completions[i]);
+    }
+    free(completions);
+}

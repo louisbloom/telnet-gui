@@ -238,6 +238,17 @@ LispObject *lisp_attach_stack_trace(LispObject *error, Environment *env);
 LispObject *lisp_make_typed_error(LispObject *error_type, const char *message, LispObject *data, Environment *env);
 LispObject *lisp_make_typed_error_simple(const char *error_type_name, const char *message, Environment *env);
 
+/* Completion context for position-aware completion */
+typedef enum {
+    LISP_COMPLETE_ALL,      /* Any symbol */
+    LISP_COMPLETE_CALLABLE, /* Functions, macros, special forms only */
+    LISP_COMPLETE_VARIABLE  /* Variables only (not callable) */
+} LispCompleteContext;
+
+/* Completion functions */
+char **lisp_get_completions(Environment *env, const char *prefix, LispCompleteContext ctx);
+void lisp_free_completions(char **completions);
+
 /* List utilities */
 LispObject *lisp_car(LispObject *obj);
 LispObject *lisp_cdr(LispObject *obj);
