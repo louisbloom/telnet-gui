@@ -40,7 +40,11 @@ jobs:
         shell: msys2 {0}
         continue-on-error: true
         run: |
-          cd ${{ github.workspace }}
+          # Convert Windows path (D:\a\repo) to MSYS2 path (/d/a/repo)
+          WORKSPACE_WIN="${{ github.workspace }}"
+          WORKSPACE_MSYS=$(echo "$WORKSPACE_WIN" | sed -e 's|^\([A-Za-z]\):|/\1|' -e 's|\\|/|g' | tr '[:upper:]' '[:lower:]')
+          cd "$WORKSPACE_MSYS"
+          echo "Working directory: $(pwd)"
           echo "Checking build tools..."
           g++ --version || echo "Warning: g++ not found"
           cmake --version
@@ -60,7 +64,10 @@ jobs:
       - name: Configure CMake
         shell: msys2 {0}
         run: |
-          cd ${{ github.workspace }}
+          # Convert Windows path to MSYS2 path
+          WORKSPACE_WIN="${{ github.workspace }}"
+          WORKSPACE_MSYS=$(echo "$WORKSPACE_WIN" | sed -e 's|^\([A-Za-z]\):|/\1|' -e 's|\\|/|g' | tr '[:upper:]' '[:lower:]')
+          cd "$WORKSPACE_MSYS"
           mkdir -p build
           cd build
           cmake .. -G Ninja
@@ -70,7 +77,10 @@ jobs:
       - name: Build
         shell: msys2 {0}
         run: |
-          cd ${{ github.workspace }}/build
+          # Convert Windows path to MSYS2 path
+          WORKSPACE_WIN="${{ github.workspace }}"
+          WORKSPACE_MSYS=$(echo "$WORKSPACE_WIN" | sed -e 's|^\([A-Za-z]\):|/\1|' -e 's|\\|/|g' | tr '[:upper:]' '[:lower:]')
+          cd "$WORKSPACE_MSYS/build"
           cmake --build . --config Release
         env:
           PKG_CONFIG_PATH: /usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
@@ -78,7 +88,10 @@ jobs:
       - name: Test
         shell: msys2 {0}
         run: |
-          cd ${{ github.workspace }}/build
+          # Convert Windows path to MSYS2 path
+          WORKSPACE_WIN="${{ github.workspace }}"
+          WORKSPACE_MSYS=$(echo "$WORKSPACE_WIN" | sed -e 's|^\([A-Za-z]\):|/\1|' -e 's|\\|/|g' | tr '[:upper:]' '[:lower:]')
+          cd "$WORKSPACE_MSYS/build"
           ctest --output-on-failure || true
 
       - name: Upload artifacts
