@@ -40,10 +40,9 @@ jobs:
         shell: msys2 {0}
         continue-on-error: true
         run: |
-          # Convert Windows path (D:\a\repo) to MSYS2 path (/d/a/repo)
-          WORKSPACE_WIN="${{ github.workspace }}"
-          WORKSPACE_MSYS=$(echo "$WORKSPACE_WIN" | sed -e 's|^\([A-Za-z]\):|/\1|' -e 's|\\|/|g' | tr '[:upper:]' '[:lower:]')
-          cd "$WORKSPACE_MSYS"
+          # Convert Windows path to MSYS2 path using cygpath
+          WORKSPACE=$(cygpath -u "${{ github.workspace }}")
+          cd "$WORKSPACE"
           echo "Working directory: $(pwd)"
           echo "Checking build tools..."
           g++ --version || echo "Warning: g++ not found"
@@ -64,10 +63,9 @@ jobs:
       - name: Configure CMake
         shell: msys2 {0}
         run: |
-          # Convert Windows path to MSYS2 path
-          WORKSPACE_WIN="${{ github.workspace }}"
-          WORKSPACE_MSYS=$(echo "$WORKSPACE_WIN" | sed -e 's|^\([A-Za-z]\):|/\1|' -e 's|\\|/|g' | tr '[:upper:]' '[:lower:]')
-          cd "$WORKSPACE_MSYS"
+          # Convert Windows path to MSYS2 path using cygpath
+          WORKSPACE=$(cygpath -u "${{ github.workspace }}")
+          cd "$WORKSPACE"
           mkdir -p build
           cd build
           cmake .. -G Ninja
@@ -77,10 +75,9 @@ jobs:
       - name: Build
         shell: msys2 {0}
         run: |
-          # Convert Windows path to MSYS2 path
-          WORKSPACE_WIN="${{ github.workspace }}"
-          WORKSPACE_MSYS=$(echo "$WORKSPACE_WIN" | sed -e 's|^\([A-Za-z]\):|/\1|' -e 's|\\|/|g' | tr '[:upper:]' '[:lower:]')
-          cd "$WORKSPACE_MSYS/build"
+          # Convert Windows path to MSYS2 path using cygpath
+          WORKSPACE=$(cygpath -u "${{ github.workspace }}")
+          cd "$WORKSPACE/build"
           cmake --build . --config Release
         env:
           PKG_CONFIG_PATH: /usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
@@ -88,10 +85,9 @@ jobs:
       - name: Test
         shell: msys2 {0}
         run: |
-          # Convert Windows path to MSYS2 path
-          WORKSPACE_WIN="${{ github.workspace }}"
-          WORKSPACE_MSYS=$(echo "$WORKSPACE_WIN" | sed -e 's|^\([A-Za-z]\):|/\1|' -e 's|\\|/|g' | tr '[:upper:]' '[:lower:]')
-          cd "$WORKSPACE_MSYS/build"
+          # Convert Windows path to MSYS2 path using cygpath
+          WORKSPACE=$(cygpath -u "${{ github.workspace }}")
+          cd "$WORKSPACE/build"
           ctest --output-on-failure || true
 
       - name: Upload artifacts
