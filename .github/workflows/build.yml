@@ -1,0 +1,181 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Build on Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: |
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-gc
+            mingw-w64-ucrt-x86_64-pcre2
+            mingw-w64-ucrt-x86_64-SDL2
+            mingw-w64-ucrt-x86_64-SDL2_ttf
+            mingw-w64-ucrt-x86_64-libvterm
+            libtool
+            git
+            make
+            perl
+
+      - name: Install rlottie from source
+        shell: msys2 {0}
+        run: |
+          cd ${{ github.workspace }}
+          bash scripts/install-rlottie.sh --prefix /usr/local
+        env:
+          PKG_CONFIG_PATH: /usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+
+      - name: Configure CMake
+        shell: msys2 {0}
+        run: |
+          cd ${{ github.workspace }}
+          mkdir -p build
+          cd build
+          cmake .. -G Ninja
+        env:
+          PKG_CONFIG_PATH: /usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+
+      - name: Build
+        shell: msys2 {0}
+        run: |
+          cd ${{ github.workspace }}/build
+          cmake --build . --config Release
+        env:
+          PKG_CONFIG_PATH: /usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+
+      - name: Test
+        shell: msys2 {0}
+        run: |
+          cd ${{ github.workspace }}/build
+          ctest --output-on-failure || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: telnet-gui-windows
+          path: |
+            build/telnet-gui.exe
+            build/*.dll
+            build/librlottie.dll
+          retention-days: 7
+
+  build-linux:
+    name: Build on Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libgc-dev \
+            libpcre2-dev \
+            libsdl2-dev \
+            libsdl2-ttf-dev \
+            libvterm-dev \
+            librlottie-dev \
+            git \
+            make \
+            libtool \
+            perl
+
+      - name: Configure CMake
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. -G Ninja
+
+      - name: Build
+        run: |
+          cd build
+          cmake --build . --config Release
+
+      - name: Test
+        run: |
+          cd build
+          ctest --output-on-failure || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: telnet-gui-linux
+          path: build/telnet-gui
+          retention-days: 7
+
+  build-macos:
+    name: Build on macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          brew update
+          brew install \
+            cmake \
+            ninja \
+            pkg-config \
+            bdw-gc \
+            pcre2 \
+            sdl2 \
+            sdl2_ttf \
+            rlottie \
+            libvterm \
+            git \
+            libtool
+
+      - name: Configure CMake
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. -G Ninja
+
+      - name: Build
+        run: |
+          cd build
+          cmake --build . --config Release
+
+      - name: Test
+        run: |
+          cd build
+          ctest --output-on-failure || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: telnet-gui-macos
+          path: build/telnet-gui
+          retention-days: 7
