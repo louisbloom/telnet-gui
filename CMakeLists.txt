@@ -1033,6 +1033,18 @@ if(VTERM_PKG_CONFIG OR EXISTS "/usr/local/lib/pkgconfig/vterm.pc" OR EXISTS "/uc
             set(VTERM_LIBRARIES ${VTERM_LIBS_LIST})
             set(VTERM_CFLAGS_OTHER ${VTERM_CFLAGS_LIST})
 
+            # Extract include directories from cflags (e.g., -I/opt/homebrew/include)
+            set(VTERM_INCLUDE_DIRS_FROM_PKG "")
+            foreach(FLAG IN LISTS VTERM_CFLAGS_LIST)
+                if(FLAG MATCHES "^-I(.+)$")
+                    list(APPEND VTERM_INCLUDE_DIRS_FROM_PKG "${CMAKE_MATCH_1}")
+                endif()
+            endforeach()
+            if(VTERM_INCLUDE_DIRS_FROM_PKG)
+                set(VTERM_INCLUDE_DIR "${VTERM_INCLUDE_DIRS_FROM_PKG}")
+                message(STATUS "Using libvterm include directories from pkg-config: ${VTERM_INCLUDE_DIR}")
+            endif()
+
             # Derive libdir from pkg-config path
             string(REGEX REPLACE "/pkgconfig$" "" VTERM_LIBDIR "${VTERM_PKG_CONFIG}")
 
@@ -1049,6 +1061,11 @@ if(NOT VTERM_FOUND)
     pkg_check_modules(VTERM vterm)
     if(VTERM_FOUND)
         set(VTERM_VERSION "${VTERM_VERSION}")
+        # Use include directories from pkg_check_modules
+        if(VTERM_INCLUDE_DIRS)
+            set(VTERM_INCLUDE_DIR "${VTERM_INCLUDE_DIRS}")
+            message(STATUS "Using libvterm include directories from pkg_check_modules: ${VTERM_INCLUDE_DIR}")
+        endif()
         message(STATUS "Found libvterm ${VTERM_VERSION} via standard pkg_check_modules")
     endif()
 endif()
@@ -1154,9 +1171,21 @@ if(WIN32)
         # Fallback: add both possible locations
         set(VTERM_INCLUDE_DIR "/ucrt64/include;/usr/local/include")
     endif()
-else()
-    # Unix/Linux: standard location
-    set(VTERM_INCLUDE_DIR "/usr/local/include")
+    else()
+    # Unix/Linux/macOS: check standard locations and Homebrew
+    set(VTERM_INCLUDE_DIR "")
+    # Check Homebrew locations (Apple Silicon uses /opt/homebrew, Intel uses /usr/local)
+    if(EXISTS "/opt/homebrew/include/vterm.h")
+        set(VTERM_INCLUDE_DIR "/opt/homebrew/include")
+        message(STATUS "Found libvterm headers in Homebrew: ${VTERM_INCLUDE_DIR}")
+    elseif(EXISTS "/usr/local/include/vterm.h")
+        set(VTERM_INCLUDE_DIR "/usr/local/include")
+        message(STATUS "Found libvterm headers in /usr/local: ${VTERM_INCLUDE_DIR}")
+    else()
+        # Fallback: try both locations
+        set(VTERM_INCLUDE_DIR "/opt/homebrew/include;/usr/local/include")
+        message(STATUS "libvterm headers not found, using fallback paths: ${VTERM_INCLUDE_DIR}")
+    endif()
 endif()
 
 # Add libvterm library directories if not found via pkg-config
@@ -1235,8 +1264,17 @@ if(WIN32 AND NOT VTERM_LIBDIR)
     endif()
 else()
     if(NOT VTERM_LIBDIR)
-        # Unix/Linux: try both standard locations
-        set(VTERM_LIBDIR "/usr/local/lib")
+        # Unix/Linux/macOS: check Homebrew and standard locations
+        if(EXISTS "/opt/homebrew/lib/libvterm.a" OR EXISTS "/opt/homebrew/lib/libvterm.dylib" OR EXISTS "/opt/homebrew/lib/libvterm.so")
+            set(VTERM_LIBDIR "/opt/homebrew/lib")
+            message(STATUS "Found libvterm library in Homebrew: ${VTERM_LIBDIR}")
+        elseif(EXISTS "/usr/local/lib/libvterm.a" OR EXISTS "/usr/local/lib/libvterm.dylib" OR EXISTS "/usr/local/lib/libvterm.so")
+            set(VTERM_LIBDIR "/usr/local/lib")
+            message(STATUS "Found libvterm library in /usr/local: ${VTERM_LIBDIR}")
+        else()
+            # Fallback: try both locations
+            set(VTERM_LIBDIR "/opt/homebrew/lib;/usr/local/lib")
+        endif()
     endif()
 endif()
 
