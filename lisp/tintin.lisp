@@ -1,10 +1,14 @@
-;; TinTin++ Implementation
+;; Mini TinTin++ Emulator
+;;
+;; A lightweight emulator of TinTin++ MUD client scripting features.
+;; Implements a subset of TinTin++ commands: aliases, variables, actions,
+;; highlights, speedwalk, and more.
 ;;
 ;; Load this file to enable TinTin++ scripting in telnet-gui:
 ;;
 ;;    ./telnet-gui -l lisp/tintin.lisp <host> <port>
 ;;
-;; TinTin++ automatically activates when loaded. See TINTIN.md for documentation.
+;; Automatically activates when loaded. See TINTIN.md for documentation.
 
 ;; ============================================================================
 ;; DATA STRUCTURES
