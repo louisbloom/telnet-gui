@@ -1364,7 +1364,8 @@ endif()
 set(CMAKE_REQUIRED_INCLUDES_SAVE ${CMAKE_REQUIRED_INCLUDES})
 set(CMAKE_REQUIRED_LIBRARIES_SAVE ${CMAKE_REQUIRED_LIBRARIES})
 set(CMAKE_REQUIRED_INCLUDES ${SDL_TTF_TEST_INCLUDES})
-set(CMAKE_REQUIRED_LIBRARIES ${SDL2_TTF_LIBRARIES})
+# SDL2_ttf depends on SDL2, so include both libraries
+set(CMAKE_REQUIRED_LIBRARIES ${SDL2_TTF_LIBRARIES} ${SDL2_LIBRARIES})
 
 check_c_source_compiles("
     #include <SDL_ttf.h>
@@ -1612,10 +1613,11 @@ endif()
 
 if(HAVE_SDL_TTF_DPI)
     target_compile_definitions(telnet-gui PRIVATE HAVE_SDL_TTF_DPI=1)
-    message(STATUS "SDL_ttf DPI support: available (SDL_ttf ${SDL2_TTF_VERSION} >= 2.20.0)")
+    message(STATUS "SDL_ttf DPI support: available (SDL_ttf ${SDL2_TTF_VERSION} >= 2.0.18)")
 else()
     target_compile_definitions(telnet-gui PRIVATE HAVE_SDL_TTF_DPI=0)
-    message(STATUS "SDL_ttf DPI support: not available (SDL_ttf ${SDL2_TTF_VERSION} < 2.20.0)")
+    # Note: Version check is informational only - actual detection is via compile test
+    message(STATUS "SDL_ttf DPI support: not available (SDL_ttf ${SDL2_TTF_VERSION}, compile test failed)")
 endif()
 
 # libvterm pushline4 support for text reflow
