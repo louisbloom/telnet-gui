@@ -180,21 +180,54 @@ jobs:
       - name: Install rlottie from source
         continue-on-error: true
         run: |
+          # Detect Homebrew prefix (Apple Silicon uses /opt/homebrew, Intel uses /usr/local)
+          if [ -d "/opt/homebrew" ]; then
+            HOMEBREW_PREFIX="/opt/homebrew"
+          else
+            HOMEBREW_PREFIX="/usr/local"
+          fi
+          export HOMEBREW_PREFIX
+          echo "Homebrew prefix: $HOMEBREW_PREFIX"
+          echo "Installing rlottie to: $HOMEBREW_PREFIX"
+          
           echo "Checking build tools..."
           g++ --version || echo "Warning: g++ not found"
+          clang++ --version || echo "Warning: clang++ not found"
           cmake --version
           ninja --version
-          echo "Installing rlottie from source..."
-          bash scripts/install-rlottie.sh --prefix /usr/local 2>&1 | tee rlottie-install.log || {
-            echo "=== rlottie installation failed ==="
+          
+          echo "=== Installing rlottie from source ==="
+          set +e  # Don't exit on error, we'll check exit code
+          bash scripts/install-rlottie.sh --prefix "$HOMEBREW_PREFIX" 2>&1 | tee rlottie-install.log
+          RLOTTIE_EXIT_CODE=${PIPESTATUS[0]}
+          set -e
+          
+          if [ $RLOTTIE_EXIT_CODE -ne 0 ]; then
+            echo "=== rlottie installation failed with exit code $RLOTTIE_EXIT_CODE ==="
             echo "Last 100 lines of log:"
             tail -100 rlottie-install.log || true
+            echo ""
+            echo "Checking if rlottie files exist:"
+            ls -la "$HOMEBREW_PREFIX/include/rlottie"* 2>/dev/null || echo "  No rlottie headers found"
+            ls -la "$HOMEBREW_PREFIX/lib/librlottie"* 2>/dev/null || echo "  No rlottie libraries found"
+            ls -la "$HOMEBREW_PREFIX/lib/pkgconfig/rlottie.pc" 2>/dev/null || echo "  No rlottie.pc found"
+            echo ""
             echo "Continuing without rlottie (optional dependency)"
             exit 0
-          }
-          echo "rlottie installed successfully"
-        env:
-          PKG_CONFIG_PATH: /usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+          fi
+          
+          echo "=== Verifying rlottie installation ==="
+          if [ -f "$HOMEBREW_PREFIX/include/rlottiecommon.h" ] && \
+             [ -f "$HOMEBREW_PREFIX/lib/pkgconfig/rlottie.pc" ]; then
+            echo "✓ rlottie installed successfully"
+            echo "  Headers: $HOMEBREW_PREFIX/include/rlottie*.h"
+            echo "  pkg-config: $HOMEBREW_PREFIX/lib/pkgconfig/rlottie.pc"
+          else
+            echo "⚠ Warning: rlottie installation may be incomplete"
+            echo "  Checking for files:"
+            ls -la "$HOMEBREW_PREFIX/include/rlottie"* 2>/dev/null || echo "    No headers found"
+            ls -la "$HOMEBREW_PREFIX/lib/pkgconfig/rlottie.pc" 2>/dev/null || echo "    No pkg-config file found"
+          fi
 
       - name: Configure CMake
         run: |
