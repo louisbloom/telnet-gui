@@ -57,15 +57,15 @@ echo "=== Cloning rlottie ==="
 git clone --depth 1 https://github.com/Samsung/rlottie.git
 cd rlottie
 
-# Patch CMakeLists.txt for MinGW compatibility (static builds)
-# The original adds /MT flag which is MSVC-only
-echo "=== Patching CMakeLists.txt for MinGW compatibility ==="
+# Patch CMakeLists.txt for MinGW static builds
+# rlottie's CMakeLists.txt applies MSVC-specific /MT flag to all Windows static builds.
+# This patch restricts /MT to MSVC only (by adding AND MSVC to the condition).
+echo "=== Patching CMakeLists.txt for MinGW static builds ==="
 if grep -q "if (WIN32 AND NOT BUILD_SHARED_LIBS)" CMakeLists.txt; then
-  # macOS sed requires a backup extension, Linux/GNU sed doesn't
   if [[ "$OSTYPE" == "darwin"* ]]; then
-    sed -i '' 's/if (WIN32 AND NOT BUILD_SHARED_LIBS)/if (WIN32 AND NOT BUILD_SHARED_LIBS)\n    target_compile_definitions(rlottie PUBLIC -DRLOTTIE_BUILD=0)\nendif()\n\nif (WIN32 AND NOT BUILD_SHARED_LIBS AND MSVC)/' CMakeLists.txt || echo "Warning: sed patch may have failed, continuing..."
+    sed -i '' 's/if (WIN32 AND NOT BUILD_SHARED_LIBS)/if (WIN32 AND NOT BUILD_SHARED_LIBS AND MSVC)/' CMakeLists.txt || echo "Warning: sed patch may have failed, continuing..."
   else
-    sed -i 's/if (WIN32 AND NOT BUILD_SHARED_LIBS)/if (WIN32 AND NOT BUILD_SHARED_LIBS)\n    target_compile_definitions(rlottie PUBLIC -DRLOTTIE_BUILD=0)\nendif()\n\nif (WIN32 AND NOT BUILD_SHARED_LIBS AND MSVC)/' CMakeLists.txt || echo "Warning: sed patch may have failed, continuing..."
+    sed -i 's/if (WIN32 AND NOT BUILD_SHARED_LIBS)/if (WIN32 AND NOT BUILD_SHARED_LIBS AND MSVC)/' CMakeLists.txt || echo "Warning: sed patch may have failed, continuing..."
   fi
 else
   echo "Warning: CMakeLists.txt pattern not found, skipping patch"
