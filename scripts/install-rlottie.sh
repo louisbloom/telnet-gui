@@ -73,11 +73,33 @@ fi
 
 # Detect C++ compiler
 if command -v g++ &>/dev/null; then
-  CXX_COMPILER=$(which g++)
-  echo "Found C++ compiler: $CXX_COMPILER"
+  CXX_COMPILER_MSYS=$(which g++)
+  echo "Found C++ compiler: $CXX_COMPILER_MSYS"
+  # Convert MSYS2 path to Windows path for CMake on Windows
+  if [[ "$OSTYPE" == "msys" ]] || [[ -n "$MSYSTEM" ]]; then
+    if command -v cygpath &>/dev/null; then
+      CXX_COMPILER=$(cygpath -w "$CXX_COMPILER_MSYS")
+      echo "Converted to Windows path: $CXX_COMPILER"
+    else
+      CXX_COMPILER="$CXX_COMPILER_MSYS"
+    fi
+  else
+    CXX_COMPILER="$CXX_COMPILER_MSYS"
+  fi
 elif command -v clang++ &>/dev/null; then
-  CXX_COMPILER=$(which clang++)
-  echo "Found C++ compiler: $CXX_COMPILER"
+  CXX_COMPILER_MSYS=$(which clang++)
+  echo "Found C++ compiler: $CXX_COMPILER_MSYS"
+  # Convert MSYS2 path to Windows path for CMake on Windows
+  if [[ "$OSTYPE" == "msys" ]] || [[ -n "$MSYSTEM" ]]; then
+    if command -v cygpath &>/dev/null; then
+      CXX_COMPILER=$(cygpath -w "$CXX_COMPILER_MSYS")
+      echo "Converted to Windows path: $CXX_COMPILER"
+    else
+      CXX_COMPILER="$CXX_COMPILER_MSYS"
+    fi
+  else
+    CXX_COMPILER="$CXX_COMPILER_MSYS"
+  fi
 else
   echo "Warning: No C++ compiler found, CMake will try to detect one"
   CXX_COMPILER=""
