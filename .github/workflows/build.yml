@@ -201,20 +201,35 @@ jobs:
 
       - name: Configure CMake
         run: |
+          # Detect Homebrew prefix (Apple Silicon uses /opt/homebrew, Intel uses /usr/local)
+          if [ -d "/opt/homebrew" ]; then
+            HOMEBREW_PREFIX="/opt/homebrew"
+          else
+            HOMEBREW_PREFIX="/usr/local"
+          fi
+          export HOMEBREW_PREFIX
+          echo "Homebrew prefix: $HOMEBREW_PREFIX"
+          # Set PKG_CONFIG_PATH to include Homebrew paths
+          export PKG_CONFIG_PATH="$HOMEBREW_PREFIX/lib/pkgconfig:${{ github.workspace }}/rlottie-install/lib/pkgconfig:$PKG_CONFIG_PATH"
+          # Verify pkg-config can find bdw-gc
+          pkg-config --modversion bdw-gc || echo "Warning: pkg-config cannot find bdw-gc"
+          pkg-config --cflags bdw-gc || echo "Warning: pkg-config cannot get cflags for bdw-gc"
           mkdir -p build
           cd build
-          cmake .. -G Ninja
-        env:
-          PKG_CONFIG_PATH: ${{ github.workspace }}/rlottie-install/lib/pkgconfig:$PKG_CONFIG_PATH
-          CMAKE_PREFIX_PATH: ${{ github.workspace }}/rlottie-install
+          cmake .. -G Ninja \
+            -DCMAKE_PREFIX_PATH="$HOMEBREW_PREFIX;${{ github.workspace }}/rlottie-install"
 
       - name: Build
         run: |
+          # Detect Homebrew prefix (same as Configure step)
+          if [ -d "/opt/homebrew" ]; then
+            HOMEBREW_PREFIX="/opt/homebrew"
+          else
+            HOMEBREW_PREFIX="/usr/local"
+          fi
+          export PKG_CONFIG_PATH="$HOMEBREW_PREFIX/lib/pkgconfig:${{ github.workspace }}/rlottie-install/lib/pkgconfig:$PKG_CONFIG_PATH"
           cd build
           cmake --build . --config Release
-        env:
-          PKG_CONFIG_PATH: ${{ github.workspace }}/rlottie-install/lib/pkgconfig:$PKG_CONFIG_PATH
-          CMAKE_PREFIX_PATH: ${{ github.workspace }}/rlottie-install
 
       - name: Test
         run: |
