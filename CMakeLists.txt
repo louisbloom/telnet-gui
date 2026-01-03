@@ -1496,7 +1496,7 @@ if(RLOTTIE_FOUND)
     endif()
     target_link_libraries(telnet-gui PRIVATE ${RLOTTIE_LIBRARIES})
     target_include_directories(telnet-gui PRIVATE ${RLOTTIE_INCLUDE_DIRS})
-    
+
     # rlottie is a C++ library, so we need to link the C++ standard library
     # On macOS, link libc++ (Apple's C++ standard library)
     if(APPLE)
@@ -1505,7 +1505,7 @@ if(RLOTTIE_FOUND)
         # On Linux, link libstdc++ or libc++ depending on compiler
         target_link_libraries(telnet-gui PRIVATE stdc++)
     endif()
-    
+
     # rlottie depends on pixman
     pkg_check_modules(PIXMAN pixman-1)
     if(PIXMAN_FOUND)
