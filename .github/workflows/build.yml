@@ -165,6 +165,9 @@ jobs:
       - name: Install dependencies
         run: |
           brew update
+          # Filter out "Warning: X is already installed" messages
+          # Save brew install exit code separately from grep
+          set +o pipefail
           brew install \
             cmake \
             ninja \
@@ -176,7 +179,10 @@ jobs:
             libvterm \
             pixman \
             git \
-            libtool
+            libtool 2>&1 | grep -v "^Warning:.*already installed" || true
+          BREW_EXIT=${PIPESTATUS[0]}
+          set -o pipefail
+          exit $BREW_EXIT
 
       - name: Install rlottie from source
         continue-on-error: true
