@@ -5559,4 +5559,4 @@ Maps attribute names to their ANSI SGR codes.")
 (add-hook 'telnet-input-hook 'tintin-telnet-input-hook)
 
 ;; Announce activation (terminal is ready when this file loads via -l)
-(tintin-echo "TinTin++ loaded and activated\r\n")
+(tintin-echo "Mini TinTin++ emulator loaded and activated\r\n")
