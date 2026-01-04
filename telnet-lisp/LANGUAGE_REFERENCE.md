@@ -345,6 +345,7 @@ Create anonymous functions with optional and rest parameters. Lambda functions s
 
 ```lisp
 (lambda (params...) body...)
+(lambda (params...) "docstring" body...)
 (lambda (required... &optional optional... &rest rest-param) body...)
 ```
 
@@ -359,7 +360,8 @@ Create anonymous functions with optional and rest parameters. Lambda functions s
 - Body has implicit `progn`: evaluates all expressions, returns last value
 - Tail recursion optimization for last expression
 - Lexical scoping: captures environment variables
-- Named via `define` for better stack traces
+- Optional docstring as first body expression (only when followed by more expressions)
+- Automatically named when assigned via `define` (e.g., `(define foo (lambda ...))` names the lambda "foo" for stack traces)
 
 **Examples:**
 
@@ -419,6 +421,19 @@ Create anonymous functions with optional and rest parameters. Lambda functions s
     (lambda (y) (+ x y))))
 (define add5 (make-adder 5))
 (add5 10)  ; => 15
+
+; Lambda with docstring (must have body after docstring)
+(define square
+  (lambda (x)
+    "Return X squared."
+    (* x x)))
+(documentation 'square)  ; => "Return X squared."
+
+; Lambdas in let bindings can also have docstrings
+(let ((double (lambda (x)
+                "Double the value X."
+                (* x 2))))
+  (double 5))  ; => 10
 
 ; Named functions (via define)
 (define factorial
