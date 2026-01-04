@@ -84,7 +84,7 @@ jobs:
         shell: msys2 {0}
         run: |
           cd "$WORKSPACE/build"
-          ctest --output-on-failure || true
+          ctest --output-on-failure
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -141,7 +141,7 @@ jobs:
       - name: Test
         run: |
           cd build
-          ctest --output-on-failure || true
+          ctest --output-on-failure
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -270,7 +270,7 @@ jobs:
           [ -d "$RLOTTIE_PREFIX/lib/pkgconfig" ] && PKG_CONFIG_PATHS="$RLOTTIE_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATHS"
           export PKG_CONFIG_PATH="$PKG_CONFIG_PATHS"
           cd build
-          ctest --output-on-failure || true
+          ctest --output-on-failure
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -399,7 +399,7 @@ jobs:
           [ -d "$RLOTTIE_PREFIX/lib/pkgconfig" ] && PKG_CONFIG_PATHS="$RLOTTIE_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATHS"
           export PKG_CONFIG_PATH="$PKG_CONFIG_PATHS"
           cd build
-          ctest --output-on-failure || true
+          ctest --output-on-failure
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
