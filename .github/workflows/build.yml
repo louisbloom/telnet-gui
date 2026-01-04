@@ -48,7 +48,6 @@ jobs:
 
       - name: Install rlottie from source
         shell: msys2 {0}
-        continue-on-error: true
         run: |
           cd "$WORKSPACE"
           echo "Working directory: $(pwd)"
@@ -57,13 +56,7 @@ jobs:
           cmake --version
           ninja --version
           echo "Installing rlottie..."
-          bash scripts/install-rlottie.sh --prefix /usr/local 2>&1 | tee rlottie-install.log || {
-            echo "=== rlottie installation failed ==="
-            echo "Last 100 lines of log:"
-            tail -100 rlottie-install.log || true
-            echo "Continuing without rlottie (optional dependency)"
-            exit 0
-          }
+          bash scripts/install-rlottie.sh --prefix /usr/local
           echo "rlottie installed successfully"
 
       - name: Configure CMake
@@ -207,7 +200,6 @@ jobs:
           echo "RLOTTIE_PREFIX=${{ github.workspace }}/rlottie-install" >> $GITHUB_ENV
 
       - name: Install rlottie from source
-        continue-on-error: true
         run: |
           echo "Installing rlottie to: $RLOTTIE_PREFIX"
           echo "Checking build tools..."
@@ -215,60 +207,27 @@ jobs:
           clang++ --version || echo "Warning: clang++ not found"
           cmake --version
           ninja --version
-
           echo "=== Installing rlottie from source ==="
-          set +e  # Don't exit on error, we'll check exit code
-          bash scripts/install-rlottie.sh --prefix "$RLOTTIE_PREFIX" 2>&1 | tee rlottie-install.log
-          RLOTTIE_EXIT_CODE=${PIPESTATUS[0]}
-          set -e
-
-          if [ $RLOTTIE_EXIT_CODE -ne 0 ]; then
-            echo "=== rlottie installation failed with exit code $RLOTTIE_EXIT_CODE ==="
-            echo "Last 100 lines of log:"
-            tail -100 rlottie-install.log || true
-            echo "Continuing without rlottie (optional dependency)"
-            exit 0
-          fi
-
-          echo "=== Verifying rlottie installation ==="
-          if [ -f "$RLOTTIE_PREFIX/include/rlottiecommon.h" ] && \
-             [ -f "$RLOTTIE_PREFIX/lib/pkgconfig/rlottie.pc" ]; then
-            echo "✓ rlottie installed successfully"
-          else
-            echo "⚠ Warning: rlottie installation may be incomplete"
-          fi
+          bash scripts/install-rlottie.sh --prefix "$RLOTTIE_PREFIX"
+          echo "✓ rlottie installed successfully"
 
       - name: Configure CMake
         run: |
-          # Build PKG_CONFIG_PATH with rlottie if it exists
-          PKG_CONFIG_PATHS="$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig"
-          CMAKE_PREFIX_PATHS="$HOMEBREW_PREFIX:/usr/local"
-          if [ -d "$RLOTTIE_PREFIX/lib/pkgconfig" ]; then
-            PKG_CONFIG_PATHS="$RLOTTIE_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATHS"
-            CMAKE_PREFIX_PATHS="$RLOTTIE_PREFIX:$CMAKE_PREFIX_PATHS"
-            echo "Including rlottie from: $RLOTTIE_PREFIX"
-          fi
-          export PKG_CONFIG_PATH="$PKG_CONFIG_PATHS"
-
-          # Verify pkg-config can find bdw-gc
+          export PKG_CONFIG_PATH="$RLOTTIE_PREFIX/lib/pkgconfig:$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig"
           pkg-config --modversion bdw-gc || echo "Warning: pkg-config cannot find bdw-gc"
           mkdir -p build
           cd build
-          cmake .. -G Ninja -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATHS"
+          cmake .. -G Ninja -DCMAKE_PREFIX_PATH="$RLOTTIE_PREFIX:$HOMEBREW_PREFIX:/usr/local"
 
       - name: Build
         run: |
-          PKG_CONFIG_PATHS="$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig"
-          [ -d "$RLOTTIE_PREFIX/lib/pkgconfig" ] && PKG_CONFIG_PATHS="$RLOTTIE_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATHS"
-          export PKG_CONFIG_PATH="$PKG_CONFIG_PATHS"
+          export PKG_CONFIG_PATH="$RLOTTIE_PREFIX/lib/pkgconfig:$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig"
           cd build
           cmake --build . --config Release
 
       - name: Test
         run: |
-          PKG_CONFIG_PATHS="$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig"
-          [ -d "$RLOTTIE_PREFIX/lib/pkgconfig" ] && PKG_CONFIG_PATHS="$RLOTTIE_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATHS"
-          export PKG_CONFIG_PATH="$PKG_CONFIG_PATHS"
+          export PKG_CONFIG_PATH="$RLOTTIE_PREFIX/lib/pkgconfig:$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig"
           cd build
           ctest --output-on-failure
 
@@ -336,7 +295,6 @@ jobs:
           echo "RLOTTIE_PREFIX=${{ github.workspace }}/rlottie-install" >> $GITHUB_ENV
 
       - name: Install rlottie from source
-        continue-on-error: true
         run: |
           echo "Installing rlottie to: $RLOTTIE_PREFIX"
           echo "Checking build tools..."
@@ -344,60 +302,27 @@ jobs:
           clang++ --version || echo "Warning: clang++ not found"
           cmake --version
           ninja --version
-
           echo "=== Installing rlottie from source ==="
-          set +e  # Don't exit on error, we'll check exit code
-          bash scripts/install-rlottie.sh --prefix "$RLOTTIE_PREFIX" 2>&1 | tee rlottie-install.log
-          RLOTTIE_EXIT_CODE=${PIPESTATUS[0]}
-          set -e
-
-          if [ $RLOTTIE_EXIT_CODE -ne 0 ]; then
-            echo "=== rlottie installation failed with exit code $RLOTTIE_EXIT_CODE ==="
-            echo "Last 100 lines of log:"
-            tail -100 rlottie-install.log || true
-            echo "Continuing without rlottie (optional dependency)"
-            exit 0
-          fi
-
-          echo "=== Verifying rlottie installation ==="
-          if [ -f "$RLOTTIE_PREFIX/include/rlottiecommon.h" ] && \
-             [ -f "$RLOTTIE_PREFIX/lib/pkgconfig/rlottie.pc" ]; then
-            echo "✓ rlottie installed successfully"
-          else
-            echo "⚠ Warning: rlottie installation may be incomplete"
-          fi
+          bash scripts/install-rlottie.sh --prefix "$RLOTTIE_PREFIX"
+          echo "✓ rlottie installed successfully"
 
       - name: Configure CMake
         run: |
-          # Build PKG_CONFIG_PATH with rlottie if it exists
-          PKG_CONFIG_PATHS="$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig"
-          CMAKE_PREFIX_PATHS="$HOMEBREW_PREFIX:/usr/local"
-          if [ -d "$RLOTTIE_PREFIX/lib/pkgconfig" ]; then
-            PKG_CONFIG_PATHS="$RLOTTIE_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATHS"
-            CMAKE_PREFIX_PATHS="$RLOTTIE_PREFIX:$CMAKE_PREFIX_PATHS"
-            echo "Including rlottie from: $RLOTTIE_PREFIX"
-          fi
-          export PKG_CONFIG_PATH="$PKG_CONFIG_PATHS"
-
-          # Verify pkg-config can find bdw-gc
+          export PKG_CONFIG_PATH="$RLOTTIE_PREFIX/lib/pkgconfig:$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig"
           pkg-config --modversion bdw-gc || echo "Warning: pkg-config cannot find bdw-gc"
           mkdir -p build
           cd build
-          cmake .. -G Ninja -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATHS"
+          cmake .. -G Ninja -DCMAKE_PREFIX_PATH="$RLOTTIE_PREFIX:$HOMEBREW_PREFIX:/usr/local"
 
       - name: Build
         run: |
-          PKG_CONFIG_PATHS="$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig"
-          [ -d "$RLOTTIE_PREFIX/lib/pkgconfig" ] && PKG_CONFIG_PATHS="$RLOTTIE_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATHS"
-          export PKG_CONFIG_PATH="$PKG_CONFIG_PATHS"
+          export PKG_CONFIG_PATH="$RLOTTIE_PREFIX/lib/pkgconfig:$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig"
           cd build
           cmake --build . --config Release
 
       - name: Test
         run: |
-          PKG_CONFIG_PATHS="$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig"
-          [ -d "$RLOTTIE_PREFIX/lib/pkgconfig" ] && PKG_CONFIG_PATHS="$RLOTTIE_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATHS"
-          export PKG_CONFIG_PATH="$PKG_CONFIG_PATHS"
+          export PKG_CONFIG_PATH="$RLOTTIE_PREFIX/lib/pkgconfig:$HOMEBREW_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig"
           cd build
           ctest --output-on-failure
 
