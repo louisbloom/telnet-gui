@@ -9,6 +9,7 @@ A reference for the Telnet Lisp language, covering data types, special forms, bu
 - [Special Forms](#special-forms)
 - [Built-in Functions](#built-in-functions)
 - [Type Predicates](#type-predicates)
+- [Script Variables](#script-variables)
 - [Naming Conventions](#naming-conventions)
 - [Truthy/Falsy Values](#truthyfalsy-values)
 - [Pattern Matching](#pattern-matching)
@@ -732,7 +733,7 @@ String equality - returns true if `str1` and `str2` have identical character seq
 - `concat` - Concatenate multiple strings
 - `split` - Split string by pattern (supports wildcards: `*`, `?`, `[]`)
 - `join` - Join a list of strings with a separator
-- `length` - Get length of sequence (list, string, or vector). For strings, returns grapheme cluster count (human-visible characters).
+- `length` - Get length of sequence (list, string, or vector). For strings, returns code point count (consistent with `string-ref` and `substring`).
 - `substring` - Extract substring by character indices (UTF-8 aware)
 - `string-ref` - Get character at index (UTF-8 aware, returns character type)
 - `string-append` - Alias for `concat`
@@ -1070,6 +1071,7 @@ Symbols are interned objects with a name and an optional docstring. The same sym
 
 - `symbol?` - Check if value is a symbol
 - `symbol->string` - Convert symbol to string
+- `string->symbol` - Convert string to interned symbol
 - `documentation` - Get symbol's docstring (see [Docstrings](#docstrings))
 - `set-documentation!` - Set symbol's docstring (see [Docstrings](#docstrings))
 
@@ -1083,6 +1085,11 @@ Symbols are interned objects with a name and an optional docstring. The same sym
 (symbol->string 'hello)     ; => "hello"
 (symbol->string '+)         ; => "+"
 (symbol->string 'my-var)    ; => "my-var"
+
+; Convert string to symbol
+(string->symbol "hello")    ; => hello
+(string->symbol "+")        ; => +
+(eq? (string->symbol "foo") 'foo)  ; => #t (symbols are interned)
 
 ; Using with variables
 (define x 'test)
@@ -1125,6 +1132,57 @@ Symbols are interned objects with a name and an optional docstring. The same sym
 (define elapsed (- (current-time-ms) start))
 (format nil "Elapsed: ~A ms" elapsed)
 ```
+
+### Script Variables
+
+Variables available when running Lisp scripts from the command line.
+
+#### `*command-line-args*`
+
+A list of command-line arguments passed to the script after the `--` separator.
+
+**Usage:**
+
+```bash
+lisp-repl script.lisp -- arg1 arg2 arg3
+```
+
+**In script:**
+
+```lisp
+; *command-line-args* => ("arg1" "arg2" "arg3")
+
+; Check if bound (only defined when -- is used)
+(if (bound? '*command-line-args*)
+    (format #t "Args: ~A~%" *command-line-args*)
+    (format #t "No arguments~%"))
+
+; Process arguments
+(when (bound? '*command-line-args*)
+  (do ((args *command-line-args* (cdr args)))
+    ((null? args))
+    (format #t "Arg: ~A~%" (car args))))
+```
+
+**Examples:**
+
+```bash
+# Run formatter with in-place flag
+lisp-repl tools/lisp-fmt.lisp -- -i file.lisp
+
+# Pass multiple files
+lisp-repl script.lisp -- input.txt output.txt
+
+# No -- means no script arguments (variable is unbound)
+lisp-repl script.lisp
+```
+
+**Notes:**
+
+- Only defined when `--` separator is present on command line
+- Use `(bound? '*command-line-args*)` to check if arguments were provided
+- Arguments are strings in the order they appeared
+- Files before `--` are executed; arguments after `--` are passed to the last script
 
 ### Error Handling Functions
 
@@ -1778,10 +1836,10 @@ Convert to tail recursion by:
 (string-prefix? "hel" "hello")       ; => 1
 (string-prefix? "lis" "lisp")        ; => 1
 
-; UTF-8 string operations
-(length "Hello, 世界! 🌍")            ; => 12 (grapheme clusters)
+; UTF-8 string operations (code point indexing)
+(length "Hello, 世界! 🌍")            ; => 12 (code points)
 (substring "Hello, 世界!" 7 9)        ; => "世界"
-(string-ref "Hello, 世界!" 7)        ; => "世"
+(string-ref "Hello, 世界!" 7)        ; => #\世
 
 ; String transformations
 (string-replace "hello world" "world" "universe")  ; => "hello universe"
