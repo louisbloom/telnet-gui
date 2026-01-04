@@ -1785,7 +1785,7 @@ int lisp_x_load_file(const char *filepath) {
         fprintf(stderr, "Lisp file resolution: Warning - SDL_GetBasePath() returned NULL\n");
     }
 
-    /* Path 2: lisp subdirectory (consistent with bootstrap) */
+    /* Path 2: lisp subdirectory */
     static char lisp_subdir_path[256];
     snprintf(lisp_subdir_path, sizeof(lisp_subdir_path), "lisp/%s", filepath);
     search_paths[search_count] = lisp_subdir_path;

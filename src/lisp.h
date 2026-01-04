@@ -7,7 +7,7 @@
 #include "terminal.h"
 #include "dynamic_buffer.h"
 
-/* Initialize Lisp interpreter, environment, and load bootstrap file */
+/* Initialize Lisp interpreter, environment, and load init file */
 int lisp_x_init(void);
 
 /* Load and evaluate additional Lisp file (after init) */

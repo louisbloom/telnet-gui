@@ -510,7 +510,7 @@ telnet-gui/
 │   ├── tests/            # Test suite
 │   └── README.md         # Language documentation
 ├── src/                  # GUI source files
-├── lisp/                 # Lisp scripts (bootstrap, tintin)
+├── lisp/                 # Lisp scripts (init, tintin)
 │   └── contrib/          # Contrib scripts (practice, seaport, etc.)
 ├── fonts/                # Bundled fonts
 ├── animations/           # Sample Lottie animations

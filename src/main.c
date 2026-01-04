@@ -657,7 +657,7 @@ int main(int argc, char **argv) {
     /* Set locale for UTF-8 support */
     setlocale(LC_ALL, "");
 
-    /* Initialize Lisp bridge (loads bootstrap file) */
+    /* Initialize Lisp bridge (loads init.lisp) */
     if (lisp_x_init() < 0) {
         fprintf(stderr, "Failed to initialize Lisp bridge\n");
         return 1;
