@@ -1,8 +1,8 @@
 ;;; lisp-fmt.lisp --- Lisp source code formatter
 ;;;
 ;;; Usage:
-;;;   lisp-repl telnet-lisp/tools/lisp-fmt.lisp file.lisp       # Format to stdout
-;;;   lisp-repl telnet-lisp/tools/lisp-fmt.lisp -i file.lisp    # In-place edit
+;;;   lisp-repl telnet-lisp/lisp/lisp-fmt.lisp file.lisp       # Format to stdout
+;;;   lisp-repl telnet-lisp/lisp/lisp-fmt.lisp -i file.lisp    # In-place edit
 ;;;
 ;;; Formatting rules:
 ;;;   - Line width: 79 characters
@@ -1198,7 +1198,7 @@
     (set! files (reverse files))
     (if (null? files)
       (progn
-        (princ "Usage: lisp-repl tools/lisp-fmt.lisp [-i] file.lisp ...\n")
+        (princ "Usage: lisp-repl lisp/lisp-fmt.lisp [-i] file.lisp ...\n")
         (princ "  -i, --inplace  Edit files in place\n"))
       (do ((remaining files (cdr remaining)))
         ((null? remaining))

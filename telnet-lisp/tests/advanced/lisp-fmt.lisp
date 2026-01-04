@@ -1,8 +1,8 @@
 ;;; Lisp Source Code Formatter Tests
-;;; Tests for telnet-lisp/tools/lisp-fmt.lisp
+;;; Tests for telnet-lisp/lisp/lisp-fmt.lisp
 
 (load "tests/test-helpers.lisp")
-(load "tools/lisp-fmt.lisp")
+(load "lisp/lisp-fmt.lisp")
 
 ;; ============================================================
 ;; Basic Atom Formatting

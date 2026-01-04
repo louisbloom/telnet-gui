@@ -1169,7 +1169,7 @@ lisp-repl script.lisp -- arg1 arg2 arg3
 
 ```bash
 # Run formatter with in-place flag
-lisp-repl tools/lisp-fmt.lisp -- -i file.lisp
+lisp-repl lisp/lisp-fmt.lisp -- -i file.lisp
 
 # Pass multiple files
 lisp-repl script.lisp -- input.txt output.txt
