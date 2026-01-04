@@ -888,7 +888,7 @@ Convert number to string representation with optional radix parameter.
 **Without radix** (base 10):
 
 - Formats integers: `255` → `"255"`
-- Formats floats: `3.14` → `"3.14"`, `1e10` → `"1e+10"`
+- Formats floats: `3.14` → `"3.14"` (trailing zeros trimmed, keeps at least one decimal place)
 
 **With radix** (2-36):
 
@@ -903,7 +903,8 @@ Convert number to string representation with optional radix parameter.
 (number->string 42)             ; => "42"
 (number->string -42)            ; => "-42"
 (number->string 3.14)           ; => "3.14"
-(number->string 1e10)           ; => "1e+10"
+(number->string 3.0)            ; => "3.0"
+(number->string 1e10)           ; => "10000000000.0"
 
 ;; Binary (base 2)
 (number->string 10 2)           ; => "1010"
