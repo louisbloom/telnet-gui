@@ -752,6 +752,21 @@ if(VTERM_PKG_CONFIG OR EXISTS "/usr/local/lib/pkgconfig/vterm.pc" OR EXISTS "/uc
             endif()
         endif()
 
+        # Prioritize /usr/local for source-built libvterm with nvim features (pushline4, reflow)
+        # Check if source-built vterm exists first, as it has features the distro package lacks
+        if(DEFINED MSYS2_ROOT)
+            set(VTERM_LOCAL_PC "${MSYS2_ROOT}/usr/local/lib/pkgconfig/vterm.pc")
+        else()
+            set(VTERM_LOCAL_PC "/usr/local/lib/pkgconfig/vterm.pc")
+        endif()
+        if(EXISTS "${VTERM_LOCAL_PC}")
+            # Use ONLY /usr/local/lib/pkgconfig for vterm detection
+            # Windows-style paths (C:/...) break MSYS2 pkg-config's path parsing
+            # Also use bash to ensure environment variable is properly passed
+            set(VTERM_SOURCE_BUILD TRUE)
+            message(STATUS "Prioritizing source-built libvterm from /usr/local")
+        endif()
+
         # Check if vterm exists
         execute_process(
             COMMAND ${PKG_CONFIG_EXECUTABLE} --exists vterm
@@ -800,6 +815,17 @@ if(VTERM_PKG_CONFIG OR EXISTS "/usr/local/lib/pkgconfig/vterm.pc" OR EXISTS "/uc
 
             # Derive libdir from pkg-config path
             string(REGEX REPLACE "/pkgconfig$" "" VTERM_LIBDIR "${VTERM_PKG_CONFIG}")
+
+            # Override with source-built paths if available
+            # This is needed because pkg-config's environment variable handling
+            # doesn't work reliably in CMake's execute_process on Windows
+            if(VTERM_SOURCE_BUILD)
+                set(VTERM_INCLUDE_DIR "/usr/local/include")
+                set(VTERM_LIBDIR "/usr/local/lib")
+                # Use link flags format for target_link_libraries
+                set(VTERM_LIBRARIES "-L/usr/local/lib" "-lvterm")
+                message(STATUS "Overriding with source-built libvterm paths from /usr/local")
+            endif()
 
             message(STATUS "Found libvterm ${VTERM_VERSION} via pkg-config")
         endif()
@@ -921,7 +947,15 @@ set(CMAKE_REQUIRED_LIBRARIES_SAVE ${CMAKE_REQUIRED_LIBRARIES})
 # Set up includes for vterm test
 set(VTERM_TEST_INCLUDES "")
 if(VTERM_INCLUDE_DIR)
-    list(APPEND VTERM_TEST_INCLUDES ${VTERM_INCLUDE_DIR})
+    # On MSYS2, convert Unix path to Windows path for EXISTS/compile check
+    if(DEFINED MSYS2_ROOT AND VTERM_INCLUDE_DIR MATCHES "^/usr/local")
+        string(REPLACE "/usr/local" "${MSYS2_ROOT}/usr/local" VTERM_INCLUDE_DIR_WIN "${VTERM_INCLUDE_DIR}")
+        # Normalize path (convert backslashes to forward slashes to avoid escape issues)
+        string(REPLACE "\\" "/" VTERM_INCLUDE_DIR_WIN "${VTERM_INCLUDE_DIR_WIN}")
+        list(APPEND VTERM_TEST_INCLUDES ${VTERM_INCLUDE_DIR_WIN})
+    else()
+        list(APPEND VTERM_TEST_INCLUDES ${VTERM_INCLUDE_DIR})
+    endif()
 endif()
 if(WIN32 AND DEFINED UCRT64_ROOT)
     list(APPEND VTERM_TEST_INCLUDES "${UCRT64_ROOT}/include")
@@ -929,8 +963,20 @@ endif()
 
 # Set up libraries for vterm test - use full path to library if VTERM_LIBDIR is set
 set(VTERM_TEST_LIBRARIES "")
-if(VTERM_LIBDIR AND EXISTS "${VTERM_LIBDIR}/libvterm.a")
-    list(APPEND VTERM_TEST_LIBRARIES "${VTERM_LIBDIR}/libvterm.a")
+# On MSYS2, convert Unix path to Windows path for EXISTS check
+if(VTERM_LIBDIR)
+    if(DEFINED MSYS2_ROOT AND VTERM_LIBDIR MATCHES "^/usr/local")
+        string(REPLACE "/usr/local" "${MSYS2_ROOT}/usr/local" VTERM_LIBDIR_WIN "${VTERM_LIBDIR}")
+        # Normalize path (convert backslashes to forward slashes)
+        string(REPLACE "\\" "/" VTERM_LIBDIR_WIN "${VTERM_LIBDIR_WIN}")
+    else()
+        set(VTERM_LIBDIR_WIN "${VTERM_LIBDIR}")
+    endif()
+    if(EXISTS "${VTERM_LIBDIR_WIN}/libvterm.a")
+        list(APPEND VTERM_TEST_LIBRARIES "${VTERM_LIBDIR_WIN}/libvterm.a")
+    else()
+        list(APPEND VTERM_TEST_LIBRARIES ${VTERM_LIBRARIES})
+    endif()
 else()
     list(APPEND VTERM_TEST_LIBRARIES ${VTERM_LIBRARIES})
 endif()
