@@ -119,19 +119,34 @@ static void print_welcome(void) {
     printf("Tab for completion, Up/Down for history\n\n");
 }
 
+/*
+ * Build a Lisp list of strings from argv[start] to argv[end-1].
+ * Returns NIL if start >= end.
+ */
+static LispObject *argv_to_list(int start, int end, char **argv) {
+    LispObject *result = NIL;
+    for (int i = end - 1; i >= start; i--) {
+        LispObject *str = lisp_make_string(argv[i]);
+        result = lisp_make_cons(str, result);
+    }
+    return result;
+}
+
 static void print_help(void) {
     printf("Telnet Lisp Interpreter v%s\n", TELNET_LISP_VERSION);
     printf("\n");
     printf("Usage:\n");
-    printf("  lisp-repl                 Start interactive REPL\n");
-    printf("  lisp-repl -e \"CODE\"       Execute CODE and exit\n");
-    printf("  lisp-repl FILE [FILE...]  Execute FILE(s) and exit\n");
-    printf("  lisp-repl -h, --help      Show this help message\n");
+    printf("  lisp-repl                          Start interactive REPL\n");
+    printf("  lisp-repl -e \"CODE\"                Execute CODE and exit\n");
+    printf("  lisp-repl FILE [FILE...]           Execute FILE(s) and exit\n");
+    printf("  lisp-repl FILE -- [ARG...]         Run FILE with script arguments\n");
+    printf("  lisp-repl -h, --help               Show this help message\n");
     printf("\n");
     printf("Examples:\n");
     printf("  lisp-repl                           # Start REPL\n");
     printf("  lisp-repl -e \"(+ 1 2 3)\"            # Execute code\n");
     printf("  lisp-repl script.lisp               # Run file\n");
+    printf("  lisp-repl script.lisp -- -i foo.txt # Run with args in *command-line-args*\n");
     printf("  lisp-repl -e \"(define x 10) (* x 5)\" # Multiple expressions\n");
     printf("\n");
     printf("REPL Commands:\n");
@@ -247,7 +262,25 @@ int main(int argc, char **argv) {
 
     /* If file argument provided, load and execute it */
     if (argc > 1) {
+        /* Find "--" separator for script arguments */
+        int separator_pos = -1;
         for (int i = 1; i < argc; i++) {
+            if (strcmp(argv[i], "--") == 0) {
+                separator_pos = i;
+                break;
+            }
+        }
+
+        /* Determine which files to execute and set up script args */
+        int file_end = (separator_pos > 0) ? separator_pos : argc;
+
+        /* If we have script arguments (after --), define *command-line-args* */
+        if (separator_pos > 0) {
+            LispObject *args_list = argv_to_list(separator_pos + 1, argc, argv);
+            env_define(env, "*command-line-args*", args_list);
+        }
+
+        for (int i = 1; i < file_end; i++) {
             FILE *file = file_open(argv[i], "r");
             if (file == NULL) {
                 fprintf(stderr, "ERROR: Cannot open file: %s\n", argv[i]);
@@ -292,10 +325,7 @@ int main(int argc, char **argv) {
                     fprintf(stderr, "ERROR in %s: %s\n", argv[i], err_str);
                     return 1;
                 }
-
-                char *output = lisp_print(result);
-                printf("%s\n", output);
-                /* output is GC-allocated, don't free */
+                /* Script mode: don't print results (only errors above) */
             }
         }
 

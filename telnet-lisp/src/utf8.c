@@ -23,9 +23,8 @@ static int is_grapheme_extender(int cp) {
     return 0;
 }
 
-/* Count UTF-8 grapheme clusters in string (human-visible characters).
- * This counts the number of times you'd press backspace to clear the string.
- * Variation selectors, combining marks, and ZWJ are not counted separately. */
+/* Count UTF-8 code points in string (not bytes, not graphemes).
+ * This matches the indexing used by string-ref and utf8_char_at. */
 size_t utf8_strlen(const char *str) {
     if (str == NULL)
         return 0;
@@ -33,14 +32,8 @@ size_t utf8_strlen(const char *str) {
     size_t count = 0;
     const char *ptr = str;
     while (*ptr) {
-        int cp = utf8_get_codepoint(ptr);
         int bytes = utf8_char_bytes(ptr);
-
-        /* Count this codepoint only if it's not a grapheme extender */
-        if (cp >= 0 && !is_grapheme_extender(cp)) {
-            count++;
-        }
-
+        count++;
         ptr += bytes > 0 ? bytes : 1;
     }
     return count;

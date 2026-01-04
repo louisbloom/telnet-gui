@@ -522,6 +522,7 @@ static LispObject *builtin_list_question(LispObject *args, Environment *env);
 
 /* Symbol operations */
 static LispObject *builtin_symbol_to_string(LispObject *args, Environment *env);
+static LispObject *builtin_string_to_symbol(LispObject *args, Environment *env);
 
 /* Vector operations */
 static LispObject *builtin_make_vector(LispObject *args, Environment *env);
@@ -2151,7 +2152,33 @@ static const char *doc_symbol_to_string = "Convert symbol to string.\n"
                                           "Returns error if argument is not a symbol.\n"
                                           "\n"
                                           "## See Also\n"
-                                          "- `symbol?` - Test if value is symbol";
+                                          "- `symbol?` - Test if value is symbol\n"
+                                          "- `string->symbol` - Convert string to symbol";
+
+static const char *doc_string_to_symbol = "Convert string to interned symbol.\n"
+                                          "\n"
+                                          "## Parameters\n"
+                                          "- `string` - String containing symbol name\n"
+                                          "\n"
+                                          "## Returns\n"
+                                          "Interned symbol with the given name.\n"
+                                          "\n"
+                                          "## Examples\n"
+                                          "```lisp\n"
+                                          "(string->symbol \"hello\")     ; => hello\n"
+                                          "(string->symbol \"+\")         ; => +\n"
+                                          "(string->symbol \"my-var\")    ; => my-var\n"
+                                          "\n"
+                                          "; Symbols are interned\n"
+                                          "(eq? (string->symbol \"foo\") 'foo)  ; => #t\n"
+                                          "```\n"
+                                          "\n"
+                                          "## Errors\n"
+                                          "Returns error if argument is not a string.\n"
+                                          "\n"
+                                          "## See Also\n"
+                                          "- `symbol?` - Test if value is symbol\n"
+                                          "- `symbol->string` - Convert symbol to string";
 
 static const char *doc_hash_clear_bang =
     "Remove all entries from hash table (mutating).\n"
@@ -2890,6 +2917,7 @@ void register_builtins(Environment *env) {
 
     /* Symbol operations */
     REGISTER("symbol->string", builtin_symbol_to_string, doc_symbol_to_string);
+    REGISTER("string->symbol", builtin_string_to_symbol, doc_string_to_symbol);
 
     /* Vector operations */
     REGISTER("make-vector", builtin_make_vector, doc_make_vector);
@@ -3935,7 +3963,7 @@ static LispObject *builtin_substring(LispObject *args, Environment *env) {
     long long end;
 
     if (end_obj == NIL || end_obj == NULL) {
-        /* No end specified, use string length (grapheme count) */
+        /* No end specified, use string length (codepoint count) */
         end = utf8_strlen(str_obj->value.string);
     } else {
         if (end_obj->type != LISP_INTEGER) {
@@ -3948,9 +3976,9 @@ static LispObject *builtin_substring(LispObject *args, Environment *env) {
         return lisp_make_error("substring: invalid start/end indices");
     }
 
-    /* Use grapheme-based indexing for consistency with length */
-    size_t start_offset = utf8_grapheme_byte_offset(str_obj->value.string, start);
-    size_t end_offset = utf8_grapheme_byte_offset(str_obj->value.string, end);
+    /* Use codepoint-based indexing for consistency with length and string-ref */
+    size_t start_offset = utf8_byte_offset(str_obj->value.string, start);
+    size_t end_offset = utf8_byte_offset(str_obj->value.string, end);
 
     size_t result_len = end_offset - start_offset;
     char *result = GC_malloc(result_len + 1);
@@ -5947,6 +5975,18 @@ static LispObject *builtin_symbol_to_string(LispObject *args, Environment *env) 
         return lisp_make_error("symbol->string requires a symbol argument");
     }
     return lisp_make_string(arg->value.symbol->name);
+}
+
+static LispObject *builtin_string_to_symbol(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("string->symbol requires 1 argument");
+    }
+    LispObject *arg = lisp_car(args);
+    if (arg->type != LISP_STRING) {
+        return lisp_make_error("string->symbol requires a string argument");
+    }
+    return lisp_intern(arg->value.string);
 }
 
 /* Vector operations */
