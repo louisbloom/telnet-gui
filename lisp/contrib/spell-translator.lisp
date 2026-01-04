@@ -6,8 +6,8 @@
 ;;; When someone casts a spell, you see:
 ;;;   Det utters the words, 'qaiyjcandus zrzwunsohar'.
 ;;;
-;;; This script adds a translation annotation:
-;;;   Det utters the words, 'qaiyjcandus zrzwunsohar'. [conjure elemental]
+;;; This script weaves in a translation right after the spell:
+;;;   Det utters the words, 'qaiyjcandus zrzwunsohar' (conjure elemental).
 ;;;
 ;;; The ROM 2.4 MUD garble algorithm uses syllable substitution followed by
 ;;; single-character substitution. This script reverses that process.
@@ -79,50 +79,54 @@
      (#\v . #\v))); fallback - not in original cipher
 
 ;;; ============================================================================
-;;; Known Spell Names (skip translation for same-class visibility)
+;;; Known Spell Words (skip translation for same-class visibility)
 ;;; ============================================================================
 
 ;; When you're the same class as the caster, you see the real spell name.
-;; Skip translation for these known spell names to avoid garbage output.
-(define *known-spells*
-  '("armor" "bless" "blindness" "burning hands" "call lightning" "calm"
-     "cancellation" "cause critical" "cause light" "cause serious"
-     "chain lightning" "change sex" "charm person" "chill touch" "colour spray"
-     "continual light" "control weather" "create food" "create rose"
-     "create spring" "create water" "cure blindness" "cure critical"
-     "cure disease" "cure light" "cure poison" "cure serious" "curse"
-     "demonfire" "detect evil" "detect good" "detect hidden" "detect invis"
-     "detect magic" "detect poison" "dispel evil" "dispel good" "dispel magic"
-     "earthquake" "enchant armor" "enchant weapon" "energy drain" "faerie fire"
-     "faerie fog" "farsight" "fireball" "fireproof" "flamestrike" "fly"
-     "frenzy" "gate" "giant strength" "harm" "haste" "heal" "heat metal"
-     "holy word" "identify" "infravision" "invis" "know alignment"
-     "lightning bolt" "locate object" "magic missile" "mass healing"
-     "mass invis" "nexus" "pass door" "plague" "poison" "portal"
-     "protection evil" "protection good" "ray of truth" "recharge" "refresh"
-     "remove curse" "sanctuary" "shield" "shocking grasp" "sleep" "slow"
-     "stone skin" "summon" "teleport" "ventriloquate" "weaken" "word of recall"
-     ;; Stock ROM spells
-     "acid blast" "high explosive" "benediction" "cause plague"
-     ;; Area spells
-     "acid breath" "fire breath" "frost breath" "gas breath" "lightning breath"
-     ;; Cleric
-     "holy fire" "wrath" "exorcism"
-     ;; Common spell name variations
-     "invisibility" "protection" "restoration" "resurrection"))
+;; If any word in the utterance matches a known spell word, skip translation.
+(define *known-spell-words*
+  '("acid" "align" "armor" "aura" "barrier" "benediction" "blast" "bless" "blind" "bolt" "breath"
+     "burn" "call" "calm" "cancel" "cause" "chain" "change" "charm" "chill"
+     "colour" "continual" "control" "create" "critical" "cure" "curse" "demon"
+     "detect" "disease" "dispel" "disrupt" "door" "drain" "earth" "enchant" "energy"
+     "evil" "exorcism" "explosive" "faerie" "farsight" "fire" "flame" "fly"
+     "fog" "food" "frenzy" "frost" "gas" "gate" "giant" "good" "grasp"
+     "hands" "harm" "haste" "heal" "heat" "hidden" "high" "holy" "identify"
+     "infravision" "invis" "know" "light" "locate" "magic" "mass" "metal"
+     "missile" "negative" "neuro" "nexus" "object" "pass" "person" "plague"
+     "poison" "positive" "portal" "protection" "ray" "recall" "recharge" "refresh"
+     "remove" "resist" "restoration" "resurrection" "rose" "sanctuary" "serious" "sex"
+     "shield" "shock" "skin" "sleep" "slow" "spray" "spring" "stone"
+     "strength" "summon" "tele" "touch" "truth" "ventriloquate" "water" "weaken"
+     "weapon" "weather" "word" "wrath"))
 
-;; Check if a phrase contains only known spell words
+;; Check if utterance contains any known spell word
 (defun known-spell? (phrase)
-  "Return true if phrase is a known spell name (no translation needed)"
-  (let ((lower (string-downcase phrase)))
-    (if (member lower *known-spells*)
+  "Return true if any word in phrase starts with a known spell word (no translation needed)"
+  (let ((words (split (string-downcase phrase) " ")))
+    (known-spell-helper? words)))
+
+;; Check if word starts with any known spell word prefix
+(defun word-matches-known? (word)
+  "Check if word starts with any prefix in *known-spell-words*"
+  (word-matches-helper? word *known-spell-words*))
+
+(defun word-matches-helper? (word prefixes)
+  "Recursively check if word starts with any prefix"
+  (if (null? prefixes)
+    nil
+    (if (string-prefix? (car prefixes) word)
       #t
-      ;; Also check each word individually for multi-word spells
-      (let ((words (split lower " ")))
-        (if (= (length words) 1)
-          nil  ; Single unknown word - not a known spell
-          ;; For multi-word, check if it's in the list as-is
-          nil)))))
+      (word-matches-helper? word (cdr prefixes)))))
+
+;; Helper to check if any word in list matches known spell words
+(defun known-spell-helper? (words)
+  "Recursively check if any word matches *known-spell-words*"
+  (if (null? words)
+    nil
+    (if (word-matches-known? (car words))
+      #t
+      (known-spell-helper? (cdr words)))))
 
 ;;; ============================================================================
 ;;; Dictionary Overrides
@@ -143,6 +147,8 @@
 (hash-set! *spell-dictionary* "aiozr" "angel")          ; ansel → angel
 (hash-set! *spell-dictionary* "uiygruzuguai" "infravision") ; infraeisian → infravision
 (hash-set! *spell-dictionary* "zawsufuq" "vampiric")    ; eampiric → vampiric
+(hash-set! *spell-dictionary* "izjfahiouqar" "neurological") ; neuralogical → neurological
+(hash-set! *spell-dictionary* "eugfjshuai" "disruption")     ; disruptian → disruption
 
 ;; Add a custom word override
 (defun spell-add (garbled correct)
@@ -237,13 +243,18 @@
 
 ;; Regex pattern for spell utterances
 ;; Matches: "Name utters the words, 'garbled text'."
+;; Captures: (1) full match, (2) name, (3) garbled text
 (define *spell-utter-pattern*
   "([A-Za-z' ]+) utters the words, '([^']+)'\\.")
 
+;; Muted magic purple color for translations
+(define *spell-color* "\033[38;2;147;112;219m")
+(define *spell-color-reset* "\033[0m")
+
 ;; Filter function for telnet-input-filter-hook
 (defun spell-translator-filter (text)
-  "Add spell translation annotations to utterance lines"
-  ;; Strip ANSI codes for matching (telnet data contains escape sequences)
+  "Weave spell translation into utterance lines"
+  ;; Strip ANSI codes for matching, but use original text for replacement
   (let* ((clean-text (strip-ansi text))
           (groups (regex-extract *spell-utter-pattern* clean-text)))
     (if groups
@@ -252,9 +263,13 @@
         (if (known-spell? garbled)
           ;; Already readable (same class as caster) - no translation needed
           text
-          ;; Garbled text - translate and annotate
+          ;; Garbled text - translate and weave in after the spell
           (let ((translated (translate-garbled-phrase garbled)))
-            (string-append text " [" translated "]"))))
+            ;; Replace the period with " (translation)."
+            (regex-replace
+              "'\\.$"
+              text
+              (string-append "' " *spell-color* "(" translated ")" *spell-color-reset* ".")))))
       ;; No match - pass through unchanged
       text)))
 
