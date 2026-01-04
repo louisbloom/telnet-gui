@@ -114,16 +114,16 @@
 ;;; ============================================================================
 (princ "Testing filter hook...\n")
 
-;; Test that filter adds annotation
+;; Test that filter adds annotation (in parentheses with ANSI color codes)
 (let ((input "Det utters the words, 'yrl'."))
   (let ((output (spell-translator-filter input)))
-    (assert-true (regex-match? "\\[fly\\]" output)
-      "filter adds [fly] annotation")))
+    (assert-true (regex-match? "\\(fly\\)" output)
+      "filter adds (fly) annotation")))
 
 (let ((input "A mage merchant utters the words, 'yucandusbarr'."))
   (let ((output (spell-translator-filter input)))
-    (assert-true (regex-match? "\\[fireball\\]" output)
-      "filter adds [fireball] annotation")))
+    (assert-true (regex-match? "\\(fireball\\)" output)
+      "filter adds (fireball) annotation")))
 
 ;; Test non-matching text passes through unchanged
 (assert-equal (spell-translator-filter "Hello world")
@@ -156,18 +156,18 @@
 ;; Filter should NOT add annotation for known spells (same class as caster)
 (let ((input "Det utters the words, 'fireball'."))
   (let ((output (spell-translator-filter input)))
-    (assert-false (regex-match? "\\[" output)
+    (assert-false (regex-match? "\\(" output)
       "no annotation for known spell 'fireball'")))
 
 (let ((input "A cleric utters the words, 'cure light'."))
   (let ((output (spell-translator-filter input)))
-    (assert-false (regex-match? "\\[" output)
+    (assert-false (regex-match? "\\(" output)
       "no annotation for known spell 'cure light'")))
 
 ;; Filter should still add annotation for garbled spells
 (let ((input "Det utters the words, 'yucandusbarr'."))
   (let ((output (spell-translator-filter input)))
-    (assert-true (regex-match? "\\[fireball\\]" output)
+    (assert-true (regex-match? "\\(fireball\\)" output)
       "annotation added for garbled 'yucandusbarr'")))
 
 (princ "  Known spell whitelist tests passed.\n")
