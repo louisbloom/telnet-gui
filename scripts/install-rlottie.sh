@@ -71,6 +71,74 @@ else
   echo "Warning: CMakeLists.txt pattern not found, skipping patch"
 fi
 
+# Patch rlottiecommon.h and stb_image.cpp BEFORE building for static linking support
+# The header uses #ifdef RLOTTIE_BUILD which checks definition, not value.
+# For static builds on MinGW, RLOTTIE_API must be empty (not dllexport/dllimport).
+# Note: stb_image.cpp has its own inline copy of RLOTTIE_API definition that also needs patching.
+if [ "$BUILD_SHARED" = "OFF" ]; then
+  echo "=== Patching sources for static build ==="
+
+  # Patch rlottiecommon.h
+  if [ -f "inc/rlottiecommon.h" ]; then
+    patch -p1 << 'HEADER_PATCH'
+--- a/inc/rlottiecommon.h
++++ b/inc/rlottiecommon.h
+@@ -23,7 +23,9 @@
+ #ifndef _RLOTTIE_COMMON_H_
+ #define _RLOTTIE_COMMON_H_
+
+-#if defined _WIN32 || defined __CYGWIN__
++#ifdef RLOTTIE_STATIC
++  #define RLOTTIE_API
++#elif defined _WIN32 || defined __CYGWIN__
+   #ifdef RLOTTIE_BUILD
+     #define RLOTTIE_API __declspec(dllexport)
+   #else
+HEADER_PATCH
+    echo "Patched inc/rlottiecommon.h"
+  fi
+
+  # Patch stb_image.cpp (has its own inline RLOTTIE_API definition)
+  if [ -f "src/vector/stb/stb_image.cpp" ]; then
+    patch -p1 << 'STB_PATCH'
+--- a/src/vector/stb/stb_image.cpp
++++ b/src/vector/stb/stb_image.cpp
+@@ -13,7 +13,9 @@
+
+ #include "stb_image.h"
+
+-#if defined _WIN32 || defined __CYGWIN__
++#ifdef RLOTTIE_STATIC
++  #define RLOTTIE_API
++#elif defined _WIN32 || defined __CYGWIN__
+   #ifdef RLOTTIE_BUILD
+     #define RLOTTIE_API __declspec(dllexport)
+   #else
+STB_PATCH
+    echo "Patched src/vector/stb/stb_image.cpp"
+  fi
+
+  # Patch rlottie.h (has its own inline RLOTTIE_API definition before including rlottiecommon.h)
+  if [ -f "inc/rlottie.h" ]; then
+    patch -p1 << 'RLOTTIE_H_PATCH'
+--- a/inc/rlottie.h
++++ b/inc/rlottie.h
+@@ -27,7 +27,9 @@
+ #include <vector>
+ #include <memory>
+
+-#if defined _WIN32 || defined __CYGWIN__
++#ifdef RLOTTIE_STATIC
++  #define RLOTTIE_API
++#elif defined _WIN32 || defined __CYGWIN__
+   #ifdef RLOTTIE_BUILD
+     #define RLOTTIE_API __declspec(dllexport)
+   #else
+RLOTTIE_H_PATCH
+    echo "Patched inc/rlottie.h"
+  fi
+fi
+
 # Detect C++ compiler
 if command -v g++ &>/dev/null; then
   CXX_COMPILER_MSYS=$(which g++)
@@ -122,6 +190,9 @@ CMAKE_ARGS=(
 # isn't needed for static builds and causes install errors
 if [ "$BUILD_SHARED" = "OFF" ]; then
   CMAKE_ARGS+=(-DLOTTIE_MODULE=OFF)
+  # Pass RLOTTIE_STATIC to enable the patched header's static build support
+  # This makes RLOTTIE_API empty instead of __declspec(dllimport/dllexport)
+  CMAKE_ARGS+=(-DCMAKE_CXX_FLAGS="-DRLOTTIE_STATIC")
 fi
 
 # Add C++ compiler if found
@@ -170,24 +241,15 @@ if [ "$BUILD_SHARED" = "ON" ]; then
   cp build/librlottie.dll "$INSTALL_PREFIX/bin/"
 fi
 
-# Patch header for RLOTTIE_STATIC support (needed for static linking)
-# The rlottie header uses #ifdef RLOTTIE_BUILD which checks definition, not value,
-# so -DRLOTTIE_BUILD=0 still makes it true. We need RLOTTIE_STATIC support to
-# make RLOTTIE_API empty for static linking.
+# Verify RLOTTIE_STATIC support in installed header (patched before build)
 if [ "$BUILD_SHARED" = "OFF" ]; then
-  echo "=== Patching rlottiecommon.h for static linking support ==="
   HEADER="$INSTALL_PREFIX/include/rlottiecommon.h"
   if [ -f "$HEADER" ]; then
-    # Add RLOTTIE_STATIC support to the header
-    # macOS sed requires -i '' (empty extension), Linux/MSYS2 uses -i without extension
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-      sed -i '' 's/#ifdef RLOTTIE_BUILD/#ifdef RLOTTIE_STATIC\n    #define RLOTTIE_API\n  #elif defined RLOTTIE_BUILD/' "$HEADER"
+    if grep -q "RLOTTIE_STATIC" "$HEADER"; then
+      echo "Verified: Installed header has RLOTTIE_STATIC support"
     else
-      sed -i 's/#ifdef RLOTTIE_BUILD/#ifdef RLOTTIE_STATIC\n    #define RLOTTIE_API\n  #elif defined RLOTTIE_BUILD/' "$HEADER"
+      echo "Warning: Installed header missing RLOTTIE_STATIC support"
     fi
-    echo "Patched $HEADER"
-  else
-    echo "Warning: Header not found at $HEADER"
   fi
 fi
 
