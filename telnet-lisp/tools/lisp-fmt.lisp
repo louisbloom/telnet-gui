@@ -963,8 +963,8 @@
     ;; Add elements
     (do ((remaining rest (if (pair? remaining) (cdr remaining) nil)))
       ((not (pair? remaining))
-	;; Handle dotted tail
-	(when (not (null? remaining))
+        ;; Handle dotted tail
+        (when (not (null? remaining))
           (lb-append! lb " . ")
           (lb-append! lb (sexp-to-string remaining))))
       (let* ((elem (car remaining))
@@ -1081,7 +1081,7 @@
     (do ((remaining lst (if (pair? remaining) (cdr remaining) nil))
           (first-elem #t #f))
       ((not (pair? remaining))
-	(if (not (null? remaining))
+        (if (not (null? remaining))
           (set! dotted-tail remaining)))
       (let* ((elem (car remaining))
               (elem-single-len (sexp-length elem))
