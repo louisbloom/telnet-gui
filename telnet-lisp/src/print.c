@@ -18,6 +18,48 @@ static void append_str(char **buffer, size_t *size, size_t *pos, const char *str
     *pos += len;
 }
 
+static void append_char(char **buffer, size_t *size, size_t *pos, char c) {
+    while (*pos + 2 > *size) {
+        *size *= 2;
+        char *new_buffer = GC_malloc(*size);
+        memcpy(new_buffer, *buffer, *pos);
+        *buffer = new_buffer;
+    }
+    (*buffer)[(*pos)++] = c;
+    (*buffer)[*pos] = '\0';
+}
+
+/* Append string with proper escaping for Lisp output */
+static void append_escaped_str(char **buffer, size_t *size, size_t *pos, const char *str) {
+    for (const char *p = str; *p; p++) {
+        switch (*p) {
+        case '\\':
+            append_char(buffer, size, pos, '\\');
+            append_char(buffer, size, pos, '\\');
+            break;
+        case '"':
+            append_char(buffer, size, pos, '\\');
+            append_char(buffer, size, pos, '"');
+            break;
+        case '\n':
+            append_char(buffer, size, pos, '\\');
+            append_char(buffer, size, pos, 'n');
+            break;
+        case '\t':
+            append_char(buffer, size, pos, '\\');
+            append_char(buffer, size, pos, 't');
+            break;
+        case '\r':
+            append_char(buffer, size, pos, '\\');
+            append_char(buffer, size, pos, 'r');
+            break;
+        default:
+            append_char(buffer, size, pos, *p);
+            break;
+        }
+    }
+}
+
 static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *pos) {
     char temp[256];
 
@@ -38,7 +80,7 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
 
     case LISP_STRING:
         append_str(buffer, size, pos, "\"");
-        append_str(buffer, size, pos, obj->value.string);
+        append_escaped_str(buffer, size, pos, obj->value.string);
         append_str(buffer, size, pos, "\"");
         break;
 

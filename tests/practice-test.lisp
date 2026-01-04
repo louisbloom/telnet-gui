@@ -101,9 +101,9 @@
 
 (defun digit-char? (ch)
   (or (string=? ch "0") (string=? ch "1") (string=? ch "2")
-      (string=? ch "3") (string=? ch "4") (string=? ch "5")
-      (string=? ch "6") (string=? ch "7") (string=? ch "8")
-      (string=? ch "9")))
+    (string=? ch "3") (string=? ch "4") (string=? ch "5")
+    (string=? ch "6") (string=? ch "7") (string=? ch "8")
+    (string=? ch "9")))
 
 ;; ============================================================================
 ;; Mock GUI functions - capture calls instead of performing real actions
@@ -134,7 +134,7 @@
     (set! *divider-modes*
       (filter (lambda (entry)
                 (not (eq? (car (cdr entry)) sym)))
-              *divider-modes*))
+        *divider-modes*))
     ;; Add new entry: (priority . (symbol . display))
     (let ((new-entry (cons priority (cons sym display))))
       (set! *divider-modes* (cons new-entry *divider-modes*))))
@@ -145,7 +145,7 @@
   (set! *divider-modes*
     (filter (lambda (entry)
               (not (eq? (car (cdr entry)) sym)))
-            *divider-modes*))
+      *divider-modes*))
   nil)
 
 ;; Helper to check if a mode is set in *divider-modes*

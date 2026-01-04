@@ -62,23 +62,23 @@
 
 ;; Built-in overrides for ambiguous translations
 (assert-equal (translate-garbled-word "qaiyjcandus") "conjure"
-              "qaiyjcandus uses dictionary override for conjure")
+  "qaiyjcandus uses dictionary override for conjure")
 (assert-equal (translate-garbled-word "uizug") "invis"
-              "uizug uses dictionary override for invis")
+  "uizug uses dictionary override for invis")
 (assert-equal (translate-garbled-word "barh") "bolt"
-              "barh uses dictionary override for bolt")
+  "barh uses dictionary override for bolt")
 (assert-equal (translate-garbled-word "eaaf") "door"
-              "eaaf uses dictionary override for door")
+  "eaaf uses dictionary override for door")
 
 ;; Test adding custom override
 (spell-add "hzgh" "test")
 (assert-equal (translate-garbled-word "hzgh") "test"
-              "custom override works")
+  "custom override works")
 
 ;; Test removing override
 (spell-remove "hzgh")
 (assert-equal (translate-garbled-word "hzgh") "test"  ; algorithmic: t-e-s-t
-              "removed override falls back to algorithm")
+  "removed override falls back to algorithm")
 
 (princ "  Dictionary override tests passed.\n")
 
@@ -88,24 +88,24 @@
 (princ "Testing phrase translation...\n")
 
 (assert-equal (translate-garbled-phrase "buie zrzwunsohar")
-              "bind elemental"
-              "multi-word: bind elemental")
+  "bind elemental"
+  "multi-word: bind elemental")
 
 (assert-equal (translate-garbled-phrase "qaiyjcandus zrzwunsohar")
-              "conjure elemental"
-              "multi-word: conjure elemental")
+  "conjure elemental"
+  "multi-word: conjure elemental")
 
 (assert-equal (translate-garbled-phrase "qzrzghuar qufqrz")
-              "celestial circle"
-              "multi-word: celestial circle")
+  "celestial circle"
+  "multi-word: celestial circle")
 
 (assert-equal (translate-garbled-phrase "waouq wuggurz")
-              "magic missile"
-              "multi-word: magic missile")
+  "magic missile"
+  "multi-word: magic missile")
 
 (assert-equal (translate-garbled-phrase "diesilla barh")
-              "lightning bolt"
-              "multi-word: lightning bolt")
+  "lightning bolt"
+  "multi-word: lightning bolt")
 
 (princ "  Phrase translation tests passed.\n")
 
@@ -118,21 +118,21 @@
 (let ((input "Det utters the words, 'yrl'."))
   (let ((output (spell-translator-filter input)))
     (assert-true (regex-match? "\\[fly\\]" output)
-                 "filter adds [fly] annotation")))
+      "filter adds [fly] annotation")))
 
 (let ((input "A mage merchant utters the words, 'yucandusbarr'."))
   (let ((output (spell-translator-filter input)))
     (assert-true (regex-match? "\\[fireball\\]" output)
-                 "filter adds [fireball] annotation")))
+      "filter adds [fireball] annotation")))
 
 ;; Test non-matching text passes through unchanged
 (assert-equal (spell-translator-filter "Hello world")
-              "Hello world"
-              "non-spell text unchanged")
+  "Hello world"
+  "non-spell text unchanged")
 
 (assert-equal (spell-translator-filter "You cast a spell.")
-              "You cast a spell."
-              "non-utter text unchanged")
+  "You cast a spell."
+  "non-utter text unchanged")
 
 (princ "  Filter hook tests passed.\n")
 
@@ -157,18 +157,18 @@
 (let ((input "Det utters the words, 'fireball'."))
   (let ((output (spell-translator-filter input)))
     (assert-false (regex-match? "\\[" output)
-                  "no annotation for known spell 'fireball'")))
+      "no annotation for known spell 'fireball'")))
 
 (let ((input "A cleric utters the words, 'cure light'."))
   (let ((output (spell-translator-filter input)))
     (assert-false (regex-match? "\\[" output)
-                  "no annotation for known spell 'cure light'")))
+      "no annotation for known spell 'cure light'")))
 
 ;; Filter should still add annotation for garbled spells
 (let ((input "Det utters the words, 'yucandusbarr'."))
   (let ((output (spell-translator-filter input)))
     (assert-true (regex-match? "\\[fireball\\]" output)
-                 "annotation added for garbled 'yucandusbarr'")))
+      "annotation added for garbled 'yucandusbarr'")))
 
 (princ "  Known spell whitelist tests passed.\n")
 

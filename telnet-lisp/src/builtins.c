@@ -3400,7 +3400,17 @@ static LispObject *builtin_number_to_string(LispObject *args, Environment *env) 
             return lisp_make_error("number->string: floats only supported in base 10");
         }
         char buffer[64];
-        snprintf(buffer, sizeof(buffer), "%.15g", num->value.number);
+        double val = num->value.number;
+        /* Format with enough precision, then trim trailing zeros but keep ".0" */
+        snprintf(buffer, sizeof(buffer), "%.15f", val);
+        /* Find decimal point and trim trailing zeros */
+        char *dot = strchr(buffer, '.');
+        if (dot) {
+            char *end = buffer + strlen(buffer) - 1;
+            while (end > dot + 1 && *end == '0') {
+                *end-- = '\0';
+            }
+        }
         return lisp_make_string(buffer);
     }
 

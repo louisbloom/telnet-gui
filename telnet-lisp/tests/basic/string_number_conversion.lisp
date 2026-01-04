@@ -140,7 +140,7 @@
 ;; Floats (only base 10)
 (assert-equal (number->string 3.14) "3.14" "convert float 3.14 to string")
 (assert-equal (number->string -3.14) "-3.14" "convert -3.14 to string")
-(assert-equal (number->string 10000000000.0) "10000000000" "convert large number to string")
+(assert-equal (number->string 10000000000.0) "10000000000.0" "convert large float to string")
 
 ;; =============================================================================
 ;; Round-trip Tests (string->number and number->string)

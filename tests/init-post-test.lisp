@@ -15,27 +15,27 @@
 
 (defmacro assert-equal (actual expected message)
   `(let ((actual-val ,actual)
-         (expected-val ,expected))
+          (expected-val ,expected))
      (let ((values-equal (if (and (number? actual-val) (number? expected-val))
                            (= actual-val expected-val)
                            (equal? actual-val expected-val))))
        (if values-equal
          nil
          (error (format nil "Assertion failed: ~A~%  Expected: ~S~%  Actual:   ~S"
-                        ,message expected-val actual-val))))))
+                  ,message expected-val actual-val))))))
 
 (defmacro assert-true (condition message)
   `(let ((result ,condition))
      (if result
        nil
        (error (format nil "Assertion failed: ~A (expected truthy, got: ~S)"
-                      ,message result)))))
+                ,message result)))))
 
 (defmacro assert-false (condition message)
   `(let ((result ,condition))
      (if result
        (error (format nil "Assertion failed: ~A (expected falsy, got: ~S)"
-                      ,message result))
+                ,message result))
        nil)))
 
 ;; ============================================================================
@@ -242,8 +242,8 @@
 (defun box-aligned? (box-str)
   "Returns #t if all non-empty lines have equal visual width."
   (let ((lines (split box-str "\n"))
-        (expected-width nil)
-        (aligned #t))
+         (expected-width nil)
+         (aligned #t))
     ;; Find width of first non-empty line
     (do ((ls lines (cdr ls)))
       ((or (null? ls) expected-width))

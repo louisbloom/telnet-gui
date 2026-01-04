@@ -11,9 +11,9 @@
 
 ;; Mock notification-set if not already defined (C builtin)
 (if (not (bound? 'notification-set))
-    (defun notification-set (text)
-      "Mock notification-set for testing"
-      (set! *mock-notification-text* text)))
+  (defun notification-set (text)
+    "Mock notification-set for testing"
+    (set! *mock-notification-text* text)))
 
 ;; ============================================================================
 ;; Setup - Clear any existing state
