@@ -830,6 +830,17 @@
   "Get the actual value from a possibly-annotated expression."
   (if (annotated? sexp) (ann-value sexp) sexp))
 
+(defun get-expr-head (expr)
+  "Get the head symbol of an expression, or nil if not a list with symbol head."
+  (let ((val (unwrap-value expr)))
+    (if (and (pair? val) (symbol? (unwrap-value (car val))))
+      (unwrap-value (car val))
+      nil)))
+
+(defun defining-form? (sym)
+  "Check if SYM is a defining form that should not be clustered."
+  (member sym '(define defun defmacro defvar defconst)))
+
 (defun format-sexp (sexp indent)
   "Format s-expression with given base indentation. Returns string.
    Preserves leading and inline comments attached to the expression."
@@ -1141,17 +1152,44 @@
    starting with a symbol (common pattern for top-level forms)."
   (and (pair? sexps) (pair? (car sexps)) (symbol? (caar sexps))))
 
+(defun should-cluster? (prev-head curr-head)
+  "Check if two consecutive expressions should be clustered (no blank line).
+   Returns #t if both have the same head symbol and neither is a defining form."
+  (and prev-head curr-head (eq? prev-head curr-head)
+       (not (defining-form? prev-head))))
+
+(defun smart-join-results (results-with-heads)
+  "Join formatted results with smart spacing.
+   RESULTS-WITH-HEADS is a list of (formatted-string . head-symbol) pairs.
+   Uses single newline between same-head non-defining forms, double otherwise."
+  (if (null? results-with-heads)
+    ""
+    (let ((output (caar results-with-heads)) ; First formatted string
+          (prev-head (cdar results-with-heads)))
+      (do ((remaining (cdr results-with-heads) (cdr remaining)))
+        ((null? remaining) output)
+        (let* ((curr (car remaining))
+               (curr-str (car curr))
+               (curr-head (cdr curr))
+               (separator
+                (if (should-cluster? prev-head curr-head) "\n" "\n\n")))
+          (set! output (concat output separator curr-str))
+          (set! prev-head curr-head))))))
+
 (defun format-file (filename)
   "Format a Lisp file and return formatted content as string."
   (let ((sexps (read-file-with-comments filename))
         (results '())
         (expr-num 0))
     ;; read-file-with-comments returns list of annotated expressions
-    ;; Format each top-level expression
+    ;; Format each top-level expression, storing (formatted . head-symbol) pairs
     (do ((remaining sexps (cdr remaining))) ((null? remaining))
       (set! expr-num (+ expr-num 1))
       (condition-case err
-        (set! results (cons (format-sexp (car remaining) 0) results))
+        (let* ((expr (car remaining))
+               (formatted (format-sexp expr 0))
+               (head (get-expr-head expr)))
+          (set! results (cons (cons formatted head) results)))
         (error (princ "Error formatting expression #") (princ expr-num)
          (princ ": ") (princ (error-message err)) (terpri)
          (princ "Expression head: ")
@@ -1161,8 +1199,8 @@
                (if (pair? val) (princ (car val)) (princ val)))
              (if (pair? expr) (princ (car expr)) (princ expr)))) (terpri)
          (signal 'format-error (error-message err)))))
-    ;; Join with blank lines between top-level forms
-    (concat (join (reverse results) "\n\n") "\n")))
+    ;; Join with smart spacing between top-level forms
+    (concat (smart-join-results (reverse results)) "\n")))
 
 (defun format-file-inplace (filename)
   "Format a Lisp file in-place."
@@ -1177,28 +1215,38 @@
 ;;; ============================================================================
 ;;; Main entry point
 ;;; ============================================================================
+(defun print-usage ()
+  "Print usage information."
+  (princ "Usage: lisp-repl lisp/lisp-fmt.lisp [-i] file.lisp ...\n")
+  (princ "  -i, --inplace  Edit files in place\n")
+  (princ "  -h, --help     Show this help\n"))
+
 (defun main ()
   "Main entry point - process command line arguments."
   (let ((args *command-line-args*)
         (inplace #f)
         (files '()))
-    ;; Parse arguments
-    (do ((remaining args (cdr remaining))) ((null? remaining))
-      (let ((arg (car remaining)))
-        (cond
-          ((string=? arg "-i") (set! inplace #t))
-          ((string=? arg "--inplace") (set! inplace #t))
-          (#t (set! files (cons arg files))))))
-    ;; Process files
-    (set! files (reverse files))
-    (if (null? files)
+    ;; Show usage if no arguments given
+    (if (null? args)
+      (print-usage)
       (progn
-        (princ "Usage: lisp-repl lisp/lisp-fmt.lisp [-i] file.lisp ...\n")
-        (princ "  -i, --inplace  Edit files in place\n"))
-      (do ((remaining files (cdr remaining))) ((null? remaining))
-        (let ((file (car remaining)))
-          (if inplace (format-file-inplace file) (princ (format-file file))))))))
+        ;; Parse arguments
+        (do ((remaining args (cdr remaining))) ((null? remaining))
+          (let ((arg (car remaining)))
+            (cond
+              ((or (string=? arg "-h") (string=? arg "--help")) (print-usage))
+              ((string=? arg "-i") (set! inplace #t))
+              ((string=? arg "--inplace") (set! inplace #t))
+              (#t (set! files (cons arg files))))))
+        ;; Process files (show usage if none given)
+        (set! files (reverse files))
+        (if (null? files)
+          (print-usage)
+          (do ((remaining files (cdr remaining))) ((null? remaining))
+            (let ((file (car remaining)))
+              (if inplace
+                (format-file-inplace file)
+                (princ (format-file file))))))))))
 
-;; Run main only if *command-line-args* is defined (script mode)
-(if (bound? '*command-line-args*) (main))
+(main)
 

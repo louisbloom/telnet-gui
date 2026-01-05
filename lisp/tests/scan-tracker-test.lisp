@@ -41,15 +41,10 @@
 
 ;; Test direction abbreviation mapping
 (assert-equal (scan-tracker-get-direction-abbrev "north") "n" "north -> n")
-
 (assert-equal (scan-tracker-get-direction-abbrev "south") "s" "south -> s")
-
 (assert-equal (scan-tracker-get-direction-abbrev "east") "e" "east -> e")
-
 (assert-equal (scan-tracker-get-direction-abbrev "west") "w" "west -> w")
-
 (assert-equal (scan-tracker-get-direction-abbrev "up") "u" "up -> u")
-
 (assert-equal (scan-tracker-get-direction-abbrev "down") "d" "down -> d")
 
 (assert-nil (scan-tracker-get-direction-abbrev "invalid")
@@ -58,10 +53,8 @@
 ;; Test case-insensitive contains
 (assert-true (scan-tracker-string-contains-ci "Djurden is here." "djurden")
  "case-insensitive match lowercase needle")
-
 (assert-true (scan-tracker-string-contains-ci "djurden is here." "Djurden")
  "case-insensitive match uppercase needle")
-
 (assert-true (scan-tracker-string-contains-ci "DJURDEN IS HERE." "djurden")
  "case-insensitive match all caps haystack")
 
@@ -91,7 +84,6 @@
 (scan-tracker-process-line "You scan north.")
 
 (assert-equal *scan-state* 'scanning "state becomes scanning after 'You scan'")
-
 (assert-equal *scan-direction* "n" "direction set to 'n' for north")
 
 (reset-scan-state)
@@ -132,7 +124,6 @@
 (reset-scan-state)
 
 (scan-tracker-process-line "You scan north.")
-
 (scan-tracker-process-line "***** Range 1 *****")
 
 (assert-equal *scan-range* 1 "range set to 1")
@@ -162,13 +153,10 @@
 (hash-set! *tintin-variables* "target" "Djurden")
 
 (scan-tracker-process-line "You scan west.")
-
 (scan-tracker-process-line "***** Range 2 *****")
-
 (scan-tracker-process-line "Djurden is here.")
 
 (assert-equal *scan-best-path* "2w" "target found at range 2 west")
-
 (assert-equal *scan-best-range* 2 "best range is 2")
 
 ;; Test case-insensitive matching
@@ -177,9 +165,7 @@
 (hash-set! *tintin-variables* "target" "djurden")
 
 (scan-tracker-process-line "You scan north.")
-
 (scan-tracker-process-line "***** Range 3 *****")
-
 (scan-tracker-process-line "DJURDEN is resting here.")
 
 (assert-equal *scan-best-path* "3n" "case-insensitive match works")
@@ -190,25 +176,19 @@
 (hash-set! *tintin-variables* "target" "Djurden")
 
 (scan-tracker-process-line "You scan north.")
-
 (scan-tracker-process-line "***** Range 4 *****")
-
 (scan-tracker-process-line "Djurden is here.")
 
 (assert-equal *scan-best-path* "4n" "first match at range 4")
 
 (scan-tracker-process-line "You scan south.")
-
 (scan-tracker-process-line "***** Range 2 *****")
-
 (scan-tracker-process-line "Djurden is here.")
 
 (assert-equal *scan-best-path* "2s" "closer match at range 2 replaces")
 
 (scan-tracker-process-line "You scan east.")
-
 (scan-tracker-process-line "***** Range 3 *****")
-
 (scan-tracker-process-line "Djurden is here.")
 
 (assert-equal *scan-best-path* "2s" "farther match at range 3 does not replace")
@@ -224,15 +204,11 @@
 (hash-set! *tintin-variables* "target" "Djurden")
 
 (scan-tracker-process-line "You scan west.")
-
 (scan-tracker-process-line "***** Range 2 *****")
-
 (scan-tracker-process-line "Djurden is here.")
-
 (scan-tracker-process-line "civilized <100%hp 100%m 100%mv>")
 
 (assert-equal *scan-state* 'idle "state reset to idle after prompt")
-
 (assert-equal (hash-ref *tintin-variables* "target_path") "2w"
  "$target_path set to best path")
 
@@ -242,13 +218,9 @@
 (hash-set! *tintin-variables* "target" "Djurden")
 
 (scan-tracker-process-line "You scan north.")
-
 (scan-tracker-process-line "***** Range 1 *****")
-
 (scan-tracker-process-line "A zombie is here.")
-
 (scan-tracker-process-line "You scan south.")
-
 (scan-tracker-process-line "civilized <50%hp 50%m 50%mv>")
 
 (assert-equal (hash-ref *tintin-variables* "target_path") ""
@@ -303,11 +275,8 @@ civilized <83%hp 71%m 49%mv 3568tnl (69.50%) 3 AM>")
 (hash-set! *tintin-variables* "target" "")
 
 (scan-tracker-process-line "You scan north.")
-
 (scan-tracker-process-line "***** Range 1 *****")
-
 (scan-tracker-process-line "Djurden is here.")
-
 (scan-tracker-process-line "civilized <100%hp>")
 
 (assert-equal (hash-ref *tintin-variables* "target_path") ""
@@ -319,11 +288,8 @@ civilized <83%hp 71%m 49%mv 3568tnl (69.50%) 3 AM>")
 (hash-set! *tintin-variables* "target" nil)
 
 (scan-tracker-process-line "You scan north.")
-
 (scan-tracker-process-line "***** Range 1 *****")
-
 (scan-tracker-process-line "Djurden is here.")
-
 (scan-tracker-process-line "civilized <100%hp>")
 
 (assert-equal (hash-ref *tintin-variables* "target_path") ""
@@ -335,12 +301,9 @@ civilized <83%hp 71%m 49%mv 3568tnl (69.50%) 3 AM>")
 (hash-set! *tintin-variables* "target" "zombie")
 
 (scan-tracker-process-line "You scan south.")
-
 (scan-tracker-process-line "***** Range 3 *****")
-
 (scan-tracker-process-line
  "A horribly disgusting zombie is here, looking to devour the living.")
-
 (scan-tracker-process-line "civilized <100%hp>")
 
 (assert-equal (hash-ref *tintin-variables* "target_path") "3s"

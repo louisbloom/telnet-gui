@@ -10,7 +10,6 @@
 
 (assert-true (or (string? home) (null? home))
  "home-directory returns string or nil")
-
 ;; If home exists, it should be non-empty
 (assert-true (if (string? home) (> (length home) 0) #t)
  "home directory is non-empty if it exists")
@@ -20,23 +19,18 @@
 ;; ============================================================================
 ;; expand-path requires an argument
 (assert-error (expand-path) "expand-path requires an argument")
-
 ;; expand-path requires a string
 (assert-error (expand-path 42) "expand-path requires a string")
 
 ;; Non-~/ paths return unchanged
 (assert-true (string=? (expand-path "/etc/config") "/etc/config")
  "absolute path unchanged")
-
 (assert-true (string=? (expand-path "relative/path") "relative/path")
  "relative path unchanged")
-
 (assert-true (string=? (expand-path "./local") "./local")
  "dot-relative path unchanged")
-
 (assert-true (string=? (expand-path "test.txt") "test.txt")
  "simple filename unchanged")
-
 ;; ============================================================================
 ;; expand-path Tests - Home Expansion (conditional on home-directory)
 ;; ============================================================================
@@ -47,13 +41,11 @@
      (and (string? expanded) (string-prefix? (home-directory) expanded)
           (string-contains? expanded "test.txt")))
    #t) "~/path expands to home directory")
-
 ;; ~ alone should expand to home directory
 (assert-true
  (if (string? (home-directory))
    (string=? (expand-path "~") (home-directory))
    #t) "~ expands to home directory")
-
 ;; ~/subdir/file should work
 (assert-true
  (if (string? (home-directory))
@@ -62,7 +54,6 @@
           (string-contains? expanded "docs")
           (string-contains? expanded "notes.txt")))
    #t) "~/subdir/file expands correctly")
-
 ;; ============================================================================
 ;; Integration Tests - File I/O
 ;; ============================================================================
@@ -80,7 +71,6 @@
      ;; Verify
      (string=? content "test content"))
    #t) "expanded path works with file I/O")
-
 ;; ============================================================================
 ;; Edge Cases
 ;; ============================================================================
@@ -89,7 +79,6 @@
  (if (string? (home-directory))
    (let ((result (expand-path "~/"))) (string-prefix? (home-directory) result))
    #t) "~/ expands correctly with separator")
-
 ;; Backslash works too (Windows compatibility)
 (assert-true
  (if (string? (home-directory))

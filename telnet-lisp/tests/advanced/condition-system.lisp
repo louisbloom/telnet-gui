@@ -10,12 +10,10 @@
 (assert-true (error? err) "error? recognizes error object")
 
 (assert-equal (error-type err) 'my-error "error-type returns symbol")
-
 (assert-equal (error-message err) "test message"
  "error-message returns message")
 
 (assert-false (error? 42) "error? rejects integer")
-
 (assert-false (error? "hello") "error? rejects string")
 
 ;;; Error function (convenience)
@@ -27,23 +25,19 @@
 (assert-true (error? generic-err) "error function creates error")
 
 (assert-equal (error-type generic-err) 'error "error function uses error type")
-
 (assert-equal (error-message generic-err) "generic error message"
  "error function message")
-
 ;;; condition-case with specific handler
 (assert-equal
  (condition-case e (signal 'division-by-zero "divided by zero")
    (division-by-zero "caught division-by-zero"))
  "caught division-by-zero" "condition-case catches specific error type")
-
 ;;; condition-case with error catch-all
 (assert-equal
  (condition-case e (signal 'custom-error "unknown error")
    (division-by-zero "wrong handler")
    (error "caught any error")) "caught any error"
  "condition-case error handler catches all errors")
-
 ;;; condition-case no match propagates error (skipped - complex propagation semantics)
 ;; (condition-case e
 ;;   (signal 'my-error "unhandled")
@@ -52,18 +46,15 @@
 ;;; condition-case normal execution (no error)
 (assert-equal (condition-case e (+ 1 2 3) (error "should not run")) 6
  "condition-case returns value when no error")
-
 ;;; condition-case with VAR binding
 (assert-equal
  (condition-case my-err (signal 'custom "with data")
    (custom (error-message my-err))) "with data"
  "condition-case binds error to variable")
-
 ;;; condition-case with VAR as nil
 (assert-equal
  (condition-case nil (signal 'test "ignored") (test "caught without binding"))
  "caught without binding" "condition-case works with nil variable")
-
 ;;; condition-case handler implicit progn
 (assert-equal
  (condition-case e (signal 'test "multi-expression handler")
@@ -93,7 +84,6 @@
   (error "caught"))
 
 (assert-equal y 99 "unwind-protect cleanup runs on error")
-
 ;;; Nested condition-case
 (assert-equal
  (condition-case outer
@@ -107,7 +97,6 @@
 (condition-case e (signal 'my-error '(1 2 3)) (error (define err-with-data e)))
 
 (assert-equal (error-type err-with-data) 'my-error "error-type with list data")
-
 (assert-equal (error-data err-with-data) '(1 2 3) "error-data returns list")
 
 ;;; Error with string data
@@ -118,7 +107,6 @@
 
 (assert-equal (error-message err-with-str) "cannot open file"
  "error-message with string data")
-
 (assert-equal (error-type err-with-str) 'file-error
  "error-type with string data")
 
@@ -131,7 +119,6 @@
       (error (concat "Unexpected error: " (error-message err))))))
 
 (assert-equal (safe-divide 10 2) 5 "safe-divide normal case")
-
 (assert-equal (safe-divide 10 0) "Error: division by zero"
  "safe-divide catches division by zero")
 
@@ -146,7 +133,6 @@
       (set! cleanup-done #t)))) ; Cleanup always runs
 
 (assert-equal (with-cleanup 10) 20 "with-cleanup normal case")
-
 (assert-equal
  (condition-case e (with-cleanup 60) (overflow-error "caught overflow"))
  "caught overflow" "with-cleanup catches overflow")

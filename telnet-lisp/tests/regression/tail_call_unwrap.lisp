@@ -14,7 +14,6 @@
 ;; Test: Simple tail call should return actual value, not tail-call object
 (assert-equal (wrapper 15) "positive-15"
  "Simple tail call returns actual value")
-
 (assert-equal (wrapper 5) "small" "Non-tail call returns value")
 
 ;; Test: Nested tail calls
@@ -32,7 +31,6 @@
 
 (assert-equal (conditional-tail 20 #t) "positive-20"
  "Conditional tail call - true branch")
-
 (assert-equal (conditional-tail 20 nil) "L1-20"
  "Conditional tail call - false branch")
 
@@ -56,9 +54,7 @@
 
 ;; This was the original bug case - clean-word would return #<tail-call> instead of string
 (assert-equal (clean-word "hello,") "hello" "Complex nested tail call - hello,")
-
 (assert-equal (clean-word "world!") "world" "Complex nested tail call - world!")
-
 (assert-equal (clean-word "") "" "Complex nested tail call - empty string")
 
 ;; Test: Multiple arguments with tail call

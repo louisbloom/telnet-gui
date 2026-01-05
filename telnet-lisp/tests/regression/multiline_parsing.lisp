@@ -7,7 +7,6 @@
 ;; Test 1: Simple multi-line arithmetic
 ;; ===========================================
 (assert-equal (+ 1 2 3) 6 "Simple multi-line arithmetic")
-
 ;; ===========================================
 ;; Test 2: Nested multi-line expressions
 ;; ===========================================
@@ -28,7 +27,6 @@
 (define v (make-vector 5))
 
 (vector-push! v 42)
-
 (vector-push! v 100)
 
 (assert-equal (vector-ref v 0) 42 "Multi-line vector operations")
@@ -46,7 +44,6 @@
 (define s "This is a (test) string")
 
 (assert-equal s "This is a (test) string" "Multi-line string definition")
-
 ;; All multi-line tests completed
 (assert-equal "Multi-line expression parsing works!"
  "Multi-line expression parsing works!" "Final completion test")

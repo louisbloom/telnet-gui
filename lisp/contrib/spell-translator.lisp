@@ -98,27 +98,16 @@
 
 ;; Built-in overrides for common spells affected by ambiguity
 (hash-set! *spell-dictionary* "qaiyjcandus" "conjure") ; canfure → conjure
-
 (hash-set! *spell-dictionary* "eaaf" "door") ; daar → door
-
 (hash-set! *spell-dictionary* "barh" "bolt") ; balt → bolt
-
 (hash-set! *spell-dictionary* "bajroculof" "boulder") ; baulder → boulder
-
 (hash-set! *spell-dictionary* "aiqpaf" "anchor") ; anchar → anchor
-
 (hash-set! *spell-dictionary* "abraqpai" "archon") ; archan → archon
-
 (hash-set! *spell-dictionary* "uizug" "invis") ; ineis → invis
-
 (hash-set! *spell-dictionary* "aiozr" "angel") ; ansel → angel
-
 (hash-set! *spell-dictionary* "uiygruzuguai" "infravision") ; infraeisian → infravision
-
 (hash-set! *spell-dictionary* "zawsufuq" "vampiric") ; eampiric → vampiric
-
 (hash-set! *spell-dictionary* "izjfahiouqar" "neurological") ; neuralogical → neurological
-
 (hash-set! *spell-dictionary* "eugfjshuai" "disruption") ; disruptian → disruption
 
 ;; Add a custom word override
@@ -243,8 +232,6 @@
 ;; Startup message
 (terminal-echo
  "Spell translator loaded. Utterances will be translated automatically.\r\n")
-
 (terminal-echo "  Add overrides: (spell-add \"garbled\" \"correct\")\r\n")
-
 (terminal-echo "  Remove:        (spell-remove \"garbled\")\r\n")
 

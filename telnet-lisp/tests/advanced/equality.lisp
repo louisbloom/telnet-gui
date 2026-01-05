@@ -23,14 +23,12 @@
 (assert-true (eq? x y) "eq? with same list reference")
 
 (assert-nil (eq? '(1 2) '(1 2)) "eq? with different list instances")
-
 (assert-nil (eq? "abc" "abc") "eq? with different string instances")
 
 ;; equal? - Structural equality with primitives
 (assert-true (equal? 1 1) "equal? with same integers")
 
 (assert-nil (equal? 1 2) "equal? with different integers")
-
 (assert-nil (equal? 1 1.0) "equal? integer vs float")
 
 (assert-true (equal? "abc" "abc") "equal? with same strings")
@@ -55,17 +53,13 @@
 (define v1 (make-vector 3))
 
 (vector-set! v1 0 1)
-
 (vector-set! v1 1 2)
-
 (vector-set! v1 2 3)
 
 (define v2 (make-vector 3))
 
 (vector-set! v2 0 1)
-
 (vector-set! v2 1 2)
-
 (vector-set! v2 2 3)
 
 (assert-true (equal? v1 v2) "equal? with same vectors")
@@ -86,11 +80,8 @@
 (define h2 (make-hash-table))
 
 (hash-set! h1 "a" 1)
-
 (hash-set! h1 "b" 2)
-
 (hash-set! h2 "a" 1)
-
 (hash-set! h2 "b" 2)
 
 (assert-true (equal? h1 h2) "equal? with same hash tables")
@@ -98,7 +89,6 @@
 (define h3 (make-hash-table))
 
 (hash-set! h3 "a" 1)
-
 (hash-set! h3 "b" 3)
 
 (assert-nil (equal? h1 h3) "equal? with different hash values")
@@ -115,7 +105,6 @@
 (assert-nil (string=? "foo" "bar") "string=? with different strings")
 
 (assert-true (string=? "" "") "string=? with empty strings")
-
 ;; Empty collections
 (assert-true (equal? 'nil 'nil) "equal? with empty lists")
 
@@ -124,12 +113,10 @@
 (define empty2 (make-vector 0))
 
 (assert-true (equal? empty1 empty2) "equal? with empty vectors")
-
 (assert-true (equal? "" "") "equal? with empty strings")
 
 ;; Mixed types
 (assert-nil (equal? 1 "1") "equal? integer vs string")
-
 (assert-nil (equal? 'symbol "symbol") "equal? symbol vs string")
 
 ;; eq? vs equal? comparison
@@ -140,7 +127,6 @@
 (assert-nil (eq? list1 list2) "eq? fails on different list instances")
 
 (assert-true (equal? list1 list2) "equal? succeeds on structurally same lists")
-
 ;; Boolean internment tests - #t should be interned (same object)
 (assert-true (eq? #t #t) "eq? with #t returns true (interned)")
 
@@ -149,13 +135,9 @@
 (define t2 #t)
 
 (assert-true (eq? t1 t2) "eq? with interned #t variables")
-
 (assert-true (eq? t1 #t) "eq? with variable and literal #t")
-
 (assert-true (eq? t2 #t) "eq? with another variable and literal #t")
-
 ;; Test that #t from different sources is the same object
 (assert-true (eq? (if #t #t nil) #t) "eq? with #t from if expression")
-
 (assert-true (eq? (and #t #t) #t) "eq? with #t from and expression")
 

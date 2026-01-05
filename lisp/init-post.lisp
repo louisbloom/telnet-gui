@@ -115,35 +115,24 @@
 ;; Display emoji and symbol test
 ;; Emoji (Unicode Emoji=Yes) are 2-cell; pure symbols are 1-cell
 (terminal-echo "\033[38;2;100;149;237mSymbols (1-cell):\033[0m ◆◇☆★✦✧♠♣♥♦\n")
-
 (terminal-echo
  "\033[38;2;100;149;237mEmoji (2-cell):\033[0m ⚔ 🗡 ☀ ☁ ☂ ❄ ✂ ✈ ⚙\n")
-
 (terminal-echo "\033[38;2;100;149;237mTrue Emoji:\033[0m ⚓⚡😀🎮🏰🐉🔮💎🎯🎨🎭🎪🎢🎡🎠🏆🥇🚀\n")
-
 ;; Display block elements test
 (terminal-echo "\033[38;2;100;149;237mBlock Elements:\033[0m ")
-
 (terminal-echo "█▇▆▅▄▃▂▁ ▏▎▍▌▋▊▉█ ▀▄ ▌▐ ▔▕ ░▒▓█ ▖▗▘▝ ▙▚▛▜▞▟\n")
-
 ;; Display ANSI color test
 (terminal-echo "\033[38;2;100;149;237mANSI Colors:\033[0m ")
-
 (terminal-echo
  "\033[38;2;180;180;180m16:\033[0m \033[31m█\033[32m█\033[33m█\033[34m█\033[35m█\033[36m█\033[37m█\033[90m█\033[91m█\033[92m█\033[93m█\033[94m█\033[95m█\033[96m█\033[97m█\033[0m ")
-
 (terminal-echo
  "\033[38;2;180;180;180m256:\033[0m \033[38;5;196m█\033[38;5;208m█\033[38;5;220m█\033[38;5;46m█\033[38;5;51m█\033[38;5;21m█\033[38;5;129m█\033[0m ")
-
 (terminal-echo
  "\033[38;2;180;180;180m24-bit:\033[0m \033[38;2;255;0;0m█\033[38;2;255;255;0m█\033[38;2;0;255;0m█\033[38;2;0;255;255m█\033[38;2;0;0;255m█\033[38;2;255;0;255m█\033[0m\n")
-
 ;; Display bold text test (mixing normal and bold for contrast)
 (terminal-echo "\033[38;2;100;149;237mBold Text:\033[0m ")
-
 (terminal-echo
  "The \033[1mquick\033[0m brown \033[1mfox\033[0m jumps \033[1mover\033[0m the \033[1mlazy\033[0m dog. ")
-
 (terminal-echo
  "\033[31mRed\033[1m/Bold\033[0m \033[32mGreen\033[1m/Bold\033[0m \033[34mBlue\033[1m/Bold\033[0m\n")
 

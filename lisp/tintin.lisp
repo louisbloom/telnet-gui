@@ -5122,31 +5122,23 @@ Maps attribute names to their ANSI SGR codes.")
 (hash-set! *tintin-commands* "alias"
  (list tintin-handle-alias 2
   "#alias or #alias {name} or #alias {name} {commands}"))
-
 (hash-set! *tintin-commands* "unalias"
  (list tintin-handle-unalias 1 "#unalias {name}"))
-
 (hash-set! *tintin-commands* "variable"
  (list tintin-handle-variable 2
   "#variable or #variable {name} or #variable {name} {value}"))
-
 (hash-set! *tintin-commands* "highlight"
  (list tintin-handle-highlight 2
   "#highlight or #highlight {pattern} or #highlight {pattern} {color}"))
-
 (hash-set! *tintin-commands* "unhighlight"
  (list tintin-handle-unhighlight 1 "#unhighlight {pattern}"))
-
 (hash-set! *tintin-commands* "save"
  (list tintin-handle-save 1 "#save {filename}"))
-
 (hash-set! *tintin-commands* "load"
  (list tintin-handle-load 1 "#load {filename}"))
-
 (hash-set! *tintin-commands* "action"
  (list tintin-handle-action 3
   "#action or #action {pattern} or #action {pattern} {commands} [priority]"))
-
 (hash-set! *tintin-commands* "unaction"
  (list tintin-handle-unaction 1 "#unaction {pattern}"))
 

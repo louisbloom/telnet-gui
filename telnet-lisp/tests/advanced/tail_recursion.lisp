@@ -8,7 +8,6 @@
   (lambda (n acc) (if (<= n 1) acc (factorial-tail (- n 1) (* n acc)))))
 
 (assert-equal (factorial-tail 5 1) 120 "tail-recursive factorial 5")
-
 (assert-equal (factorial-tail 10 1) 3628800 "tail-recursive factorial 10")
 
 ;; Test 2: Very large tail recursion (would stack overflow without TCO)
@@ -25,9 +24,7 @@
   (lambda (n acc) (if (= n 0) acc (sum-to-n (- n 1) (+ n acc)))))
 
 (assert-equal (sum-to-n 10 0) 55 "tail-recursive sum 10")
-
 (assert-equal (sum-to-n 100 0) 5050 "tail-recursive sum 100")
-
 (assert-equal (sum-to-n 10000 0) 50005000 "tail-recursive sum 10000")
 
 ;; Test 4: Tail-recursive length
@@ -44,14 +41,11 @@
 (assert-true (is-even? 10) "is-even? 10")
 
 (assert-false (is-odd? 10) "is-odd? 10")
-
 (assert-false (is-even? 99) "is-even? 99")
 
 (assert-true (is-odd? 99) "is-odd? 99")
-
 ;; Large mutual recursion (would stack overflow without TCO)
 (assert-true (is-even? 10000) "is-even? 10000 (large)")
-
 (assert-true (is-odd? 10001) "is-odd? 10001 (large)")
 
 ;; Test 6: Tail recursion with multiple returns
@@ -85,7 +79,6 @@
       (else (collatz-length (+ (* 3 n) 1) (+ acc 1))))))
 
 (assert-equal (collatz-length 10 0) 6 "collatz length 10")
-
 (assert-equal (collatz-length 27 0) 111 "collatz length 27")
 
 ;; Test 9: Tail recursion through case

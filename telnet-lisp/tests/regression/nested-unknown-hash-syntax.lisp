@@ -20,37 +20,28 @@
 
 ;; Top level should fail cleanly
 (test-parse-error "#\\space" "Top level unknown hash syntax")
-
 ;; Nested in let body should fail cleanly (not hang)
 (test-parse-error "(let ((x #\\space)) x)" "Let body with unknown syntax")
-
 ;; Nested in let binding value should fail cleanly
 (test-parse-error "(let ((x 1) (y #\\space)) y)"
  "Let binding with unknown syntax")
-
 ;; Nested in do loop test should fail cleanly (not hang)
 (test-parse-error
  "(do ((i 10 (- i 1))) ((let ((ch #\\space)) (= i 0))) (display i))"
  "Do loop with unknown syntax")
-
 ;; Deep nesting (5 levels) should fail cleanly - the original bug case
 (test-parse-error
  "(defun test-func () (do ((i 10 (- i 1))) ((let ((ch #\\space)) (= i 0))) (display i)))"
  "Deep nesting with unknown syntax")
-
 ;; Nested in function call arguments
 (test-parse-error "(+ 1 #\\space 3)" "Function arguments with unknown syntax")
-
 ;; Nested in if condition
 (test-parse-error "(if #\\space 1 2)" "If condition with unknown syntax")
-
 ;; Nested in cond clause
 (test-parse-error "(cond (#\\space 1) (else 2))"
  "Cond clause with unknown syntax")
-
 ;; Nested in vector
 (test-parse-error "[1 2 #\\space 4]" "Vector with unknown syntax")
-
 ;; Nested in quoted form (errors during read, before quote is processed)
 (test-parse-error "'(foo #\\space bar)" "Quoted form with unknown syntax")
 

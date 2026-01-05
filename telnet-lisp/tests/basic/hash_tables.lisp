@@ -12,18 +12,13 @@
 
 ;; Store values
 (hash-set! ht "name" "Alice")
-
 (hash-set! ht "age" 30)
-
 (hash-set! ht "city" "New York")
 
 (assert-equal (hash-count ht) 3 "hash table contains 3 entries")
-
 ;; Retrieve values
 (assert-equal (hash-ref ht "name") "Alice" "hash-ref retrieves string value")
-
 (assert-equal (hash-ref ht "age") 30 "hash-ref retrieves integer value")
-
 (assert-equal (hash-ref ht "city") "New York" "hash-ref retrieves city value")
 
 (assert-nil (hash-ref ht "missing") "hash-ref returns nil for missing key")
@@ -47,7 +42,6 @@
 
 ;; Hash tables are always truthy (even when empty - only nil is falsy in this Lisp)
 (assert-true ht "empty hash table is truthy")
-
 (assert-true (if ht #t nil) "empty hash table evaluates to true in conditional")
 
 (hash-set! ht "key" "value")

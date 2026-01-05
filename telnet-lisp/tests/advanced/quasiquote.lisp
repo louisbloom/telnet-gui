@@ -8,10 +8,8 @@
 (define x 42)
 
 (assert-equal `(1 ,x 3) '(1 42 3) "unquote single value")
-
 ;; Test 3: Multiple unquotes
 (assert-equal `(,x ,(+ 1 2) ,(* 2 3)) '(42 3 6) "multiple unquotes")
-
 ;; Test 4: Nested lists with unquote
 (assert-equal `(a (b ,x c) d) '(a (b 42 c) d) "nested lists with unquote")
 
@@ -19,10 +17,8 @@
 (define lst '(a b c))
 
 (assert-equal `(1 ,@lst 4) '(1 a b c 4) "unquote-splicing")
-
 ;; Test 6: Multiple unquote-splicing
 (assert-equal `(,@lst ,@lst) '(a b c a b c) "multiple unquote-splicing")
-
 ;; Test 7: Mixing unquote and unquote-splicing
 (assert-equal `(start ,x middle ,@lst end) '(start 42 middle a b c end)
  "mixing unquote and unquote-splicing")

@@ -8,9 +8,7 @@
 (define ht (make-hash-table))
 
 (hash-set! ht "name" "Alice")
-
 (hash-set! ht "age" 30)
-
 (hash-set! ht "city" "NYC")
 
 (assert-equal (hash-count ht) 3 "hash table with 3 entries")
@@ -30,13 +28,11 @@
 
 (assert-equal entries '(("city" . "NYC") ("name" . "Alice") ("age" . 30))
  "hash-entries returns key-value pairs")
-
 ;; Iterate over keys using do loop
 (assert-equal
  (do ((remaining keys (cdr remaining))) ((null? remaining) "done")
    (car remaining)) "done"
  "iterate over hash keys")
-
 ;; Iterate over entries and process key-value pairs
 (assert-equal
  (do ((remaining entries (cdr remaining))) ((null? remaining) "done")
@@ -74,17 +70,12 @@
  (do ((remaining lst (cdr remaining))) ((null? remaining) "done")
    (car remaining)) "done"
  "iterate over list")
-
 ;; Get list length
 (assert-equal (length lst) 5 "length")
-
 ;; Access by index
 (assert-equal (list-ref lst 0) 1 "list-ref at index 0")
-
 (assert-equal (list-ref lst 2) 3 "list-ref at index 2")
-
 (assert-equal (list-ref lst 4) 5 "list-ref at index 4")
-
 ;; Iterate with index counter
 (assert-equal
  (do ((remaining lst (cdr remaining)) (i 0 (+ i 1)))
@@ -109,9 +100,7 @@
 (define user_ht (make-hash-table))
 
 (hash-set! user_ht "user1" "admin")
-
 (hash-set! user_ht "user2" "user")
-
 (hash-set! user_ht "user3" "admin")
 
 (assert-equal (hash-count user_ht) 3 "user hash table has 3 entries")
@@ -134,11 +123,8 @@
 (define empty_ht (make-hash-table))
 
 (assert-equal (hash-keys empty_ht) 'nil "empty hash keys")
-
 (assert-equal (hash-values empty_ht) 'nil "empty hash values")
-
 (assert-equal (hash-entries empty_ht) 'nil "empty hash entries")
-
 (assert-equal (hash-count empty_ht) 0 "empty hash count")
 
 (define empty_list 'nil)

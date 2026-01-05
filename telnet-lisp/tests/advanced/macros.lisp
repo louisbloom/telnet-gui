@@ -10,7 +10,6 @@
 (defmacro double (x) (list '+ x x))
 
 (assert-equal (double 5) 10 "macro with parameters")
-
 (assert-equal (double (+ 2 3)) 10 "macro with expression parameter")
 
 ;; Test 3: Test defun macro - single body expression

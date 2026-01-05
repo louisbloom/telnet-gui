@@ -16,7 +16,6 @@
 
 ;; factorial should print #<lambda:factorial>
 (assert-equal (factorial 5) 120 "named factorial function")
-
 ;; ===========================================
 ;; Anonymous Lambdas (no name)
 ;; ===========================================
@@ -72,7 +71,6 @@
 
 ;; func1 => #<lambda:func1>
 (assert-equal (func1) "second" "function redefinition")
-
 ;; ===========================================
 ;; Let bindings (lambdas stay anonymous)
 ;; ===========================================

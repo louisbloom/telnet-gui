@@ -52,7 +52,6 @@
 ; bound? tests
 ; ===========================================
 (bound? 'car) ; => #t
-
 (bound? 'nonexistent-symbol-xyz) ; => #f
 
 (define bound-test-var 123)
@@ -164,7 +163,6 @@ const-test ; => 2.71828
 
 ; Macro with docstring still works
 (when-test 1 (+ 1 2) (+ 3 4)) ; => 7
-
 (when-test nil (+ 1 2)) ; => nil
 
 ; Lambda without docstring still works
@@ -178,19 +176,14 @@ const-test ; => 2.71828
 ; ===========================================
 ; documentation requires symbol
 (condition-case err (documentation 42) (error 1)) ; => 1
-
 ; documentation on undefined symbol
 (condition-case err (documentation 'undefined-symbol) (error 1)) ; => 1
-
 ; bound? requires symbol
 (condition-case err (bound? 42) (error 1)) ; => 1
-
 ; set-documentation! requires symbol
 (condition-case err (set-documentation! 42 "doc") (error 1)) ; => 1
-
 ; set-documentation! requires string
 (condition-case err (set-documentation! 'doc-test-var 42) (error 1)) ; => 1
-
 ; set-documentation! requires bound symbol
 (condition-case err (set-documentation! 'unbound-xyz "doc") (error 1)) ; => 1
 
