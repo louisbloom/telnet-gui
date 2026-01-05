@@ -87,7 +87,7 @@
   (let ((target (hash-ref *tintin-variables* "target")))
     (when
       (and target (string? target) (> (length target) 0) *scan-direction*
-       (> *scan-range* 0) (scan-tracker-string-contains-ci line target))
+           (> *scan-range* 0) (scan-tracker-string-contains-ci line target))
       ;; Found target - record if this is the closest so far
       (when (< *scan-range* *scan-best-range*)
         (set! *scan-best-range* *scan-range*)

@@ -469,7 +469,7 @@ or the connection is determined to be dead.
 ;; Helper: Check if word matches prefix (case-insensitive) and not seen
 (defun word-matches-prefix? (word prefix-lower seen)
   (and (string? word) (string-prefix? prefix-lower (string-downcase word))
-   (null? (hash-ref seen word))))
+       (null? (hash-ref seen word))))
 
 ;; Helper: Scan circular buffer for matching words (newest to oldest)
 ;; Returns (cons acc count) where acc is newest-first list of matches
@@ -1391,7 +1391,7 @@ through history, especially on slower systems.")
 (defun is-nested-alist? (value)
   "Check if a value is a nested association list."
   (and (list? value) (not (null? value)) (pair? (car value))
-   (not (list? (car (car value))))))
+       (not (list? (car (car value))))))
 
 ;; Helper function to format a string value with quotes
 (defun format-string-value (str)

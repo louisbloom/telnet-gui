@@ -183,15 +183,15 @@
          (practice-quit-on-hunger-thirst))
         ;; Check for mana exhaustion message (spell too costly)
         ((and (not *practice-sleep-mode*)
-          (string-contains? text *practice-sleep-pattern*))
+              (string-contains? text *practice-sleep-pattern*))
          (practice-enter-sleep))
         ;; Check if mana dropped below threshold
         ((and (not *practice-sleep-mode*) mana
-          (< mana *practice-mana-threshold*))
+              (< mana *practice-mana-threshold*))
          (practice-enter-sleep))
         ;; Check for retry patterns (spell failed, lost concentration, etc.)
         ((and (not *practice-sleep-mode*)
-          (practice-matches-any-pattern? text *practice-retry-patterns*))
+              (practice-matches-any-pattern? text *practice-retry-patterns*))
          (practice-send *practice-command*))
         ;; In sleep mode: check prompt for mana restoration
         (*practice-sleep-mode*

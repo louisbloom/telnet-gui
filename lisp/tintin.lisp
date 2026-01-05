@@ -183,8 +183,9 @@ Maps attribute names to their ANSI SGR codes.")
 (defun tintin-parse-rgb-color (rgb-string is-bg)
   (if
     (and (> (length rgb-string) 2) (string=? (substring rgb-string 0 1) "<")
-     (string=?
-      (substring rgb-string (- (length rgb-string) 1) (length rgb-string)) ">"))
+         (string=?
+          (substring rgb-string (- (length rgb-string) 1) (length rgb-string))
+          ">"))
     ;; Extract content between < and >
     (let ((content (substring rgb-string 1 (- (length rgb-string) 1)))
           (len (- (length rgb-string) 2)))
@@ -299,20 +300,20 @@ Maps attribute names to their ANSI SGR codes.")
       ;; If no RGB found, try named colors
       (if
         (and (not (string-contains? text-trimmed "<"))
-         (or (string-contains? text-trimmed "black")
-          (string-contains? text-trimmed "red")
-          (string-contains? text-trimmed "green")
-          (string-contains? text-trimmed "yellow")
-          (string-contains? text-trimmed "blue")
-          (string-contains? text-trimmed "magenta")
-          (string-contains? text-trimmed "cyan")
-          (string-contains? text-trimmed "white")
-          (string-contains? text-trimmed "azure")
-          (string-contains? text-trimmed "jade")
-          (string-contains? text-trimmed "violet")
-          (string-contains? text-trimmed "lime")
-          (string-contains? text-trimmed "pink")
-          (string-contains? text-trimmed "orange")))
+             (or (string-contains? text-trimmed "black")
+                 (string-contains? text-trimmed "red")
+                 (string-contains? text-trimmed "green")
+                 (string-contains? text-trimmed "yellow")
+                 (string-contains? text-trimmed "blue")
+                 (string-contains? text-trimmed "magenta")
+                 (string-contains? text-trimmed "cyan")
+                 (string-contains? text-trimmed "white")
+                 (string-contains? text-trimmed "azure")
+                 (string-contains? text-trimmed "jade")
+                 (string-contains? text-trimmed "violet")
+                 (string-contains? text-trimmed "lime")
+                 (string-contains? text-trimmed "pink")
+                 (string-contains? text-trimmed "orange")))
         (let ((color-only (tintin-strip-attributes text-trimmed)))
           (let ((named-code (tintin-parse-named-color color-only is-bg)))
             (if named-code (set! codes (cons named-code codes))))))
@@ -506,9 +507,9 @@ Maps attribute names to their ANSI SGR codes.")
 ;; Check if character needs regex escaping
 (defun tintin-regex-special-char? (ch)
   (or (char=? ch #\.) (char=? ch #\*) (char=? ch #\+) (char=? ch #\?)
-   (char=? ch #\[) (char=? ch #\]) (char=? ch #\{) (char=? ch #\})
-   (char=? ch #\() (char=? ch #\)) (char=? ch #\|) (char=? ch #\\)
-   (char=? ch #\^) (char=? ch #\$)))
+      (char=? ch #\[) (char=? ch #\]) (char=? ch #\{) (char=? ch #\})
+      (char=? ch #\() (char=? ch #\)) (char=? ch #\|) (char=? ch #\\)
+      (char=? ch #\^) (char=? ch #\$)))
 
 ;; Convert TinTin++ pattern to PCRE2 regex
 ;; Pattern translation:
@@ -620,8 +621,8 @@ Maps attribute names to their ANSI SGR codes.")
                        ;; Consume second digit if present
                        (if
                          (and (< digit-end len)
-                          (char>=? (string-ref pattern digit-end) #\0)
-                          (char<=? (string-ref pattern digit-end) #\9))
+                              (char>=? (string-ref pattern digit-end) #\0)
+                              (char<=? (string-ref pattern digit-end) #\9))
                          (set! digit-end (+ digit-end 1)))
                        ;; %N or %NN at end → (.*), otherwise (.*?)
                        (let ((at-end (>= digit-end len)))
@@ -1027,25 +1028,25 @@ Maps attribute names to their ANSI SGR codes.")
       (do () ((or (< scan-pos 0) (not (string=? found-ansi ""))) found-ansi)
         (if
           (and (>= scan-pos 0)
-           (string=? (substring text scan-pos (+ scan-pos 1)) "\033")
-           (< (+ scan-pos 1) (length text))
-           (string=? (substring text (+ scan-pos 1) (+ scan-pos 2)) "["))
+               (string=? (substring text scan-pos (+ scan-pos 1)) "\033")
+               (< (+ scan-pos 1) (length text))
+               (string=? (substring text (+ scan-pos 1) (+ scan-pos 2)) "["))
           ;; Found ESC[ - extract the complete sequence
           (let ((seq-end (+ scan-pos 2)))
             ;; Find the 'm' terminator
             (do ()
               ((or (>= seq-end (length text))
-                (string=? (substring text seq-end (+ seq-end 1)) "m")))
+                   (string=? (substring text seq-end (+ seq-end 1)) "m")))
               (set! seq-end (+ seq-end 1)))
             ;; Check if we found a complete sequence
             (if
               (and (< seq-end (length text))
-               (string=? (substring text seq-end (+ seq-end 1)) "m"))
+                   (string=? (substring text seq-end (+ seq-end 1)) "m"))
               (let ((sequence (substring text scan-pos (+ seq-end 1))))
                 ;; Check if this is a reset code (ESC[0m or ESC[m)
                 (if
                   (or (string=? sequence "\033[0m")
-                   (string=? sequence "\033[m"))
+                      (string=? sequence "\033[m"))
                   ;; Reset code - return empty (no active formatting)
                   (set! found-ansi "reset") ; Special marker to exit and return ""
                   ;; Non-reset code - this is the active state
@@ -1075,20 +1076,20 @@ Maps attribute names to their ANSI SGR codes.")
       ;; Check if there's an ANSI code immediately after
       (if
         (and (< (+ scan-pos 1) len)
-         (string=? (substring text scan-pos (+ scan-pos 1)) "\033")
-         (< (+ scan-pos 1) len)
-         (string=? (substring text (+ scan-pos 1) (+ scan-pos 2)) "["))
+             (string=? (substring text scan-pos (+ scan-pos 1)) "\033")
+             (< (+ scan-pos 1) len)
+             (string=? (substring text (+ scan-pos 1) (+ scan-pos 2)) "["))
         ;; Found ESC[ - check what kind
         (let ((seq-end (+ scan-pos 2)))
           ;; Find the 'm' terminator
           (do ()
             ((or (>= seq-end len)
-              (string=? (substring text seq-end (+ seq-end 1)) "m")))
+                 (string=? (substring text seq-end (+ seq-end 1)) "m")))
             (set! seq-end (+ seq-end 1)))
           ;; Check if complete sequence
           (if
             (and (< seq-end len)
-             (string=? (substring text seq-end (+ seq-end 1)) "m"))
+                 (string=? (substring text seq-end (+ seq-end 1)) "m"))
             (let ((sequence (substring text scan-pos (+ seq-end 1))))
               (if
                 (or (string=? sequence "\033[0m") (string=? sequence "\033[m"))
@@ -1446,7 +1447,7 @@ Maps attribute names to their ANSI SGR codes.")
     (let ((ch (string-ref str pos)))
       (if
         (or (char=? ch #\space) (char=? ch #\tab) (char=? ch #\return)
-         (char=? ch #\newline))
+            (char=? ch #\newline))
         (tintin-find-first-non-ws str (+ pos 1) len)
         pos))))
 
@@ -1457,7 +1458,7 @@ Maps attribute names to their ANSI SGR codes.")
     (let ((ch (string-ref str pos)))
       (if
         (or (char=? ch #\space) (char=? ch #\tab) (char=? ch #\return)
-         (char=? ch #\newline))
+            (char=? ch #\newline))
         (tintin-find-last-non-ws str (- pos 1))
         pos))))
 
@@ -1562,17 +1563,18 @@ Maps attribute names to their ANSI SGR codes.")
 ;; Check if character is a digit
 (defun tintin-is-digit? (ch)
   (and (string? ch) (= (length ch) 1)
-   (or (string=? ch "0") (string=? ch "1") (string=? ch "2") (string=? ch "3")
-    (string=? ch "4") (string=? ch "5") (string=? ch "6") (string=? ch "7")
-    (string=? ch "8") (string=? ch "9"))))
+       (or (string=? ch "0") (string=? ch "1") (string=? ch "2")
+           (string=? ch "3") (string=? ch "4") (string=? ch "5")
+           (string=? ch "6") (string=? ch "7") (string=? ch "8")
+           (string=? ch "9"))))
 
 ;; Check if a string is a valid direction
 (defun tintin-is-direction? (str)
   (or (string=? str "n") (string=? str "e") (string=? str "s")
-   (string=? str "w") (string=? str "u") (string=? str "d")
-   (and *tintin-speedwalk-diagonals*
-    (or (string=? str "ne") (string=? str "nw") (string=? str "se")
-     (string=? str "sw")))))
+      (string=? str "w") (string=? str "u") (string=? str "d")
+      (and *tintin-speedwalk-diagonals*
+           (or (string=? str "ne") (string=? str "nw") (string=? str "se")
+               (string=? str "sw")))))
 
 ;; Expand speedwalk string like "3n2e" to "n;n;n;e;e"
 (defun tintin-expand-speedwalk (input)
@@ -1650,7 +1652,7 @@ Maps attribute names to their ANSI SGR codes.")
           ;; Collect digits for count
           (do ()
             ((or (>= pos len)
-              (not (tintin-is-digit? (substring input pos (+ pos 1)))))
+                 (not (tintin-is-digit? (substring input pos (+ pos 1)))))
              nil)
             (set! count-str (concat count-str (substring input pos (+ pos 1))))
             (set! pos (+ pos 1)))
@@ -1660,8 +1662,8 @@ Maps attribute names to their ANSI SGR codes.")
               ;; Try 2-char direction first (only if diagonals enabled)
               (if
                 (and *tintin-speedwalk-diagonals* (< (+ pos 1) len)
-                 (tintin-is-direction?
-                  (concat ch1 (substring input (+ pos 1) (+ pos 2)))))
+                     (tintin-is-direction?
+                      (concat ch1 (substring input (+ pos 1) (+ pos 2)))))
                 (progn
                   (set! direction
                    (concat ch1 (substring input (+ pos 1) (+ pos 2))))
@@ -1962,13 +1964,13 @@ Maps attribute names to their ANSI SGR codes.")
     ;; Step 1: Skip whitespace after #
     (do ()
       ((or (>= start-pos (length input))
-        (not (char=? (string-ref input start-pos) #\space))))
+           (not (char=? (string-ref input start-pos) #\space))))
       (set! start-pos (+ start-pos 1)))
     ;; Step 2: Skip past command name (until space, {, or end)
     (do ()
       ((or (>= start-pos (length input))
-        (char=? (string-ref input start-pos) #\space)
-        (char=? (string-ref input start-pos) #\{)))
+           (char=? (string-ref input start-pos) #\space)
+           (char=? (string-ref input start-pos) #\{)))
       (set! start-pos (+ start-pos 1)))
     ;; Step 3: Parse N arguments using mixed format
     ;; Each argument can be braced or unbraced independently
@@ -1977,7 +1979,7 @@ Maps attribute names to their ANSI SGR codes.")
       ;; Skip whitespace before this argument
       (do ()
         ((or (>= start-pos (length input))
-          (not (char=? (string-ref input start-pos) #\space))))
+             (not (char=? (string-ref input start-pos) #\space))))
         (set! start-pos (+ start-pos 1)))
       ;; Check if we have more input
       (if (>= start-pos (length input))
@@ -2024,14 +2026,14 @@ Maps attribute names to their ANSI SGR codes.")
               ;; Literal - must match exactly
               (if
                 (and (string? p-part) (string? i-part)
-                 (not (string=? p-part i-part)))
+                     (not (string=? p-part i-part)))
                 (set! success #f)))))))))
 
 ;; Check if character is valid in variable name: [a-zA-Z0-9_-]
 (defun tintin-is-varname-char? (ch)
   (or (and (char>=? ch #\a) (char<=? ch #\z))
-   (and (char>=? ch #\A) (char<=? ch #\Z))
-   (and (char>=? ch #\0) (char<=? ch #\9)) (char=? ch #\_) (char=? ch #\-)))
+      (and (char>=? ch #\A) (char<=? ch #\Z))
+      (and (char>=? ch #\0) (char<=? ch #\9)) (char=? ch #\_) (char=? ch #\-)))
 
 ;; Expand $variable references in a string (optimized O(m) single-pass)
 (defun tintin-expand-variables-fast (str)
@@ -2121,7 +2123,7 @@ Maps attribute names to their ANSI SGR codes.")
               ;; Find end of variable name
               (do ()
                 ((or (>= var-end len)
-                  (not (tintin-is-varname-char? (string-ref str var-end)))))
+                     (not (tintin-is-varname-char? (string-ref str var-end)))))
                 (set! var-end (+ var-end 1)))
               (if (= var-start var-end)
                 ;; No variable name after $, keep literal $
@@ -2431,7 +2433,7 @@ Maps attribute names to their ANSI SGR codes.")
               (end pos))
           (do ()
             ((or (>= end len) (char=? (string-ref str end) #\space)
-              (char=? (string-ref str end) #\{)))
+                 (char=? (string-ref str end) #\{)))
             (set! end (+ end 1)))
           ;; Extract and lowercase the command name
           (if (= start end) nil (string-downcase (substring str start end))))))))
@@ -3102,8 +3104,8 @@ Maps attribute names to their ANSI SGR codes.")
                            (condition-case err2
                              ;; Try to check connection mode
                              (or (eq? *connection-mode* 'conn)
-                              ;; If *connection-mode* undefined (test mode), check if telnet-send exists
-                              (and (symbol? 'telnet-send) #t))
+                                 ;; If *connection-mode* undefined (test mode), check if telnet-send exists
+                                 (and (symbol? 'telnet-send) #t))
                              ;; If *connection-mode* not defined, we're in test mode
                              (error #t))))
                       (if can-send
@@ -3227,7 +3229,7 @@ Maps attribute names to their ANSI SGR codes.")
     (let ((len (length str)))
       (if
         (and (> len 1) (char=? (string-ref str 0) #\{)
-         (char=? (string-ref str (- len 1)) #\}))
+             (char=? (string-ref str (- len 1)) #\}))
         (substring str 1 (- len 1))
         str))))
 
@@ -3643,9 +3645,10 @@ Maps attribute names to their ANSI SGR codes.")
       ;; Search backwards from width (or text end) for space or hyphen
       (do ((i start-pos (- i 1)))
         ((or (< i 0)
-          (and (< i text-len) ; Bounds check
-           (let ((ch (string-ref text i)))
-             (or (char=? ch #\space) (char=? ch #\-) (char=? ch #\newline)))))
+             (and (< i text-len) ; Bounds check
+                  (let ((ch (string-ref text i)))
+                    (or (char=? ch #\space) (char=? ch #\-)
+                        (char=? ch #\newline)))))
          (if (< i 0)
            (if (< width text-len) width text-len) ; Hard break at width or text end
            (+ i 1))))))) ; Break after space/hyphen
@@ -3743,8 +3746,9 @@ Maps attribute names to their ANSI SGR codes.")
                   ;; Find last non-space character
                   (do ()
                     ((or (<= line1-end 0)
-                      (not
-                       (char=? (string-ref line1-raw (- line1-end 1)) #\space))))
+                         (not
+                          (char=? (string-ref line1-raw (- line1-end 1))
+                           #\space))))
                     (set! line1-end (- line1-end 1)))
                   (if (= line1-end line1-len)
                     line1-raw ; No trailing spaces
@@ -3754,7 +3758,7 @@ Maps attribute names to their ANSI SGR codes.")
                (rest-start-adj
                 (if
                   (and (< rest-start (length text))
-                   (char=? (string-ref text rest-start) #\space))
+                       (char=? (string-ref text rest-start) #\space))
                   (+ rest-start 1)
                   rest-start)))
           (if (>= rest-start-adj (length text))
@@ -5160,7 +5164,7 @@ Maps attribute names to their ANSI SGR codes.")
     ;; Skip command name
     (do ()
       ((or (>= pos len) (char=? (string-ref input pos) #\space)
-        (char=? (string-ref input pos) #\{)))
+           (char=? (string-ref input pos) #\{)))
       (set! pos (+ pos 1)))
     ;; Skip whitespace after command name
     (do () ((or (>= pos len) (not (char=? (string-ref input pos) #\space))))
@@ -5279,7 +5283,7 @@ Maps attribute names to their ANSI SGR codes.")
         ;; Check if this is a valid terminator (letter)
         (if
           (or (and (char>=? c #\A) (char<=? c #\Z))
-           (and (char>=? c #\a) (char<=? c #\z)))
+              (and (char>=? c #\a) (char<=? c #\z)))
           (+ i 1) ;; Return position after terminator
           nil)))))
 
@@ -5313,7 +5317,7 @@ Maps attribute names to their ANSI SGR codes.")
    Called via telnet-input-hook for each chunk of server output."
   (if
     (and *tintin-enabled* (not *tintin-action-executing*)
-     (> (hash-count *tintin-actions*) 0))
+         (> (hash-count *tintin-actions*) 0))
     (let ((lines (tintin-split-lines text)))
       (do ((i 0 (+ i 1))) ((>= i (length lines)))
         (tintin-trigger-actions-for-line (list-ref lines i))))))

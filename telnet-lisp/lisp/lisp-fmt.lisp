@@ -98,7 +98,7 @@
 (defun delimiter? (ch)
   "Check if character is a token delimiter."
   (or (null? ch) (char-whitespace? ch) (char=? ch #\() (char=? ch #\))
-   (char=? ch #\;) (char=? ch #\")))
+      (char=? ch #\;) (char=? ch #\")))
 
 ;;; ----------------------------------------------------------------------------
 ;;; Token Data Structure
@@ -148,9 +148,10 @@
   (let ((found-comment nil))
     (do ()
       ((or found-comment
-        (let ((ch (reader-peek state)))
-          (or (null? ch) (char=? ch #\newline)
-           (not (or (char=? ch #\space) (char=? ch #\tab) (char=? ch #\;)))))))
+           (let ((ch (reader-peek state)))
+             (or (null? ch) (char=? ch #\newline)
+                 (not
+                  (or (char=? ch #\space) (char=? ch #\tab) (char=? ch #\;)))))))
       (let ((ch (reader-peek state)))
         (cond
           ((char=? ch #\;)
@@ -170,8 +171,8 @@
         (count 1))
     (do ()
       ((or (>= count 3)
-        (let ((ch (reader-peek state)))
-          (or (null? ch) (not (and (char>=? ch #\0) (char<=? ch #\7)))))))
+           (let ((ch (reader-peek state)))
+             (or (null? ch) (not (and (char>=? ch #\0) (char<=? ch #\7)))))))
       (let ((ch (reader-advance! state)))
         (set! value (+ (* value 8) (- (char-code ch) (char-code #\0))))
         (set! count (+ count 1))))
@@ -224,9 +225,9 @@
 (defun hex-digit? (ch)
   "Check if CH is a hexadecimal digit."
   (and ch
-   (or (and (char>=? ch #\0) (char<=? ch #\9))
-    (and (char>=? ch #\a) (char<=? ch #\f))
-    (and (char>=? ch #\A) (char<=? ch #\F)))))
+       (or (and (char>=? ch #\0) (char<=? ch #\9))
+           (and (char>=? ch #\a) (char<=? ch #\f))
+           (and (char>=? ch #\A) (char<=? ch #\F)))))
 
 (defun read-hex-digits (state count)
   "Read COUNT hex digits and return their numeric value."
@@ -272,13 +273,15 @@
       ((null? ch) (error "Unexpected EOF in character literal"))
       ;; Check for hex escape: #\xNN - only if followed by hex digit
       ((and (char=? ch #\x)
-        (let ((next-pos (+ (rs-pos state) 1)))
-          (and (< next-pos (length src)) (hex-digit? (string-ref src next-pos)))))
+            (let ((next-pos (+ (rs-pos state) 1)))
+              (and (< next-pos (length src))
+                   (hex-digit? (string-ref src next-pos)))))
        (reader-advance! state) (code-char (read-hex-digits state 2)))
       ;; Check for unicode escape: #\uNNNN - only if followed by hex digit
       ((and (char=? ch #\u)
-        (let ((next-pos (+ (rs-pos state) 1)))
-          (and (< next-pos (length src)) (hex-digit? (string-ref src next-pos)))))
+            (let ((next-pos (+ (rs-pos state) 1)))
+              (and (< next-pos (length src))
+                   (hex-digit? (string-ref src next-pos)))))
        (reader-advance! state) (code-char (read-hex-digits state 4)))
       (#t
        ;; Read at least one character, then continue if not a delimiter
@@ -342,7 +345,7 @@
              (src (rs-source state)))
          (if
            (or (>= next-pos (length src))
-            (delimiter? (string-ref src next-pos)))
+               (delimiter? (string-ref src next-pos)))
            (progn (reader-advance! state)
              (make-token 'dot nil leading line col))
            (let ((atom-val (read-atom-token state)))
@@ -473,7 +476,7 @@
     (do ()
       ((let ((tok (parser-current pstate)))
          (or (eq? (token-type tok) 'rparen) (eq? (token-type tok) 'dot)
-          (eq? (token-type tok) 'eof))))
+             (eq? (token-type tok) 'eof))))
       (set! elements (cons (parse-expression pstate) elements)))
     ;; Check for dotted pair
     (when (eq? (token-type (parser-current pstate)) 'dot)
@@ -550,7 +553,8 @@
 ;;;   body-indent - Indent increment for body (default: *indent-size*)
 (define *form-rules*
   '((cond (handler . format-cond-form)) (case (handler . format-cond-form))
-    (if (handler . format-if-form))))
+    (if (handler . format-if-form)) (and (handler . format-and-or-form))
+    (or (handler . format-and-or-form))))
 
 (defun get-form-rule (sym prop)
   "Get a property from the form rules table for SYM."
@@ -691,7 +695,7 @@
 (defun quote-shorthand? (sexp sym)
   "Check if sexp is (SYM x) - a two-element list starting with SYM."
   (and (pair? sexp) (symbol? (car sexp)) (eq? (car sexp) sym)
-   (pair? (cdr sexp)) (null? (cdr (cdr sexp)))))
+       (pair? (cdr sexp)) (null? (cdr (cdr sexp)))))
 
 (defun sexp-to-string (sexp)
   "Convert s-expression to single-line string representation."
@@ -777,7 +781,7 @@
     ((annotated? sexp)
      ;; Annotated - check comments on this and recurse into value
      (or (ann-before sexp) (ann-after sexp)
-      (has-nested-comments? (ann-value sexp))))
+         (has-nested-comments? (ann-value sexp))))
     ((not (pair? sexp))
      ;; Plain atom - no comments possible
      #f)
@@ -1035,6 +1039,44 @@
     (lb-append! lb ")")
     (lb-finish lb)))
 
+(defun format-and-or-form (lst indent)
+  "Format and/or forms with arguments aligned under first argument.
+   (or (condition-1)
+       (condition-2)
+       (condition-3))"
+  (let* ((head (unwrap-value (car lst)))
+         (head-str (symbol->string head))
+         (args (cdr lst))
+         ;; Arguments align under first arg: (or + space = 4, (and + space = 5
+         (arg-indent (+ indent 1 (length head-str) 1))
+         (lb (lb-create indent))
+         (prev-had-inline-comment #f))
+    ;; Start: (and or (or
+    (lb-append! lb "(")
+    (lb-append! lb head-str)
+    ;; Format arguments
+    (do ((remaining args (cdr remaining)) (first-arg #t #f))
+      ((not (pair? remaining)))
+      (let* ((arg (car remaining))
+             (arg-str (format-sexp arg arg-indent))
+             (arg-single-len (sexp-length arg))
+             (has-inline (comment-after arg)))
+        (if first-arg
+          ;; First arg: try to keep on same line
+          (if (<= (+ (lb-col lb) 1 arg-single-len) *max-column*)
+            (progn (lb-append-space! lb) (lb-append! lb arg-str))
+            (progn (lb-newline! lb arg-indent) (lb-append! lb arg-str)))
+          ;; Subsequent args: new line if prev had comment or doesn't fit
+          (if
+            (or prev-had-inline-comment
+                (> (+ (lb-col lb) 1 arg-single-len) *max-column*))
+            (progn (lb-newline! lb arg-indent) (lb-append! lb arg-str))
+            (progn (lb-append-space! lb) (lb-append! lb arg-str))))
+        (set! prev-had-inline-comment has-inline)))
+    ;; Close form
+    (lb-append! lb ")")
+    (lb-finish lb)))
+
 (defun format-aligned-list (lst indent)
   "Format list with elements aligned under first element."
   (let* ((elem-indent (+ indent 1)) ; After opening paren
@@ -1060,9 +1102,9 @@
              (has-inline (comment-after elem)))
         (if
           (and (not first-elem)
-           (or prev-had-inline-comment ; Force newline if prev had comment
-            (> (+ (lb-col lb) space-needed elem-single-len) *max-column*)
-            is-multiline))
+               (or prev-had-inline-comment ; Force newline if prev had comment
+                   (> (+ (lb-col lb) space-needed elem-single-len) *max-column*)
+                   is-multiline))
           ;; New line needed
           (let ((elem-str-aligned
                  (if is-multiline (format-sexp elem elem-indent) elem-str)))
@@ -1083,7 +1125,7 @@
              (tail-needed (+ 3 tail-single-len)))
         (if
           (or prev-had-inline-comment ; Force newline if prev had comment
-           (> (+ (lb-col lb) tail-needed 1) *max-column*))
+              (> (+ (lb-col lb) tail-needed 1) *max-column*))
           (progn (lb-newline! lb elem-indent) (lb-append! lb ". ")
             (lb-append! lb (format-sexp dotted-tail elem-indent)))
           (progn (lb-append! lb " . ")

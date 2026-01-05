@@ -156,7 +156,7 @@
            (garbled-len (length garbled)))
       (if
         (and (<= (+ i garbled-len) len)
-         (string=? (substring word-lower i (+ i garbled-len)) garbled))
+             (string=? (substring word-lower i (+ i garbled-len)) garbled))
         (cons original garbled-len)
         (try-match-syllable-helper word-lower i len (cdr syllables))))))
 

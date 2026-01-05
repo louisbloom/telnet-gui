@@ -178,8 +178,8 @@ Note: Requires rlottie support to be compiled in.")
   "Play notification animation if scroll-locked and not already playing."
   (when
     (and *scroll-lock-notification-enabled*
-     *scroll-lock-notification-animation* (terminal-scroll-locked?)
-     (not (animation-playing? *scroll-lock-notification-animation*)))
+         *scroll-lock-notification-animation* (terminal-scroll-locked?)
+         (not (animation-playing? *scroll-lock-notification-animation*)))
     (animation-play *scroll-lock-notification-animation*)))
 
 ;; Hook wrapper for scroll-lock notifications (matches telnet-input-hook signature)

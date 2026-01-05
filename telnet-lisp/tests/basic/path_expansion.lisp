@@ -45,7 +45,7 @@
  (if (string? (home-directory))
    (progn (define expanded (expand-path "~/test.txt"))
      (and (string? expanded) (string-prefix? (home-directory) expanded)
-      (string-contains? expanded "test.txt")))
+          (string-contains? expanded "test.txt")))
    #t) "~/path expands to home directory")
 
 ;; ~ alone should expand to home directory
@@ -59,8 +59,8 @@
  (if (string? (home-directory))
    (progn (define expanded (expand-path "~/docs/notes.txt"))
      (and (string? expanded) (string-prefix? (home-directory) expanded)
-      (string-contains? expanded "docs")
-      (string-contains? expanded "notes.txt")))
+          (string-contains? expanded "docs")
+          (string-contains? expanded "notes.txt")))
    #t) "~/subdir/file expands correctly")
 
 ;; ============================================================================
