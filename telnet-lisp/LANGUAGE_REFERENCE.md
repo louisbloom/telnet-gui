@@ -939,6 +939,17 @@ Convert number to string representation with optional radix parameter.
 
 - `car` - Get first element of list
 - `cdr` - Get rest of list
+- `caar` - Equivalent to `(car (car x))`
+- `cadr` - Equivalent to `(car (cdr x))` - second element
+- `cdar` - Equivalent to `(cdr (car x))`
+- `cddr` - Equivalent to `(cdr (cdr x))` - rest after second element
+- `caddr` - Equivalent to `(car (cdr (cdr x)))` - third element
+- `cadddr` - Equivalent to `(car (cdr (cdr (cdr x))))` - fourth element
+- `first` - Alias for `car` - first element
+- `second` - Alias for `cadr` - second element
+- `third` - Alias for `caddr` - third element
+- `fourth` - Alias for `cadddr` - fourth element
+- `rest` - Alias for `cdr` - rest of list
 - `cons` - Construct new list cell
 - `set-car!` - Set first element of cons cell (mutating)
 - `set-cdr!` - Set rest of cons cell (mutating)

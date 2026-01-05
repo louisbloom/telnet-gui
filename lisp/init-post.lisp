@@ -54,8 +54,8 @@
   (if (null? entries)
     ""
     (concat
-     (format-info-line (car (car entries)) (cdr (car entries)) name-width
-      value-width box-width)
+     (format-info-line (caar entries) (cdar entries) name-width value-width
+      box-width)
      (format-info-lines (cdr entries) name-width value-width box-width))))
 
 ;; Build the complete version announcement box

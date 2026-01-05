@@ -951,12 +951,12 @@
 
 ;; Extract priorities from sorted entries (format: (pattern . (fg bg priority)))
 (define first-entry (car sorted))
-(define second-entry (car (cdr sorted)))
-(define third-entry (car (cdr (cdr sorted))))
+(define second-entry (cadr sorted))
+(define third-entry (caddr sorted))
 
-(define pri1 (car (cdr (cdr (cdr first-entry)))))
-(define pri2 (car (cdr (cdr (cdr second-entry)))))
-(define pri3 (car (cdr (cdr (cdr third-entry)))))
+(define pri1 (cadddr first-entry))
+(define pri2 (cadddr second-entry))
+(define pri3 (cadddr third-entry))
 
 ;; Verify sorting: highest priority first
 (assert-equal pri1 10 "First entry should have priority 10")
@@ -972,7 +972,7 @@
 (define sorted-single (tintin-sort-highlights-by-priority single-entry))
 (assert-equal (length sorted-single) 1
   "Single entry should return list with 1 element")
-(assert-equal (car (cdr (cdr (cdr (car sorted-single))))) 5
+(assert-equal (cadddr (car sorted-single)) 5
   "Single entry priority should be preserved")
 
 ;; Test edge case: equal priorities (should maintain order)
@@ -1040,7 +1040,7 @@
 (print "Test: Parse basic named colors...")
 (define color-red (tintin-parse-color-spec "red"))
 (assert-equal (car color-red) "31" "Foreground should be ANSI red code")
-(assert-equal (car (cdr color-red)) nil "Background should be nil")
+(assert-equal (cadr color-red) nil "Background should be nil")
 
 (print "Test: Parse light/bright colors...")
 (define color-light-blue (tintin-parse-color-spec "light blue"))
@@ -1057,12 +1057,12 @@
 (print "Test: Parse FG:BG colors...")
 (define color-fg-bg (tintin-parse-color-spec "red:blue"))
 (assert-equal (car color-fg-bg) "31" "Foreground should be red")
-(assert-equal (car (cdr color-fg-bg)) "44" "Background should be blue")
+(assert-equal (cadr color-fg-bg) "44" "Background should be blue")
 
 (print "Test: Parse RGB FG:BG colors...")
 (define color-rgb-fg-bg (tintin-parse-color-spec "<fff>:<aaa>"))
 (assert-equal (car color-rgb-fg-bg) "38;2;255;255;255" "FG should be white RGB")
-(assert-equal (car (cdr color-rgb-fg-bg)) "48;2;170;170;170" "BG should be gray RGB")
+(assert-equal (cadr color-rgb-fg-bg) "48;2;170;170;170" "BG should be gray RGB")
 
 (print "Test: Parse attributes with colors...")
 ;; Note: attribute parsing returns codes in reverse order due to cons

@@ -285,6 +285,14 @@ void lisp_free_completions(char **completions);
 LispObject *lisp_car(LispObject *obj);
 LispObject *lisp_cdr(LispObject *obj);
 
+/* c*r combination helpers */
+LispObject *lisp_caar(LispObject *obj);
+LispObject *lisp_cadr(LispObject *obj);
+LispObject *lisp_cdar(LispObject *obj);
+LispObject *lisp_cddr(LispObject *obj);
+LispObject *lisp_caddr(LispObject *obj);
+LispObject *lisp_cadddr(LispObject *obj);
+
 /* Regex helper functions */
 pcre2_code *compile_regex_pattern(const char *pattern, char **error_msg);
 pcre2_match_data *execute_regex(pcre2_code *re, const char *subject);

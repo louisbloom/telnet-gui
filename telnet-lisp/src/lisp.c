@@ -319,6 +319,31 @@ LispObject *lisp_cdr(LispObject *obj) {
     return obj->value.cons.cdr;
 }
 
+/* c*r combination helpers */
+LispObject *lisp_caar(LispObject *obj) {
+    return lisp_car(lisp_car(obj));
+}
+
+LispObject *lisp_cadr(LispObject *obj) {
+    return lisp_car(lisp_cdr(obj));
+}
+
+LispObject *lisp_cdar(LispObject *obj) {
+    return lisp_cdr(lisp_car(obj));
+}
+
+LispObject *lisp_cddr(LispObject *obj) {
+    return lisp_cdr(lisp_cdr(obj));
+}
+
+LispObject *lisp_caddr(LispObject *obj) {
+    return lisp_car(lisp_cddr(obj));
+}
+
+LispObject *lisp_cadddr(LispObject *obj) {
+    return lisp_car(lisp_cdr(lisp_cddr(obj)));
+}
+
 /* Simple API */
 static Environment *global_env = NULL;
 

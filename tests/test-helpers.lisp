@@ -110,7 +110,7 @@
       ;; Remove existing entry for this symbol
       (set! *divider-modes*
         (filter (lambda (e)
-                  (not (eq? (car (cdr e)) sym)))
+                  (not (eq? (cadr e) sym)))
           *divider-modes*))
       ;; Add new entry: (priority . (symbol . display))
       (let ((new-entry (cons priority (cons sym display))))
@@ -123,7 +123,7 @@
     "Mock divider-mode-remove: update *divider-modes* directly."
     (set! *divider-modes*
       (filter (lambda (e)
-                (not (eq? (car (cdr e)) sym)))
+                (not (eq? (cadr e) sym)))
         *divider-modes*))
     nil))
 
@@ -153,7 +153,7 @@
     (do ((modes *divider-modes* (cdr modes)))
       ((or found (null? modes)) found)
       (let ((entry (car modes)))
-        (if (eq? (car (cdr entry)) sym)
+        (if (eq? (cadr entry) sym)
           (set! found #t))))))
 
 ;; ============================================================================

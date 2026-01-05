@@ -85,6 +85,17 @@ static LispObject *builtin_not(LispObject *args, Environment *env);
 /* List operations */
 static LispObject *builtin_car(LispObject *args, Environment *env);
 static LispObject *builtin_cdr(LispObject *args, Environment *env);
+static LispObject *builtin_caar(LispObject *args, Environment *env);
+static LispObject *builtin_cadr(LispObject *args, Environment *env);
+static LispObject *builtin_cdar(LispObject *args, Environment *env);
+static LispObject *builtin_cddr(LispObject *args, Environment *env);
+static LispObject *builtin_caddr(LispObject *args, Environment *env);
+static LispObject *builtin_cadddr(LispObject *args, Environment *env);
+static LispObject *builtin_first(LispObject *args, Environment *env);
+static LispObject *builtin_second(LispObject *args, Environment *env);
+static LispObject *builtin_third(LispObject *args, Environment *env);
+static LispObject *builtin_fourth(LispObject *args, Environment *env);
+static LispObject *builtin_rest(LispObject *args, Environment *env);
 static LispObject *builtin_set_car_bang(LispObject *args, Environment *env);
 static LispObject *builtin_set_cdr_bang(LispObject *args, Environment *env);
 static LispObject *builtin_cons(LispObject *args, Environment *env);
@@ -2855,6 +2866,17 @@ void register_builtins(Environment *env) {
 
     REGISTER("car", builtin_car, doc_car);
     REGISTER("cdr", builtin_cdr, doc_cdr);
+    REGISTER("caar", builtin_caar, NULL);
+    REGISTER("cadr", builtin_cadr, NULL);
+    REGISTER("cdar", builtin_cdar, NULL);
+    REGISTER("cddr", builtin_cddr, NULL);
+    REGISTER("caddr", builtin_caddr, NULL);
+    REGISTER("cadddr", builtin_cadddr, NULL);
+    REGISTER("first", builtin_first, NULL);
+    REGISTER("second", builtin_second, NULL);
+    REGISTER("third", builtin_third, NULL);
+    REGISTER("fourth", builtin_fourth, NULL);
+    REGISTER("rest", builtin_rest, NULL);
     REGISTER("set-car!", builtin_set_car_bang, doc_set_car_bang);
     REGISTER("set-cdr!", builtin_set_cdr_bang, doc_set_cdr_bang);
     REGISTER("cons", builtin_cons, doc_cons);
@@ -4548,6 +4570,70 @@ static LispObject *builtin_cdr(LispObject *args, Environment *env) {
     }
 
     return arg->value.cons.cdr;
+}
+
+/* c*r combination builtins */
+static LispObject *builtin_caar(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL)
+        return lisp_make_error("caar requires 1 argument");
+    return lisp_caar(lisp_car(args));
+}
+
+static LispObject *builtin_cadr(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL)
+        return lisp_make_error("cadr requires 1 argument");
+    return lisp_cadr(lisp_car(args));
+}
+
+static LispObject *builtin_cdar(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL)
+        return lisp_make_error("cdar requires 1 argument");
+    return lisp_cdar(lisp_car(args));
+}
+
+static LispObject *builtin_cddr(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL)
+        return lisp_make_error("cddr requires 1 argument");
+    return lisp_cddr(lisp_car(args));
+}
+
+static LispObject *builtin_caddr(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL)
+        return lisp_make_error("caddr requires 1 argument");
+    return lisp_caddr(lisp_car(args));
+}
+
+static LispObject *builtin_cadddr(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL)
+        return lisp_make_error("cadddr requires 1 argument");
+    return lisp_cadddr(lisp_car(args));
+}
+
+/* Readable list accessors - aliases for car, cadr, caddr, cadddr */
+static LispObject *builtin_first(LispObject *args, Environment *env) {
+    return builtin_car(args, env);
+}
+
+static LispObject *builtin_second(LispObject *args, Environment *env) {
+    return builtin_cadr(args, env);
+}
+
+static LispObject *builtin_third(LispObject *args, Environment *env) {
+    return builtin_caddr(args, env);
+}
+
+static LispObject *builtin_fourth(LispObject *args, Environment *env) {
+    return builtin_cadddr(args, env);
+}
+
+static LispObject *builtin_rest(LispObject *args, Environment *env) {
+    return builtin_cdr(args, env);
 }
 
 static LispObject *builtin_set_car_bang(LispObject *args, Environment *env) {

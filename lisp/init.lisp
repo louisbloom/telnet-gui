@@ -763,7 +763,7 @@ If the hook doesn't exist or has no functions, does nothing.
   (let ((entry (assoc hook-name *hooks*)))
     (when entry
       (do ((pairs (cdr entry) (cdr pairs))) ((null? pairs))
-        (apply (eval (cdr (car pairs))) args)))) ;; Extract fn-symbol from (priority . fn-symbol)
+        (apply (eval (cdar pairs)) args)))) ;; Extract fn-symbol from (priority . fn-symbol)
   nil)
 
 (defun run-filter-hook (hook-name initial-value)
@@ -803,7 +803,7 @@ If the hook doesn't exist or has no functions, returns `initial-value` unchanged
     (if entry
       (do ((pairs (cdr entry) (cdr pairs)) (result initial-value))
         ((null? pairs) result)
-        (set! result ((eval (cdr (car pairs))) result))) ;; Extract fn-symbol from (priority . fn-symbol)
+        (set! result ((eval (cdar pairs)) result))) ;; Extract fn-symbol from (priority . fn-symbol)
       initial-value)))
 
 ;; ============================================================================
@@ -847,7 +847,7 @@ To transform the data before display, use `telnet-input-filter-hook`.
     (when entry
       (do ((pairs (cdr entry) (cdr pairs)))
         ((or (null? pairs) *user-input-handled*))
-        ((eval (cdr (car pairs))) text cursor-pos)))))
+        ((eval (cdar pairs)) text cursor-pos)))))
 
 (defun user-input-hook (text cursor-pos)
   "Transform user input before sending to telnet server.
@@ -1391,7 +1391,7 @@ through history, especially on slower systems.")
 (defun is-nested-alist? (value)
   "Check if a value is a nested association list."
   (and (list? value) (not (null? value)) (pair? (car value))
-       (not (list? (car (car value))))))
+       (not (list? (caar value)))))
 
 ;; Helper function to format a string value with quotes
 (defun format-string-value (str)

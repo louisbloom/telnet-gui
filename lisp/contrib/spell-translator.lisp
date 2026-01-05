@@ -221,7 +221,7 @@
          (groups (regex-extract *spell-utter-pattern* clean-text)))
     (if groups
       ;; Found an utterance - check if it needs translation
-      (let ((garbled (car (cdr groups))))
+      (let ((garbled (cadr groups)))
         (if (known-spell? garbled)
           ;; Already readable (same class as caster) - no translation needed
           text

@@ -53,8 +53,8 @@
 (notify "Third" 3000)
 
 (assert-equal (length *notification-queue*) 2 "two notifications queued")
-(assert-equal (car (car *notification-queue*)) "Second" "first queued message is 'Second'")
-(assert-equal (cdr (car *notification-queue*)) 2000 "first queued timeout is 2000")
+(assert-equal (caar *notification-queue*) "Second" "first queued message is 'Second'")
+(assert-equal (cdar *notification-queue*) 2000 "first queued timeout is 2000")
 (assert-equal (car (list-ref *notification-queue* 1)) "Third" "second queued message is 'Third'")
 (assert-equal (cdr (list-ref *notification-queue* 1)) 3000 "second queued timeout is 3000")
 
@@ -84,7 +84,7 @@
 ;; Now "Second" should be showing, "Third" in queue
 (assert-true (notification-active?) "still active after dismiss (next notification)")
 (assert-equal (length *notification-queue*) 1 "one in queue after dismiss")
-(assert-equal (car (car *notification-queue*)) "Third" "Third is now queued")
+(assert-equal (caar *notification-queue*) "Third" "Third is now queued")
 
 ;; Dismiss again
 (notification-dismiss)
@@ -109,7 +109,7 @@
 ;; But since it shows immediately, we need to queue another to see the timeout
 (notify "Second with default")
 
-(assert-equal (cdr (car *notification-queue*)) 9999 "default timeout used")
+(assert-equal (cdar *notification-queue*) 9999 "default timeout used")
 
 ;; Restore
 (set! *notification-timeout* original-timeout)

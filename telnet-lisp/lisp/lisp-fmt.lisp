@@ -66,13 +66,13 @@
 
 (defun rs-pos (state) (port-position (rs-port state)))
 
-(defun rs-line (state) (car (cdr state)))
+(defun rs-line (state) (cadr state))
 
-(defun rs-col (state) (car (cdr (cdr state))))
+(defun rs-col (state) (caddr state))
 
 (defun rs-set-line! (state line) (set-car! (cdr state) line))
 
-(defun rs-set-col! (state col) (set-car! (cdr (cdr state)) col))
+(defun rs-set-col! (state col) (set-car! (cddr state) col))
 
 (defun reader-peek (state)
   "Return current character without advancing, or nil at EOF."
@@ -110,13 +110,13 @@
 
 (defun token-type (tok) (car tok))
 
-(defun token-value (tok) (car (cdr tok)))
+(defun token-value (tok) (cadr tok))
 
-(defun token-comment (tok) (car (cdr (cdr tok))))
+(defun token-comment (tok) (caddr tok))
 
-(defun token-line (tok) (car (cdr (cdr (cdr tok)))))
+(defun token-line (tok) (cadddr tok))
 
-(defun token-col (tok) (car (cdr (cdr (cdr (cdr tok))))))
+(defun token-col (tok) (car (cddr (cddr tok))))
 
 ;;; ----------------------------------------------------------------------------
 ;;; Comment Reading
@@ -368,17 +368,17 @@
   "Check if OBJ is an annotated expression."
   (and (pair? obj) (eq? (car obj) 'annotated)))
 
-(defun ann-value (ann) (car (cdr ann)))
+(defun ann-value (ann) (cadr ann))
 
-(defun ann-before (ann) (car (cdr (cdr ann))))
+(defun ann-before (ann) (caddr ann))
 
-(defun ann-after (ann) (car (cdr (cdr (cdr ann)))))
+(defun ann-after (ann) (cadddr ann))
 
-(defun ann-original-form (ann) (car (cdr (cdr (cdr (cdr ann))))))
+(defun ann-original-form (ann) (car (cddr (cddr ann))))
 
 (defun ann-set-after! (ann comment)
   "Set the inline comment on an annotated expression."
-  (set-car! (cdr (cdr (cdr ann))) comment))
+  (set-car! (cdr (cddr ann)) comment))
 
 ;;; Comment access functions for annotated expressions
 ;;; These are called by the formatter
@@ -402,11 +402,11 @@
 
 (defun parser-reader (pstate) (car pstate))
 
-(defun parser-current (pstate) (car (cdr pstate)))
+(defun parser-current (pstate) (cadr pstate))
 
-(defun parser-last-inline (pstate) (car (cdr (cdr pstate))))
+(defun parser-last-inline (pstate) (caddr pstate))
 
-(defun parser-set-last-inline! (pstate val) (set-car! (cdr (cdr pstate)) val))
+(defun parser-set-last-inline! (pstate val) (set-car! (cddr pstate) val))
 
 (defun parser-advance! (pstate)
   "Consume current token and read next. Returns consumed token.
@@ -617,17 +617,17 @@
 
 (defun lb-base-indent (lb) (car lb))
 
-(defun lb-lines (lb) (car (cdr lb)))
+(defun lb-lines (lb) (cadr lb))
 
-(defun lb-parts (lb) (car (cdr (cdr lb))))
+(defun lb-parts (lb) (caddr lb))
 
-(defun lb-col (lb) (car (cdr (cdr (cdr lb)))))
+(defun lb-col (lb) (cadddr lb))
 
 (defun lb-set-lines! (lb val) (set-car! (cdr lb) val))
 
-(defun lb-set-parts! (lb val) (set-car! (cdr (cdr lb)) val))
+(defun lb-set-parts! (lb val) (set-car! (cddr lb) val))
 
-(defun lb-set-col! (lb val) (set-car! (cdr (cdr (cdr lb))) val))
+(defun lb-set-col! (lb val) (set-car! (cdr (cddr lb)) val))
 
 (defun lb-append! (lb str)
   "Append a string to the current line."
@@ -695,7 +695,7 @@
 (defun quote-shorthand? (sexp sym)
   "Check if sexp is (SYM x) - a two-element list starting with SYM."
   (and (pair? sexp) (symbol? (car sexp)) (eq? (car sexp) sym)
-       (pair? (cdr sexp)) (null? (cdr (cdr sexp)))))
+       (pair? (cdr sexp)) (null? (cddr sexp))))
 
 (defun sexp-to-string (sexp)
   "Convert s-expression to single-line string representation."
@@ -713,14 +713,12 @@
     ((char? sexp) (format nil "~S" sexp))
     ((vector? sexp) (vector-to-string sexp))
     ;; Quote/quasiquote shorthand - check before generic list handling
-    ((quote-shorthand? sexp 'quote)
-     (concat "'" (sexp-to-string (car (cdr sexp)))))
+    ((quote-shorthand? sexp 'quote) (concat "'" (sexp-to-string (cadr sexp))))
     ((quote-shorthand? sexp 'quasiquote)
-     (concat "`" (sexp-to-string (car (cdr sexp)))))
-    ((quote-shorthand? sexp 'unquote)
-     (concat "," (sexp-to-string (car (cdr sexp)))))
+     (concat "`" (sexp-to-string (cadr sexp))))
+    ((quote-shorthand? sexp 'unquote) (concat "," (sexp-to-string (cadr sexp))))
     ((quote-shorthand? sexp 'unquote-splicing)
-     (concat ",@" (sexp-to-string (car (cdr sexp)))))
+     (concat ",@" (sexp-to-string (cadr sexp))))
     ((list? sexp) (list-to-string sexp))
     ((pair? sexp) (list-to-string sexp))
     (#t (format nil "~A" sexp))))
@@ -962,7 +960,7 @@
 
 (defun format-quoted-list (lst indent)
   "Format quoted list like '(a b c ...)."
-  (let* ((inner (car (cdr lst)))
+  (let* ((inner (cadr lst))
          ;; Format with indent+1 to account for the quote character
          (inner-fmt (format-sexp inner (+ indent 1))))
     ;; Always keep quote attached to content
@@ -970,14 +968,14 @@
 
 (defun format-quasiquoted-expr (lst indent)
   "Format quasiquoted expression like `(...)."
-  (let* ((inner (car (cdr lst)))
+  (let* ((inner (cadr lst))
          ;; Format with indent+1 to account for the backtick character
          (inner-fmt (format-sexp inner (+ indent 1))))
     (concat "`" inner-fmt)))
 
 (defun format-unquoted-expr (lst indent prefix)
   "Format unquoted expression with PREFIX (, or ,@)."
-  (let* ((inner (car (cdr lst)))
+  (let* ((inner (cadr lst))
          ;; Format with indent + prefix length
          (inner-fmt (format-sexp inner (+ indent (length prefix)))))
     (concat prefix inner-fmt)))
@@ -1014,10 +1012,10 @@
          ;; Track existence of parts, not just values (nil is a valid value!)
          (has-condition (pair? rest))
          (has-then (and has-condition (pair? (cdr rest))))
-         (has-else (and has-then (pair? (cdr (cdr rest)))))
+         (has-else (and has-then (pair? (cddr rest))))
          (condition (if has-condition (car rest) nil))
-         (then-part (if has-then (car (cdr rest)) nil))
-         (else-part (if has-else (car (cdr (cdr rest))) nil))
+         (then-part (if has-then (cadr rest) nil))
+         (else-part (if has-else (caddr rest) nil))
          (body-indent (+ indent *indent-size*))
          (lb (lb-create indent)))
     ;; Start: (if
@@ -1141,7 +1139,7 @@
   "Check if sexps looks like a list of multiple expressions.
    Returns #t if sexps is a list where first element is also a list
    starting with a symbol (common pattern for top-level forms)."
-  (and (pair? sexps) (pair? (car sexps)) (symbol? (car (car sexps)))))
+  (and (pair? sexps) (pair? (car sexps)) (symbol? (caar sexps))))
 
 (defun format-file (filename)
   "Format a Lisp file and return formatted content as string."
