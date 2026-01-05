@@ -17,88 +17,51 @@
 ;;;
 ;;; To remove an override:
 ;;;   (spell-remove "garbled-word")
-
 ;;; ============================================================================
 ;;; Reverse Cipher Tables (ROM 2.4 magic.c)
 ;;; ============================================================================
-
 ;; Reverse syllable table - sorted by length (longest first for greedy matching)
 ;; Original ROM: ar→abra, au→kada, etc. This is the reverse.
 (define *spell-reverse-syllables*
-  '(("candus" . "re")
-     ("oculo" . "de")
-     ("sabru" . "son")
-     ("infra" . "tect")
-     ("lacri" . "ness")
-     ("abra" . "ar")
-     ("kada" . "au")
-     ("fido" . "bless")
-     ("nose" . "blind")
-     ("mosa" . "bur")
-     ("judi" . "cu")
-     ("unso" . "en")
-     ("dies" . "light")
-     ("sido" . "move")
-     ("illa" . "ning")
-     ("duda" . "per")
-     ("cula" . "tri")
-     ("nofo" . "ven")
-     ("gru" . "ra")
-     ("ima" . "fresh")
-     ("zak" . "mor")
-     ("hi" . "lo")))
+  '(("candus" . "re") ("oculo" . "de") ("sabru" . "son") ("infra" . "tect")
+    ("lacri" . "ness") ("abra" . "ar") ("kada" . "au") ("fido" . "bless")
+    ("nose" . "blind") ("mosa" . "bur") ("judi" . "cu") ("unso" . "en")
+    ("dies" . "light") ("sido" . "move") ("illa" . "ning") ("duda" . "per")
+    ("cula" . "tri") ("nofo" . "ven") ("gru" . "ra") ("ima" . "fresh")
+    ("zak" . "mor") ("hi" . "lo")))
 
 ;; Reverse single-character table
 ;; Ambiguous mappings (a→a/o, z→e/v, y→f/j) default to most common letter
 (define *spell-reverse-chars*
-  '((#\a . #\a)  ; ambiguous: could be 'o', defaulting to 'a'
-     (#\b . #\b)
-     (#\q . #\c)
-     (#\e . #\d)
-     (#\z . #\e)  ; ambiguous: could be 'v', defaulting to 'e'
-     (#\y . #\f)  ; ambiguous: could be 'j', defaulting to 'f'
-     (#\o . #\g)
-     (#\p . #\h)
-     (#\u . #\i)
-     (#\t . #\k)
-     (#\r . #\l)
-     (#\w . #\m)
-     (#\i . #\n)
-     (#\s . #\p)
-     (#\d . #\q)
-     (#\f . #\r)
-     (#\g . #\s)
-     (#\h . #\t)
-     (#\j . #\u)
-     (#\n . #\x)
-     (#\l . #\y)
-     (#\k . #\z)
-     (#\x . #\w)
-     (#\c . #\c)  ; fallback - not in original cipher
-     (#\m . #\m)  ; fallback - not in original cipher
-     (#\v . #\v))); fallback - not in original cipher
+  '((#\a . #\a) ; ambiguous: could be 'o', defaulting to 'a'
+    (#\b . #\b) (#\q . #\c) (#\e . #\d) (#\z . #\e) ; ambiguous: could be 'v', defaulting to 'e'
+    (#\y . #\f) ; ambiguous: could be 'j', defaulting to 'f'
+    (#\o . #\g) (#\p . #\h) (#\u . #\i) (#\t . #\k) (#\r . #\l) (#\w . #\m)
+    (#\i . #\n) (#\s . #\p) (#\d . #\q) (#\f . #\r) (#\g . #\s) (#\h . #\t)
+    (#\j . #\u) (#\n . #\x) (#\l . #\y) (#\k . #\z) (#\x . #\w) (#\c . #\c) ; fallback - not in original cipher
+    (#\m . #\m) ; fallback - not in original cipher
+    (#\v . #\v))) ; fallback - not in original cipher
 
 ;;; ============================================================================
 ;;; Known Spell Words (skip translation for same-class visibility)
 ;;; ============================================================================
-
 ;; When you're the same class as the caster, you see the real spell name.
 ;; If any word in the utterance matches a known spell word, skip translation.
 (define *known-spell-words*
-  '("acid" "align" "armor" "aura" "barrier" "benediction" "blast" "bless" "blind" "bolt" "breath"
-     "burn" "call" "calm" "cancel" "cause" "chain" "change" "charm" "chill"
-     "colour" "continual" "control" "create" "critical" "cure" "curse" "demon"
-     "detect" "disease" "dispel" "disrupt" "door" "drain" "earth" "enchant" "energy"
-     "evil" "exorcism" "explosive" "faerie" "farsight" "fire" "flame" "fly"
-     "fog" "food" "frenzy" "frost" "gas" "gate" "giant" "good" "grasp"
-     "hands" "harm" "haste" "heal" "heat" "hidden" "high" "holy" "identify"
-     "infravision" "invis" "know" "light" "locate" "magic" "mass" "metal"
-     "missile" "negative" "neuro" "nexus" "object" "pass" "person" "plague"
-     "poison" "positive" "portal" "protection" "ray" "recall" "recharge" "refresh"
-     "remove" "resist" "restoration" "resurrection" "rose" "sanctuary" "serious" "sex"
-     "shield" "shock" "skin" "sleep" "slow" "spray" "spring" "stone"
-     "strength" "summon" "tele" "touch" "truth" "ventriloquate" "water" "weaken"
-     "weapon" "weather" "word" "wrath"))
+  '("acid" "align" "armor" "aura" "barrier" "benediction" "blast" "bless"
+    "blind" "bolt" "breath" "burn" "call" "calm" "cancel" "cause" "chain"
+    "change" "charm" "chill" "colour" "continual" "control" "create" "critical"
+    "cure" "curse" "demon" "detect" "disease" "dispel" "disrupt" "door" "drain"
+    "earth" "enchant" "energy" "evil" "exorcism" "explosive" "faerie"
+    "farsight" "fire" "flame" "fly" "fog" "food" "frenzy" "frost" "gas" "gate"
+    "giant" "good" "grasp" "hands" "harm" "haste" "heal" "heat" "hidden" "high"
+    "holy" "identify" "infravision" "invis" "know" "light" "locate" "magic"
+    "mass" "metal" "missile" "negative" "neuro" "nexus" "object" "pass"
+    "person" "plague" "poison" "positive" "portal" "protection" "ray" "recall"
+    "recharge" "refresh" "remove" "resist" "restoration" "resurrection" "rose"
+    "sanctuary" "serious" "sex" "shield" "shock" "skin" "sleep" "slow" "spray"
+    "spring" "stone" "strength" "summon" "tele" "touch" "truth" "ventriloquate"
+    "water" "weaken" "weapon" "weather" "word" "wrath"))
 
 ;; Check if utterance contains any known spell word
 (defun known-spell? (phrase)
@@ -124,31 +87,39 @@
   "Recursively check if any word matches *known-spell-words*"
   (if (null? words)
     nil
-    (if (word-matches-known? (car words))
-      #t
-      (known-spell-helper? (cdr words)))))
+    (if (word-matches-known? (car words)) #t (known-spell-helper? (cdr words)))))
 
 ;;; ============================================================================
 ;;; Dictionary Overrides
 ;;; ============================================================================
-
 ;; Hash table for word overrides (garbled → correct)
 ;; Users can add entries with (spell-add "garbled" "correct")
 (define *spell-dictionary* (make-hash-table))
 
 ;; Built-in overrides for common spells affected by ambiguity
-(hash-set! *spell-dictionary* "qaiyjcandus" "conjure")  ; canfure → conjure
-(hash-set! *spell-dictionary* "eaaf" "door")            ; daar → door
-(hash-set! *spell-dictionary* "barh" "bolt")            ; balt → bolt
-(hash-set! *spell-dictionary* "bajroculof" "boulder")   ; baulder → boulder
-(hash-set! *spell-dictionary* "aiqpaf" "anchor")        ; anchar → anchor
-(hash-set! *spell-dictionary* "abraqpai" "archon")      ; archan → archon
-(hash-set! *spell-dictionary* "uizug" "invis")          ; ineis → invis
-(hash-set! *spell-dictionary* "aiozr" "angel")          ; ansel → angel
+(hash-set! *spell-dictionary* "qaiyjcandus" "conjure") ; canfure → conjure
+
+(hash-set! *spell-dictionary* "eaaf" "door") ; daar → door
+
+(hash-set! *spell-dictionary* "barh" "bolt") ; balt → bolt
+
+(hash-set! *spell-dictionary* "bajroculof" "boulder") ; baulder → boulder
+
+(hash-set! *spell-dictionary* "aiqpaf" "anchor") ; anchar → anchor
+
+(hash-set! *spell-dictionary* "abraqpai" "archon") ; archan → archon
+
+(hash-set! *spell-dictionary* "uizug" "invis") ; ineis → invis
+
+(hash-set! *spell-dictionary* "aiozr" "angel") ; ansel → angel
+
 (hash-set! *spell-dictionary* "uiygruzuguai" "infravision") ; infraeisian → infravision
-(hash-set! *spell-dictionary* "zawsufuq" "vampiric")    ; eampiric → vampiric
+
+(hash-set! *spell-dictionary* "zawsufuq" "vampiric") ; eampiric → vampiric
+
 (hash-set! *spell-dictionary* "izjfahiouqar" "neurological") ; neuralogical → neurological
-(hash-set! *spell-dictionary* "eugfjshuai" "disruption")     ; disruptian → disruption
+
+(hash-set! *spell-dictionary* "eugfjshuai" "disruption") ; disruptian → disruption
 
 ;; Add a custom word override
 (defun spell-add (garbled correct)
@@ -169,14 +140,10 @@
 ;;; ============================================================================
 ;;; Translation Functions
 ;;; ============================================================================
-
 ;; Translate a single character using the reverse cipher
 (defun translate-garbled-char (c)
   "Translate a single garbled character to original"
-  (let ((pair (assoc c *spell-reverse-chars*)))
-    (if pair
-      (cdr pair)
-      c)))  ; Unknown chars pass through unchanged
+  (let ((pair (assoc c *spell-reverse-chars*))) (if pair (cdr pair) c))) ; Unknown chars pass through unchanged
 
 ;; Helper to recursively search through syllables for a match
 (defun try-match-syllable-helper (word-lower i len syllables)
@@ -184,12 +151,12 @@
   (if (null? syllables)
     nil
     (let* ((pair (car syllables))
-            (garbled (car pair))
-            (original (cdr pair))
-            (garbled-len (length garbled)))
-      (if (and (<= (+ i garbled-len) len)
-            (string=? (substring word-lower i (+ i garbled-len))
-              garbled))
+           (garbled (car pair))
+           (original (cdr pair))
+           (garbled-len (length garbled)))
+      (if
+        (and (<= (+ i garbled-len) len)
+         (string=? (substring word-lower i (+ i garbled-len)) garbled))
         (cons original garbled-len)
         (try-match-syllable-helper word-lower i len (cdr syllables))))))
 
@@ -209,16 +176,12 @@
     (let ((syllable-match (try-match-syllable word-lower i len)))
       (if syllable-match
         ;; Matched a syllable - advance by syllable length
-        (translate-word-helper word-lower
-          (+ i (cdr syllable-match))
-          len
-          (cons (car syllable-match) acc))
+        (translate-word-helper word-lower (+ i (cdr syllable-match)) len
+         (cons (car syllable-match) acc))
         ;; No syllable - translate single char
         (let ((c (string-ref word-lower i)))
-          (translate-word-helper word-lower
-            (+ i 1)
-            len
-            (cons (char->string (translate-garbled-char c)) acc)))))))
+          (translate-word-helper word-lower (+ i 1) len
+           (cons (char->string (translate-garbled-char c)) acc)))))))
 
 ;; Translate a single word using greedy syllable matching + char fallback
 (defun translate-garbled-word (word)
@@ -240,15 +203,14 @@
 ;;; ============================================================================
 ;;; Filter Hook
 ;;; ============================================================================
-
 ;; Regex pattern for spell utterances
 ;; Matches: "Name utters the words, 'garbled text'."
 ;; Captures: (1) full match, (2) name, (3) garbled text
-(define *spell-utter-pattern*
-  "([A-Za-z' ]+) utters the words, '([^']+)'\\.")
+(define *spell-utter-pattern* "([A-Za-z' ]+) utters the words, '([^']+)'\\.")
 
 ;; Muted magic purple color for translations
 (define *spell-color* "\033[38;2;147;112;219m")
+
 (define *spell-color-reset* "\033[0m")
 
 ;; Filter function for telnet-input-filter-hook
@@ -256,7 +218,7 @@
   "Weave spell translation into utterance lines"
   ;; Strip ANSI codes for matching, but use original text for replacement
   (let* ((clean-text (strip-ansi text))
-          (groups (regex-extract *spell-utter-pattern* clean-text)))
+         (groups (regex-extract *spell-utter-pattern* clean-text)))
     (if groups
       ;; Found an utterance - check if it needs translation
       (let ((garbled (car (cdr groups))))
@@ -266,21 +228,23 @@
           ;; Garbled text - translate and weave in after the spell
           (let ((translated (translate-garbled-phrase garbled)))
             ;; Replace the period with " (translation)."
-            (regex-replace
-              "'\\.$"
-              text
-              (string-append "' " *spell-color* "(" translated ")" *spell-color-reset* ".")))))
+            (regex-replace "'\\.$" text
+             (string-append "' " *spell-color* "(" translated ")"
+              *spell-color-reset* ".")))))
       ;; No match - pass through unchanged
       text)))
 
 ;;; ============================================================================
 ;;; Hook Registration
 ;;; ============================================================================
-
 ;; Register the filter hook
 (add-hook 'telnet-input-filter-hook 'spell-translator-filter)
 
 ;; Startup message
-(terminal-echo "Spell translator loaded. Utterances will be translated automatically.\r\n")
+(terminal-echo
+ "Spell translator loaded. Utterances will be translated automatically.\r\n")
+
 (terminal-echo "  Add overrides: (spell-add \"garbled\" \"correct\")\r\n")
+
 (terminal-echo "  Remove:        (spell-remove \"garbled\")\r\n")
+

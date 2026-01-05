@@ -219,6 +219,9 @@ int main(int argc, char **argv) {
     Environment *env = env_create_global();
     g_env = env; /* Store globally for completion callback */
 
+    /* Always define *command-line-args* - will be updated if script args provided via -- */
+    env_define(env, "*command-line-args*", NIL);
+
     /* Handle -e/--eval/-c flag for executing code from command line */
     if (argc > 2 && (strcmp(argv[1], "-e") == 0 || strcmp(argv[1], "--eval") == 0 || strcmp(argv[1], "-c") == 0)) {
         const char *code = argv[2];
@@ -274,14 +277,15 @@ int main(int argc, char **argv) {
         /* Determine which files to execute and set up script args */
         int file_end = (separator_pos > 0) ? separator_pos : argc;
 
-        /* If we have script arguments (after --), define *command-line-args* */
+        /* Update *command-line-args* if there are args after -- */
         if (separator_pos > 0) {
             LispObject *args_list = argv_to_list(separator_pos + 1, argc, argv);
-            env_define(env, "*command-line-args*", args_list);
+            env_set(env, "*command-line-args*", args_list);
         }
 
         for (int i = 1; i < file_end; i++) {
-            FILE *file = file_open(argv[i], "r");
+            /* Use binary mode to avoid ftell/fread size mismatch with CRLF translation */
+            FILE *file = file_open(argv[i], "rb");
             if (file == NULL) {
                 fprintf(stderr, "ERROR: Cannot open file: %s\n", argv[i]);
                 return 1;
@@ -293,8 +297,8 @@ int main(int argc, char **argv) {
             fseek(file, 0, SEEK_SET);
 
             char *buffer = GC_malloc(size + 1);
-            fread(buffer, 1, size, file);
-            buffer[size] = '\0';
+            size_t actual_read = fread(buffer, 1, size, file);
+            buffer[actual_read] = '\0';
             fclose(file);
 
             /* Evaluate and print each expression */

@@ -1,7 +1,6 @@
 ;; UTF-8 String Operations
 ;; Demonstrates character-based (not byte-based) string operations with Unicode
 ;; The language handles multi-byte UTF-8 sequences correctly
-
 (load "tests/test-helpers.lisp")
 
 ;; Test string with mixed scripts: ASCII, Chinese, emoji
@@ -16,10 +15,13 @@
 
 ;; Get character at specific index (returns character type)
 (assert-equal (string-ref test_str 0) #\H "string-ref ASCII character")
-(assert-equal (string-ref test_str 7) (code-char 19990) "string-ref Chinese character")
+
+(assert-equal (string-ref test_str 7) (code-char 19990)
+ "string-ref Chinese character")
 
 ;; Test with emoji (composed of multiple UTF-8 bytes)
 (define emoji_str "Hello 🚀 World")
+
 (assert-equal (length emoji_str) 13 "string length with emoji")
 
 ;; Extract just the emoji by character index
@@ -34,6 +36,13 @@
 ;; String transformations with UTF-8
 ;; Note: Case conversion only works for ASCII characters, Unicode is preserved
 (assert-equal (string-upcase "hello 世界") "HELLO 世界" "upcase preserves Unicode")
-(assert-equal (string-downcase "HELLO 世界") "hello 世界" "downcase preserves Unicode")
-(assert-equal (string-replace "hello 世界" "世界" "universe") "hello universe" "replace Chinese characters")
-(assert-equal (string-replace "hello 世界" "o" "O") "hellO 世界" "replace ASCII in UTF-8 string")
+
+(assert-equal (string-downcase "HELLO 世界") "hello 世界"
+ "downcase preserves Unicode")
+
+(assert-equal (string-replace "hello 世界" "世界" "universe") "hello universe"
+ "replace Chinese characters")
+
+(assert-equal (string-replace "hello 世界" "o" "O") "hellO 世界"
+ "replace ASCII in UTF-8 string")
+

@@ -2,6 +2,64 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <time.h>
+#endif
+
+/* Global profiling state */
+ProfileState g_profile_state = {0, NULL, 0};
+
+/* Get current time in nanoseconds */
+uint64_t profile_get_time_ns(void) {
+#ifdef _WIN32
+    static LARGE_INTEGER freq = {0};
+    if (freq.QuadPart == 0) {
+        QueryPerformanceFrequency(&freq);
+    }
+    LARGE_INTEGER counter;
+    QueryPerformanceCounter(&counter);
+    return (uint64_t)(counter.QuadPart * 1000000000ULL / freq.QuadPart);
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
+#endif
+}
+
+/* Find or create profile entry for function */
+static ProfileEntry *profile_find_or_create(const char *function_name) {
+    ProfileEntry *entry = g_profile_state.entries;
+    while (entry != NULL) {
+        if (strcmp(entry->function_name, function_name) == 0) {
+            return entry;
+        }
+        entry = entry->next;
+    }
+    /* Create new entry */
+    entry = GC_malloc(sizeof(ProfileEntry));
+    entry->function_name = GC_strdup(function_name);
+    entry->call_count = 0;
+    entry->total_time_ns = 0;
+    entry->next = g_profile_state.entries;
+    g_profile_state.entries = entry;
+    return entry;
+}
+
+/* Record a function call with elapsed time */
+void profile_record(const char *function_name, uint64_t elapsed_ns) {
+    ProfileEntry *entry = profile_find_or_create(function_name);
+    entry->call_count++;
+    entry->total_time_ns += elapsed_ns;
+}
+
+/* Reset profiling data */
+void profile_reset(void) {
+    g_profile_state.entries = NULL;
+    g_profile_state.start_time_ns = 0;
+}
+
 Environment *env_create(Environment *parent) {
     Environment *env = GC_malloc(sizeof(Environment));
     env->bindings = NULL;
@@ -71,11 +129,21 @@ void push_call_frame(Environment *env, const char *function_name) {
     CallStackFrame *frame = GC_malloc(sizeof(CallStackFrame));
     frame->function_name = GC_strdup(function_name);
     frame->parent = env->call_stack;
+    frame->entry_time_ns = 0;
+
+    if (g_profile_state.enabled) {
+        frame->entry_time_ns = profile_get_time_ns();
+    }
+
     env->call_stack = frame;
 }
 
 void pop_call_frame(Environment *env) {
     if (env->call_stack != NULL) {
+        if (g_profile_state.enabled && env->call_stack->entry_time_ns != 0) {
+            uint64_t elapsed = profile_get_time_ns() - env->call_stack->entry_time_ns;
+            profile_record(env->call_stack->function_name, elapsed);
+        }
         env->call_stack = env->call_stack->parent;
     }
 }

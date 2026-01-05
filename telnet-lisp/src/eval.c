@@ -64,6 +64,7 @@ static LispObject *lisp_eval_internal(LispObject *expr, Environment *env, int in
     case LISP_LAMBDA:
     case LISP_MACRO:
     case LISP_FILE_STREAM:
+    case LISP_STRING_PORT:
     case LISP_VECTOR:
     case LISP_HASH_TABLE:
         return expr;

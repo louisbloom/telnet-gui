@@ -21,39 +21,31 @@
 ;;   You scan south.
 ;;   ...
 ;;   <prompt ends scan>
-
 ;; ============================================================================
 ;; STATE VARIABLES
 ;; ============================================================================
-
-(defvar *scan-state* 'idle
-  "Current scan state: 'idle or 'scanning")
+(defvar *scan-state* 'idle "Current scan state: 'idle or 'scanning")
 
 (defvar *scan-direction* nil
   "Current scan direction: \"n\", \"s\", \"e\", \"w\", \"u\", \"d\"")
 
-(defvar *scan-range* 0
-  "Current range number from scan output")
+(defvar *scan-range* 0 "Current range number from scan output")
 
-(defvar *scan-best-path* nil
-  "Best (shortest) path found to target so far")
+(defvar *scan-best-path* nil "Best (shortest) path found to target so far")
 
-(defvar *scan-best-range* 999
-  "Best (lowest) range found to target so far")
+(defvar *scan-best-range* 999 "Best (lowest) range found to target so far")
 
 ;; ============================================================================
 ;; DIRECTION MAPPING
 ;; ============================================================================
-
 (defvar *scan-direction-map*
-  '(("north" . "n") ("south" . "s") ("east" . "e")
-     ("west" . "w") ("up" . "u") ("down" . "d"))
+  '(("north" . "n") ("south" . "s") ("east" . "e") ("west" . "w") ("up" . "u")
+    ("down" . "d"))
   "Map full direction names to speedwalk abbreviations")
 
 ;; ============================================================================
 ;; HELPER FUNCTIONS
 ;; ============================================================================
-
 (defun scan-tracker-get-direction-abbrev (full-name)
   "Convert full direction name to abbreviation (e.g., \"north\" -> \"n\")"
   (let ((entry (assoc full-name *scan-direction-map*)))
@@ -66,70 +58,58 @@
 ;; ============================================================================
 ;; LINE PROCESSING
 ;; ============================================================================
-
 (defun scan-tracker-process-line (line)
   "Process a single line of scan output"
   (cond
     ;; "You scan <direction>." - start/continue scanning
     ((regex-match? "^You scan (north|south|east|west|up|down)\\." line)
-      (let ((captures (regex-extract "^You scan (\\w+)\\." line)))
-        (when captures
-          (set! *scan-state* 'scanning)
-          (set! *scan-direction* (scan-tracker-get-direction-abbrev (car captures)))
-          (set! *scan-range* 0))))
-
+     (let ((captures (regex-extract "^You scan (\\w+)\\." line)))
+       (when captures (set! *scan-state* 'scanning)
+         (set! *scan-direction*
+          (scan-tracker-get-direction-abbrev (car captures)))
+         (set! *scan-range* 0))))
     ;; "***** Range N *****" - update range
     ((regex-match? "^\\*+ Range (\\d+) \\*+$" line)
-      (when (eq? *scan-state* 'scanning)
-        (let ((captures (regex-extract "Range (\\d+)" line)))
-          (when captures
-            (set! *scan-range* (string->number (car captures)))))))
-
+     (when (eq? *scan-state* 'scanning)
+       (let ((captures (regex-extract "Range (\\d+)" line)))
+         (when captures (set! *scan-range* (string->number (car captures)))))))
     ;; Prompt line - end scan, finalize result
     ((regex-match? "<\\d+%hp" line)
-      (when (eq? *scan-state* 'scanning)
-        (scan-tracker-finalize)))
-
+     (when (eq? *scan-state* 'scanning) (scan-tracker-finalize)))
     ;; Any other line while scanning - check for target
-    ((eq? *scan-state* 'scanning)
-      (scan-tracker-check-target line))))
+    ((eq? *scan-state* 'scanning) (scan-tracker-check-target line))))
 
 ;; ============================================================================
 ;; TARGET CHECKING
 ;; ============================================================================
-
 (defun scan-tracker-check-target (line)
   "Check if line contains the target, record path if found"
   (let ((target (hash-ref *tintin-variables* "target")))
-    (when (and target
-            (string? target)
-            (> (length target) 0)
-            *scan-direction*
-            (> *scan-range* 0)
-            (scan-tracker-string-contains-ci line target))
+    (when
+      (and target (string? target) (> (length target) 0) *scan-direction*
+       (> *scan-range* 0) (scan-tracker-string-contains-ci line target))
       ;; Found target - record if this is the closest so far
       (when (< *scan-range* *scan-best-range*)
         (set! *scan-best-range* *scan-range*)
         (set! *scan-best-path*
-          (concat (number->string *scan-range*) *scan-direction*))))))
+         (concat (number->string *scan-range*) *scan-direction*))))))
 
 ;; ============================================================================
 ;; FINALIZATION
 ;; ============================================================================
-
 (defun scan-tracker-finalize ()
   "Finalize scan: set $target_path, echo result, and reset state"
   (let ((target (hash-ref *tintin-variables* "target"))
-         (path *scan-best-path*))
+        (path *scan-best-path*))
     ;; Set $target_path to best path found (or empty string if not found)
     (hash-set! *tintin-variables* "target_path" (if path path ""))
     ;; Show result in notification row (only highlight when found)
     (when (and target (string? target) (> (length target) 0))
       (if path
         ;; Found - green text with yellow path
-        (notify (concat "\033[32m[Scan] \033[1m" target
-                  "\033[0m\033[32m found: \033[1;33m"
-                  path "\033[0m"))
+        (notify
+         (concat "\033[32m[Scan] \033[1m" target
+          "\033[0m\033[32m found: \033[1;33m" path "\033[0m"))
         ;; Not found - default color
         (notify (concat "[Scan] " target " not found")))))
   ;; Reset state for next scan
@@ -142,17 +122,15 @@
 ;; ============================================================================
 ;; MAIN HOOK
 ;; ============================================================================
-
 (defun scan-tracker-hook (text)
   "Process telnet input looking for scan output to track target.
 Called by telnet-input-hook for each chunk of server output."
   ;; Split text into lines and process each
   (let ((lines (regex-split "[\r\n]+" text)))
-    (do ((remaining lines (cdr remaining)))
-      ((null? remaining))
+    (do ((remaining lines (cdr remaining))) ((null? remaining))
       (let ((trimmed (string-trim (car remaining))))
-        (when (> (length trimmed) 0)
-          (scan-tracker-process-line trimmed))))))
+        (when (> (length trimmed) 0) (scan-tracker-process-line trimmed))))))
 
 ;; Register the hook
 (add-hook 'telnet-input-hook 'scan-tracker-hook)
+

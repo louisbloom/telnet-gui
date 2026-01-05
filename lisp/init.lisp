@@ -1,11 +1,9 @@
 ;; Bootstrap Lisp file for telnet-gui
 ;; This file is always loaded on startup before any user-provided Lisp file
 ;; All variables defined here can be overridden in your custom Lisp configuration file
-
 ;; ============================================================================
 ;; COMPLETION PATTERN CONFIGURATION
 ;; ============================================================================
-
 (defvar *completion-pattern* "\\S+$"
   "PCRE2 regex pattern that matches the text to complete.
 
@@ -32,7 +30,6 @@ command prefix that the user wants to complete.
 ;; ============================================================================
 ;; WORD STORE CONFIGURATION
 ;; ============================================================================
-
 (defvar *completion-word-store-size* 10000
   "Maximum number of words to store for completions.
 
@@ -62,7 +59,6 @@ to make room for new ones (FIFO - First In, First Out).
 ;; ============================================================================
 ;; TELNET I/O LOGGING CONFIGURATION
 ;; ============================================================================
-
 (defvar *enable-telnet-logging* #t
   "Enable/disable telnet I/O logging (both send and receive).")
 
@@ -73,7 +69,6 @@ Log filename format: telnet-<host>-<port>-<timestamp>.log")
 ;; ============================================================================
 ;; TCP KEEPALIVE CONFIGURATION
 ;; ============================================================================
-
 (defvar *tcp-keepalive-enabled* #t
   "Enable TCP keepalive probes on telnet connections.
 
@@ -155,7 +150,6 @@ or the connection is determined to be dead.
 ;; ============================================================================
 ;; WORD STORE HELPER FUNCTIONS
 ;; ============================================================================
-
 ;; Helper function to trim punctuation from word boundaries
 ;; Uses regex-replace to remove leading and trailing punctuation
 (defun trim-punctuation (word)
@@ -209,7 +203,7 @@ or the connection is determined to be dead.
   (if (not (and (string? word) (> (length word) 0)))
     ""
     (let* ((no-trailing (regex-replace "[.,!?;:()\\[\\]{}'\"\\-]+$" word ""))
-            (cleaned (regex-replace "^[.,!?;:()\\[\\]{}'\"\\-]+" no-trailing "")))
+           (cleaned (regex-replace "^[.,!?;:()\\[\\]{}'\"\\-]+" no-trailing "")))
       cleaned)))
 
 ;; Extract words from text as consecutive non-whitespace characters
@@ -246,9 +240,7 @@ or the connection is determined to be dead.
   ## See Also
   - `trim-punctuation` - Performs actual punctuation removal
   - `valid-word?` - Check if cleaned word is valid"
-  (if (and (string? word) (> (length word) 0))
-    (trim-punctuation word)
-    ""))
+  (if (and (string? word) (> (length word) 0)) (trim-punctuation word) ""))
 
 ;; Helper: Check if a cleaned word is valid for storage
 (defun valid-word? (cleaned)
@@ -279,8 +271,7 @@ or the connection is determined to be dead.
   ## See Also
   - `clean-word` - Cleans words before validation
   - `word-valid-for-store?` - Checks minimum length requirement"
-  (and (string? cleaned)
-    (> (length cleaned) 0)))
+  (and (string? cleaned) (> (length cleaned) 0)))
 
 ;; Helper: Process word list and filter valid words
 ;; Preserves left-to-right order so leftmost words are added first (oldest)
@@ -299,15 +290,10 @@ or the connection is determined to be dead.
   (if (not (string? text))
     '()
     (let ((words (regex-split "\\s+" text)))
-      (if (null? words)
-        '()
-        (filter-valid-words words)))))
+      (if (null? words) '() (filter-valid-words words)))))
 
 ;; Helper: Normalize circular buffer index to valid range
-(defun normalize-order-index (idx vec-size)
-  (if (>= idx vec-size)
-    0
-    idx))
+(defun normalize-order-index (idx vec-size) (if (>= idx vec-size) 0 idx))
 
 ;; Helper: Advance circular buffer index
 (defun advance-order-index (vec-size)
@@ -335,9 +321,7 @@ or the connection is determined to be dead.
       (hash-set! store new-word (+ count 1)))))
 
 ;; Helper: Check if word is valid for storage (length >= 3)
-(defun word-valid-for-store? (word)
-  (and (string? word)
-    (>= (length word) 3)))
+(defun word-valid-for-store? (word) (and (string? word) (>= (length word) 3)))
 
 ;; Add a word to the store (bounded by *completion-word-store-size*)
 ;; If store is full, removes oldest word (FIFO)
@@ -403,13 +387,14 @@ or the connection is determined to be dead.
   (if (not (word-valid-for-store? word))
     0
     (let* ((vec *completion-word-order*)
-            (vec-size (length vec)))
+           (vec-size (length vec)))
       ;; Normalize index BEFORE any vector-ref to avoid OOB
       (if (>= *completion-word-order-index* vec-size)
         (set! *completion-word-order-index* 0))
       ;; Always add word at newest position (even if duplicate)
-      (let* ((slot (normalize-order-index *completion-word-order-index* vec-size))
-              (old (vector-ref vec slot)))
+      (let* ((slot
+              (normalize-order-index *completion-word-order-index* vec-size))
+             (old (vector-ref vec slot)))
         (insert-word-into-slot! vec *completion-word-store* slot old word)
         (advance-order-index vec-size)
         1))))
@@ -474,41 +459,36 @@ or the connection is determined to be dead.
   (let ((words (extract-words text)))
     (if (null? words)
       ()
-      (do ((remaining words (cdr remaining)))
-        ((null? remaining))
+      (do ((remaining words (cdr remaining))) ((null? remaining))
         (add-word-to-store (car remaining))))))
 
 ;; Helper: Compute circular buffer index from position
 (defun compute-circular-index (pos vec-size)
-  (if (< pos 0)
-    (+ pos vec-size)
-    pos))
+  (if (< pos 0) (+ pos vec-size) pos))
 
 ;; Helper: Check if word matches prefix (case-insensitive) and not seen
 (defun word-matches-prefix? (word prefix-lower seen)
-  (and (string? word)
-    (string-prefix? prefix-lower (string-downcase word))
-    (null? (hash-ref seen word))))
+  (and (string? word) (string-prefix? prefix-lower (string-downcase word))
+   (null? (hash-ref seen word))))
 
 ;; Helper: Scan circular buffer for matching words (newest to oldest)
 ;; Returns (cons acc count) where acc is newest-first list of matches
-(defun scan-circular-buffer (vec vec-size start prefix-lower seen max-results)
+(defun scan-circular-buffer
+  (vec vec-size start prefix-lower seen max-results)
   (let ((acc '())
-         (count 0))
+        (count 0))
     (do ((i 0 (+ i 1)))
       ;; Reverse acc since we cons in reverse order (newest scanned = first in list)
       ((or (>= i vec-size) (>= count max-results)) (cons (reverse acc) count))
       (let* ((pos (- start 1 i))
-              (idx (compute-circular-index pos vec-size))
-              (k (vector-ref vec idx)))
+             (idx (compute-circular-index pos vec-size))
+             (k (vector-ref vec idx)))
         ;; Skip if word is nil or doesn't match
         (if (not (string? k))
           ()
           (if (not (word-matches-prefix? k prefix-lower seen))
             ()
-            (progn
-              (hash-set! seen k 1)
-              (set! acc (cons k acc))
+            (progn (hash-set! seen k 1) (set! acc (cons k acc))
               (set! count (+ count 1)))))))))
 
 ;; Helper: Fallback scan of hash keys for remaining matches
@@ -523,9 +503,7 @@ or the connection is determined to be dead.
           ;; Skip if word doesn't match
           (if (not (word-matches-prefix? k prefix-lower seen))
             ()
-            (progn
-              (hash-set! seen k 1)
-              (set! acc (cons k acc))
+            (progn (hash-set! seen k 1) (set! acc (cons k acc))
               (set! count (+ count 1)))))))))
 
 ;; Get all words from store that match a prefix (case-insensitive)
@@ -594,18 +572,21 @@ or the connection is determined to be dead.
   (if (not (and (string? prefix) (> (length prefix) 0)))
     '()
     (let* ((p (string-downcase prefix))
-            (vec *completion-word-order*)
-            (vec-size (length vec))
-            (start *completion-word-order-index*)
-            (seen (make-hash-table))
-            (result (scan-circular-buffer vec vec-size start p seen *completion-max-results*))
-            (acc (car result))
-            (count (cdr result)))
+           (vec *completion-word-order*)
+           (vec-size (length vec))
+           (start *completion-word-order-index*)
+           (seen (make-hash-table))
+           (result
+            (scan-circular-buffer vec vec-size start p seen
+             *completion-max-results*))
+           (acc (car result))
+           (count (cdr result)))
       ;; Return early if we found matches in circular buffer
       (if (> count 0)
         acc
         ;; Otherwise fallback to hash scan
-        (scan-hash-keys *completion-word-store* p seen acc count *completion-max-results*)))))
+        (scan-hash-keys *completion-word-store* p seen acc count
+         *completion-max-results*)))))
 
 ;; ============================================================================
 ;; EXTENSIBLE HOOK SYSTEM
@@ -613,7 +594,6 @@ or the connection is determined to be dead.
 ;; Emacs-style hook system allowing multiple functions per hook.
 ;; Hooks are stored as alists: ((hook-name . (sym1 sym2 ...)) ...)
 ;; Functions are identified by symbol, allowing reload without duplicates.
-
 (defun memq (item lst)
   "Return sublist starting at first eq? match, or nil if not found."
   (cond
@@ -686,31 +666,32 @@ without creating duplicate hook entries.
     (let ((entry (assoc hook-name *hooks*)))
       (if entry
         ;; Hook exists - add if symbol not already present
-        (unless (assoc fn-symbol (map (lambda (p) (cons (cdr p) (car p))) (cdr entry)))
+        (unless
+          (assoc fn-symbol
+           (map (lambda (p) (cons (cdr p) (car p))) (cdr entry)))
           ;; Insert in sorted order by priority
           (let ((new-pair (cons prio fn-symbol))
-                 (inserted #f)
-                 (new-list '()))
+                (inserted #f)
+                (new-list '()))
             ;; Build new list with insertion
-            (do ((pairs (cdr entry) (cdr pairs)))
-              ((null? pairs))
+            (do ((pairs (cdr entry) (cdr pairs))) ((null? pairs))
               (let ((cur (car pairs)))
                 (when (and (not inserted) (< prio (car cur)))
                   (set! new-list (cons new-pair new-list))
                   (set! inserted #t))
                 (set! new-list (cons cur new-list))))
             ;; Append at end if not inserted
-            (unless inserted
-              (set! new-list (cons new-pair new-list)))
+            (unless inserted (set! new-list (cons new-pair new-list)))
             ;; Update *hooks* with reversed list
             (set! *hooks*
-              (map (lambda (e)
-                     (if (eq? (car e) hook-name)
-                       (cons hook-name (reverse new-list))
-                       e))
-                *hooks*))))
+             (map
+              (lambda (e)
+                (if (eq? (car e) hook-name)
+                  (cons hook-name (reverse new-list))
+                  e)) *hooks*))))
         ;; New hook - create entry with priority pair
-        (set! *hooks* (cons (cons hook-name (list (cons prio fn-symbol))) *hooks*)))))
+        (set! *hooks*
+         (cons (cons hook-name (list (cons prio fn-symbol))) *hooks*)))))
   nil)
 
 (defun remove-hook (hook-name fn-symbol)
@@ -742,11 +723,12 @@ Removes the function symbol from the hook's list (regardless of priority).
     (when entry
       ;; Rebuild *hooks* filtering out pairs with matching fn-symbol
       (set! *hooks*
-        (map (lambda (e)
-               (if (eq? (car e) hook-name)
-                 (cons hook-name (filter (lambda (pair) (not (eq? (cdr pair) fn-symbol))) (cdr e)))
-                 e))
-          *hooks*))))
+       (map
+        (lambda (e)
+          (if (eq? (car e) hook-name)
+            (cons hook-name
+             (filter (lambda (pair) (not (eq? (cdr pair) fn-symbol))) (cdr e)))
+            e)) *hooks*))))
   nil)
 
 (defun run-hook (hook-name &rest args)
@@ -780,9 +762,8 @@ If the hook doesn't exist or has no functions, does nothing.
 - `remove-hook` - Remove a function from a hook"
   (let ((entry (assoc hook-name *hooks*)))
     (when entry
-      (do ((pairs (cdr entry) (cdr pairs)))
-        ((null? pairs))
-        (apply (eval (cdr (car pairs))) args))))  ;; Extract fn-symbol from (priority . fn-symbol)
+      (do ((pairs (cdr entry) (cdr pairs))) ((null? pairs))
+        (apply (eval (cdr (car pairs))) args)))) ;; Extract fn-symbol from (priority . fn-symbol)
   nil)
 
 (defun run-filter-hook (hook-name initial-value)
@@ -820,10 +801,9 @@ If the hook doesn't exist or has no functions, returns `initial-value` unchanged
 - `add-hook` - Add a function to a hook"
   (let ((entry (assoc hook-name *hooks*)))
     (if entry
-      (do ((pairs (cdr entry) (cdr pairs))
-            (result initial-value))
+      (do ((pairs (cdr entry) (cdr pairs)) (result initial-value))
         ((null? pairs) result)
-        (set! result ((eval (cdr (car pairs))) result)))  ;; Extract fn-symbol from (priority . fn-symbol)
+        (set! result ((eval (cdr (car pairs))) result))) ;; Extract fn-symbol from (priority . fn-symbol)
       initial-value)))
 
 ;; ============================================================================
@@ -832,7 +812,6 @@ If the hook doesn't exist or has no functions, returns `initial-value` unchanged
 ;; These hooks are called by C code at specific points. The C code defines
 ;; no-op stubs which are overridden here with implementations that dispatch
 ;; to the extensible hook system.
-
 (defun telnet-input-hook (text)
   "Process telnet server output through registered hooks.
 
@@ -1079,14 +1058,12 @@ to control the return value. First handler to set these wins.
 ;; NOTE: telnet-input-hook is defined above (in TELNET-GUI HOOK IMPLEMENTATIONS)
 ;; and dispatches to the extensible hook system. Multiple handlers can be added
 ;; via add-hook. The C code calls (telnet-input-hook text).
-
 ;; Default handler: Collect words for tab completion
 (defun default-word-collector (text)
   "Default telnet-input-hook handler that collects words for tab completion."
   (collect-words-from-text text))
 
 (add-hook 'telnet-input-hook 'default-word-collector)
-
 
 ;; ============================================================================
 ;; TELNET INPUT FILTER HOOK CONFIGURATION
@@ -1281,11 +1258,9 @@ to control the return value. First handler to set these wins.
 ;; and dispatches to the extensible hook system. Handlers can set
 ;; *user-input-handled* and *user-input-result* to control the return value.
 ;; The C code calls (user-input-hook text cursor-pos).
-
 ;; ============================================================================
 ;; MOUSE WHEEL SCROLLING CONFIGURATION
 ;; ============================================================================
-
 (defvar *scroll-lines-per-click* 3
   "Number of terminal lines to scroll per mouse wheel click.
 
@@ -1304,7 +1279,6 @@ Note: This only affects discrete wheel clicks. For smooth scrolling
 ;; ============================================================================
 ;; SMOOTH SCROLLING CONFIGURATION
 ;; ============================================================================
-
 (defvar *smooth-scrolling-enabled* #t
   "Enable smooth scrolling for high-resolution trackpads.
 
@@ -1325,7 +1299,6 @@ some use cases.
 ;; ============================================================================
 ;; SCROLLBACK BUFFER CONFIGURATION
 ;; ============================================================================
-
 (defvar *max-scrollback-lines* 0
   "Maximum number of scrollback lines to keep in memory.
 
@@ -1352,7 +1325,6 @@ Each line uses ~100-500 bytes depending on content:
 ;; ============================================================================
 ;; AUTO-SCROLL TO BOTTOM CONFIGURATION
 ;; ============================================================================
-
 (defvar *scroll-to-bottom-on-user-input* #t
   "Auto-scroll to bottom when user sends input.
 
@@ -1371,7 +1343,6 @@ always see the response to your commands.
 ;; ============================================================================
 ;; INPUT HISTORY CONFIGURATION
 ;; ============================================================================
-
 (defvar *input-history-size* 100
   "Maximum number of input history entries to keep.
 
@@ -1400,12 +1371,10 @@ through history, especially on slower systems.")
 ;; ============================================================================
 ;; UTILITY FUNCTIONS
 ;; ============================================================================
-
 ;; Helper function to build indent string
 (defun build-indent (level)
   (let ((result ""))
-    (do ((i 0 (+ i 1)))
-      ((>= i level) result)
+    (do ((i 0 (+ i 1))) ((>= i level) result)
       (set! result (concat result "  ")))))
 
 ;; Helper function to convert objects to strings
@@ -1421,10 +1390,8 @@ through history, especially on slower systems.")
 ;; Helper function to check if a value is a nested alist
 (defun is-nested-alist? (value)
   "Check if a value is a nested association list."
-  (and (list? value)
-    (not (null? value))
-    (pair? (car value))
-    (not (list? (car (car value))))))
+  (and (list? value) (not (null? value)) (pair? (car value))
+   (not (list? (car (car value))))))
 
 ;; Helper function to format a string value with quotes
 (defun format-string-value (str)
@@ -1439,11 +1406,13 @@ through history, especially on slower systems.")
 ;; ANSI true color escape sequence helpers
 (defun ansi-fg-rgb (r g b)
   "Generate ANSI true color foreground escape sequence."
-  (concat "\033[38;2;" (number->string r) ";" (number->string g) ";" (number->string b) "m"))
+  (concat "\033[38;2;" (number->string r) ";" (number->string g) ";"
+   (number->string b) "m"))
 
 (defun ansi-bold-fg-rgb (r g b)
   "Generate ANSI bold + true color foreground escape sequence."
-  (concat "\033[1;38;2;" (number->string r) ";" (number->string g) ";" (number->string b) "m"))
+  (concat "\033[1;38;2;" (number->string r) ";" (number->string g) ";"
+   (number->string b) "m"))
 
 (defconst *ansi-reset* "\033[0m"
   "ANSI escape sequence to reset all text attributes.
@@ -1502,57 +1471,60 @@ ANSI text attributes to terminal defaults.")
   - `terminal-echo` - Echo text to terminal
   - `hash-keys` - Get keys from hash table"
   ;; Color definitions using true color RGB
-  (let* ((key-color (ansi-bold-fg-rgb 100 200 255))      ; Bold cyan for keys
-          (colon-color (ansi-fg-rgb 150 150 150))          ; Gray for separator
-          (string-color (ansi-fg-rgb 150 255 150))         ; Green for strings
-          (value-color (ansi-fg-rgb 255 255 150))          ; Yellow for numbers/bools
-          (list-color (ansi-fg-rgb 255 150 255))           ; Magenta for lists
-          (error-color (ansi-bold-fg-rgb 255 100 100))     ; Bold red for errors
-          (reset *ansi-reset*)
-          (format-nested-alist
-            (lambda (nested-alist indent indent-str)
-              (terminal-echo "\r\n")
-              (do ((remaining nested-alist (cdr remaining)))
-                ((null? remaining))
-                (let ((pair (car remaining)))
-                  (if (pair? pair)
-                    (print-pair (car pair) (cdr pair) (+ indent 1))
-                    (progn
-                      (terminal-echo indent-str)
-                      (terminal-echo "  ")
-                      (terminal-echo (concat value-color (obj-to-string pair) reset))
-                      (terminal-echo "\r\n")))))))
-          (print-pair
-            (lambda (key value indent)
-              (let ((indent-str (build-indent indent)))
-                (terminal-echo indent-str)
-                (terminal-echo (concat key-color (obj-to-string key) reset))
-                (terminal-echo (concat colon-color ": " reset))
-                (cond
-                  ((list? value)
-                    (if (is-nested-alist? value)
-                      (format-nested-alist value indent indent-str)
-                      (terminal-echo (concat list-color (obj-to-string value) reset "\r\n"))))
-                  ((string? value)
-                    (terminal-echo (concat string-color "\"" value "\"" reset "\r\n")))
-                  (#t
-                    (terminal-echo (concat value-color (obj-to-string value) reset "\r\n"))))))))
+  (let* ((key-color (ansi-bold-fg-rgb 100 200 255)) ; Bold cyan for keys
+         (colon-color (ansi-fg-rgb 150 150 150)) ; Gray for separator
+         (string-color (ansi-fg-rgb 150 255 150)) ; Green for strings
+         (value-color (ansi-fg-rgb 255 255 150)) ; Yellow for numbers/bools
+         (list-color (ansi-fg-rgb 255 150 255)) ; Magenta for lists
+         (error-color (ansi-bold-fg-rgb 255 100 100)) ; Bold red for errors
+         (reset *ansi-reset*)
+         (format-nested-alist
+          (lambda (nested-alist indent indent-str) (terminal-echo "\r\n")
+            (do ((remaining nested-alist (cdr remaining)))
+              ((null? remaining))
+              (let ((pair (car remaining)))
+                (if (pair? pair)
+                  (print-pair (car pair) (cdr pair) (+ indent 1))
+                  (progn (terminal-echo indent-str) (terminal-echo "  ")
+                    (terminal-echo
+                     (concat value-color (obj-to-string pair) reset))
+                    (terminal-echo "\r\n")))))))
+         (print-pair
+          (lambda (key value indent)
+            (let ((indent-str (build-indent indent)))
+              (terminal-echo indent-str)
+              (terminal-echo (concat key-color (obj-to-string key) reset))
+              (terminal-echo (concat colon-color ": " reset))
+              (cond
+                ((list? value)
+                 (if (is-nested-alist? value)
+                   (format-nested-alist value indent indent-str)
+                   (terminal-echo
+                    (concat list-color (obj-to-string value) reset "\r\n"))))
+                ((string? value)
+                 (terminal-echo
+                  (concat string-color "\"" value "\"" reset "\r\n")))
+                (#t
+                 (terminal-echo
+                  (concat value-color (obj-to-string value) reset "\r\n"))))))))
     (if (not (list? alist))
       (progn
-        (terminal-echo (concat error-color "Error: pretty-print-alist expects a list" reset "\r\n"))
+        (terminal-echo
+         (concat error-color "Error: pretty-print-alist expects a list" reset
+          "\r\n"))
         nil)
       (if (null? alist)
         (progn
-          (terminal-echo (concat value-color "(empty alist)" reset "\r\n"))
-          nil)
+          (terminal-echo (concat value-color "(empty alist)" reset "\r\n")) nil)
         (progn
-          (do ((remaining alist (cdr remaining)))
-            ((null? remaining))
+          (do ((remaining alist (cdr remaining))) ((null? remaining))
             (let ((pair (car remaining)))
               (if (pair? pair)
                 (print-pair (car pair) (cdr pair) 0)
                 (progn
-                  (terminal-echo (concat error-color "Invalid pair: " (obj-to-string pair) reset "\r\n"))))))
+                  (terminal-echo
+                   (concat error-color "Invalid pair: " (obj-to-string pair)
+                    reset "\r\n"))))))
           nil)))))
 
 ;; ============================================================================
@@ -1560,11 +1532,9 @@ ANSI text attributes to terminal defaults.")
 ;; ============================================================================
 ;; All colors are specified as RGB lists (r g b) where each component is 0-255.
 ;; Override any color in your config.lisp file loaded with -l option.
-
 ;; ----------------------------------------------------------------------------
 ;; Terminal Default Colors
 ;; ----------------------------------------------------------------------------
-
 (defvar *terminal-fg-color* '(200 200 200)
   "Default terminal foreground (text) color.
 
@@ -1608,7 +1578,6 @@ Server output with ANSI background colors will override this for specific cells.
 ;; ----------------------------------------------------------------------------
 ;; Text Selection Colors
 ;; ----------------------------------------------------------------------------
-
 (defvar *selection-fg-color* '(0 0 0)
   "Foreground (text) color for selected text.
 
@@ -1651,7 +1620,6 @@ Background color of selected text regions. Should contrast well with
 ;; ----------------------------------------------------------------------------
 ;; Cursor Color
 ;; ----------------------------------------------------------------------------
-
 (defvar *terminal-cursor-color* '(140 120 150)
   "Cursor (caret) background color in input area.
 
@@ -1675,7 +1643,6 @@ under the cursor is rendered with this background color.
 ;; ----------------------------------------------------------------------------
 ;; Divider Colors
 ;; ----------------------------------------------------------------------------
-
 (defvar *divider-connected-color* '(100 175 135)
   "Divider line color when connected to server.
 
@@ -1720,8 +1687,8 @@ A neutral color indicating disconnected state.
 ;; ----------------------------------------------------------------------------
 ;; ANSI Color Palette
 ;; ----------------------------------------------------------------------------
-
-(defvar *ansi-color-palette* (if (bound? '*ansi-color-palette*) *ansi-color-palette* '())
+(defvar *ansi-color-palette*
+  (if (bound? '*ansi-color-palette*) *ansi-color-palette* '())
   "ANSI 16-color palette for terminal emulation.
 
 ## Format
@@ -1747,7 +1714,6 @@ Muted/lighter palette predefined in C.
 ;; ----------------------------------------------------------------------------
 ;; User Input Echo Color
 ;; ----------------------------------------------------------------------------
-
 (defvar *user-input-echo-color* '(255 215 0)
   "Color for echoing user input to terminal.
 
@@ -1773,7 +1739,6 @@ server output.
 ;; ============================================================================
 ;; TERMINAL LINE HEIGHT CONFIGURATION
 ;; ============================================================================
-
 (defvar *terminal-line-height* 1.0
   "Multiplier for terminal line spacing.
 
@@ -1799,14 +1764,12 @@ vertical spacing between rows, window height calculations, and mouse
 coordinate conversion, but does not stretch glyphs (they maintain their
 original size from the font).")
 
-
 ;; ============================================================================
 ;; DIVIDER MODE INDICATORS
 ;; ============================================================================
 ;; Mode indicators displayed on the divider line (e.g., ⚡ for eval mode)
 ;; Modes are stored as an alist: ((priority . (symbol . "display")) ...)
 ;; Lower priority = displayed first (leftmost)
-
 (defvar *divider-modes* '()
   "Association list of divider mode indicators.
 
@@ -1827,7 +1790,6 @@ Format: ((priority . (symbol . \"display\")) ...)
 
 ;; Note: divider-mode-set and divider-mode-remove are C builtins defined in lisp.c
 ;; They automatically trigger a redraw when the mode list is modified.
-
 ;; ============================================================================
 ;; TIMER SYSTEM
 ;; ============================================================================
@@ -1841,13 +1803,11 @@ Format: ((priority . (symbol . \"display\")) ...)
 ;; Example:
 ;;   (run-at-time 5 nil (lambda () (terminal-echo "Hello!\r\n")))  ; after 5 sec
 ;;   (run-at-time 60 60 (lambda () (telnet-send "PING")))  ; every 60 sec
-
 (defvar *timer-list* '()
   "List of active timers. Each timer is a list:
    (id fire-time-ms repeat-ms callback args)")
 
-(defvar *timer-next-id* 1
-  "Next timer ID to assign.")
+(defvar *timer-next-id* 1 "Next timer ID to assign.")
 
 (defun run-at-time (time repeat function &rest args)
   "Schedule FUNCTION to run after TIME seconds.
@@ -1882,10 +1842,10 @@ execution.
 - `cancel-timer` - Cancel a timer
 - `list-timers` - List active timers"
   (let* ((delay-ms (* time 1000))
-          (repeat-ms (if repeat (* repeat 1000) 0))
-          (fire-time (+ (current-time-ms) delay-ms))
-          (id *timer-next-id*)
-          (timer (list id fire-time repeat-ms function args)))
+         (repeat-ms (if repeat (* repeat 1000) 0))
+         (fire-time (+ (current-time-ms) delay-ms))
+         (id *timer-next-id*)
+         (timer (list id fire-time repeat-ms function args)))
     (set! *timer-next-id* (+ *timer-next-id* 1))
     (set! *timer-list* (cons timer *timer-list*))
     timer))
@@ -1911,11 +1871,8 @@ execution.
 - `list-timers` - List active timers"
   (let ((found #f))
     (set! *timer-list*
-      (filter (lambda (t)
-                (if (eq? t timer)
-                  (progn (set! found #t) #f)
-                  #t))
-        *timer-list*))
+     (filter (lambda (t) (if (eq? t timer) (progn (set! found #t) #f) #t))
+      *timer-list*))
     found))
 
 (defun list-timers ()
@@ -1951,24 +1908,20 @@ Recurring timers are rescheduled; one-shot timers are removed.
 Do not call this function directly."
   (when (not (null? *timer-list*))
     (let ((now (current-time-ms))
-           (to-process *timer-list*)
-           (new-list '()))
+          (to-process *timer-list*)
+          (new-list '()))
       ;; Clear timer list so callbacks can add new timers
       (set! *timer-list* '())
-      (do ((remaining to-process (cdr remaining)))
-        ((null? remaining))
+      (do ((remaining to-process (cdr remaining))) ((null? remaining))
         (let* ((timer (car remaining))
-                (fire-time (list-ref timer 1))
-                (repeat-ms (list-ref timer 2))
-                (callback (list-ref timer 3))
-                (args (list-ref timer 4)))
+               (fire-time (list-ref timer 1))
+               (repeat-ms (list-ref timer 2))
+               (callback (list-ref timer 3))
+               (args (list-ref timer 4)))
           (if (>= now fire-time)
-            (progn
-              ;; Timer is due - call it
-              (apply callback args)
+            (progn (apply callback args)
               ;; Reschedule if recurring (mutate fire-time in place to preserve identity)
-              (when (> repeat-ms 0)
-                (set-car! (cdr timer) (+ now repeat-ms))
+              (when (> repeat-ms 0) (set-car! (cdr timer) (+ now repeat-ms))
                 (set! new-list (cons timer new-list))))
             ;; Not due yet - keep it
             (set! new-list (cons timer new-list)))))
@@ -1991,7 +1944,6 @@ Do not call this function directly."
 ;; Example:
 ;;   (notify "Connection established!" 3000)  ; 3 second notification
 ;;   (notify "New message from Djurden")      ; default timeout
-
 (defvar *notification-timeout* 5000
   "Default notification display time in milliseconds.")
 
@@ -2040,7 +1992,7 @@ be shown after the current one expires.
     (if (notification-active?)
       ;; Queue the notification
       (set! *notification-queue*
-        (append *notification-queue* (list (cons message ms))))
+       (append *notification-queue* (list (cons message ms))))
       ;; Show immediately
       (notification-show message ms))
     nil))
@@ -2049,10 +2001,9 @@ be shown after the current one expires.
   "Internal: Display MESSAGE and set dismiss timer.
 Do not call directly; use `notify` instead."
   (notification-set message)
-  (when *notification-timer*
-    (cancel-timer *notification-timer*))
+  (when *notification-timer* (cancel-timer *notification-timer*))
   (set! *notification-timer*
-    (run-at-time (/ timeout-ms 1000.0) nil notification-dismiss)))
+   (run-at-time (/ timeout-ms 1000.0) nil notification-dismiss)))
 
 (defun notification-dismiss ()
   "Internal: Clear current notification and show next queued one.
@@ -2098,7 +2049,7 @@ pending notifications from the queue.
 - `notify` - Show notifications
 - `notification-active?` - Check if notification showing"
   (notification-set nil)
-  (when *notification-timer*
-    (cancel-timer *notification-timer*)
+  (when *notification-timer* (cancel-timer *notification-timer*)
     (set! *notification-timer* nil))
   (set! *notification-queue* '()))
+

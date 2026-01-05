@@ -27,11 +27,9 @@
 ;;
 ;; Example: Add a retry pattern
 ;;   (practice-add-retry-pattern "Your spell fizzles.")
-
 ;; ============================================================================
 ;; CONFIGURATION
 ;; ============================================================================
-
 (defvar *practice-mana-pattern* "(\\d+)%m"
   "Regex pattern to extract mana percentage from prompt.")
 
@@ -54,12 +52,9 @@
 ;; ============================================================================
 ;; STATE VARIABLES
 ;; ============================================================================
+(defvar *practice-mode* nil "Whether practice mode is active.")
 
-(defvar *practice-mode* nil
-  "Whether practice mode is active.")
-
-(defvar *practice-command* nil
-  "The command being practiced.")
+(defvar *practice-command* nil "The command being practiced.")
 
 (defvar *practice-sleep-mode* nil
   "Whether we're in sleep sub-mode (waiting for mana).")
@@ -70,7 +65,6 @@
 ;; ============================================================================
 ;; HELPER FUNCTIONS
 ;; ============================================================================
-
 (defun practice-echo (msg)
   "Echo a practice status message to the terminal."
   (terminal-echo (concat "\r\n\033[36m[Practice]\033[0m " msg "\r\n")))
@@ -85,9 +79,7 @@
 (defun practice-extract-mana (text)
   "Extract mana percentage from prompt text. Returns number or nil."
   (let ((groups (regex-extract *practice-mana-pattern* text)))
-    (if (and groups (not (null? groups)))
-      (string->number (car groups))
-      nil)))
+    (if (and groups (not (null? groups))) (string->number (car groups)) nil)))
 
 (defun practice-matches-any-pattern? (text patterns)
   "Check if text contains any of the patterns in the list."
@@ -108,14 +100,11 @@
 ;; ============================================================================
 ;; CORE FUNCTIONS
 ;; ============================================================================
-
 (defun practice-start (command)
   "Start practice mode with the given command."
   (if *practice-mode*
     (practice-echo (concat "Already practicing: " *practice-command*))
-    (progn
-      (set! *practice-mode* #t)
-      (set! *practice-command* command)
+    (progn (set! *practice-mode* #t) (set! *practice-command* command)
       (set! *practice-sleep-mode* nil)
       (set! *practice-sleep-timer* nil)
       (divider-mode-set 'practice "🤹" 20)
@@ -128,8 +117,7 @@
     (progn
       ;; Cancel timer if active
       (if *practice-sleep-timer*
-        (progn
-          (cancel-timer *practice-sleep-timer*)
+        (progn (cancel-timer *practice-sleep-timer*)
           (set! *practice-sleep-timer* nil)))
       ;; Clear state
       (set! *practice-mode* nil)
@@ -142,22 +130,20 @@
 
 (defun practice-send-empty ()
   "Timer callback: send empty string to refresh prompt."
-  (if (and *practice-mode* *practice-sleep-mode*)
-    (telnet-send "")))
+  (if (and *practice-mode* *practice-sleep-mode*) (telnet-send "")))
 
 (defun practice-enter-sleep ()
   "Enter sleep sub-mode when out of mana."
   (if (not *practice-sleep-mode*)
-    (progn
-      (set! *practice-sleep-mode* #t)
+    (progn (set! *practice-sleep-mode* #t)
       ;; Add sleep indicator (P remains, Z added)
       (divider-mode-set 'practice-sleep "💤" 21)
       (practice-echo "Sleeping (low mana)...")
       (practice-send "sleep")
       ;; Start timer for periodic prompt refresh
       (set! *practice-sleep-timer*
-        (run-at-time *practice-sleep-interval* *practice-sleep-interval*
-          practice-send-empty)))))
+       (run-at-time *practice-sleep-interval* *practice-sleep-interval*
+        practice-send-empty)))))
 
 (defun practice-exit-sleep ()
   "Exit sleep sub-mode when mana is restored."
@@ -165,8 +151,7 @@
     (progn
       ;; Cancel the timer
       (if *practice-sleep-timer*
-        (progn
-          (cancel-timer *practice-sleep-timer*)
+        (progn (cancel-timer *practice-sleep-timer*)
           (set! *practice-sleep-timer* nil)))
       ;; Clear sleep mode
       (set! *practice-sleep-mode* nil)
@@ -186,7 +171,6 @@
 ;; ============================================================================
 ;; TELNET INPUT HOOK
 ;; ============================================================================
-
 (defun practice-telnet-hook (text)
   "Handle telnet input for practice mode.
    Triggers on specific patterns for retry/sleep, prompt only for waking.
@@ -196,24 +180,22 @@
       (cond
         ;; Check for hunger/thirst damage (quit - no one watching)
         ((regex-match? *practice-hunger-thirst-pattern* text)
-          (practice-quit-on-hunger-thirst))
+         (practice-quit-on-hunger-thirst))
         ;; Check for mana exhaustion message (spell too costly)
         ((and (not *practice-sleep-mode*)
-           (string-contains? text *practice-sleep-pattern*))
-          (practice-enter-sleep))
+          (string-contains? text *practice-sleep-pattern*))
+         (practice-enter-sleep))
         ;; Check if mana dropped below threshold
-        ((and (not *practice-sleep-mode*)
-           mana
-           (< mana *practice-mana-threshold*))
-          (practice-enter-sleep))
+        ((and (not *practice-sleep-mode*) mana
+          (< mana *practice-mana-threshold*))
+         (practice-enter-sleep))
         ;; Check for retry patterns (spell failed, lost concentration, etc.)
         ((and (not *practice-sleep-mode*)
-           (practice-matches-any-pattern? text *practice-retry-patterns*))
-          (practice-send *practice-command*))
+          (practice-matches-any-pattern? text *practice-retry-patterns*))
+         (practice-send *practice-command*))
         ;; In sleep mode: check prompt for mana restoration
         (*practice-sleep-mode*
-          (if (and mana (>= mana 100))
-            (practice-exit-sleep)))))))
+         (if (and mana (>= mana 100)) (practice-exit-sleep)))))))
 
 ;; Register the telnet hook (symbol-based, prevents duplicates on reload)
 (add-hook 'telnet-input-hook 'practice-telnet-hook)
@@ -221,7 +203,6 @@
 ;; ============================================================================
 ;; USER INPUT HOOK
 ;; ============================================================================
-
 ;; Check if text starts with a partial match of "/practice"
 (defun practice-command? (text)
   "Check if text is a /practice command (accepts /p, /pr, /pra, etc.)
@@ -232,7 +213,7 @@
       (if (not space-pos)
         ;; No space - check if it's just "/p" or similar (bare command)
         (if (string-prefix? text "/practice")
-          ""  ; Return empty string for bare command
+          "" ; Return empty string for bare command
           nil)
         ;; Has space - check if prefix matches
         (let ((cmd (substring text 0 space-pos)))
@@ -249,17 +230,16 @@
     (when args
       (cond
         ;; /p stop or /practice stop
-        ((string=? args "stop")
-          (practice-stop))
+        ((string=? args "stop") (practice-stop))
         ;; /p <command> or /practice <command>
-        ((> (length args) 0)
-          (practice-start args))
+        ((> (length args) 0) (practice-start args))
         ;; Just /p with no args - show status
         (#t
-          (if *practice-mode*
-            (practice-echo (concat "Currently practicing: " *practice-command*
-                             (if *practice-sleep-mode* " (sleeping)" "")))
-            (practice-echo "Not practicing. Use /p <command> to start."))))
+         (if *practice-mode*
+           (practice-echo
+            (concat "Currently practicing: " *practice-command*
+             (if *practice-sleep-mode* " (sleeping)" "")))
+           (practice-echo "Not practicing. Use /p <command> to start."))))
       ;; Mark as handled
       (set! *user-input-handled* #t)
       (set! *user-input-result* nil))))
@@ -271,5 +251,5 @@
 ;; ============================================================================
 ;; INITIALIZATION MESSAGE
 ;; ============================================================================
-
 (practice-echo "Loaded. Use /p <command> to start, /p stop to end.")
+

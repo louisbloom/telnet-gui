@@ -503,6 +503,15 @@ static LispObject *builtin_read_json(LispObject *args, Environment *env);
 static LispObject *builtin_delete_file(LispObject *args, Environment *env);
 static LispObject *builtin_load(LispObject *args, Environment *env);
 
+/* String port operations */
+static LispObject *builtin_open_input_string(LispObject *args, Environment *env);
+static LispObject *builtin_port_peek_char(LispObject *args, Environment *env);
+static LispObject *builtin_port_read_char(LispObject *args, Environment *env);
+static LispObject *builtin_port_position(LispObject *args, Environment *env);
+static LispObject *builtin_port_source(LispObject *args, Environment *env);
+static LispObject *builtin_port_eof_question(LispObject *args, Environment *env);
+static LispObject *builtin_string_port_question(LispObject *args, Environment *env);
+
 /* Common Lisp printing operations */
 static LispObject *builtin_princ(LispObject *args, Environment *env);
 static LispObject *builtin_prin1(LispObject *args, Environment *env);
@@ -564,6 +573,12 @@ static LispObject *builtin_eval(LispObject *args, Environment *env);
 
 /* Time */
 static LispObject *builtin_current_time_ms(LispObject *args, Environment *env);
+
+/* Profiling */
+static LispObject *builtin_profile_start(LispObject *args, Environment *env);
+static LispObject *builtin_profile_stop(LispObject *args, Environment *env);
+static LispObject *builtin_profile_report(LispObject *args, Environment *env);
+static LispObject *builtin_profile_reset(LispObject *args, Environment *env);
 
 /* Equality predicates */
 static LispObject *builtin_eq_predicate(LispObject *args, Environment *env);
@@ -2894,6 +2909,38 @@ void register_builtins(Environment *env) {
     REGISTER("delete-file", builtin_delete_file, doc_delete_file);
     REGISTER("load", builtin_load, doc_load);
 
+    /* String port functions for O(1) sequential character access */
+    REGISTER("open-input-string", builtin_open_input_string,
+             "Create a string port for reading characters from a string.\n\n"
+             "(open-input-string STR) => port\n\n"
+             "Returns a string port that provides O(1) sequential access to characters.\n"
+             "Use port-peek-char and port-read-char to read from the port.\n\n"
+             "Examples:\n"
+             "  (define p (open-input-string \"hello\"))\n"
+             "  (port-peek-char p)  ; => #\\h\n"
+             "  (port-read-char p)  ; => #\\h (advances position)\n");
+    REGISTER("port-peek-char", builtin_port_peek_char,
+             "Return current character without advancing, or nil at EOF.\n\n"
+             "(port-peek-char PORT) => char or nil\n\n"
+             "O(1) operation - does not walk the string.\n");
+    REGISTER("port-read-char", builtin_port_read_char,
+             "Read and return current character, advancing position.\n\n"
+             "(port-read-char PORT) => char or nil\n\n"
+             "O(1) operation - does not walk the string.\n");
+    REGISTER("port-position", builtin_port_position,
+             "Return current character position in the port.\n\n"
+             "(port-position PORT) => integer\n");
+    REGISTER("port-source", builtin_port_source,
+             "Return the source string of the port.\n\n"
+             "(port-source PORT) => string\n\n"
+             "Useful for substring extraction combined with port-position.\n");
+    REGISTER("port-eof?", builtin_port_eof_question,
+             "Return #t if port is at end of string.\n\n"
+             "(port-eof? PORT) => boolean\n");
+    REGISTER("string-port?", builtin_string_port_question,
+             "Return #t if object is a string port.\n\n"
+             "(string-port? OBJ) => boolean\n");
+
     /* Path expansion functions */
     REGISTER("home-directory", builtin_home_directory, doc_home_directory);
     REGISTER("expand-path", builtin_expand_path, doc_expand_path);
@@ -2978,6 +3025,37 @@ void register_builtins(Environment *env) {
              "  (let ((start (current-time-ms)))\n"
              "    (sleep 100)\n"
              "    (- (current-time-ms) start)) ; => ~100\n");
+
+    /* Profiling */
+    REGISTER("profile-start", builtin_profile_start,
+             "Start the profiler and clear previous data.\n\n"
+             "(profile-start) => #t\n\n"
+             "Enables function-level profiling and resets all accumulated data.\n"
+             "While profiling is active, every function call's elapsed time is tracked.\n\n"
+             "Examples:\n"
+             "  (profile-start)\n"
+             "  (my-expensive-function)\n"
+             "  (profile-stop)\n"
+             "  (profile-report)  ; => list of (name calls ms)\n");
+    REGISTER("profile-stop", builtin_profile_stop,
+             "Stop the profiler.\n\n"
+             "(profile-stop) => #t\n\n"
+             "Disables profiling. Data is preserved until profile-start or profile-reset.\n");
+    REGISTER("profile-report", builtin_profile_report,
+             "Return profiling results as a list.\n\n"
+             "(profile-report) => ((name calls ms) ...)\n\n"
+             "Returns an alist of profiled functions sorted by total time (descending).\n"
+             "Each entry contains:\n"
+             "  - name: function name (string)\n"
+             "  - calls: number of calls (integer)\n"
+             "  - ms: total time in milliseconds (float)\n\n"
+             "Examples:\n"
+             "  (profile-report)\n"
+             "  ; => ((\"format-sexp\" 12847 1523.45) (\"concat\" 98234 452.12) ...)\n");
+    REGISTER("profile-reset", builtin_profile_reset,
+             "Clear all profiling data.\n\n"
+             "(profile-reset) => #t\n\n"
+             "Clears accumulated profiling data without stopping the profiler.\n");
 
     /* Define version information variable */
     env_define(env, "telnet-lisp-version", create_telnet_lisp_version_alist());
@@ -3454,9 +3532,14 @@ static LispObject *builtin_number_to_string(LispObject *args, Environment *env) 
     int pos = 0;
     int negative = (value < 0);
 
-    /* Handle negative numbers */
+    /* Use unsigned for conversion to handle INT64_MIN correctly
+     * (negating INT64_MIN overflows, but unsigned conversion works) */
+    unsigned long long uvalue;
     if (negative) {
-        value = -value;
+        /* Cast to unsigned first to avoid undefined behavior with -INT64_MIN */
+        uvalue = (unsigned long long)(-(value + 1)) + 1;
+    } else {
+        uvalue = (unsigned long long)value;
     }
 
     /* Convert to given radix */
@@ -3464,9 +3547,9 @@ static LispObject *builtin_number_to_string(LispObject *args, Environment *env) 
     char temp[128];
     int temp_pos = 0;
 
-    while (value > 0) {
-        temp[temp_pos++] = digits[value % radix];
-        value /= radix;
+    while (uvalue > 0) {
+        temp[temp_pos++] = digits[uvalue % radix];
+        uvalue /= radix;
     }
 
     /* Add sign */
@@ -5605,6 +5688,118 @@ static LispObject *builtin_delete_file(LispObject *args, Environment *env) {
     }
 }
 
+/* String port operations for O(1) sequential character access */
+static LispObject *builtin_open_input_string(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("open-input-string requires 1 argument");
+    }
+
+    LispObject *str = lisp_car(args);
+    if (str->type != LISP_STRING) {
+        return lisp_make_error("open-input-string requires a string");
+    }
+
+    return lisp_make_string_port(str->value.string);
+}
+
+static LispObject *builtin_port_peek_char(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("port-peek-char requires 1 argument");
+    }
+
+    LispObject *port = lisp_car(args);
+    if (port->type != LISP_STRING_PORT) {
+        return lisp_make_error("port-peek-char requires a string port");
+    }
+
+    if (port->value.string_port.byte_pos >= port->value.string_port.byte_len) {
+        return NIL; /* EOF */
+    }
+
+    const char *ptr = port->value.string_port.buffer + port->value.string_port.byte_pos;
+    return lisp_make_char(utf8_get_codepoint(ptr));
+}
+
+static LispObject *builtin_port_read_char(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("port-read-char requires 1 argument");
+    }
+
+    LispObject *port = lisp_car(args);
+    if (port->type != LISP_STRING_PORT) {
+        return lisp_make_error("port-read-char requires a string port");
+    }
+
+    if (port->value.string_port.byte_pos >= port->value.string_port.byte_len) {
+        return NIL; /* EOF */
+    }
+
+    const char *ptr = port->value.string_port.buffer + port->value.string_port.byte_pos;
+    unsigned int cp = utf8_get_codepoint(ptr);
+    int bytes = utf8_char_bytes(ptr);
+    port->value.string_port.byte_pos += bytes;
+    port->value.string_port.char_pos++;
+    return lisp_make_char(cp);
+}
+
+static LispObject *builtin_port_position(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("port-position requires 1 argument");
+    }
+
+    LispObject *port = lisp_car(args);
+    if (port->type != LISP_STRING_PORT) {
+        return lisp_make_error("port-position requires a string port");
+    }
+
+    return lisp_make_integer((long long)port->value.string_port.char_pos);
+}
+
+static LispObject *builtin_port_source(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("port-source requires 1 argument");
+    }
+
+    LispObject *port = lisp_car(args);
+    if (port->type != LISP_STRING_PORT) {
+        return lisp_make_error("port-source requires a string port");
+    }
+
+    return lisp_make_string(port->value.string_port.buffer);
+}
+
+static LispObject *builtin_port_eof_question(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("port-eof? requires 1 argument");
+    }
+
+    LispObject *port = lisp_car(args);
+    if (port->type != LISP_STRING_PORT) {
+        return lisp_make_error("port-eof? requires a string port");
+    }
+
+    if (port->value.string_port.byte_pos >= port->value.string_port.byte_len) {
+        return LISP_TRUE;
+    }
+    return NIL;
+}
+
+static LispObject *builtin_string_port_question(LispObject *args, Environment *env) {
+    (void)env;
+    if (args == NIL) {
+        return lisp_make_error("string-port? requires 1 argument");
+    }
+
+    LispObject *obj = lisp_car(args);
+    return (obj->type == LISP_STRING_PORT) ? LISP_TRUE : NIL;
+}
+
 static LispObject *builtin_princ(LispObject *args, Environment *env) {
     (void)env;
     if (args == NIL) {
@@ -7112,6 +7307,80 @@ static LispObject *builtin_current_time_ms(LispObject *args, Environment *env) {
     /* Fallback to time() if clock_gettime fails (unlikely) */
     return lisp_make_integer((long long)time(NULL) * 1000);
 #endif
+}
+
+/* Profiling builtins */
+static LispObject *builtin_profile_start(LispObject *args, Environment *env) {
+    (void)args;
+    (void)env;
+    profile_reset();
+    g_profile_state.enabled = 1;
+    g_profile_state.start_time_ns = profile_get_time_ns();
+    return LISP_TRUE;
+}
+
+static LispObject *builtin_profile_stop(LispObject *args, Environment *env) {
+    (void)args;
+    (void)env;
+    g_profile_state.enabled = 0;
+    return LISP_TRUE;
+}
+
+static LispObject *builtin_profile_report(LispObject *args, Environment *env) {
+    (void)args;
+    (void)env;
+
+    /* Build alist of (function-name call-count total-ms) sorted by total time desc */
+    /* First, count entries and collect into array for sorting */
+    int count = 0;
+    for (ProfileEntry *e = g_profile_state.entries; e != NULL; e = e->next) {
+        count++;
+    }
+
+    if (count == 0) {
+        return NIL;
+    }
+
+    /* Create array of pointers for sorting */
+    ProfileEntry **arr = GC_malloc(sizeof(ProfileEntry *) * count);
+    int i = 0;
+    for (ProfileEntry *e = g_profile_state.entries; e != NULL; e = e->next) {
+        arr[i++] = e;
+    }
+
+    /* Sort by total_time_ns descending (simple insertion sort, good enough for profiles) */
+    for (int j = 1; j < count; j++) {
+        ProfileEntry *key = arr[j];
+        int k = j - 1;
+        while (k >= 0 && arr[k]->total_time_ns < key->total_time_ns) {
+            arr[k + 1] = arr[k];
+            k--;
+        }
+        arr[k + 1] = key;
+    }
+
+    /* Build result list (reversed order to end up sorted) */
+    LispObject *result = NIL;
+    for (int j = count - 1; j >= 0; j--) {
+        ProfileEntry *e = arr[j];
+        /* Convert ns to ms (double for precision) */
+        double total_ms = (double)e->total_time_ns / 1000000.0;
+
+        /* Build entry: (name call-count total-ms) */
+        LispObject *entry = lisp_make_cons(lisp_make_string(e->function_name),
+                                           lisp_make_cons(lisp_make_integer((long long)e->call_count),
+                                                          lisp_make_cons(lisp_make_number(total_ms), NIL)));
+        result = lisp_make_cons(entry, result);
+    }
+
+    return result;
+}
+
+static LispObject *builtin_profile_reset(LispObject *args, Environment *env) {
+    (void)args;
+    (void)env;
+    profile_reset();
+    return LISP_TRUE;
 }
 
 static LispObject *builtin_set_documentation(LispObject *args, Environment *env) {

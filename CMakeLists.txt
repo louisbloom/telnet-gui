@@ -1466,17 +1466,6 @@ find_program(SHFMT
 )
 find_program(SHFMT NAMES shfmt)
 
-find_program(EMACS
-    NAMES emacs
-    PATHS
-        ${UCRT64_ROOT}/bin
-        /usr/bin
-        /usr/local/bin
-        C:/Program Files/Emacs/emacs-*/bin
-    NO_DEFAULT_PATH
-)
-find_program(EMACS NAMES emacs)
-
 find_program(PRETTIER
     NAMES prettier
     PATHS
@@ -1559,187 +1548,45 @@ if(CLANG_FORMAT)
         set(BLACK_STATUS_MSG "black not found - Python files will not be formatted")
     endif()
 
-    # Format target for C sources
+    # Lisp formatting using lisp-fmt.lisp (always available - uses built lisp-repl)
+    set(LISP_FORMAT_COMMANDS
+        COMMAND ${CMAKE_COMMAND} -E echo ""
+        COMMAND ${CMAKE_COMMAND} -E echo "Formatting Lisp files..."
+        COMMAND $<TARGET_FILE:lisp-repl> ${CMAKE_SOURCE_DIR}/telnet-lisp/lisp/lisp-fmt.lisp -- -i ${LISP_SOURCES}
+    )
+
+    # Set up optional formatter commands
+    set(SHFMT_COMMAND "")
+    set(SHFMT_STATUS_MSG "shfmt not found - shell scripts will not be formatted")
     if(SHFMT)
-        if(EMACS)
-            # Format C, shell scripts, and Lisp files
-            # Write list of Lisp files to a temp file
-            set(LISP_FILES_LIST "${CMAKE_BINARY_DIR}/lisp_files.txt")
-            file(WRITE "${LISP_FILES_LIST}" "")
-            foreach(LISP_FILE ${LISP_SOURCES})
-                file(RELATIVE_PATH LISP_FILE_REL "${CMAKE_SOURCE_DIR}" "${LISP_FILE}")
-                file(APPEND "${LISP_FILES_LIST}" "${LISP_FILE_REL}\n")
-            endforeach()
-            # Format all files in a single Emacs batch invocation (much faster than per-file)
-            # Strip Windows line endings (\r) before xargs
-            # Use relative path for bash compatibility (MSYS2/bash doesn't handle Windows paths well)
-            file(RELATIVE_PATH LISP_FILES_LIST_REL "${CMAKE_SOURCE_DIR}" "${LISP_FILES_LIST}")
-            set(LISP_FORMAT_COMMANDS
-                COMMAND bash tools/format-all-lisp-files.sh ${LISP_SOURCES}
-            )
-
-            if(PRETTIER)
-                add_custom_target(format
-                    COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
-                    COMMAND ${SHFMT} -w -i 2 ${SHELL_SCRIPTS}
-                    COMMAND ${CMAKE_COMMAND} -E echo ""
-                    COMMAND ${CMAKE_COMMAND} -E echo "Formatting Lisp files..."
-                    ${LISP_FORMAT_COMMANDS}
-                    COMMAND ${PRETTIER} --write ${MARKDOWN_FILES}
-                    ${BLACK_COMMAND}
-                    COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
-                    COMMENT "Formatting all C, shell, Lisp, Markdown, and Python files"
-                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-                    USES_TERMINAL
-                )
-                message(STATUS "clang-format found: ${CLANG_FORMAT}")
-                message(STATUS "shfmt found: ${SHFMT}")
-                message(STATUS "emacs found: ${EMACS}")
-                message(STATUS "prettier found: ${PRETTIER}")
-                message(STATUS "${BLACK_STATUS_MSG}")
-            else()
-                add_custom_target(format
-                    COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
-                    COMMAND ${SHFMT} -w -i 2 ${SHELL_SCRIPTS}
-                    COMMAND ${CMAKE_COMMAND} -E echo ""
-                    COMMAND ${CMAKE_COMMAND} -E echo "Formatting Lisp files..."
-                    ${LISP_FORMAT_COMMANDS}
-                    ${BLACK_COMMAND}
-                    COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
-                    COMMENT "Formatting all C, shell, Lisp, and Python files"
-                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-                    USES_TERMINAL
-                )
-                message(STATUS "clang-format found: ${CLANG_FORMAT}")
-                message(STATUS "shfmt found: ${SHFMT}")
-                message(STATUS "emacs found: ${EMACS}")
-                message(STATUS "${BLACK_STATUS_MSG}")
-                message(STATUS "prettier not found - Markdown files will not be formatted")
-            endif()
-        else()
-            # Format C and shell scripts only (no Emacs)
-            if(PRETTIER)
-                add_custom_target(format
-                    COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
-                    COMMAND ${SHFMT} -w -i 2 ${SHELL_SCRIPTS}
-                    COMMAND ${PRETTIER} --write ${MARKDOWN_FILES}
-                    ${BLACK_COMMAND}
-                    COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
-                    COMMENT "Formatting all C, shell, Markdown, and Python files"
-                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-                    USES_TERMINAL
-                )
-                message(STATUS "clang-format found: ${CLANG_FORMAT}")
-                message(STATUS "shfmt found: ${SHFMT}")
-                message(STATUS "prettier found: ${PRETTIER}")
-                message(STATUS "${BLACK_STATUS_MSG}")
-                message(STATUS "emacs not found - Lisp files will not be formatted")
-            else()
-                add_custom_target(format
-                    COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
-                    COMMAND ${SHFMT} -w -i 2 ${SHELL_SCRIPTS}
-                    ${BLACK_COMMAND}
-                    COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
-                    COMMENT "Formatting all C, shell, and Python files"
-                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-                    USES_TERMINAL
-                )
-                message(STATUS "clang-format found: ${CLANG_FORMAT}")
-                message(STATUS "shfmt found: ${SHFMT}")
-                message(STATUS "${BLACK_STATUS_MSG}")
-                message(STATUS "emacs not found - Lisp files will not be formatted")
-                message(STATUS "prettier not found - Markdown files will not be formatted")
-            endif()
-        endif()
-    else()
-        if(EMACS)
-            # Format C and Lisp files (no shfmt)
-            # Write list of Lisp files to a temp file
-            set(LISP_FILES_LIST "${CMAKE_BINARY_DIR}/lisp_files.txt")
-            file(WRITE "${LISP_FILES_LIST}" "")
-            foreach(LISP_FILE ${LISP_SOURCES})
-                file(RELATIVE_PATH LISP_FILE_REL "${CMAKE_SOURCE_DIR}" "${LISP_FILE}")
-                file(APPEND "${LISP_FILES_LIST}" "${LISP_FILE_REL}\n")
-            endforeach()
-            # Format all files in a single Emacs batch invocation (much faster than per-file)
-            # Strip Windows line endings (\r) before xargs
-            # Use relative path for bash compatibility (MSYS2/bash doesn't handle Windows paths well)
-            file(RELATIVE_PATH LISP_FILES_LIST_REL "${CMAKE_SOURCE_DIR}" "${LISP_FILES_LIST}")
-            set(LISP_FORMAT_COMMANDS
-                COMMAND bash tools/format-all-lisp-files.sh ${LISP_SOURCES}
-            )
-
-            if(PRETTIER)
-                add_custom_target(format
-                    COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
-                    COMMAND ${CMAKE_COMMAND} -E echo ""
-                    COMMAND ${CMAKE_COMMAND} -E echo "Formatting Lisp files..."
-                    ${LISP_FORMAT_COMMANDS}
-                    COMMAND ${PRETTIER} --write ${MARKDOWN_FILES}
-                    ${BLACK_COMMAND}
-                    COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
-                    COMMENT "Formatting all C, Lisp, Markdown, and Python files"
-                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-                    USES_TERMINAL
-                )
-                message(STATUS "clang-format found: ${CLANG_FORMAT}")
-                message(STATUS "emacs found: ${EMACS}")
-                message(STATUS "prettier found: ${PRETTIER}")
-                message(STATUS "${BLACK_STATUS_MSG}")
-                message(STATUS "shfmt not found - shell scripts will not be formatted")
-            else()
-                add_custom_target(format
-                    COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
-                    COMMAND ${CMAKE_COMMAND} -E echo ""
-                    COMMAND ${CMAKE_COMMAND} -E echo "Formatting Lisp files..."
-                    ${LISP_FORMAT_COMMANDS}
-                    ${BLACK_COMMAND}
-                    COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
-                    COMMENT "Formatting all C, Lisp, and Python files"
-                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-                    USES_TERMINAL
-                )
-                message(STATUS "clang-format found: ${CLANG_FORMAT}")
-                message(STATUS "emacs found: ${EMACS}")
-                message(STATUS "${BLACK_STATUS_MSG}")
-                message(STATUS "shfmt not found - shell scripts will not be formatted")
-                message(STATUS "prettier not found - Markdown files will not be formatted")
-            endif()
-        else()
-            # Format C sources only (no shfmt, no emacs)
-            if(PRETTIER)
-                add_custom_target(format
-                    COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
-                    COMMAND ${PRETTIER} --write ${MARKDOWN_FILES}
-                    ${BLACK_COMMAND}
-                    COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
-                    COMMENT "Formatting all C, Markdown, and Python files"
-                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-                    USES_TERMINAL
-                )
-                message(STATUS "clang-format found: ${CLANG_FORMAT}")
-                message(STATUS "prettier found: ${PRETTIER}")
-                message(STATUS "${BLACK_STATUS_MSG}")
-                message(STATUS "shfmt not found - shell scripts will not be formatted")
-                message(STATUS "emacs not found - Lisp files will not be formatted")
-            else()
-                add_custom_target(format
-                    COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
-                    ${BLACK_COMMAND}
-                    COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
-                    COMMENT "Formatting all C and Python files"
-                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-                    USES_TERMINAL
-                )
-                message(STATUS "clang-format found: ${CLANG_FORMAT}")
-                message(STATUS "${BLACK_STATUS_MSG}")
-                message(STATUS "shfmt not found - shell scripts will not be formatted")
-                message(STATUS "emacs not found - Lisp files will not be formatted")
-                message(STATUS "prettier not found - Markdown files will not be formatted")
-            endif()
-        endif()
+        set(SHFMT_COMMAND COMMAND ${SHFMT} -w -i 2 ${SHELL_SCRIPTS})
+        set(SHFMT_STATUS_MSG "shfmt found: ${SHFMT}")
     endif()
 
+    set(PRETTIER_COMMAND "")
+    set(PRETTIER_STATUS_MSG "prettier not found - Markdown files will not be formatted")
+    if(PRETTIER)
+        set(PRETTIER_COMMAND COMMAND ${PRETTIER} --write ${MARKDOWN_FILES})
+        set(PRETTIER_STATUS_MSG "prettier found: ${PRETTIER}")
+    endif()
+
+    # Build format target with all available formatters
+    add_custom_target(format
+        COMMAND ${CLANG_FORMAT} -i ${LIB_SOURCES} ${REPL_SOURCES} ${GUI_SOURCES}
+        ${SHFMT_COMMAND}
+        ${LISP_FORMAT_COMMANDS}
+        ${PRETTIER_COMMAND}
+        ${BLACK_COMMAND}
+        COMMAND ${CMAKE_COMMAND} -E echo "Formatting complete!"
+        COMMENT "Formatting source files"
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        USES_TERMINAL
+    )
+
+    message(STATUS "clang-format found: ${CLANG_FORMAT}")
+    message(STATUS "${SHFMT_STATUS_MSG}")
+    message(STATUS "${PRETTIER_STATUS_MSG}")
+    message(STATUS "${BLACK_STATUS_MSG}")
     message(STATUS "Use 'cmake --build . --target format' to format sources")
 else()
     message(STATUS "clang-format not found - skipping format target")

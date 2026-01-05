@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <gc.h>
 
 #define PCRE2_CODE_UNIT_WIDTH 8
@@ -26,7 +27,29 @@ struct Symbol {
 struct CallStackFrame {
     char *function_name;
     CallStackFrame *parent;
+    uint64_t entry_time_ns;  /* Entry timestamp for profiling */
 };
+
+/* Profiling data structures */
+typedef struct ProfileEntry {
+    char *function_name;
+    uint64_t call_count;
+    uint64_t total_time_ns;  /* Inclusive time (includes children) */
+    struct ProfileEntry *next;
+} ProfileEntry;
+
+typedef struct {
+    int enabled;
+    ProfileEntry *entries;   /* Linked list of profile entries */
+    uint64_t start_time_ns;  /* When profiling started */
+} ProfileState;
+
+extern ProfileState g_profile_state;
+
+/* Profiling functions */
+uint64_t profile_get_time_ns(void);
+void profile_record(const char *function_name, uint64_t elapsed_ns);
+void profile_reset(void);
 
 /* Handler context for condition-case */
 struct HandlerContext {
@@ -53,7 +76,8 @@ typedef enum {
     LISP_FILE_STREAM,
     LISP_VECTOR,
     LISP_HASH_TABLE,
-    LISP_TAIL_CALL
+    LISP_TAIL_CALL,
+    LISP_STRING_PORT
 } LispType;
 
 /* Built-in function pointer type */
@@ -120,6 +144,13 @@ struct LispObject {
             LispObject *func;  /* Function to call in tail position */
             LispObject *args;  /* Already-evaluated arguments */
         } tail_call;
+        struct {
+            char *buffer;      /* The string data */
+            size_t byte_len;   /* Total byte length (cached) */
+            size_t char_len;   /* Total character count (cached) */
+            size_t byte_pos;   /* Current byte position */
+            size_t char_pos;   /* Current character position */
+        } string_port;
     } value;
 };
 
@@ -174,6 +205,7 @@ LispObject *lisp_make_file_stream(FILE *file);
 LispObject *lisp_make_vector(size_t capacity);
 LispObject *lisp_make_hash_table(void);
 LispObject *lisp_make_tail_call(LispObject *func, LispObject *args);
+LispObject *lisp_make_string_port(const char *str);
 
 /* Symbol interning */
 LispObject *lisp_intern(const char *name);

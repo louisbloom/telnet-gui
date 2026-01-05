@@ -80,7 +80,7 @@ if [ "$BUILD_SHARED" = "OFF" ]; then
 
   # Patch rlottiecommon.h
   if [ -f "inc/rlottiecommon.h" ]; then
-    patch -p1 << 'HEADER_PATCH'
+    patch -p1 <<'HEADER_PATCH'
 --- a/inc/rlottiecommon.h
 +++ b/inc/rlottiecommon.h
 @@ -23,7 +23,9 @@
@@ -100,7 +100,7 @@ HEADER_PATCH
 
   # Patch stb_image.cpp (has its own inline RLOTTIE_API definition)
   if [ -f "src/vector/stb/stb_image.cpp" ]; then
-    patch -p1 << 'STB_PATCH'
+    patch -p1 <<'STB_PATCH'
 --- a/src/vector/stb/stb_image.cpp
 +++ b/src/vector/stb/stb_image.cpp
 @@ -13,7 +13,9 @@
@@ -120,7 +120,7 @@ STB_PATCH
 
   # Patch rlottie.h (has its own inline RLOTTIE_API definition before including rlottiecommon.h)
   if [ -f "inc/rlottie.h" ]; then
-    patch -p1 << 'RLOTTIE_H_PATCH'
+    patch -p1 <<'RLOTTIE_H_PATCH'
 --- a/inc/rlottie.h
 +++ b/inc/rlottie.h
 @@ -27,7 +27,9 @@

@@ -31,50 +31,57 @@
 ;;; ----------------------------------------------------------------------------
 ;;; File Reading Utility
 ;;; ----------------------------------------------------------------------------
+(defun strip-trailing-cr (str)
+  "Remove trailing carriage return from string (for CRLF handling)."
+  (let ((len (length str)))
+    (if (and (> len 0) (char=? (string-ref str (- len 1)) #\return))
+      (substring str 0 (- len 1))
+      str)))
+
 (defun read-file-to-string (filename)
-  "Read entire file contents into a string."
+  "Read entire file contents into a string.
+   Handles CRLF line endings by stripping trailing CR from each line."
   (let ((file (open filename "r"))
         (lines '())
         (line nil))
     (unwind-protect
       (progn
         (do () ((null? (set! line (read-line file))))
-          (set! lines (cons line lines)))
+          (set! lines (cons (strip-trailing-cr line) lines)))
         (join (reverse lines) "\n"))
       (close file))))
 
 ;;; ----------------------------------------------------------------------------
 ;;; Reader State Management
 ;;; ----------------------------------------------------------------------------
-;;; State: (source position line column)
+;;; State: (port line column)
+;;; Uses string port for O(1) character access instead of O(n) string-ref.
 (defun make-reader-state (source)
   "Create a reader state for parsing SOURCE string."
-  (list source 0 1 1))
+  (list (open-input-string source) 1 1))
 
-(defun rs-source (state) (car state))
+(defun rs-port (state) (car state))
 
-(defun rs-pos (state) (car (cdr state)))
+(defun rs-source (state) (port-source (rs-port state)))
 
-(defun rs-line (state) (car (cdr (cdr state))))
+(defun rs-pos (state) (port-position (rs-port state)))
 
-(defun rs-col (state) (car (cdr (cdr (cdr state)))))
+(defun rs-line (state) (car (cdr state)))
 
-(defun rs-set-pos! (state pos) (set-car! (cdr state) pos))
+(defun rs-col (state) (car (cdr (cdr state))))
 
-(defun rs-set-line! (state line) (set-car! (cdr (cdr state)) line))
+(defun rs-set-line! (state line) (set-car! (cdr state) line))
 
-(defun rs-set-col! (state col) (set-car! (cdr (cdr (cdr state))) col))
+(defun rs-set-col! (state col) (set-car! (cdr (cdr state)) col))
 
 (defun reader-peek (state)
   "Return current character without advancing, or nil at EOF."
-  (let ((pos (rs-pos state))
-        (src (rs-source state)))
-    (if (>= pos (length src)) nil (string-ref src pos))))
+  (port-peek-char (rs-port state)))
 
 (defun reader-advance! (state)
   "Advance position by one character, updating line/column. Returns char."
-  (let ((ch (reader-peek state)))
-    (when ch (rs-set-pos! state (+ (rs-pos state) 1))
+  (let ((ch (port-read-char (rs-port state))))
+    (when ch
       (if (char=? ch #\newline)
         (progn (rs-set-line! state (+ (rs-line state) 1))
           (rs-set-col! state 1))
@@ -83,7 +90,7 @@
 
 (defun reader-at-eof? (state)
   "Check if reader is at end of input."
-  (null? (reader-peek state)))
+  (port-eof? (rs-port state)))
 
 ;;; ----------------------------------------------------------------------------
 ;;; Character Utilities
@@ -1032,7 +1039,8 @@
   "Format list with elements aligned under first element."
   (let* ((elem-indent (+ indent 1)) ; After opening paren
          (lb (lb-create elem-indent))
-         (dotted-tail nil))
+         (dotted-tail nil)
+         (prev-had-inline-comment #f))
     ;; Start with opening paren
     (lb-set-parts! lb '("("))
     (lb-set-col! lb (+ indent 1))
@@ -1047,10 +1055,13 @@
              (space-needed (if first-elem 0 1))
              (try-col (if first-elem (lb-col lb) (+ (lb-col lb) 1)))
              (elem-str (format-sexp elem try-col))
-             (is-multiline (string-contains? elem-str "\n")))
+             (is-multiline (string-contains? elem-str "\n"))
+             ;; Check if THIS element has an inline comment
+             (has-inline (comment-after elem)))
         (if
           (and (not first-elem)
-           (or (> (+ (lb-col lb) space-needed elem-single-len) *max-column*)
+           (or prev-had-inline-comment ; Force newline if prev had comment
+            (> (+ (lb-col lb) space-needed elem-single-len) *max-column*)
             is-multiline))
           ;; New line needed
           (let ((elem-str-aligned
@@ -1063,12 +1074,16 @@
                 (lb-set-col! lb (+ elem-indent first-newline)))))
           ;; Fits on current line
           (progn (unless first-elem (lb-append-space! lb))
-            (lb-append! lb elem-str)))))
-    ;; Handle dotted tail
+            (lb-append! lb elem-str)))
+        ;; Update prev-had-inline-comment for next iteration
+        (set! prev-had-inline-comment has-inline)))
+    ;; Handle dotted tail - also respect prev-had-inline-comment
     (when dotted-tail
       (let* ((tail-single-len (sexp-length dotted-tail))
              (tail-needed (+ 3 tail-single-len)))
-        (if (> (+ (lb-col lb) tail-needed 1) *max-column*)
+        (if
+          (or prev-had-inline-comment ; Force newline if prev had comment
+           (> (+ (lb-col lb) tail-needed 1) *max-column*))
           (progn (lb-newline! lb elem-indent) (lb-append! lb ". ")
             (lb-append! lb (format-sexp dotted-tail elem-indent)))
           (progn (lb-append! lb " . ")

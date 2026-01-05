@@ -227,6 +227,12 @@ static void print_object(LispObject *obj, char **buffer, size_t *size, size_t *p
     case LISP_TAIL_CALL:
         append_str(buffer, size, pos, "#<tail-call>");
         break;
+
+    case LISP_STRING_PORT:
+        snprintf(temp, sizeof(temp), "#<string-port %zu/%zu>", obj->value.string_port.char_pos,
+                 obj->value.string_port.char_len);
+        append_str(buffer, size, pos, temp);
+        break;
     }
 }
 
@@ -389,6 +395,10 @@ static void princ_object(LispObject *obj) {
 
     case LISP_TAIL_CALL:
         printf("#<tail-call>");
+        break;
+
+    case LISP_STRING_PORT:
+        printf("#<string-port %zu/%zu>", obj->value.string_port.char_pos, obj->value.string_port.char_len);
         break;
     }
 }

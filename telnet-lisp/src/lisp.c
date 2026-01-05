@@ -216,6 +216,17 @@ LispObject *lisp_make_tail_call(LispObject *func, LispObject *args) {
     return obj;
 }
 
+LispObject *lisp_make_string_port(const char *str) {
+    LispObject *obj = GC_malloc(sizeof(LispObject));
+    obj->type = LISP_STRING_PORT;
+    obj->value.string_port.buffer = GC_strdup(str);
+    obj->value.string_port.byte_len = strlen(str);
+    obj->value.string_port.char_len = utf8_strlen(str);
+    obj->value.string_port.byte_pos = 0;
+    obj->value.string_port.char_pos = 0;
+    return obj;
+}
+
 /* Object utilities */
 int lisp_is_truthy(LispObject *obj) {
     /* Traditional Lisp semantics: only nil is false, everything else is true */
@@ -378,7 +389,8 @@ void lisp_cleanup(void) {
 
 /* Load file */
 LispObject *lisp_load_file(const char *filename, Environment *env) {
-    FILE *file = file_open(filename, "r");
+    /* Use binary mode to avoid ftell/fread size mismatch with CRLF translation */
+    FILE *file = file_open(filename, "rb");
     if (file == NULL) {
         return lisp_make_error("Cannot open file");
     }
@@ -389,8 +401,8 @@ LispObject *lisp_load_file(const char *filename, Environment *env) {
     fseek(file, 0, SEEK_SET);
 
     char *buffer = GC_malloc(size + 1);
-    fread(buffer, 1, size, file);
-    buffer[size] = '\0';
+    size_t actual_read = fread(buffer, 1, size, file);
+    buffer[actual_read] = '\0';
     fclose(file);
 
     /* Evaluate all expressions */
