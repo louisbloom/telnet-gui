@@ -1265,6 +1265,49 @@ The condition system provides Emacs Lisp-style error handling with typed errors,
 - `delete-file` - Delete a file from the filesystem (filename) - returns nil on success, error if file doesn't exist or cannot be deleted
 - `load` - Load and evaluate a Lisp file (filename) - returns the result of the last expression evaluated, or an error if loading fails
 
+### String Port Functions
+
+String ports provide efficient character-by-character reading from strings with O(1) access time (compared to O(n) for repeated `string-ref` calls). They maintain position state and support UTF-8 characters.
+
+- `open-input-string` - Create a string port from a string for sequential reading
+- `port-read-char` - Read the next character and advance position (returns nil at EOF)
+- `port-peek-char` - Peek at next character without advancing position (returns nil at EOF)
+- `port-position` - Get the current character position (0-indexed)
+- `port-source` - Get the original source string
+- `port-eof?` - Check if at end of string (returns #t or nil)
+- `string-port?` - Type predicate (returns #t if argument is a string port)
+
+**Examples:**
+
+```lisp
+;; Create a string port
+(define port (open-input-string "hello"))
+
+;; Peek without advancing
+(port-peek-char port)    ; => #\h
+(port-peek-char port)    ; => #\h (still #\h)
+
+;; Read and advance
+(port-read-char port)    ; => #\h
+(port-read-char port)    ; => #\e
+(port-position port)     ; => 2
+
+;; Check EOF
+(port-eof? port)         ; => nil
+(port-read-char port)    ; => #\l
+(port-read-char port)    ; => #\l
+(port-read-char port)    ; => #\o
+(port-eof? port)         ; => #t
+(port-read-char port)    ; => nil
+
+;; Get source string
+(port-source port)       ; => "hello"
+
+;; Type checking
+(string-port? port)      ; => #t
+(string-port? "hello")   ; => nil
+```
+
 ### Path Expansion Functions
 
 Cross-platform file path expansion utilities.
