@@ -109,6 +109,8 @@
 (hash-set! *spell-dictionary* "zawsufuq" "vampiric") ; eampiric → vampiric
 (hash-set! *spell-dictionary* "izjfahiouqar" "neurological") ; neuralogical → neurological
 (hash-set! *spell-dictionary* "eugfjshuai" "disruption") ; disruptian → disruption
+(hash-set! *spell-dictionary* "izoahuzz" "negative") ; negatiee → negative
+(hash-set! *spell-dictionary* "saguhuzz" "positive") ; pasitiee → positive
 
 ;; Add a custom word override
 (defun spell-add (garbled correct)
