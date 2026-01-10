@@ -193,9 +193,11 @@
 ;;; Filter Hook
 ;;; ============================================================================
 ;; Regex pattern for spell utterances
-;; Matches: "Name utters the words, 'garbled text'."
-;; Captures: (1) full match, (2) name, (3) garbled text
-(define *spell-utter-pattern* "([A-Za-z' ]+) utters the words, '([^']+)'\\.")
+;; Matches: "Name utters the words, 'garbled text'." (with optional trailing whitespace/newlines)
+;; Captures: (1) name, (2) garbled text
+;; Note: Pattern allows trailing whitespace/newlines after the period to handle real server text
+(define *spell-utter-pattern*
+  "([A-Za-z' ]+) utters the words, '([^']+)'[.]?\\s*")
 
 ;; Muted magic purple color for translations
 (define *spell-color* "\033[38;2;147;112;219m")
@@ -208,6 +210,7 @@
   ;; Strip ANSI codes for matching, but use original text for replacement
   (let* ((clean-text (strip-ansi text))
          (groups (regex-extract *spell-utter-pattern* clean-text)))
+    ;; Main logic: check if pattern matched
     (if groups
       ;; Found an utterance - check if it needs translation
       (let ((garbled (cadr groups)))
@@ -216,10 +219,14 @@
           text
           ;; Garbled text - translate and weave in after the spell
           (let ((translated (translate-garbled-phrase garbled)))
-            ;; Replace the period with " (translation)."
-            (regex-replace "'\\.$" text
-             (string-append "' " *spell-color* "(" translated ")"
-              *spell-color-reset* ".")))))
+            ;; Replace quote-period (and any trailing whitespace) with quote-space-translation-period
+            ;; Pattern captures trailing whitespace/newlines to preserve them
+            ;; $1 = captured trailing whitespace (preserved in replacement)
+            (let ((replacement
+                   (string-append "' " *spell-color* "(" translated ")"
+                    *spell-color-reset* ".$1")))
+              (let ((result (regex-replace "'\\.(\\s*)" text replacement)))
+                result)))))
       ;; No match - pass through unchanged
       text)))
 
