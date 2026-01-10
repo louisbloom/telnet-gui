@@ -477,6 +477,36 @@ cmake --install build --prefix ~/.local
 
 ## Development
 
+### Versioning
+
+Version is determined at **build time** from git tags:
+
+- **At tagged release**: `0.4`
+- **Commits after tag**: `0.4.5-abc1234` (5 commits since v0.4, short hash)
+- **No git available**: `0.4-UNKNOWN`
+
+Version updates automatically with each `cmake --build build` - no reconfiguration needed.
+
+### Creating Releases
+
+```bash
+# Create and publish a release
+./scripts/release.sh 0.5
+
+# Create a draft release (review before publishing)
+./scripts/release.sh 0.5 --draft
+```
+
+The release script:
+
+1. Updates version headers (`src/version.h`, `telnet-lisp/src/version.h`)
+2. Commits the version update
+3. Creates an annotated git tag
+4. Pushes to origin
+5. Creates a GitHub release with auto-generated notes
+
+Requires the [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and authenticated.
+
 ### Code Formatting
 
 ```bash
