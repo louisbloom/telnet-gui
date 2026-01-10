@@ -215,7 +215,7 @@
     ;; Main logic: check if pattern matched
     (if groups
       ;; Found an utterance - check if it needs translation
-      (let ((garbled (caddr groups)))
+      (let ((garbled (string-trim (cadr groups))))
         (if (known-spell? garbled)
           ;; Already readable (same class as caster) - no translation needed
           text
