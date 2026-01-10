@@ -6,10 +6,8 @@
 #include <string.h>
 #include <locale.h>
 
-/* Version fallback if not defined by CMake */
-#ifndef TELNET_LISP_VERSION
-#define TELNET_LISP_VERSION "unknown"
-#endif
+/* Version information - generated at build time */
+#include "telnet_lisp_version.h"
 
 /* Global environment for completion callback */
 static Environment *g_env = NULL;

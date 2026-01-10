@@ -91,20 +91,40 @@ target_include_directories(lisp-repl PRIVATE ${GC_INCLUDE_DIRS} ${PCRE2_INCLUDE_
 target_link_directories(lisp-repl PRIVATE ${GC_LIBRARY_DIRS} ${PCRE2_LIBRARY_DIRS})
 target_link_libraries(lisp-repl lisp ${GC_LIBRARIES} ${PCRE2_LIBRARIES} m)
 
-# Pass version information to lisp library and repl
-target_compile_definitions(lisp PRIVATE
-    TELNET_LISP_VERSION="${TELNET_LISP_VERSION}"
-    TELNET_LISP_VERSION_MAJOR=${TELNET_LISP_VERSION_MAJOR}
-    TELNET_LISP_VERSION_MINOR=${TELNET_LISP_VERSION_MINOR}
-    TELNET_LISP_VERSION_PATCH=${TELNET_LISP_VERSION_PATCH}
+# ============================================================================
+# Build-time Version Generation
+# ============================================================================
+# Generate version header at build time (not configure time) so new commits
+# are reflected without needing to reconfigure. The generated header includes
+# commit count and hash when building from a commit after a release tag.
+set(LISP_VERSION_HEADER_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+set(LISP_VERSION_HEADER "${LISP_VERSION_HEADER_DIR}/telnet_lisp_version.h")
+
+add_custom_command(
+    OUTPUT ${LISP_VERSION_HEADER}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${LISP_VERSION_HEADER_DIR}
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/..
+        -DOUTPUT_FILE=${LISP_VERSION_HEADER}
+        -DAPP_NAME=TELNET_LISP
+        -DVERSION_HEADER=${CMAKE_CURRENT_SOURCE_DIR}/src/version.h
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/../cmake/GenerateVersion.cmake
+    DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/version.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/../cmake/GenerateVersion.cmake
+    COMMENT "Generating telnet-lisp version header"
+    VERBATIM
 )
 
-target_compile_definitions(lisp-repl PRIVATE
-    TELNET_LISP_VERSION="${TELNET_LISP_VERSION}"
-    TELNET_LISP_VERSION_MAJOR=${TELNET_LISP_VERSION_MAJOR}
-    TELNET_LISP_VERSION_MINOR=${TELNET_LISP_VERSION_MINOR}
-    TELNET_LISP_VERSION_PATCH=${TELNET_LISP_VERSION_PATCH}
-)
+add_custom_target(generate_lisp_version DEPENDS ${LISP_VERSION_HEADER})
+
+# Make library and REPL depend on version generation
+add_dependencies(lisp generate_lisp_version)
+add_dependencies(lisp-repl generate_lisp_version)
+
+# Add generated header directory to include paths
+target_include_directories(lisp PRIVATE ${LISP_VERSION_HEADER_DIR})
+target_include_directories(lisp-repl PRIVATE ${LISP_VERSION_HEADER_DIR})
 
 # Install REPL
 install(TARGETS lisp-repl

@@ -234,6 +234,39 @@ endif()
 add_executable(telnet-gui ${GUI_SOURCES})
 
 # ============================================================================
+# Build-time Version Generation
+# ============================================================================
+# Generate version header at build time (not configure time) so new commits
+# are reflected without needing to reconfigure. The generated header includes
+# commit count and hash when building from a commit after a release tag.
+set(GUI_VERSION_HEADER_DIR "${CMAKE_BINARY_DIR}/generated")
+set(GUI_VERSION_HEADER "${GUI_VERSION_HEADER_DIR}/telnet_gui_version.h")
+
+add_custom_command(
+    OUTPUT ${GUI_VERSION_HEADER}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${GUI_VERSION_HEADER_DIR}
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -DOUTPUT_FILE=${GUI_VERSION_HEADER}
+        -DAPP_NAME=TELNET_GUI
+        -DVERSION_HEADER=${CMAKE_SOURCE_DIR}/src/version.h
+        -P ${CMAKE_SOURCE_DIR}/cmake/GenerateVersion.cmake
+    DEPENDS
+        ${CMAKE_SOURCE_DIR}/src/version.h
+        ${CMAKE_SOURCE_DIR}/cmake/GenerateVersion.cmake
+    COMMENT "Generating telnet-gui version header"
+    VERBATIM
+)
+
+add_custom_target(generate_gui_version DEPENDS ${GUI_VERSION_HEADER})
+
+# Make telnet-gui depend on version generation
+add_dependencies(telnet-gui generate_gui_version)
+
+# Add generated header directory to include paths
+target_include_directories(telnet-gui PRIVATE ${GUI_VERSION_HEADER_DIR})
+
+# ============================================================================
 # Resource Files - Define file lists for copying and installation
 # ============================================================================
 set(FONT_FILES
@@ -1313,12 +1346,9 @@ if(WIN32 AND DEFINED UCRT64_ROOT AND EXISTS "${UCRT64_ROOT}/include")
     endif()
 endif()
 
-# Pass version macros and feature flags
+# Pass library versions and feature flags
+# Note: TELNET_GUI_VERSION macros come from build-time generated header
 target_compile_definitions(telnet-gui PRIVATE
-    TELNET_GUI_VERSION="${GIT_VERSION_FULL}"
-    TELNET_GUI_VERSION_MAJOR=${GIT_VERSION_MAJOR}
-    TELNET_GUI_VERSION_MINOR=${GIT_VERSION_MINOR}
-    TELNET_GUI_VERSION_PATCH=${GIT_VERSION_PATCH}
     LIBVTERM_VERSION="${VTERM_VERSION}"
     SDL2_VERSION="${SDL2_VERSION}"
     SDL2_TTF_VERSION="${SDL2_TTF_VERSION}"

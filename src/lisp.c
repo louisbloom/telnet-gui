@@ -18,19 +18,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Version information - fallbacks if not defined by CMake */
-#ifndef TELNET_GUI_VERSION
-#define TELNET_GUI_VERSION "unknown"
-#endif
+/* Version information - generated at build time */
+#include "telnet_gui_version.h"
 
-#ifndef TELNET_GUI_VERSION_MAJOR
-#define TELNET_GUI_VERSION_MAJOR 0
-#endif
-
-#ifndef TELNET_GUI_VERSION_MINOR
-#define TELNET_GUI_VERSION_MINOR 0
-#endif
-
+/* Patch version is derived from commit count in full version string */
 #ifndef TELNET_GUI_VERSION_PATCH
 #define TELNET_GUI_VERSION_PATCH 0
 #endif
