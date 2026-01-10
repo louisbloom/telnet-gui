@@ -1203,14 +1203,18 @@
     (concat (smart-join-results (reverse results)) "\n")))
 
 (defun format-file-inplace (filename)
-  "Format a Lisp file in-place."
-  (let ((content (format-file filename))
-        (file (open filename "w")))
-    (write-line file content)
-    (close file)
-    (princ "Formatted: ")
-    (princ filename)
-    (terpri)))
+  "Format a Lisp file in-place. Skip write if no changes."
+  (let* ((original (read-file-to-string filename))
+         (formatted (format-file filename)))
+    ;; Compare trimmed versions to handle trailing newline differences
+    (if (string=? (string-trim original) (string-trim formatted))
+      (progn (princ filename) (princ " (unchanged)") (terpri))
+      (let ((file (open filename "w")))
+        (write-line file formatted)
+        (close file)
+        (princ "Formatted: ")
+        (princ filename)
+        (terpri)))))
 
 ;;; ============================================================================
 ;;; Main entry point
