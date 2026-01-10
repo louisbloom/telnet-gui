@@ -1,26 +1,27 @@
 #!/bin/bash
-# Create a release with GitHub integration
+# Create a release tag with optional GitHub release
 #
-# Usage: ./scripts/release.sh MAJOR.MINOR [--draft]
+# Usage: ./scripts/release.sh MAJOR.MINOR [OPTIONS]
 # Example: ./scripts/release.sh 0.4
-#         ./scripts/release.sh 0.4 --draft
+#         ./scripts/release.sh 0.4 --github owner/repo
+#         ./scripts/release.sh 0.4 --github owner/repo --draft
 #
 # This script:
 # 1. Validates the version format (MAJOR.MINOR)
 # 2. Checks the working directory is clean
-# 3. Checks gh CLI is available and authenticated
-# 4. Checks the tag doesn't already exist (local and remote)
-# 5. Updates src/version.h and telnet-lisp/src/version.h
-# 6. Commits the version updates
-# 7. Creates an annotated tag vMAJOR.MINOR
-# 8. Pushes commit and tag to origin
-# 9. Creates a GitHub release with auto-generated notes
+# 3. Checks the tag doesn't already exist (local and remote)
+# 4. Updates src/version.h and telnet-lisp/src/version.h
+# 5. Commits the version updates
+# 6. Creates an annotated tag vMAJOR.MINOR
+# 7. Pushes commit and tag to origin
+# 8. (Optional) Creates a GitHub release if --github is specified
 
 set -e
 
 # Parse arguments
 VERSION=""
 DRAFT=""
+GITHUB_REPO=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -28,21 +29,31 @@ while [ $# -gt 0 ]; do
     DRAFT="--draft"
     shift
     ;;
+  --github)
+    if [ -z "$2" ] || [[ "$2" == --* ]]; then
+      echo "Error: --github requires a repository argument (owner/repo)"
+      exit 1
+    fi
+    GITHUB_REPO="$2"
+    shift 2
+    ;;
   -h | --help)
-    echo "Create a GitHub release"
+    echo "Create a release tag with optional GitHub release"
     echo ""
-    echo "Usage: $0 MAJOR.MINOR [--draft]"
+    echo "Usage: $0 MAJOR.MINOR [OPTIONS]"
     echo ""
     echo "Arguments:"
-    echo "  MAJOR.MINOR    Version number (e.g., 0.4)"
+    echo "  MAJOR.MINOR              Version number (e.g., 0.4)"
     echo ""
     echo "Options:"
-    echo "  --draft        Create as draft release (not published)"
-    echo "  -h, --help     Show this help message"
+    echo "  --github OWNER/REPO      Create GitHub release (requires gh CLI)"
+    echo "  --draft                  Create as draft release (with --github)"
+    echo "  -h, --help               Show this help message"
     echo ""
     echo "Examples:"
-    echo "  $0 0.4           # Create and publish release v0.4"
-    echo "  $0 0.4 --draft   # Create draft release v0.4"
+    echo "  $0 0.4                              # Tag only, no GitHub release"
+    echo "  $0 0.4 --github louisbloom/telnet-gui    # With GitHub release"
+    echo "  $0 0.4 --github louisbloom/telnet-gui --draft  # Draft release"
     exit 0
     ;;
   *)
@@ -61,7 +72,7 @@ done
 if [ -z "$VERSION" ]; then
   echo "Error: Version not specified"
   echo ""
-  echo "Usage: $0 MAJOR.MINOR [--draft]"
+  echo "Usage: $0 MAJOR.MINOR [--github OWNER/REPO] [--draft]"
   echo "Example: $0 0.4"
   exit 1
 fi
@@ -79,23 +90,29 @@ if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+$'; then
   exit 1
 fi
 
-# Check gh CLI is available
-if ! command -v gh &>/dev/null; then
-  echo "Error: GitHub CLI (gh) is not installed"
-  echo ""
-  echo "Install it from: https://cli.github.com/"
-  echo "  Windows (scoop): scoop install gh"
-  echo "  macOS (brew): brew install gh"
-  echo "  Linux: see https://github.com/cli/cli/blob/trunk/docs/install_linux.md"
-  exit 1
+# Check GitHub CLI if --github is specified
+if [ -n "$GITHUB_REPO" ]; then
+  if ! command -v gh &>/dev/null; then
+    echo "Error: GitHub CLI (gh) is not installed"
+    echo ""
+    echo "Install it from: https://cli.github.com/"
+    echo "  Windows (scoop): scoop install gh"
+    echo "  macOS (brew): brew install gh"
+    echo "  Linux: see https://github.com/cli/cli/blob/trunk/docs/install_linux.md"
+    exit 1
+  fi
+
+  if ! gh auth status &>/dev/null; then
+    echo "Error: GitHub CLI is not authenticated"
+    echo ""
+    echo "Run: gh auth login"
+    exit 1
+  fi
 fi
 
-# Check gh is authenticated
-if ! gh auth status &>/dev/null; then
-  echo "Error: GitHub CLI is not authenticated"
-  echo ""
-  echo "Run: gh auth login"
-  exit 1
+# Warn if --draft used without --github
+if [ -n "$DRAFT" ] && [ -z "$GITHUB_REPO" ]; then
+  echo "Warning: --draft has no effect without --github"
 fi
 
 # Check working directory is clean
@@ -164,28 +181,33 @@ git push origin HEAD
 git push origin "$TAG_NAME"
 echo ""
 
-# Create GitHub release
-echo "Creating GitHub release..."
-if [ -n "$DRAFT" ]; then
-  echo "(Creating as draft release)"
-fi
-
-gh release create "$TAG_NAME" \
-  --title "Release $VERSION" \
-  --generate-notes \
-  $DRAFT
-
-echo ""
 echo "========================================"
 echo "Release $TAG_NAME created successfully!"
 echo "========================================"
 echo ""
 
-# Show release URL
-RELEASE_URL=$(gh release view "$TAG_NAME" --json url -q .url)
-echo "Release URL: $RELEASE_URL"
-echo ""
+# Create GitHub release if requested
+if [ -n "$GITHUB_REPO" ]; then
+  echo "Creating GitHub release..."
+  if [ -n "$DRAFT" ]; then
+    echo "(Creating as draft release)"
+  fi
 
-if [ -n "$DRAFT" ]; then
-  echo "Note: This is a draft release. Visit the URL above to publish it."
+  gh release create "$TAG_NAME" \
+    --repo "$GITHUB_REPO" \
+    --title "Release $VERSION" \
+    --generate-notes \
+    $DRAFT
+
+  echo ""
+  RELEASE_URL=$(gh release view "$TAG_NAME" --repo "$GITHUB_REPO" --json url -q .url)
+  echo "GitHub release URL: $RELEASE_URL"
+  echo ""
+
+  if [ -n "$DRAFT" ]; then
+    echo "Note: This is a draft release. Visit the URL above to publish it."
+  fi
+else
+  echo "Tag pushed to origin. To create a GitHub release later:"
+  echo "  gh release create $TAG_NAME --repo OWNER/REPO --generate-notes"
 fi

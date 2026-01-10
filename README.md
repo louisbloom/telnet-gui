@@ -490,11 +490,14 @@ Version updates automatically with each `cmake --build build` - no reconfigurati
 ### Creating Releases
 
 ```bash
-# Create and publish a release
+# Create a release (tag only)
 ./scripts/release.sh 0.5
 
-# Create a draft release (review before publishing)
-./scripts/release.sh 0.5 --draft
+# With GitHub release (requires gh CLI)
+./scripts/release.sh 0.5 --github owner/repo
+
+# Draft GitHub release
+./scripts/release.sh 0.5 --github owner/repo --draft
 ```
 
 The release script:
@@ -503,9 +506,9 @@ The release script:
 2. Commits the version update
 3. Creates an annotated git tag
 4. Pushes to origin
-5. Creates a GitHub release with auto-generated notes
+5. (Optional) Creates a GitHub release if `--github` is specified
 
-Requires the [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and authenticated.
+GitHub releases require the [GitHub CLI](https://cli.github.com/) (`gh`).
 
 ### Code Formatting
 
