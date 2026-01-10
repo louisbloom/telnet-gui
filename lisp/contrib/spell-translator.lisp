@@ -65,29 +65,18 @@
 
 ;; Check if utterance contains any known spell word
 (defun known-spell? (phrase)
-  "Return true if any word in phrase starts with a known spell word (no translation needed)"
-  (let ((words (split (string-downcase phrase) " ")))
-    (known-spell-helper? words)))
+  "Return true if phrase contains any known spell word (no translation needed)"
+  (let ((lower-phrase (string-downcase phrase)))
+    (known-spell-check-list lower-phrase *known-spell-words*)))
 
-;; Check if word starts with any known spell word prefix
-(defun word-matches-known? (word)
-  "Check if word starts with any prefix in *known-spell-words*"
-  (word-matches-helper? word *known-spell-words*))
-
-(defun word-matches-helper? (word prefixes)
-  "Recursively check if word starts with any prefix"
-  (if (null? prefixes)
-    nil
-    (if (string-prefix? (car prefixes) word)
-      #t
-      (word-matches-helper? word (cdr prefixes)))))
-
-;; Helper to check if any word in list matches known spell words
-(defun known-spell-helper? (words)
-  "Recursively check if any word matches *known-spell-words*"
+;; Recursively check if phrase contains any word from the list
+(defun known-spell-check-list (phrase words)
+  "Check if phrase contains any word from the list"
   (if (null? words)
     nil
-    (if (word-matches-known? (car words)) #t (known-spell-helper? (cdr words)))))
+    (if (string-contains? phrase (car words))
+      #t
+      (known-spell-check-list phrase (cdr words)))))
 
 ;;; ============================================================================
 ;;; Dictionary Overrides
