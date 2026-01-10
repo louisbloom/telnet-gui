@@ -221,14 +221,18 @@
           text
           ;; Garbled text - translate and weave in after the spell
           (let ((translated (translate-garbled-phrase garbled)))
-            ;; Replace quote-period (and any trailing whitespace) with quote-space-translation-period
-            ;; Pattern captures trailing whitespace/newlines to preserve them
-            ;; $1 = captured trailing whitespace (preserved in replacement)
-            (let ((replacement
-                   (string-append "' " *spell-color* "(" translated ")"
-                    *spell-color-reset* ".$1")))
-              (let ((result (regex-replace "'\\.(\\s*)" text replacement)))
-                result)))))
+            ;; Skip if translation matches original (already readable)
+            (if
+              (string=? (string-downcase translated) (string-downcase garbled))
+              text
+              ;; Replace quote-period (and any trailing whitespace) with quote-space-translation-period
+              ;; Pattern captures trailing whitespace/newlines to preserve them
+              ;; $1 = captured trailing whitespace (preserved in replacement)
+              (let ((replacement
+                     (string-append "' " *spell-color* "(" translated ")"
+                      *spell-color-reset* ".$1")))
+                (let ((result (regex-replace "'\\.(\\s*)" text replacement)))
+                  result))))))
       ;; No match - pass through unchanged
       text)))
 
