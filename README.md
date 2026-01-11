@@ -13,7 +13,6 @@ A graphical telnet client with terminal emulation, built using SDL2 and libvterm
 - **Background Animations**: Lottie animations behind terminal content
 - **Emoji Support**: Color emoji rendering via system fonts
 - **Multiple Fonts**: Bundled monospace fonts with configurable size and line height
-- **Native Controls**: Standard OS titlebar with close/minimize/maximize buttons
 
 ## Quick Start
 
