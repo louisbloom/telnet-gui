@@ -141,10 +141,10 @@ static void print_help(void) {
     printf("  lisp-repl -h, --help               Show this help message\n");
     printf("\n");
     printf("Examples:\n");
-    printf("  lisp-repl                           # Start REPL\n");
-    printf("  lisp-repl -e \"(+ 1 2 3)\"            # Execute code\n");
-    printf("  lisp-repl script.lisp               # Run file\n");
-    printf("  lisp-repl script.lisp -- -i foo.txt # Run with args in *command-line-args*\n");
+    printf("  lisp-repl                            # Start REPL\n");
+    printf("  lisp-repl -e \"(+ 1 2 3)\"             # Execute code\n");
+    printf("  lisp-repl script.lisp                # Run file\n");
+    printf("  lisp-repl script.lisp -- -i foo.txt  # Run with args in *command-line-args*\n");
     printf("  lisp-repl -e \"(define x 10) (* x 5)\" # Multiple expressions\n");
     printf("\n");
     printf("REPL Commands:\n");

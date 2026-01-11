@@ -1,8 +1,8 @@
 # Telnet Lisp
 
-A minimal, embeddable Lisp interpreter library written in C. This implementation follows traditional Lisp naming conventions and provides a REPL for testing and demonstration.
+An embeddable Lisp interpreter library written in C. This implementation follows traditional Lisp naming conventions and provides a REPL for testing and demonstration.
 
-**📖 [Language Reference](LANGUAGE_REFERENCE.md)** - Full language documentation with data types, functions, and examples
+**[Language Reference](LANGUAGE_REFERENCE.md)** - Full language documentation with data types, functions, and examples
 
 ## Features
 
@@ -11,7 +11,6 @@ A minimal, embeddable Lisp interpreter library written in C. This implementation
 - **Data Types**: Numbers, integers, booleans, strings (UTF-8), characters, lists, vectors, hash tables, lambdas, errors
 - **Special Forms**: `quote`, `quasiquote`, `if`, `define`, `set!`, `lambda`, `defmacro`, `let`/`let*`, `progn`, `do`, `cond`, `case`, `condition-case`, `unwind-protect`
 - **Macros**: Code transformation with `defmacro`, quasiquote (`` ` ``), unquote (`,`), unquote-splicing (`,@`), and built-in `defun` macro
-- **Error Handling**: Emacs Lisp-style condition system with `signal`, `condition-case`, `unwind-protect`, and error introspection
 - **Functions**: Arithmetic, strings, lists, vectors, hash tables, regex (PCRE2), file I/O
 - **Type Predicates**: `null?`, `atom?`, `integer?`, `boolean?`, `number?`, `string?`, `char?`, `vector?`, `hash-table?`, `error?`
 
@@ -19,16 +18,13 @@ See **[LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)** for complete function lis
 
 ### Advanced Features
 
-- **Condition System**: Emacs Lisp-style error handling with typed errors, catch/handle, and guaranteed cleanup
+- **Condition System**: Emacs Lisp-style error handling with `signal`, `condition-case`, `unwind-protect`, and error introspection
 - **Tail Call Optimization**: Trampoline-based tail recursion enables efficient recursive algorithms without stack overflow
-- **Lexical Scoping**: Lambdas capture their environment
-- **First-Class Functions**: Functions can be passed as arguments and returned from functions
-- **Closures**: Functions with captured variables
+- **Lexical Scoping**: First-class functions and closures with captured environments
 - **Regex Support**: Full PCRE2 integration for advanced pattern matching with UTF-8 support
-- **UTF-8 Support**: Full Unicode string support with grapheme-based operations
-  - `length` returns grapheme cluster count (human-visible characters)
-  - `substring` and `string-ref` use grapheme-based indexing
-  - Variation selectors and combining marks handled correctly
+- **UTF-8 Support**: Full Unicode string support with codepoint-based operations
+  - `length`, `substring`, and `string-ref` use codepoint indexing
+  - Handles multi-byte characters correctly (CJK, emoji, etc.)
 - **Memory Management**: Automatic garbage collection with Boehm GC
 
 ## Building
@@ -51,10 +47,11 @@ cmake --build .
 ### Command Line Options
 
 ```bash
-lisp-repl                 # Start interactive REPL
-lisp-repl -c "CODE"       # Execute CODE and exit
-lisp-repl FILE [FILE...]  # Execute FILE(s) and exit
-lisp-repl -h, --help      # Show help message
+lisp-repl                      # Start interactive REPL
+lisp-repl -e "CODE"            # Execute CODE and exit
+lisp-repl FILE [FILE...]       # Execute FILE(s) and exit
+lisp-repl FILE -- [ARG...]     # Run FILE with script arguments
+lisp-repl -h, --help           # Show help message
 ```
 
 ### REPL Mode
@@ -71,9 +68,9 @@ REPL Commands:
 ### Command-Line Execution
 
 ```bash
-./lisp-repl -c "(+ 1 2 3)"                                    # => 6
-./lisp-repl -c "(map (lambda (x) (* x 2)) '(1 2 3 4 5))"     # => (2 4 6 8 10)
-./lisp-repl -c '(concat "hello" " " "world")'                 # => "hello world"
+./lisp-repl -e "(+ 1 2 3)"                               # => 6
+./lisp-repl -e "(map (lambda (x) (* x 2)) '(1 2 3 4 5))" # => (2 4 6 8 10)
+./lisp-repl -e '(concat "hello" " " "world")'            # => "hello world"
 ```
 
 Exit code is 0 on success, 1 on error.
@@ -108,11 +105,12 @@ int main() {
     char* output = lisp_print(result);
     printf("%s\n", output);  // Prints: 6
 
-    env_free(env);
     lisp_cleanup();
     return 0;
 }
 ```
+
+Note: Memory is managed by Boehm GC. Call `lisp_cleanup()` once at program exit.
 
 ## Quick Start
 
@@ -136,7 +134,7 @@ int main() {
 (if (> 10 5) "yes" "no")             ; => "yes"
 ```
 
-**📖 For full documentation, see [LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)**
+**For full documentation, see [LANGUAGE_REFERENCE.md](LANGUAGE_REFERENCE.md)**
 
 ## C API Reference
 
@@ -177,7 +175,6 @@ int main() {
 | `env_create_global()`          | Create global environment with built-ins |
 | `env_define(env, name, value)` | Define variable                          |
 | `env_lookup(env, name)`        | Look up variable                         |
-| `env_free(env)`                | Free environment                         |
 
 ## License
 
