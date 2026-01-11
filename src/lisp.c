@@ -1863,6 +1863,62 @@ void lisp_x_cleanup(void) {
     lisp_cleanup();
 }
 
+void lisp_x_profile_start(void) {
+    if (!lisp_env) {
+        return;
+    }
+    /* Call (profile-start) to start the Lisp profiler */
+    LispObject *result = lisp_eval_string("(profile-start)", lisp_env);
+    if (!result || result->type == LISP_ERROR) {
+        fprintf(stderr, "Warning: Failed to start Lisp profiler\n");
+    }
+}
+
+void lisp_x_profile_report(void) {
+    if (!lisp_env) {
+        return;
+    }
+    /* Call (profile-report) to get the Lisp profiler data */
+    LispObject *result = lisp_eval_string("(profile-report)", lisp_env);
+    if (!result || result->type == LISP_ERROR) {
+        fprintf(stderr, "Warning: Failed to generate Lisp profile report\n");
+        return;
+    }
+
+    /* Print the profile report in a readable format */
+    /* Result is a list of (function-name call-count time-ms) tuples */
+    printf("=== Lisp Profile Report ===\n");
+    if (result->type == LISP_NIL || (result->type == LISP_CONS && lisp_car(result) == NULL)) {
+        printf("(no profiled function calls)\n");
+        return;
+    }
+
+    /* Print each entry */
+    printf("%-40s %10s %12s\n", "Function", "Calls", "Time (ms)");
+    printf("%-40s %10s %12s\n", "----------------------------------------", "----------", "------------");
+
+    LispObject *entry = result;
+    while (entry && entry->type == LISP_CONS && lisp_car(entry)) {
+        LispObject *item = lisp_car(entry);
+        if (item && item->type == LISP_CONS) {
+            LispObject *name = lisp_car(item);
+            LispObject *rest = lisp_cdr(item);
+            if (rest && rest->type == LISP_CONS) {
+                LispObject *count = lisp_car(rest);
+                LispObject *time_rest = lisp_cdr(rest);
+                if (time_rest && time_rest->type == LISP_CONS) {
+                    LispObject *time_obj = lisp_car(time_rest);
+                    const char *fname = (name && name->type == LISP_STRING) ? name->value.string : "(unknown)";
+                    long calls = (count && count->type == LISP_NUMBER) ? (long)count->value.number : 0;
+                    double time_ms = (time_obj && time_obj->type == LISP_NUMBER) ? time_obj->value.number : 0.0;
+                    printf("%-40s %10ld %12.3f\n", fname, calls, time_ms);
+                }
+            }
+        }
+        entry = lisp_cdr(entry);
+    }
+}
+
 /* Free all tab completion strings */
 static void free_tab_completions(void) {
     for (int i = 0; i < tab_completion_count; i++) {

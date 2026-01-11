@@ -94,6 +94,14 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -pedantic")
 set(CMAKE_C_FLAGS_DEBUG "-g -O0")
 set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
 
+# gprof profiling support (GNU toolchain)
+option(ENABLE_GPROF "Enable gprof profiling" OFF)
+if(ENABLE_GPROF)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pg")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pg")
+    message(STATUS "gprof profiling enabled (-pg flag)")
+endif()
+
 # For Windows UCRT64, prefer static linking to avoid msys-2.0.dll
 if(WIN32)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")

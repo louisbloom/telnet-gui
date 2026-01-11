@@ -43,6 +43,65 @@ void renderer_set_animation(Animation *anim);
 #include "../../telnet-lisp/include/lisp.h"
 #include "../../telnet-lisp/include/file_utils.h"
 
+/* High-resolution timing for profiling */
+#ifdef _WIN32
+static uint64_t get_time_ns(void) {
+    static LARGE_INTEGER freq = {0};
+    if (freq.QuadPart == 0) {
+        QueryPerformanceFrequency(&freq);
+    }
+    LARGE_INTEGER count;
+    QueryPerformanceCounter(&count);
+    return (uint64_t)((count.QuadPart * 1000000000ULL) / freq.QuadPart);
+}
+#else
+#include <time.h>
+static uint64_t get_time_ns(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
+}
+#endif
+
+/* Profiling statistics for C pipeline */
+typedef struct {
+    uint64_t telnet_receive_ns;
+    uint64_t telnet_input_hook_ns;
+    uint64_t telnet_input_filter_hook_ns;
+    uint64_t terminal_feed_data_ns;
+    int recv_count;
+} ProfileStats;
+
+static ProfileStats profile_stats = {0};
+
+static void profile_stats_reset(void) {
+    memset(&profile_stats, 0, sizeof(profile_stats));
+}
+
+static void profile_stats_print(void) {
+    if (profile_stats.recv_count == 0) {
+        printf("\n=== C Pipeline Timing (no RECV blocks) ===\n");
+        return;
+    }
+    printf("\n=== C Pipeline Timing (%d RECV blocks) ===\n", profile_stats.recv_count);
+    printf("telnet_receive:            avg %.3fms  total %.3fms\n",
+           (double)profile_stats.telnet_receive_ns / profile_stats.recv_count / 1e6,
+           (double)profile_stats.telnet_receive_ns / 1e6);
+    printf("telnet-input-hook:         avg %.3fms  total %.3fms\n",
+           (double)profile_stats.telnet_input_hook_ns / profile_stats.recv_count / 1e6,
+           (double)profile_stats.telnet_input_hook_ns / 1e6);
+    printf("telnet-input-filter-hook:  avg %.3fms  total %.3fms\n",
+           (double)profile_stats.telnet_input_filter_hook_ns / profile_stats.recv_count / 1e6,
+           (double)profile_stats.telnet_input_filter_hook_ns / 1e6);
+    printf("terminal_feed_data:        avg %.3fms  total %.3fms\n",
+           (double)profile_stats.terminal_feed_data_ns / profile_stats.recv_count / 1e6,
+           (double)profile_stats.terminal_feed_data_ns / 1e6);
+    uint64_t total_ns = profile_stats.telnet_receive_ns + profile_stats.telnet_input_hook_ns +
+                        profile_stats.telnet_input_filter_hook_ns + profile_stats.terminal_feed_data_ns;
+    printf("TOTAL:                     avg %.3fms  total %.3fms\n", (double)total_ns / profile_stats.recv_count / 1e6,
+           (double)total_ns / 1e6);
+}
+
 /* Padding around terminal area (including input area) - must match renderer.c */
 #define PADDING_X 8
 #define PADDING_Y 8
@@ -416,6 +475,8 @@ static void print_help(const char *program_name) {
     printf("    --line-height HEIGHT   Set line height multiplier (default: 1.0)\n");
     printf("                            HEIGHT can be 0.5 to 3.0 (e.g., 1.5 for 50%% more spacing)\n");
     printf("    --debug-exit           Exit after initialization (for debug output)\n");
+    printf("    --profile              Enable Lisp profiler and C timing instrumentation\n");
+    printf("    --exit-on-disconnect   Exit when telnet connection closes\n");
     printf("\n");
     printf("Arguments:\n");
     printf("  hostname                 Telnet server hostname or IP address (optional)\n");
@@ -459,6 +520,8 @@ int main(int argc, char **argv) {
     int terminal_cols = 80; /* Default terminal columns */
     int terminal_rows = 40; /* Default terminal rows */
     int debug_exit = 0;     /* Exit after initialization for debug output */
+    int profile_mode = 0;   /* Enable profiling (Lisp + C timing) */
+    int exit_on_disconnect = 0;   /* Exit when telnet connection closes */
     float cli_line_height = 0.0f; /* CLI line height (0.0 means not set, use default) */
 #ifdef _WIN32
     int use_directwrite = 1; /* Use DirectWrite font backend (Windows default) */
@@ -591,6 +654,10 @@ int main(int argc, char **argv) {
             }
         } else if (strcmp(argv[arg_idx], "--debug-exit") == 0) {
             debug_exit = 1;
+        } else if (strcmp(argv[arg_idx], "--profile") == 0) {
+            profile_mode = 1;
+        } else if (strcmp(argv[arg_idx], "--exit-on-disconnect") == 0) {
+            exit_on_disconnect = 1;
         } else if (strcmp(argv[arg_idx], "--font-backend") == 0) {
             if (arg_idx + 1 >= argc) {
                 fprintf(stderr, "Error: --font-backend requires a backend name (sdl, directwrite)\n");
@@ -1047,6 +1114,13 @@ int main(int argc, char **argv) {
     /* Re-apply CLI line height override after user files (CLI takes final precedence) */
     if (cli_line_height > 0.0f) {
         lisp_x_set_terminal_line_height(cli_line_height);
+    }
+
+    /* Start Lisp profiler if --profile was specified */
+    if (profile_mode) {
+        lisp_x_profile_start();
+        profile_stats_reset();
+        fprintf(stderr, "Profiling enabled: Lisp profiler + C timing instrumentation\n");
     }
 
     /* Connect if in connected mode */
@@ -1853,16 +1927,34 @@ int main(int argc, char **argv) {
                 if (has_read || has_except) {
                     /* Data is available, read it */
                     char recv_buf[4096];
+                    uint64_t t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0;
+                    if (profile_mode)
+                        t0 = get_time_ns();
                     int received = telnet_receive(telnet, recv_buf, sizeof(recv_buf) - 1);
+                    if (profile_mode)
+                        t1 = get_time_ns();
                     if (received > 0) {
                         /* Call telnet-input-hook with received data (stripped of ANSI codes) */
                         lisp_x_call_telnet_input_hook(recv_buf, received);
+                        if (profile_mode)
+                            t2 = get_time_ns();
                         /* Call telnet-input-filter-hook to transform data before displaying in terminal */
                         size_t filtered_len = 0;
                         const char *filtered_data =
                             lisp_x_call_telnet_input_filter_hook(recv_buf, received, &filtered_len);
+                        if (profile_mode)
+                            t3 = get_time_ns();
                         /* Feed filtered data to terminal */
                         terminal_feed_data(term, filtered_data, filtered_len);
+                        if (profile_mode) {
+                            t4 = get_time_ns();
+                            /* Accumulate timing stats */
+                            profile_stats.telnet_receive_ns += (t1 - t0);
+                            profile_stats.telnet_input_hook_ns += (t2 - t1);
+                            profile_stats.telnet_input_filter_hook_ns += (t3 - t2);
+                            profile_stats.terminal_feed_data_ns += (t4 - t3);
+                            profile_stats.recv_count++;
+                        }
 
                         /* Auto-scroll to bottom unless user has scrolled back */
                         if (!terminal_is_scroll_locked(term)) {
@@ -1875,6 +1967,10 @@ int main(int argc, char **argv) {
                         terminal_feed_data(term, "\r\n*** Connection closed ***\r\n",
                                            strlen("\r\n*** Connection closed ***\r\n"));
                         dock_request_redraw(&dock); /* Trigger color update */
+                        /* Exit if --exit-on-disconnect was specified */
+                        if (exit_on_disconnect) {
+                            running = 0;
+                        }
                     }
                 }
             }
@@ -2007,6 +2103,15 @@ int main(int argc, char **argv) {
         }
 
         SDL_Delay(16); /* Cap at ~60 FPS */
+    }
+
+    /* Print profile reports if profiling was enabled */
+    if (profile_mode) {
+        printf("\n");
+        profile_stats_print();
+        printf("\n");
+        lisp_x_profile_report();
+        fflush(stdout);
     }
 
     /* Cleanup */

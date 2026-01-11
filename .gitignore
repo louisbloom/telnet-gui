@@ -51,6 +51,13 @@ TargetDirectories.txt
 .cache/
 *.pdf
 
+# Profiling output
+profile-results/
+
+# Python cache
+__pycache__/
+*.pyc
+
 # Windows specific
 Thumbs.db
 ehthumbs.db

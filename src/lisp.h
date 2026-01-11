@@ -16,6 +16,12 @@ int lisp_x_load_file(const char *filepath);
 /* Cleanup Lisp interpreter */
 void lisp_x_cleanup(void);
 
+/* Start Lisp profiler */
+void lisp_x_profile_start(void);
+
+/* Print Lisp profiler report to stdout */
+void lisp_x_profile_report(void);
+
 /* Handle TAB key completion (cycles through completions if in tab mode) */
 void lisp_x_handle_tab(char *buffer, int buffer_size, int *cursor_pos, int *length, int *needs_redraw);
 

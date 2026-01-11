@@ -150,8 +150,17 @@ or the connection is determined to be dead.
 ;; ============================================================================
 ;; WORD STORE HELPER FUNCTIONS
 ;; ============================================================================
+;; Punctuation characters to trim (defined once for efficiency)
+(define *trim-punctuation-chars*
+  '(#\. #\, #\! #\? #\; #\: #\( #\) #\[ #\] #\{ #\} #\' #\" #\-))
+
+;; Helper: Check if character is punctuation to trim
+(defun punctuation-char? (c)
+  "Check if character is punctuation to trim."
+  (member c *trim-punctuation-chars*))
+
 ;; Helper function to trim punctuation from word boundaries
-;; Uses regex-replace to remove leading and trailing punctuation
+;; Uses character comparison instead of regex for performance
 (defun trim-punctuation (word)
   "Remove leading and trailing punctuation from word.
 
@@ -196,15 +205,22 @@ or the connection is determined to be dead.
   - Internal punctuation preserved (e.g., contractions, hyphenated words)
   - Multiple consecutive punctuation marks removed
   - Returns empty string for invalid input
+  - Uses character-based trimming for performance (no regex)
 
   ## See Also
   - `clean-word` - Wrapper that validates and trims
   - `collect-words-from-text` - Uses this for word extraction"
   (if (not (and (string? word) (> (length word) 0)))
     ""
-    (let* ((no-trailing (regex-replace "[.,!?;:()\\[\\]{}'\"\\-]+$" word ""))
-           (cleaned (regex-replace "^[.,!?;:()\\[\\]{}'\"\\-]+" no-trailing "")))
-      cleaned)))
+    (let ((len (length word)))
+      ;; Find first non-punctuation index from start
+      (do ((start 0 (+ start 1)))
+        ((or (>= start len) (not (punctuation-char? (string-ref word start))))
+         ;; Find last non-punctuation index from end
+         (do ((end len (- end 1)))
+           ((or (<= end start)
+                (not (punctuation-char? (string-ref word (- end 1)))))
+            (if (>= start end) "" (substring word start end)))))))))
 
 ;; Extract words from text as consecutive non-whitespace characters
 ;; Returns a list of words (strings)
@@ -305,20 +321,21 @@ or the connection is determined to be dead.
 ;; Uses reference counting to track word occurrences in circular buffer
 ;; Accepts explicit vector and store to avoid capturing stale globals
 (defun insert-word-into-slot! (vec store slot old-word new-word)
-  ;; Decrement count for old word (if different from new word)
-  (if (string? old-word)
-    (if (not (and (string? new-word) (string=? old-word new-word)))
-      (let ((count (hash-ref store old-word)))
-        (if (and (not (null? count)) (> count 1))
-          (hash-set! store old-word (- count 1))
-          (hash-remove! store old-word)))))
-  ;; Set new word in slot
-  (vector-set! vec slot new-word)
-  ;; Increment count for new word
-  (let ((count (hash-ref store new-word)))
-    (if (null? count)
-      (hash-set! store new-word 1)
-      (hash-set! store new-word (+ count 1)))))
+  ;; Fast path: same word in same slot, nothing to do
+  (if (and (string? old-word) (string? new-word) (string=? old-word new-word))
+    () ; Complete no-op for repeated words
+    (progn
+     ;; Decrement count for old word
+     (if (string? old-word)
+       (let ((count (hash-ref store old-word)))
+         (if (and count (> count 1))
+           (hash-set! store old-word (- count 1))
+           (hash-remove! store old-word))))
+     ;; Set new word in slot
+     (vector-set! vec slot new-word)
+     ;; Increment count for new word
+     (let ((count (hash-ref store new-word)))
+       (hash-set! store new-word (if count (+ count 1) 1))))))
 
 ;; Helper: Check if word is valid for storage (length >= 3)
 (defun word-valid-for-store? (word) (and (string? word) (>= (length word) 3)))
@@ -456,11 +473,14 @@ or the connection is determined to be dead.
   - `add-word-to-store` - Adds individual words to store
   - `get-completions-from-store` - Retrieves matching words
   - `completion-hook` - Uses word store for tab completion"
-  (let ((words (extract-words text)))
-    (if (null? words)
-      ()
-      (do ((remaining words (cdr remaining))) ((null? remaining))
-        (add-word-to-store (car remaining))))))
+  ;; Skip large text chunks to avoid lag (combat spam, room descriptions)
+  (if (> (length text) 2000)
+    ()
+    (let ((words (extract-words text)))
+      (if (null? words)
+        ()
+        (do ((remaining words (cdr remaining))) ((null? remaining))
+          (add-word-to-store (car remaining)))))))
 
 ;; Helper: Compute circular buffer index from position
 (defun compute-circular-index (pos vec-size)
