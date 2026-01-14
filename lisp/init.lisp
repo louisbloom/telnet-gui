@@ -325,17 +325,17 @@ or the connection is determined to be dead.
   (if (and (string? old-word) (string? new-word) (string=? old-word new-word))
     () ; Complete no-op for repeated words
     (progn
-     ;; Decrement count for old word
-     (if (string? old-word)
-       (let ((count (hash-ref store old-word)))
-         (if (and count (> count 1))
-           (hash-set! store old-word (- count 1))
-           (hash-remove! store old-word))))
-     ;; Set new word in slot
-     (vector-set! vec slot new-word)
-     ;; Increment count for new word
-     (let ((count (hash-ref store new-word)))
-       (hash-set! store new-word (if count (+ count 1) 1))))))
+      ;; Decrement count for old word
+      (if (string? old-word)
+        (let ((count (hash-ref store old-word)))
+          (if (and count (> count 1))
+            (hash-set! store old-word (- count 1))
+            (hash-remove! store old-word))))
+      ;; Set new word in slot
+      (vector-set! vec slot new-word)
+      ;; Increment count for new word
+      (let ((count (hash-ref store new-word)))
+        (hash-set! store new-word (if count (+ count 1) 1))))))
 
 ;; Helper: Check if word is valid for storage (length >= 3)
 (defun word-valid-for-store? (word) (and (string? word) (>= (length word) 3)))

@@ -5,7 +5,6 @@
 #include <string.h>
 #include <locale.h>
 #include <stdbool.h>
-#include <errno.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -40,8 +39,7 @@
 /* Forward declaration for renderer animation functions */
 void renderer_set_animation(Animation *anim);
 #endif
-#include "../../telnet-lisp/include/lisp.h"
-#include "../../telnet-lisp/include/file_utils.h"
+#include "../telnet-lisp/include/file_utils.h"
 
 /* High-resolution timing for profiling */
 #ifdef _WIN32

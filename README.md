@@ -389,6 +389,21 @@ sudo apt-get install librlottie-dev
 sudo apt-get install git make libtool perl
 ```
 
+**GNU/Linux (Fedora):**
+
+```bash
+# Build tools and libraries
+sudo dnf groupinstall "Development Tools"
+sudo dnf install cmake ninja-build pkg-config gc-devel pcre2-devel \
+    SDL2-devel SDL2_ttf-devel libvterm-devel
+
+# Optional: rlottie for animations
+sudo dnf install rlottie-devel
+
+# Tools for building from source (if needed)
+sudo dnf install git make libtool perl
+```
+
 **macOS (Homebrew):**
 
 ```bash
