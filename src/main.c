@@ -155,6 +155,7 @@ static SDL_ScaleMode scale_mode = SDL_ScaleModeNearest; /* Default: nearest (pix
 
 /* Callback for hinting mode option */
 static int hinting_cb(struct argparse *self, const struct argparse_option *option) {
+    (void)option; // Mark parameter as unused
     const char *value = self->optvalue;
     if (strcmp(value, "none") == 0) {
         hinting_mode = TTF_HINTING_NONE;
@@ -170,6 +171,7 @@ static int hinting_cb(struct argparse *self, const struct argparse_option *optio
 
 /* Callback for antialiasing mode option */
 static int antialiasing_cb(struct argparse *self, const struct argparse_option *option) {
+    (void)option; // Mark parameter as unused
     const char *value = self->optvalue;
     if (strcmp(value, "nearest") == 0) {
         scale_mode = SDL_ScaleModeNearest;
@@ -181,6 +183,7 @@ static int antialiasing_cb(struct argparse *self, const struct argparse_option *
 
 /* Callback for font choice option */
 static int font_cb(struct argparse *self, const struct argparse_option *option) {
+    (void)option; // Mark parameter as unused
     const char *value = self->optvalue;
     if (strcmp(value, "system") == 0)
         font_choice = 's';
@@ -199,6 +202,7 @@ static int font_cb(struct argparse *self, const struct argparse_option *option) 
 
 /* Callback for geometry option */
 static int geometry_cb(struct argparse *self, const struct argparse_option *option) {
+    (void)option; // Mark parameter as unused
     const char *value = self->optvalue;
     char *geom_copy = strdup(value);
     if (!geom_copy) {
@@ -225,6 +229,7 @@ static int geometry_cb(struct argparse *self, const struct argparse_option *opti
 
 /* Callback for line-height option */
 static int line_height_cb(struct argparse *self, const struct argparse_option *option) {
+    (void)option; // Mark parameter as unused
     const char *value = self->optvalue;
     cli_line_height = (float)atof(value);
     if (cli_line_height < 0.5f || cli_line_height > 3.0f) {
@@ -236,6 +241,7 @@ static int line_height_cb(struct argparse *self, const struct argparse_option *o
 
 /* Callback for lisp-file option */
 static int lisp_file_cb(struct argparse *self, const struct argparse_option *option) {
+    (void)option; // Mark parameter as unused
     const char *value = self->optvalue;
     if (lisp_file_count < 16) {
         lisp_files[lisp_file_count++] = value;
@@ -248,6 +254,7 @@ static int lisp_file_cb(struct argparse *self, const struct argparse_option *opt
 
 /* Callback for font-backend option */
 static int font_backend_cb(struct argparse *self, const struct argparse_option *option) {
+    (void)option; // Mark parameter as unused
     const char *value = self->optvalue;
     if (strcmp(value, "sdl") == 0 || strcmp(value, "sdl_ttf") == 0) {
         use_directwrite = 0;
