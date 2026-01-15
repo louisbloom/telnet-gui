@@ -513,6 +513,9 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
     int use_symbol_font = 0;
     int use_emoji_font = 0;
 
+    /* Track if we used an emoji/symbol font (for scale mode selection) */
+    int used_emoji_font = 0;
+
     /* Emoji/symbols: prefer emoji font, fall back to symbol font */
     if (is_emoji) {
         use_main_font = 0;
@@ -637,7 +640,7 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
 
     /* Fall back to symbol font if emoji font didn't have the glyph */
     if (!surface && use_symbol_font && cache->symbol_font) {
-        fprintf(stderr, "SDL_ttf: use_symbol_font=%d, cache->symbol_font=%p\n", use_symbol_font, cache->symbol_font);
+        fprintf(stderr, "SDL_ttf: use_symbol_font=%d, cache->symbol_font=%p\n", use_symbol_font, (void*)cache->symbol_font);
         fprintf(stderr, "SDL_ttf: Trying symbol font for U+%04X\n", codepoint);
         TTF_SetFontStyle(cache->symbol_font, style);
 
