@@ -228,22 +228,83 @@ static const char *find_emoji_font(void) {
 #endif
 }
 
+/* Try to find bold variant of a font using fc-match (Linux only) */
+static char *find_bold_font_simple(const char *regular_path, const char *font_name) {
+#ifndef _WIN32
+    if (!font_name)
+        return NULL;
+        
+    /* Try common bold patterns */
+    const char *bold_patterns[] = {
+        "%s Bold:style=Regular",
+        "%s:style=Bold",
+        "%s Bold",
+        "%s:weight=Bold",
+        NULL
+    };
+    
+    for (int i = 0; bold_patterns[i] != NULL; i++) {
+        char pattern[256];
+        snprintf(pattern, sizeof(pattern), bold_patterns[i], font_name);
+        
+        char fc_cmd[256];
+        snprintf(fc_cmd, sizeof(fc_cmd), 
+                 "fc-match -f '%%{file}\n' '%s' 2>/dev/null", pattern);
+        
+        FILE *fp = popen(fc_cmd, "r");
+        if (fp) {
+            static char bold_path[1024];
+            if (fgets(bold_path, sizeof(bold_path), fp)) {
+                /* Remove trailing newline */
+                size_t len = strlen(bold_path);
+                if (len > 0 && bold_path[len - 1] == '\n') {
+                    bold_path[len - 1] = '\0';
+                }
+                pclose(fp);
+                
+                /* Check if it's a different file than the regular font */
+                if (strcmp(bold_path, regular_path) != 0) {
+                    /* Verify file exists */
+                    FILE *test = fopen(bold_path, "rb");
+                    if (test) {
+                        fclose(test);
+                        return strdup(bold_path);
+                    }
+                }
+            }
+            pclose(fp);
+        }
+    }
+#endif
+    return NULL;
+}
+
 /* Derive bold font path from regular font path.
  * Supports multiple naming conventions:
  * - Distributed fonts: {Name}-Regular.ttf -> {Name}-Bold.ttf
  * - DejaVu style: DejaVuSansMono.ttf -> DejaVuSansMono-Bold.ttf
  * - Windows system fonts: consola.ttf -> consolab.ttf, cour.ttf -> courbd.ttf
  * Returns allocated string (caller must free) or NULL if not found. */
-static char *find_bold_font_path(const char *regular_path) {
+static char *find_bold_font_path(const char *regular_path, const char *font_name) {
     if (!regular_path)
         return NULL;
 
+#ifndef _WIN32
+    /* On Linux, try fc-match first (more reliable) */
+    char *bold_path = find_bold_font_simple(regular_path, font_name);
+    if (bold_path) {
+        fprintf(stderr, "SDL_ttf: Found bold font via fc-match: %s\n", bold_path);
+        return bold_path;
+    }
+#endif
+
+    /* Fall back to filename pattern matching */
     size_t path_len = strlen(regular_path);
     if (path_len < 5)
         return NULL; /* Too short for .ttf */
 
     /* Allocate buffer for bold path (extra space for "-Bold" suffix) */
-    char *bold_path = (char *)malloc(path_len + 16);
+    bold_path = (char *)malloc(path_len + 16);
     if (!bold_path)
         return NULL;
 
@@ -391,7 +452,7 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
     /* Skip loading fallback fonts if only metrics are needed */
     if (!metrics_only) {
         /* Load bold font if available */
-        char *bold_path = find_bold_font_path(font_path);
+        char *bold_path = find_bold_font_path(font_path, font_name);
         if (bold_path) {
             fprintf(stderr, "SDL_ttf: Found bold font path: %s\n", bold_path);
             cache->bold_font = load_font_with_logging(bold_path, "bold", font_size, hdpi, vdpi, hinting_mode, 0);
