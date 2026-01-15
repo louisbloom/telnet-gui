@@ -615,9 +615,6 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
         }
     }
 
-    /* Track if we used an emoji/symbol font (for scale mode selection) */
-    int used_emoji_font = 0;
-
     /* Try emoji font first for emoji and symbols */
     if (!surface && use_emoji_font && cache->emoji_font) {
         /* For COLRv1 fonts, TTF_GlyphIsProvided32 may return false even if the font has the glyph.
