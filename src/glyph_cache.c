@@ -57,7 +57,7 @@ static const char *find_first_existing_font(const char *fonts[]) {
 static const char *find_font_via_fc_match(const char *pattern, const char *fallback_paths[]) {
 #ifndef _WIN32
     /* Build command: fc-match -f "%{file}\n" pattern */
-    char command[1024];  /* Increased from 256 */
+    char command[1024]; /* Increased from 256 */
     snprintf(command, sizeof(command), "fc-match -f '%%{file}\n' '%s' 2>/dev/null", pattern);
 
     FILE *fp = popen(command, "r");
@@ -233,24 +233,17 @@ static char *find_bold_font_simple(const char *regular_path, const char *font_na
 #ifndef _WIN32
     if (!font_name)
         return NULL;
-        
+
     /* Try common bold patterns */
-    const char *bold_patterns[] = {
-        "%s Bold:style=Regular",
-        "%s:style=Bold",
-        "%s Bold",
-        "%s:weight=Bold",
-        NULL
-    };
-    
+    const char *bold_patterns[] = {"%s Bold:style=Regular", "%s:style=Bold", "%s Bold", "%s:weight=Bold", NULL};
+
     for (int i = 0; bold_patterns[i] != NULL; i++) {
-        char pattern[512];  /* Increased from 256 */
+        char pattern[512]; /* Increased from 256 */
         snprintf(pattern, sizeof(pattern), bold_patterns[i], font_name);
-        
-        char fc_cmd[1024];  /* Increased from 256 */
-        snprintf(fc_cmd, sizeof(fc_cmd), 
-                 "fc-match -f '%%{file}\n' '%s' 2>/dev/null", pattern);
-        
+
+        char fc_cmd[1024]; /* Increased from 256 */
+        snprintf(fc_cmd, sizeof(fc_cmd), "fc-match -f '%%{file}\n' '%s' 2>/dev/null", pattern);
+
         FILE *fp = popen(fc_cmd, "r");
         if (fp) {
             static char bold_path[1024];
@@ -261,7 +254,7 @@ static char *find_bold_font_simple(const char *regular_path, const char *font_na
                     bold_path[len - 1] = '\0';
                 }
                 pclose(fp);
-                
+
                 /* Check if it's a different file than the regular font */
                 if (strcmp(bold_path, regular_path) != 0) {
                     /* Verify file exists */
