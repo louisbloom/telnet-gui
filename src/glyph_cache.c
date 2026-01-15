@@ -12,10 +12,14 @@
 /* Find first existing font from a NULL-terminated list of paths */
 static const char *find_first_existing_font(const char *fonts[]) {
     for (int i = 0; fonts[i] != NULL; i++) {
+        fprintf(stderr, "SDL_ttf: find_first_existing_font trying path [%d]: %s\n", i, fonts[i]);
         FILE *test = fopen(fonts[i], "rb");
         if (test) {
             fclose(test);
+            fprintf(stderr, "SDL_ttf: find_first_existing_font found: %s\n", fonts[i]);
             return fonts[i];
+        } else {
+            fprintf(stderr, "SDL_ttf: find_first_existing_font path not found: %s\n", fonts[i]);
         }
     }
     return NULL;
@@ -68,10 +72,22 @@ static const char *find_font_via_fc_match(const char *pattern, const char *fallb
 static const char *find_symbol_font(void) {
 #ifdef _WIN32
     static const char *fonts[] = {"C:/Windows/Fonts/seguisym.ttf", "C:\\Windows\\Fonts\\seguisym.ttf", NULL};
-    return find_first_existing_font(fonts);
+    const char *result = find_first_existing_font(fonts);
+    if (result) {
+        fprintf(stderr, "SDL_ttf: find_symbol_font found: %s\n", result);
+    } else {
+        fprintf(stderr, "SDL_ttf: find_symbol_font found no symbol font\n");
+    }
+    return result;
 #elif defined(__APPLE__)
     static const char *fonts[] = {"/System/Library/Fonts/Apple Symbols.ttf", NULL};
-    return find_first_existing_font(fonts);
+    const char *result = find_first_existing_font(fonts);
+    if (result) {
+        fprintf(stderr, "SDL_ttf: find_symbol_font found: %s\n", result);
+    } else {
+        fprintf(stderr, "SDL_ttf: find_symbol_font found no symbol font\n");
+    }
+    return result;
 #else
     static const char *fallback_paths[] = {
         /* Fedora-specific symbol fonts - prefer non-variable fonts */
@@ -116,12 +132,19 @@ static const char *find_symbol_font(void) {
     for (int i = 0; symbol_patterns[i] != NULL; i++) {
         const char *result = find_font_via_fc_match(symbol_patterns[i], NULL);
         if (result) {
+            fprintf(stderr, "SDL_ttf: find_symbol_font via fc-match pattern '%s' found: %s\n", symbol_patterns[i], result);
             return result;
         }
     }
     
     /* If fc-match didn't find anything, use fallback paths */
-    return find_first_existing_font(fallback_paths);
+    const char *result = find_first_existing_font(fallback_paths);
+    if (result) {
+        fprintf(stderr, "SDL_ttf: find_symbol_font via fallback found: %s\n", result);
+    } else {
+        fprintf(stderr, "SDL_ttf: find_symbol_font found no symbol font\n");
+    }
+    return result;
 #endif
 }
 
@@ -129,10 +152,22 @@ static const char *find_symbol_font(void) {
 static const char *find_emoji_font(void) {
 #ifdef _WIN32
     static const char *fonts[] = {"C:/Windows/Fonts/seguiemj.ttf", "C:\\Windows\\Fonts\\seguiemj.ttf", NULL};
-    return find_first_existing_font(fonts);
+    const char *result = find_first_existing_font(fonts);
+    if (result) {
+        fprintf(stderr, "SDL_ttf: find_emoji_font found: %s\n", result);
+    } else {
+        fprintf(stderr, "SDL_ttf: find_emoji_font found no emoji font\n");
+    }
+    return result;
 #elif defined(__APPLE__)
     static const char *fonts[] = {"/System/Library/Fonts/Apple Color Emoji.ttc", NULL};
-    return find_first_existing_font(fonts);
+    const char *result = find_first_existing_font(fonts);
+    if (result) {
+        fprintf(stderr, "SDL_ttf: find_emoji_font found: %s\n", result);
+    } else {
+        fprintf(stderr, "SDL_ttf: find_emoji_font found no emoji font\n");
+    }
+    return result;
 #else
     static const char *fallback_paths[] = {
         /* Try monochrome emoji font first - SDL_ttf may handle it better */
@@ -182,12 +217,19 @@ static const char *find_emoji_font(void) {
     for (int i = 0; emoji_patterns[i] != NULL; i++) {
         const char *result = find_font_via_fc_match(emoji_patterns[i], NULL);
         if (result) {
+            fprintf(stderr, "SDL_ttf: find_emoji_font via fc-match pattern '%s' found: %s\n", emoji_patterns[i], result);
             return result;
         }
     }
     
     /* If fc-match didn't find anything, use fallback paths */
-    return find_first_existing_font(fallback_paths);
+    const char *result = find_first_existing_font(fallback_paths);
+    if (result) {
+        fprintf(stderr, "SDL_ttf: find_emoji_font via fallback found: %s\n", result);
+    } else {
+        fprintf(stderr, "SDL_ttf: find_emoji_font found no emoji font\n");
+    }
+    return result;
 #endif
 }
 
@@ -295,8 +337,10 @@ static int is_symbol_codepoint(uint32_t codepoint) {
 static TTF_Font *load_emoji_font(const char *(*find_func)(void), const char *name, int size, int hdpi, int vdpi) {
     const char *path = find_func();
     if (!path) {
+        fprintf(stderr, "SDL_ttf: No path found for %s font\n", name);
         return NULL;
     }
+    fprintf(stderr, "SDL_ttf: Trying to load %s font from: %s\n", name, path);
 #if HAVE_SDL_TTF_DPI
     TTF_Font *font = TTF_OpenFontDPI(path, size, hdpi, vdpi);
 #else
@@ -304,6 +348,11 @@ static TTF_Font *load_emoji_font(const char *(*find_func)(void), const char *nam
     (void)vdpi; /* Not used when DPI support is not available */
     TTF_Font *font = TTF_OpenFont(path, size);
 #endif
+    if (font) {
+        fprintf(stderr, "SDL_ttf: Successfully loaded %s font\n", name);
+    } else {
+        fprintf(stderr, "SDL_ttf: Failed to load %s font: %s\n", name, TTF_GetError());
+    }
     return font;
 }
 
@@ -318,6 +367,7 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
     cache->renderer = renderer;
 
     /* Try to load the requested font with DPI awareness if available */
+    fprintf(stderr, "SDL_ttf: Loading main font from: %s\n", font_path);
 #if HAVE_SDL_TTF_DPI
     cache->font = TTF_OpenFontDPI(font_path, font_size, hdpi, vdpi);
     if (!cache->font) {
@@ -334,6 +384,7 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
         return NULL;
     }
 #endif
+    fprintf(stderr, "SDL_ttf: Successfully loaded main font\n");
 
     /* Store font path and name */
     cache->font_path = strdup(font_path);
@@ -377,21 +428,32 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
         /* Load bold font if available */
         char *bold_path = find_bold_font_path(font_path);
         if (bold_path) {
+            fprintf(stderr, "SDL_ttf: Found bold font path: %s\n", bold_path);
 #if HAVE_SDL_TTF_DPI
             cache->bold_font = TTF_OpenFontDPI(bold_path, font_size, hdpi, vdpi);
 #else
             cache->bold_font = TTF_OpenFont(bold_path, font_size);
 #endif
             if (cache->bold_font) {
+                fprintf(stderr, "SDL_ttf: Successfully loaded bold font\n");
                 TTF_SetFontHinting(cache->bold_font, hinting_mode);
                 TTF_SetFontKerning(cache->bold_font, 0);
+            } else {
+                fprintf(stderr, "SDL_ttf: Failed to load bold font: %s\n", TTF_GetError());
             }
             free(bold_path);
+        } else {
+            fprintf(stderr, "SDL_ttf: No bold font found for %s\n", font_path);
         }
 
         /* Load emoji/symbol fonts at same size as main font (renders at correct scale) */
         cache->emoji_font = load_emoji_font(find_emoji_font, "Emoji", font_size, hdpi, vdpi);
         cache->symbol_font = load_emoji_font(find_symbol_font, "Symbol", font_size, hdpi, vdpi);
+        
+        fprintf(stderr, "SDL_ttf: Fallback fonts: bold=%s, emoji=%s, symbol=%s\n", 
+                cache->bold_font ? "yes" : "no",
+                cache->emoji_font ? "yes" : "no", 
+                cache->symbol_font ? "yes" : "no");
     }
 
     return cache;
