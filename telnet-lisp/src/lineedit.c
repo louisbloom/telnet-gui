@@ -11,6 +11,7 @@
 #ifdef _WIN32
 #include <conio.h>
 #include <io.h>
+#include <windows.h>
 #define isatty _isatty
 #define fileno _fileno
 #else
@@ -50,6 +51,8 @@
 #define ANSI_MOVE_RIGHT "\033[C"
 #define ANSI_CURSOR_HIDE "\033[?25l"
 #define ANSI_CURSOR_SHOW "\033[?25h"
+#define ANSI_SAVE_CURSOR "\033[s"
+#define ANSI_RESTORE_CURSOR "\033[u"
 
 /* Line editor state */
 struct LineEditState {
@@ -240,10 +243,10 @@ void lineedit_history_clear(LineEditState *state) {
  */
 static void enable_raw_mode(LineEditState *state) {
 #ifndef _WIN32
-    if (state->raw_mode || !isatty(fileno(stdin)))
+    if (state->raw_mode || !isatty(STDIN_FILENO))
         return;
 
-    if (tcgetattr(fileno(stdin), &state->orig_termios) == -1)
+    if (tcgetattr(STDIN_FILENO, &state->orig_termios) == -1)
         return;
 
     struct termios raw = state->orig_termios;
@@ -254,8 +257,11 @@ static void enable_raw_mode(LineEditState *state) {
     raw.c_cc[VMIN] = 1;
     raw.c_cc[VTIME] = 0;
 
-    if (tcsetattr(fileno(stdin), TCSAFLUSH, &raw) == 0) {
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == 0) {
         state->raw_mode = 1;
+        /* Ensure terminal is in a known state */
+        printf(ANSI_CURSOR_SHOW);
+        fflush(stdout);
     }
 #else
     (void)state;
@@ -282,13 +288,27 @@ static void disable_raw_mode(LineEditState *state) {
 static int get_terminal_width(void) {
 #ifdef _WIN32
     /* Windows: use console info */
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (hStdOut != INVALID_HANDLE_VALUE && 
+        GetConsoleScreenBufferInfo(hStdOut, &csbi)) {
+        return csbi.srWindow.Right - csbi.srWindow.Left + 1;
+    }
     return 80; /* Default fallback */
 #else
     struct winsize ws;
-    if (ioctl(fileno(stdout), TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0) {
+    /* Try TIOCGWINSZ first (standard) */
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0) {
         return ws.ws_col;
     }
-    return 80; /* Default fallback */
+    /* Fallback: check COLUMNS environment variable */
+    char *columns = getenv("COLUMNS");
+    if (columns) {
+        int cols = atoi(columns);
+        if (cols > 0) return cols;
+    }
+    /* Ultimate fallback */
+    return 80;
 #endif
 }
 
@@ -376,6 +396,9 @@ static int lineedit_getchar(LineEditState *state) {
  * Refresh the line display.
  */
 static void lineedit_refresh(LineEditState *state, const char *prompt) {
+    /* Save cursor position */
+    printf(ANSI_SAVE_CURSOR);
+    
     /* Move cursor to start of line and clear */
     printf("\r" ANSI_CLEAR_RIGHT);
 
@@ -391,6 +414,9 @@ static void lineedit_refresh(LineEditState *state, const char *prompt) {
         printf(ANSI_MOVE_LEFT);
     }
 
+    /* Restore cursor visibility */
+    printf(ANSI_CURSOR_SHOW);
+    
     fflush(stdout);
 }
 
@@ -574,6 +600,20 @@ static void lineedit_complete(LineEditState *state, const char *prompt) {
     free(common);
 }
 
+/* Helper function to count visual width of UTF-8 string */
+static int utf8_visual_width(const char *str) {
+    int width = 0;
+    unsigned char *p = (unsigned char *)str;
+    
+    while (*p) {
+        if ((*p & 0xC0) != 0x80) { /* Not a continuation byte */
+            width++;
+        }
+        p++;
+    }
+    return width;
+}
+
 /*
  * Show all completions.
  */
@@ -584,29 +624,45 @@ static void lineedit_show_completions(LineEditState *state, const char *prompt) 
     int term_width = get_terminal_width();
     int max_len = 0;
 
-    /* Find max completion length */
+    /* Find max completion length using visual width */
     for (int i = 0; i < state->completion_count; i++) {
-        int len = strlen(state->completions[i]);
+        int len = utf8_visual_width(state->completions[i]);
         if (len > max_len)
             max_len = len;
     }
 
-    /* Calculate columns */
-    int col_width = max_len + 2;
+    /* Calculate columns with minimum spacing */
+    int col_width = max_len + 2; /* 2 spaces padding */
+    if (col_width < 4) col_width = 4; /* Minimum column width */
+    
     int cols = term_width / col_width;
-    if (cols < 1)
-        cols = 1;
+    if (cols < 1) cols = 1;
+    if (cols > state->completion_count) cols = state->completion_count;
 
-    /* Print completions */
+    /* Print completions with proper formatting */
     printf("\n");
-    for (int i = 0; i < state->completion_count; i++) {
-        printf("%-*s", col_width, state->completions[i]);
-        if ((i + 1) % cols == 0 || i == state->completion_count - 1) {
-            printf("\n");
+    int rows = (state->completion_count + cols - 1) / cols;
+    
+    for (int row = 0; row < rows; row++) {
+        for (int col = 0; col < cols; col++) {
+            int idx = row + col * rows;
+            if (idx < state->completion_count) {
+                /* Calculate padding for this column */
+                int visual_len = utf8_visual_width(state->completions[idx]);
+                int padding = col_width - visual_len;
+                
+                printf("%s", state->completions[idx]);
+                for (int p = 0; p < padding; p++) {
+                    printf(" ");
+                }
+            }
         }
+        printf("\n");
     }
 
-    /* Redraw prompt and line */
+    /* Redraw prompt and line - ensure cursor is positioned correctly */
+    printf("\r"); /* Move to beginning of line */
+    fflush(stdout);
     lineedit_refresh(state, prompt);
 }
 
