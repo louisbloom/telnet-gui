@@ -4,7 +4,6 @@
  * Cross-platform implementation using raw terminal input.
  */
 
-#include "lineedit.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
