@@ -654,6 +654,11 @@ static void lineedit_show_completions(LineEditState *state, const char *prompt) 
                 for (int p = 0; p < padding; p++) {
                     printf(" ");
                 }
+            } else {
+                /* Empty column - print spaces to maintain column width */
+                for (int p = 0; p < col_width; p++) {
+                    printf(" ");
+                }
             }
         }
         printf("\n");
