@@ -166,6 +166,14 @@ static SDL_ScaleMode scale_mode = SDL_ScaleModeNearest; /* Default: nearest (pix
 static int hinting_cb(struct argparse *self, const struct argparse_option *option) {
     (void)option; // Mark parameter as unused
     const char *value = self->optvalue;
+    /* If self->optvalue is NULL, try to get value from hinting_value variable */
+    if (!value) {
+        value = hinting_value;
+    }
+    if (!value) {
+        fprintf(stderr, "Error: No value provided for hinting option\n");
+        return -1;
+    }
     if (strcmp(value, "none") == 0) {
         hinting_mode = TTF_HINTING_NONE;
     } else if (strcmp(value, "light") == 0) {
@@ -182,6 +190,14 @@ static int hinting_cb(struct argparse *self, const struct argparse_option *optio
 static int antialiasing_cb(struct argparse *self, const struct argparse_option *option) {
     (void)option; // Mark parameter as unused
     const char *value = self->optvalue;
+    /* If self->optvalue is NULL, try to get value from antialiasing_value variable */
+    if (!value) {
+        value = antialiasing_value;
+    }
+    if (!value) {
+        fprintf(stderr, "Error: No value provided for antialiasing option\n");
+        return -1;
+    }
     if (strcmp(value, "nearest") == 0) {
         scale_mode = SDL_ScaleModeNearest;
     } else if (strcmp(value, "linear") == 0) {
@@ -194,6 +210,14 @@ static int antialiasing_cb(struct argparse *self, const struct argparse_option *
 static int font_cb(struct argparse *self, const struct argparse_option *option) {
     (void)option; // Mark parameter as unused
     const char *value = self->optvalue;
+    /* If self->optvalue is NULL, try to get value from font_value variable */
+    if (!value) {
+        value = font_value;
+    }
+    if (!value) {
+        fprintf(stderr, "Error: No value provided for font option\n");
+        return -1;
+    }
     if (strcmp(value, "system") == 0)
         font_choice = 's';
     else if (strcmp(value, "cascadia") == 0)
@@ -213,6 +237,10 @@ static int font_cb(struct argparse *self, const struct argparse_option *option) 
 static int geometry_cb(struct argparse *self, const struct argparse_option *option) {
     (void)option; // Mark parameter as unused
     const char *value = self->optvalue;
+    /* If self->optvalue is NULL, try to get value from geometry_value variable */
+    if (!value) {
+        value = geometry_value;
+    }
     if (!value) {
         fprintf(stderr, "Error: No value provided for geometry option\n");
         return -1;
@@ -244,6 +272,14 @@ static int geometry_cb(struct argparse *self, const struct argparse_option *opti
 static int line_height_cb(struct argparse *self, const struct argparse_option *option) {
     (void)option; // Mark parameter as unused
     const char *value = self->optvalue;
+    /* If self->optvalue is NULL, try to get value from line_height_value variable */
+    if (!value) {
+        value = line_height_value;
+    }
+    if (!value) {
+        fprintf(stderr, "Error: No value provided for line-height option\n");
+        return -1;
+    }
     cli_line_height = (float)atof(value);
     if (cli_line_height < 0.5f || cli_line_height > 3.0f) {
         fprintf(stderr, "Error: Invalid line height '%s'. Must be between 0.5 and 3.0\n", value);
@@ -278,6 +314,14 @@ static int lisp_file_cb(struct argparse *self, const struct argparse_option *opt
 static int font_backend_cb(struct argparse *self, const struct argparse_option *option) {
     (void)option; // Mark parameter as unused
     const char *value = self->optvalue;
+    /* If self->optvalue is NULL, try to get value from font_backend_value variable */
+    if (!value) {
+        value = font_backend_value;
+    }
+    if (!value) {
+        fprintf(stderr, "Error: No value provided for font-backend option\n");
+        return -1;
+    }
     if (strcmp(value, "sdl") == 0 || strcmp(value, "sdl_ttf") == 0) {
         use_directwrite = 0;
     } else if (strcmp(value, "directwrite") == 0) {
