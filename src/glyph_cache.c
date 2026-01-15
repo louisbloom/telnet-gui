@@ -51,6 +51,10 @@ static const char *find_font_via_fc_match(const char *pattern, const char *fallb
                     /* This is a variable font - try next pattern */
                     return NULL;
                 }
+                /* Also skip COLRv1 fonts (SDL_ttf may not render them properly) */
+                if (strstr(path, "COLRv1") != NULL) {
+                    return NULL;
+                }
                 return path;
             }
         }
@@ -168,9 +172,8 @@ static const char *find_emoji_font(void) {
     static const char *fallback_paths[] = {
         /* Try monochrome emoji font first - SDL_ttf may handle it better */
         "/usr/share/fonts/google-noto-emoji-fonts/NotoEmoji-Regular.ttf",
-        /* Then try color emoji fonts */
+        /* Then try color emoji fonts (excluding COLRv1) */
         "/usr/share/fonts/google-noto-color-emoji-fonts/NotoColorEmoji.ttf",
-        "/usr/share/fonts/google-noto-color-emoji-fonts/Noto-COLRv1.ttf",
         /* Other color emoji fonts */
         "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
         "/usr/share/fonts/noto-emoji/NotoColorEmoji.ttf",
@@ -193,6 +196,8 @@ static const char *find_emoji_font(void) {
         /* Last resort: Noto Sans */
         "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
         "/usr/share/fonts/noto-sans/NotoSans-Regular.ttf",
+        /* COLRv1 as absolute last resort (likely won't work) */
+        "/usr/share/fonts/google-noto-color-emoji-fonts/Noto-COLRv1.ttf",
         NULL
     };
     /* Try fc-match first for better results - try multiple patterns */
@@ -204,6 +209,8 @@ static const char *find_emoji_font(void) {
         "Noto Color Emoji",
         "emoji:style=Regular",
         "emoji",
+        /* Try generic patterns that might match monochrome fonts */
+        "Noto",
         NULL
     };
     
