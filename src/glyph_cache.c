@@ -602,6 +602,19 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
 
         TTF_SetFontStyle(cache->symbol_font, TTF_STYLE_NORMAL);
         used_emoji_font = 1;
+        
+        /* If symbol font also failed, try emoji font as a last resort (some symbols may be in emoji font) */
+        if (!surface && cache->emoji_font) {
+            TTF_SetFontStyle(cache->emoji_font, style);
+            char utf8[5];
+            utf8_put_codepoint(codepoint, utf8);
+            SDL_Color white = {255, 255, 255, 255};
+            surface = TTF_RenderUTF8_Blended(cache->emoji_font, utf8, white);
+            TTF_SetFontStyle(cache->emoji_font, TTF_STYLE_NORMAL);
+            if (surface) {
+                used_emoji_font = 1;
+            }
+        }
     }
 
     if (!surface)
