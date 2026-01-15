@@ -639,10 +639,14 @@ static void lineedit_show_completions(LineEditState *state, const char *prompt) 
     if (cols < 1) cols = 1;
     if (cols > state->completion_count) cols = state->completion_count;
 
-    /* Print completions with proper formatting */
-    printf("\n");
+    /* Calculate rows needed */
     int rows = (state->completion_count + cols - 1) / cols;
     
+    /* Clear from cursor to end of screen first */
+    printf("\033[J");
+    
+    /* Print completions with proper formatting */
+    printf("\n");
     for (int row = 0; row < rows; row++) {
         for (int col = 0; col < cols; col++) {
             int idx = row + col * rows;
@@ -660,9 +664,7 @@ static void lineedit_show_completions(LineEditState *state, const char *prompt) 
         printf("\n");
     }
 
-    /* Redraw prompt and line - ensure cursor is positioned correctly */
-    printf("\r"); /* Move to beginning of line */
-    fflush(stdout);
+    /* Redraw prompt and line */
     lineedit_refresh(state, prompt);
 }
 
@@ -790,12 +792,7 @@ char *lineedit_readline(LineEditState *state, const char *prompt) {
             break;
 
         case KEY_TAB:
-            if (last_key == KEY_TAB && state->completions) {
-                /* Double tab: show all completions */
-                lineedit_show_completions(state, prompt);
-            } else {
-                lineedit_complete(state, prompt);
-            }
+            lineedit_complete(state, prompt);
             lineedit_refresh(state, prompt);
             break;
 
