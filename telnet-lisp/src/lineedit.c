@@ -396,9 +396,6 @@ static int lineedit_getchar(LineEditState *state) {
  * Refresh the line display.
  */
 static void lineedit_refresh(LineEditState *state, const char *prompt) {
-    /* Save cursor position */
-    printf(ANSI_SAVE_CURSOR);
-    
     /* Move cursor to start of line and clear */
     printf("\r" ANSI_CLEAR_RIGHT);
 
@@ -410,12 +407,10 @@ static void lineedit_refresh(LineEditState *state, const char *prompt) {
 
     /* Move cursor to correct position */
     int cursor_offset = state->len - state->pos;
-    for (int i = 0; i < cursor_offset; i++) {
-        printf(ANSI_MOVE_LEFT);
+    if (cursor_offset > 0) {
+        /* Move cursor left by cursor_offset */
+        printf("\033[%dD", cursor_offset);
     }
-
-    /* Restore cursor visibility */
-    printf(ANSI_CURSOR_SHOW);
     
     fflush(stdout);
 }
@@ -742,6 +737,9 @@ char *lineedit_readline(LineEditState *state, const char *prompt) {
     /* Enable raw mode */
     enable_raw_mode(state);
 
+    /* Ensure we're at the beginning of the line before printing prompt */
+    printf("\r");
+    
     /* Print prompt */
     printf("%s", prompt);
     fflush(stdout);
