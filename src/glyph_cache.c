@@ -85,6 +85,8 @@ static const char *find_font_via_fc_match(const char *pattern, const char *fallb
                 }
                 return path;
             }
+            /* File doesn't exist or can't be opened */
+            return NULL;
         }
         pclose(fp);
     }
@@ -253,13 +255,13 @@ static char *find_bold_font_simple(const char *regular_path, const char *font_na
                 if (len > 0 && bold_path[len - 1] == '\n') {
                     bold_path[len - 1] = '\0';
                 }
-                pclose(fp);
 
                 /* Check if it's a different file than the regular font */
                 if (strcmp(bold_path, regular_path) != 0) {
                     /* Skip variable fonts (contain '[') - SDL_ttf doesn't handle them well */
                     if (strstr(bold_path, "[") != NULL) {
                         fprintf(stderr, "SDL_ttf: Skipping variable font for bold: %s\n", bold_path);
+                        pclose(fp);
                         continue;
                     }
                     
@@ -267,6 +269,7 @@ static char *find_bold_font_simple(const char *regular_path, const char *font_na
                     FILE *test = fopen(bold_path, "rb");
                     if (test) {
                         fclose(test);
+                        pclose(fp);
                         return strdup(bold_path);
                     }
                 }
