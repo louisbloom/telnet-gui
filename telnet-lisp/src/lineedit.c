@@ -292,22 +292,30 @@ static int get_terminal_width(void) {
     HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
     if (hStdOut != INVALID_HANDLE_VALUE && 
         GetConsoleScreenBufferInfo(hStdOut, &csbi)) {
-        return csbi.srWindow.Right - csbi.srWindow.Left + 1;
+        int width = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+        fprintf(stderr, "DEBUG: Windows terminal width=%d\n", width);
+        return width;
     }
+    fprintf(stderr, "DEBUG: Windows terminal width fallback=80\n");
     return 80; /* Default fallback */
 #else
     struct winsize ws;
     /* Try TIOCGWINSZ first (standard) */
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0) {
+        fprintf(stderr, "DEBUG: Linux terminal width=%d (from ioctl)\n", ws.ws_col);
         return ws.ws_col;
     }
     /* Fallback: check COLUMNS environment variable */
     char *columns = getenv("COLUMNS");
     if (columns) {
         int cols = atoi(columns);
-        if (cols > 0) return cols;
+        if (cols > 0) {
+            fprintf(stderr, "DEBUG: Linux terminal width=%d (from COLUMNS env)\n", cols);
+            return cols;
+        }
     }
     /* Ultimate fallback */
+    fprintf(stderr, "DEBUG: Linux terminal width fallback=80\n");
     return 80;
 #endif
 }
@@ -396,6 +404,10 @@ static int lineedit_getchar(LineEditState *state) {
  * Refresh the line display.
  */
 static void lineedit_refresh(LineEditState *state, const char *prompt) {
+    /* DEBUG */
+    fprintf(stderr, "DEBUG: lineedit_refresh called, buf='%s', len=%d, pos=%d\n",
+            state->buf, state->len, state->pos);
+    
     /* Move cursor to start of line and clear */
     printf("\r" ANSI_CLEAR_RIGHT);
 
@@ -547,19 +559,24 @@ static void apply_completion(LineEditState *state, const char *completion) {
  * Second Tab: show all completions
  */
 static void lineedit_complete(LineEditState *state, const char *prompt) {
+    fprintf(stderr, "DEBUG: lineedit_complete called\n");
+    
     if (!state->completer)
         return;
 
     /* If completions already exist from first Tab, show them all */
     if (state->completions) {
+        fprintf(stderr, "DEBUG: Already have completions, showing them\n");
         lineedit_show_completions(state, prompt);
         lineedit_clear_completions(state);
         return;
     }
 
     /* First Tab: get completions */
+    fprintf(stderr, "DEBUG: Getting completions from completer\n");
     state->completions = state->completer(state->buf, state->pos, state->completer_userdata);
     if (!state->completions || !state->completions[0]) {
+        fprintf(stderr, "DEBUG: No completions found\n");
         lineedit_clear_completions(state);
         return;
     }
@@ -568,9 +585,12 @@ static void lineedit_complete(LineEditState *state, const char *prompt) {
     state->completion_count = 0;
     while (state->completions[state->completion_count])
         state->completion_count++;
+    
+    fprintf(stderr, "DEBUG: Found %d completions\n", state->completion_count);
 
     /* Single match: complete it fully and done */
     if (state->completion_count == 1) {
+        fprintf(stderr, "DEBUG: Single completion, applying it\n");
         apply_completion(state, state->completions[0]);
         lineedit_clear_completions(state);
         return;
@@ -581,13 +601,18 @@ static void lineedit_complete(LineEditState *state, const char *prompt) {
     int word_start = find_word_start(state->buf, state->pos);
     int current_word_len = state->pos - word_start;
     int common_len = strlen(common);
+    
+    fprintf(stderr, "DEBUG: common='%s', common_len=%d, current_word_len=%d\n",
+            common, common_len, current_word_len);
 
     if (common_len > current_word_len) {
         /* Common prefix extends beyond typed word - apply it */
+        fprintf(stderr, "DEBUG: Applying common prefix\n");
         apply_completion(state, common);
         /* Keep completions for second Tab */
     } else {
         /* Already at common prefix - show all completions */
+        fprintf(stderr, "DEBUG: Already at common prefix, showing all completions\n");
         lineedit_show_completions(state, prompt);
         lineedit_clear_completions(state);
     }
@@ -637,6 +662,12 @@ static void lineedit_show_completions(LineEditState *state, const char *prompt) 
     /* Calculate rows needed */
     int rows = (state->completion_count + cols - 1) / cols;
     
+    /* DEBUG: Print calculated values */
+    fprintf(stderr, "DEBUG: term_width=%d, max_len=%d, completion_count=%d\n", 
+            term_width, max_len, state->completion_count);
+    fprintf(stderr, "DEBUG: col_width=%d, cols=%d, rows=%d\n", 
+            col_width, cols, rows);
+    
     /* Save cursor position */
     printf(ANSI_SAVE_CURSOR);
     
@@ -651,6 +682,10 @@ static void lineedit_show_completions(LineEditState *state, const char *prompt) 
                 /* Calculate padding for this column */
                 int visual_len = utf8_visual_width(state->completions[idx]);
                 int padding = col_width - visual_len;
+                
+                /* DEBUG: Print each completion */
+                fprintf(stderr, "DEBUG: row=%d, col=%d, idx=%d, completion='%s', visual_len=%d, padding=%d\n",
+                        row, col, idx, state->completions[idx], visual_len, padding);
                 
                 printf("%s", state->completions[idx]);
                 for (int p = 0; p < padding; p++) {
@@ -668,6 +703,9 @@ static void lineedit_show_completions(LineEditState *state, const char *prompt) 
 
     /* Restore cursor position */
     printf(ANSI_RESTORE_CURSOR);
+    
+    /* DEBUG: Mark where we redraw */
+    fprintf(stderr, "DEBUG: Redrawing prompt after completions\n");
     
     /* Redraw prompt and line */
     lineedit_refresh(state, prompt);
