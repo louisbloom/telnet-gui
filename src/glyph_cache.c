@@ -536,6 +536,7 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
             main_font_has_glyph = TTF_GlyphIsProvided(cache->font, (uint16_t)codepoint);
         }
 #endif
+        fprintf(stderr, "SDL_ttf: main_font_has_glyph for U+%04X: %s\n", codepoint, main_font_has_glyph ? "true" : "false");
         /* If main font doesn't have glyph, allow fallback to symbol font */
         if (!main_font_has_glyph) {
             use_symbol_font = 1;
@@ -576,6 +577,7 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
         /* Reset font style */
         TTF_SetFontStyle(render_font, TTF_STYLE_NORMAL);
         
+        fprintf(stderr, "SDL_ttf: Main font rendering for U+%04X: %s\n", codepoint, surface ? "success" : "failed");
         /* If main font claimed to have the glyph but rendering failed (surface is NULL),
          * allow fallback to symbol font */
         if (!surface) {
@@ -608,6 +610,7 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
 
     /* Fall back to symbol font if emoji font didn't have the glyph */
     if (!surface && use_symbol_font && cache->symbol_font) {
+        fprintf(stderr, "SDL_ttf: use_symbol_font=%d, cache->symbol_font=%p\n", use_symbol_font, cache->symbol_font);
         fprintf(stderr, "SDL_ttf: Trying symbol font for U+%04X\n", codepoint);
         TTF_SetFontStyle(cache->symbol_font, style);
 
