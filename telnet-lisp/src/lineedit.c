@@ -643,8 +643,11 @@ static void lineedit_show_completions(LineEditState *state, const char *prompt) 
     /* Calculate rows needed */
     int rows = (state->completion_count + cols - 1) / cols;
     
-    /* Clear current line and move to next line */
-    printf("\r" ANSI_CLEAR_RIGHT "\n");
+    /* Save cursor position (where prompt is) */
+    printf(ANSI_SAVE_CURSOR);
+    
+    /* Move to next line (below prompt) and clear it */
+    printf("\n" ANSI_CLEAR_RIGHT);
     
     /* Print completions with proper formatting */
     for (int row = 0; row < rows; row++) {
@@ -668,10 +671,14 @@ static void lineedit_show_completions(LineEditState *state, const char *prompt) 
                 }
             }
         }
-        printf("\n");
+        printf("\r\n");
     }
 
-    /* Print prompt on a new line */
+    /* Restore cursor position (back to prompt line) */
+    printf(ANSI_RESTORE_CURSOR);
+    
+    /* Clear the line and redraw prompt */
+    printf("\r" ANSI_CLEAR_RIGHT);
     printf("%s%s", prompt, state->buf);
     
     /* Move cursor to correct position */
