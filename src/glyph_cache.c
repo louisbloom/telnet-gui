@@ -257,6 +257,12 @@ static char *find_bold_font_simple(const char *regular_path, const char *font_na
 
                 /* Check if it's a different file than the regular font */
                 if (strcmp(bold_path, regular_path) != 0) {
+                    /* Skip variable fonts (contain '[') - SDL_ttf doesn't handle them well */
+                    if (strstr(bold_path, "[") != NULL) {
+                        fprintf(stderr, "SDL_ttf: Skipping variable font for bold: %s\n", bold_path);
+                        continue;
+                    }
+                    
                     /* Verify file exists */
                     FILE *test = fopen(bold_path, "rb");
                     if (test) {
@@ -309,10 +315,13 @@ static char *find_bold_font_path(const char *regular_path, const char *font_name
         size_t prefix_len = regular_suffix - regular_path;
         memcpy(bold_path, regular_path, prefix_len);
         strcpy(bold_path + prefix_len, "-Bold.ttf");
-        FILE *test = fopen(bold_path, "rb");
-        if (test) {
-            fclose(test);
-            return bold_path;
+        /* Skip variable fonts */
+        if (strstr(bold_path, "[") == NULL) {
+            FILE *test = fopen(bold_path, "rb");
+            if (test) {
+                fclose(test);
+                return bold_path;
+            }
         }
     }
 
@@ -324,10 +333,13 @@ static char *find_bold_font_path(const char *regular_path, const char *font_name
         size_t prefix_len = ttf_ext - regular_path;
         memcpy(bold_path, regular_path, prefix_len);
         strcpy(bold_path + prefix_len, "-Bold.ttf");
-        FILE *test = fopen(bold_path, "rb");
-        if (test) {
-            fclose(test);
-            return bold_path;
+        /* Skip variable fonts */
+        if (strstr(bold_path, "[") == NULL) {
+            FILE *test = fopen(bold_path, "rb");
+            if (test) {
+                fclose(test);
+                return bold_path;
+            }
         }
     }
 
