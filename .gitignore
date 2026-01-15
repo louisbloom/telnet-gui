@@ -68,3 +68,6 @@ $RECYCLE.BIN/
 *.bak
 *.backup
 *~
+.cecli*
+.aider*
+.env

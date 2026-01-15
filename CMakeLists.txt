@@ -212,6 +212,9 @@ add_subdirectory(telnet-lisp)
 # ============================================================================
 
 # Application sources
+# Collect vendor sources
+file(GLOB VENDOR_SOURCES "src/vendor/*.c")
+
 set(GUI_SOURCES
     src/main.c
     src/commands.c
@@ -229,6 +232,7 @@ set(GUI_SOURCES
     src/path_utils.c
     src/dynamic_buffer.c
     src/ansi_sequences.c
+    ${VENDOR_SOURCES}
 )
 
 # Add Windows resource file for icon
@@ -1329,6 +1333,7 @@ endif()
 # Include directories
 target_include_directories(telnet-gui PRIVATE
     src
+    src/vendor
     telnet-lisp/include
 )
 
