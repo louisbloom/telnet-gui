@@ -97,6 +97,10 @@ static const char *find_font_via_fc_match(const char *pattern, const char *fallb
         }
         pclose(fp);
     }
+#else
+    /* On Windows, these functions aren't used - suppress warnings */
+    (void)pattern;
+    (void)fallback_paths;
 #endif
     /* Fall back to hardcoded paths if provided */
     if (fallback_paths) {
