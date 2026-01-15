@@ -290,6 +290,10 @@ static char *find_bold_font_simple(const char *regular_path, const char *font_na
             pclose(fp);
         }
     }
+#else
+    /* On Windows, this function isn't used - suppress warnings */
+    (void)regular_path;
+    (void)font_name;
 #endif
     return NULL;
 }
@@ -311,6 +315,9 @@ static char *find_bold_font_path(const char *regular_path, const char *font_name
         fprintf(stderr, "SDL_ttf: Found bold font via fc-match: %s\n", bold_path);
         return bold_path;
     }
+#else
+    /* On Windows, font_name parameter is unused in filename pattern matching */
+    (void)font_name;
 #endif
 
     /* Fall back to filename pattern matching */
@@ -319,7 +326,7 @@ static char *find_bold_font_path(const char *regular_path, const char *font_name
         return NULL; /* Too short for .ttf */
 
     /* Allocate buffer for bold path (extra space for "-Bold" suffix) */
-    bold_path = (char *)malloc(path_len + 16);
+    char *bold_path = (char *)malloc(path_len + 16);
     if (!bold_path)
         return NULL;
 
