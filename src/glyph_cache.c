@@ -58,7 +58,14 @@ static const char *find_font_via_fc_match(const char *pattern, const char *fallb
 #ifndef _WIN32
     /* Build command: fc-match -f "%{file}\n" pattern */
     char command[1024]; /* Increased from 256 */
-    snprintf(command, sizeof(command), "fc-match -f '%%{file}\n' '%s' 2>/dev/null", pattern);
+    int cmd_len = snprintf(command, sizeof(command), "fc-match -f '%%{file}\n' '%s' 2>/dev/null", pattern);
+    if (cmd_len < 0 || cmd_len >= (int)sizeof(command)) {
+        /* Command too long, fall back to hardcoded paths */
+        if (fallback_paths) {
+            return find_first_existing_font(fallback_paths);
+        }
+        return NULL;
+    }
 
     FILE *fp = popen(command, "r");
     if (fp) {
@@ -241,10 +248,16 @@ static char *find_bold_font_simple(const char *regular_path, const char *font_na
 
     for (int i = 0; bold_patterns[i] != NULL; i++) {
         char pattern[512]; /* Increased from 256 */
-        snprintf(pattern, sizeof(pattern), bold_patterns[i], font_name);
+        int pattern_len = snprintf(pattern, sizeof(pattern), bold_patterns[i], font_name);
+        if (pattern_len < 0 || pattern_len >= (int)sizeof(pattern)) {
+            continue; /* Pattern too long, skip */
+        }
 
         char fc_cmd[1024]; /* Increased from 256 */
-        snprintf(fc_cmd, sizeof(fc_cmd), "fc-match -f '%%{file}\n' '%s' 2>/dev/null", pattern);
+        int cmd_len = snprintf(fc_cmd, sizeof(fc_cmd), "fc-match -f '%%{file}\n' '%s' 2>/dev/null", pattern);
+        if (cmd_len < 0 || cmd_len >= (int)sizeof(fc_cmd)) {
+            continue; /* Command too long, skip */
+        }
 
         FILE *fp = popen(fc_cmd, "r");
         if (fp) {
