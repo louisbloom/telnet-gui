@@ -57,7 +57,7 @@ static const char *find_first_existing_font(const char *fonts[]) {
 static const char *find_font_via_fc_match(const char *pattern, const char *fallback_paths[]) {
 #ifndef _WIN32
     /* Build command: fc-match -f "%{file}\n" pattern */
-    char command[256];
+    char command[1024];  /* Increased from 256 */
     snprintf(command, sizeof(command), "fc-match -f '%%{file}\n' '%s' 2>/dev/null", pattern);
 
     FILE *fp = popen(command, "r");
@@ -244,10 +244,10 @@ static char *find_bold_font_simple(const char *regular_path, const char *font_na
     };
     
     for (int i = 0; bold_patterns[i] != NULL; i++) {
-        char pattern[256];
+        char pattern[512];  /* Increased from 256 */
         snprintf(pattern, sizeof(pattern), bold_patterns[i], font_name);
         
-        char fc_cmd[256];
+        char fc_cmd[1024];  /* Increased from 256 */
         snprintf(fc_cmd, sizeof(fc_cmd), 
                  "fc-match -f '%%{file}\n' '%s' 2>/dev/null", pattern);
         
