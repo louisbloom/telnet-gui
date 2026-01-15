@@ -10,16 +10,15 @@
 #endif
 
 /* Unified font loading with consistent logging */
-static TTF_Font *load_font_with_logging(const char *path, const char *font_type, 
-                                        int size, int hdpi, int vdpi, 
+static TTF_Font *load_font_with_logging(const char *path, const char *font_type, int size, int hdpi, int vdpi,
                                         int hinting_mode, int enable_kerning) {
     if (!path) {
         fprintf(stderr, "SDL_ttf: No path provided for %s font\n", font_type);
         return NULL;
     }
-    
+
     fprintf(stderr, "SDL_ttf: Loading %s font from: %s\n", font_type, path);
-    
+
 #if HAVE_SDL_TTF_DPI
     TTF_Font *font = TTF_OpenFontDPI(path, size, hdpi, vdpi);
 #else
@@ -27,17 +26,17 @@ static TTF_Font *load_font_with_logging(const char *path, const char *font_type,
     (void)vdpi;
     TTF_Font *font = TTF_OpenFont(path, size);
 #endif
-    
+
     if (font) {
         fprintf(stderr, "SDL_ttf: Successfully loaded %s font\n", font_type);
-        
+
         /* Apply font settings */
         TTF_SetFontHinting(font, hinting_mode);
         TTF_SetFontKerning(font, enable_kerning ? 1 : 0);
     } else {
         fprintf(stderr, "SDL_ttf: Failed to load %s font: %s\n", font_type, TTF_GetError());
     }
-    
+
     return font;
 }
 
@@ -60,15 +59,15 @@ static const char *find_font_via_fc_match(const char *pattern, const char *fallb
     /* Build command: fc-match -f "%{file}\n" pattern */
     char command[256];
     snprintf(command, sizeof(command), "fc-match -f '%%{file}\n' '%s' 2>/dev/null", pattern);
-    
+
     FILE *fp = popen(command, "r");
     if (fp) {
         static char path[1024];
         if (fgets(path, sizeof(path), fp)) {
             /* Remove trailing newline */
             size_t len = strlen(path);
-            if (len > 0 && path[len-1] == '\n') {
-                path[len-1] = '\0';
+            if (len > 0 && path[len - 1] == '\n') {
+                path[len - 1] = '\0';
             }
             pclose(fp);
             /* Check if the file exists */
@@ -120,52 +119,44 @@ static const char *find_symbol_font(void) {
 #else
     static const char *fallback_paths[] = {
         /* Fedora-specific symbol fonts - prefer non-variable fonts */
-        "/usr/share/fonts/gdouros-symbola/Symbola.ttf",
-        "/usr/share/fonts/google-noto/NotoSansSymbols2-Regular.ttf",
+        "/usr/share/fonts/gdouros-symbola/Symbola.ttf", "/usr/share/fonts/google-noto/NotoSansSymbols2-Regular.ttf",
         /* Avoid variable fonts for SDL_ttf compatibility */
         "/usr/share/fonts/google-noto/NotoSansSymbols-Regular.ttf",
         "/usr/share/fonts/google-noto/NotoSansSymbols-Regular.ttf",
         /* DejaVu Sans (contains many symbols) */
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans.ttf",
         "/usr/share/fonts/dejavu-sans/DejaVuSans.ttf",
         /* Noto Sans */
-        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-        "/usr/share/fonts/noto-sans/NotoSans-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "/usr/share/fonts/noto-sans/NotoSans-Regular.ttf",
         "/usr/share/fonts/TTF/NotoSans-Regular.ttf",
         /* Liberation Sans */
         "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
         "/usr/share/fonts/TTF/LiberationSans-Regular.ttf",
         /* Ubuntu Sans */
-        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
-        "/usr/share/fonts/ubuntu-sans/Ubuntu-R.ttf",
+        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf", "/usr/share/fonts/ubuntu-sans/Ubuntu-R.ttf",
         /* Symbol fonts */
-        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
-        "/usr/share/fonts/freefont/FreeSans.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf", "/usr/share/fonts/freefont/FreeSans.ttf",
         /* Last resort: any sans-serif font */
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        NULL
-    };
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", NULL};
     /* Try fc-match first for better results - try multiple patterns */
     /* Prefer Symbola and non-variable Noto Sans Symbols */
-    const char *symbol_patterns[] = {
-        "Symbola:style=Regular",
-        "Symbola",
-        "Noto Sans Symbols:style=Regular",
-        "Noto Sans Symbols",
-        "sans-serif:style=Regular",
-        "sans-serif",
-        NULL
-    };
-    
+    const char *symbol_patterns[] = {"Symbola:style=Regular",
+                                     "Symbola",
+                                     "Noto Sans Symbols:style=Regular",
+                                     "Noto Sans Symbols",
+                                     "sans-serif:style=Regular",
+                                     "sans-serif",
+                                     NULL};
+
     for (int i = 0; symbol_patterns[i] != NULL; i++) {
         const char *result = find_font_via_fc_match(symbol_patterns[i], NULL);
         if (result) {
-            fprintf(stderr, "SDL_ttf: find_symbol_font via fc-match pattern '%s' found: %s\n", symbol_patterns[i], result);
+            fprintf(stderr, "SDL_ttf: find_symbol_font via fc-match pattern '%s' found: %s\n", symbol_patterns[i],
+                    result);
             return result;
         }
     }
-    
+
     /* If fc-match didn't find anything, use fallback paths */
     return find_first_existing_font(fallback_paths);
 #endif
@@ -198,10 +189,8 @@ static const char *find_emoji_font(void) {
         /* Then try color emoji fonts (excluding COLRv1) */
         "/usr/share/fonts/google-noto-color-emoji-fonts/NotoColorEmoji.ttf",
         /* Other color emoji fonts */
-        "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
-        "/usr/share/fonts/noto-emoji/NotoColorEmoji.ttf",
-        "/usr/share/fonts/TTF/NotoColorEmoji.ttf",
-        "/usr/share/fonts/google-noto-emoji/NotoColorEmoji.ttf",
+        "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf", "/usr/share/fonts/noto-emoji/NotoColorEmoji.ttf",
+        "/usr/share/fonts/TTF/NotoColorEmoji.ttf", "/usr/share/fonts/google-noto-emoji/NotoColorEmoji.ttf",
         /* EmojiOne */
         "/usr/share/fonts/truetype/emojione/EmojiOneColor-SVGinOT.ttf",
         "/usr/share/fonts/emojione/EmojiOneColor-SVGinOT.ttf",
@@ -209,42 +198,31 @@ static const char *find_emoji_font(void) {
         "/usr/share/fonts/truetype/twitter-color-emoji/TwitterColorEmoji-SVGinOT.ttf",
         "/usr/share/fonts/twitter-color-emoji/TwitterColorEmoji-SVGinOT.ttf",
         /* Other emoji fonts */
-        "/usr/share/fonts/truetype/ancient-scripts/Symbola_hint.ttf",
-        "/usr/share/fonts/truetype/unifont/unifont.ttf",
+        "/usr/share/fonts/truetype/ancient-scripts/Symbola_hint.ttf", "/usr/share/fonts/truetype/unifont/unifont.ttf",
         "/usr/share/fonts/truetype/unifont/unifont_upper.ttf",
         /* Fallback to any font with emoji support */
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans.ttf",
         "/usr/share/fonts/dejavu-sans/DejaVuSans.ttf",
         /* Last resort: Noto Sans */
-        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-        "/usr/share/fonts/noto-sans/NotoSans-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "/usr/share/fonts/noto-sans/NotoSans-Regular.ttf",
         /* COLRv1 as absolute last resort (likely won't work) */
-        "/usr/share/fonts/google-noto-color-emoji-fonts/Noto-COLRv1.ttf",
-        NULL
-    };
+        "/usr/share/fonts/google-noto-color-emoji-fonts/Noto-COLRv1.ttf", NULL};
     /* Try fc-match first for better results - try multiple patterns */
     /* Prioritize monochrome emoji fonts that SDL_ttf may handle better */
-    const char *emoji_patterns[] = {
-        "Noto Emoji:style=Regular",
-        "Noto Emoji",
-        "Noto Color Emoji:style=Regular",
-        "Noto Color Emoji",
-        "emoji:style=Regular",
-        "emoji",
-        /* Try generic patterns that might match monochrome fonts */
-        "Noto",
-        NULL
-    };
-    
+    const char *emoji_patterns[] = {"Noto Emoji:style=Regular", "Noto Emoji", "Noto Color Emoji:style=Regular",
+                                    "Noto Color Emoji", "emoji:style=Regular", "emoji",
+                                    /* Try generic patterns that might match monochrome fonts */
+                                    "Noto", NULL};
+
     for (int i = 0; emoji_patterns[i] != NULL; i++) {
         const char *result = find_font_via_fc_match(emoji_patterns[i], NULL);
         if (result) {
-            fprintf(stderr, "SDL_ttf: find_emoji_font via fc-match pattern '%s' found: %s\n", emoji_patterns[i], result);
+            fprintf(stderr, "SDL_ttf: find_emoji_font via fc-match pattern '%s' found: %s\n", emoji_patterns[i],
+                    result);
             return result;
         }
     }
-    
+
     /* If fc-match didn't find anything, use fallback paths */
     return find_first_existing_font(fallback_paths);
 #endif
@@ -357,7 +335,7 @@ static TTF_Font *load_emoji_font(const char *(*find_func)(void), const char *nam
         fprintf(stderr, "SDL_ttf: No path found for %s font\n", name);
         return NULL;
     }
-    
+
     /* Use the unified font loading function */
     return load_font_with_logging(path, name, size, hdpi, vdpi, TTF_HINTING_NORMAL, 0);
 }
@@ -425,13 +403,11 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
         /* Load emoji/symbol fonts at same size as main font (renders at correct scale) */
         cache->emoji_font = load_emoji_font(find_emoji_font, "Emoji", font_size, hdpi, vdpi);
         cache->symbol_font = load_emoji_font(find_symbol_font, "Symbol", font_size, hdpi, vdpi);
-        
+
         /* Log fallback font status */
         if (cache->bold_font || cache->emoji_font || cache->symbol_font) {
-            fprintf(stderr, "SDL_ttf: Fallback fonts: bold=%s, emoji=%s, symbol=%s\n", 
-                    cache->bold_font ? "yes" : "no",
-                    cache->emoji_font ? "yes" : "no", 
-                    cache->symbol_font ? "yes" : "no");
+            fprintf(stderr, "SDL_ttf: Fallback fonts: bold=%s, emoji=%s, symbol=%s\n", cache->bold_font ? "yes" : "no",
+                    cache->emoji_font ? "yes" : "no", cache->symbol_font ? "yes" : "no");
         }
     }
 
@@ -583,7 +559,7 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
 
         /* Reset font style */
         TTF_SetFontStyle(render_font, TTF_STYLE_NORMAL);
-        
+
         /* If main font claimed to have the glyph but rendering failed (surface is NULL),
          * allow fallback to symbol font */
         if (!surface) {
@@ -636,7 +612,7 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
         if (surface) {
             used_emoji_font = 1;
         }
-        
+
         /* If symbol font also failed, try emoji font as a last resort (some symbols may be in emoji font) */
         if (!surface && cache->emoji_font) {
             TTF_SetFontStyle(cache->emoji_font, style);

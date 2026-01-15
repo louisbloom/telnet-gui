@@ -336,24 +336,26 @@ static struct argparse_option options[] = {
     OPT_HELP(),
     OPT_GROUP("Font Options:"),
     OPT_INTEGER('s', "font-size", &font_size, "Set font size in points (default: 12)", NULL, 0, 0),
-    OPT_STRING('f', "font", &font_value, "Select font (default: system): system, cascadia, inconsolata, plex, dejavu, courier",
-               font_cb, 0, 0),
-    OPT_STRING(0, "hinting", &hinting_value, "Set font hinting mode (default: none): none, light, normal, mono", hinting_cb, 0,
-               0),
-    OPT_STRING(0, "antialiasing", &antialiasing_value, "Set anti-aliasing mode (default: nearest): nearest, linear", antialiasing_cb,
-               0, 0),
+    OPT_STRING('f', "font", &font_value,
+               "Select font (default: system): system, cascadia, inconsolata, plex, dejavu, courier", font_cb, 0, 0),
+    OPT_STRING(0, "hinting", &hinting_value, "Set font hinting mode (default: none): none, light, normal, mono",
+               hinting_cb, 0, 0),
+    OPT_STRING(0, "antialiasing", &antialiasing_value, "Set anti-aliasing mode (default: nearest): nearest, linear",
+               antialiasing_cb, 0, 0),
 #ifdef _WIN32
-    OPT_STRING(0, "font-backend", &font_backend_value, "Font rendering backend (default: directwrite): sdl, directwrite",
-               font_backend_cb, 0, 0),
+    OPT_STRING(0, "font-backend", &font_backend_value,
+               "Font rendering backend (default: directwrite): sdl, directwrite", font_backend_cb, 0, 0),
     OPT_BOOLEAN(0, "cleartype", &use_cleartype, "Enable ClearType subpixel rendering (default: off)", NULL, 0, 0),
     OPT_BOOLEAN(0, "no-cleartype", NULL, "Disable ClearType subpixel rendering", NULL, 0, OPT_NONEG),
 #endif
     OPT_GROUP("Terminal Options:"),
-    OPT_STRING('g', "geometry", &geometry_value, "Set terminal size in characters: COLSxROWS (e.g., 80x40)", geometry_cb, 0, 0),
+    OPT_STRING('g', "geometry", &geometry_value, "Set terminal size in characters: COLSxROWS (e.g., 80x40)",
+               geometry_cb, 0, 0),
     OPT_GROUP("Other Options:"),
-    OPT_STRING('l', "lisp-file", &lisp_file_value, "Load and evaluate Lisp file on startup (can be specified multiple times)",
-               lisp_file_cb, 0, 0),
-    OPT_STRING(0, "line-height", &line_height_value, "Set line height multiplier (default: 1.0): 0.5 to 3.0", line_height_cb, 0, 0),
+    OPT_STRING('l', "lisp-file", &lisp_file_value,
+               "Load and evaluate Lisp file on startup (can be specified multiple times)", lisp_file_cb, 0, 0),
+    OPT_STRING(0, "line-height", &line_height_value, "Set line height multiplier (default: 1.0): 0.5 to 3.0",
+               line_height_cb, 0, 0),
     OPT_BOOLEAN(0, "debug-exit", &debug_exit, "Exit after initialization (for debug output)", NULL, 0, 0),
     OPT_BOOLEAN(0, "profile", &profile_mode, "Enable Lisp profiler and C timing instrumentation", NULL, 0, 0),
     OPT_BOOLEAN(0, "exit-on-disconnect", &exit_on_disconnect, "Exit when telnet connection closes", NULL, 0, 0),
@@ -646,16 +648,14 @@ static const char *find_system_monospace_font(const char **font_name_out) {
     /* First, try to use fc-match to find a monospace font */
     {
         /* Try multiple patterns to find a monospace font */
-        const char *patterns[] = {
-            "monospace:style=Regular",
-            "monospace",
-            "DejaVu Sans Mono:style=Book",
-            "Liberation Mono:style=Regular",
-            "Source Code Pro:style=Regular",
-            "Noto Sans Mono:style=Regular",
-            NULL
-        };
-        
+        const char *patterns[] = {"monospace:style=Regular",
+                                  "monospace",
+                                  "DejaVu Sans Mono:style=Book",
+                                  "Liberation Mono:style=Regular",
+                                  "Source Code Pro:style=Regular",
+                                  "Noto Sans Mono:style=Regular",
+                                  NULL};
+
         for (int p = 0; patterns[p] != NULL; p++) {
             char command[256];
             snprintf(command, sizeof(command), "fc-match -f '%%{file}\n' '%s' 2>/dev/null", patterns[p]);
@@ -665,8 +665,8 @@ static const char *find_system_monospace_font(const char **font_name_out) {
                 if (fgets(path, sizeof(path), fp)) {
                     /* Remove trailing newline */
                     size_t len = strlen(path);
-                    if (len > 0 && path[len-1] == '\n') {
-                        path[len-1] = '\0';
+                    if (len > 0 && path[len - 1] == '\n') {
+                        path[len - 1] = '\0';
                     }
                     pclose(fp);
                     /* Check if the file exists */
@@ -675,15 +675,15 @@ static const char *find_system_monospace_font(const char **font_name_out) {
                         fclose(test);
                         /* Try to get font name using fc-match */
                         char name_command[256];
-                        snprintf(name_command, sizeof(name_command), 
-                                 "fc-match -f '%%{family}\n' '%s' 2>/dev/null", patterns[p]);
+                        snprintf(name_command, sizeof(name_command), "fc-match -f '%%{family}\n' '%s' 2>/dev/null",
+                                 patterns[p]);
                         FILE *fp2 = popen(name_command, "r");
                         if (fp2) {
                             static char name[256];
                             if (fgets(name, sizeof(name), fp2)) {
                                 len = strlen(name);
-                                if (len > 0 && name[len-1] == '\n') {
-                                    name[len-1] = '\0';
+                                if (len > 0 && name[len - 1] == '\n') {
+                                    name[len - 1] = '\0';
                                 }
                                 if (font_name_out) {
                                     *font_name_out = name;
@@ -698,7 +698,7 @@ static const char *find_system_monospace_font(const char **font_name_out) {
             }
         }
     }
-    
+
     /* Fallback to hardcoded paths if fc-match fails */
     const char *fonts[] = {
         /* Fedora-specific paths */
@@ -708,48 +708,53 @@ static const char *find_system_monospace_font(const char **font_name_out) {
         "/usr/share/fonts/google-noto-vf/NotoSansMono[wght].ttf",
         "/usr/share/fonts/google-noto-sans-mono-cjk-vf-fonts/NotoSansMonoCJK-VF.ttc",
         /* DejaVu fonts */
-        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-        "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
         "/usr/share/fonts/dejavu-sans-mono/DejaVuSansMono.ttf",
         /* Liberation fonts */
         "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
         "/usr/share/fonts/TTF/LiberationMono-Regular.ttf",
         "/usr/share/fonts/liberation-mono/LiberationMono-Regular.ttf",
         /* Noto fonts */
-        "/usr/share/fonts/truetype/noto/NotoMono-Regular.ttf",
-        "/usr/share/fonts/noto-mono/NotoMono-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoMono-Regular.ttf", "/usr/share/fonts/noto-mono/NotoMono-Regular.ttf",
         "/usr/share/fonts/TTF/NotoMono-Regular.ttf",
         /* Ubuntu fonts */
-        "/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf",
-        "/usr/share/fonts/ubuntu-mono/UbuntuMono-R.ttf",
+        "/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf", "/usr/share/fonts/ubuntu-mono/UbuntuMono-R.ttf",
         /* Courier fonts */
-        "/usr/share/fonts/truetype/courier/Courier New.ttf",
-        "/usr/share/fonts/TTF/Courier New.ttf",
+        "/usr/share/fonts/truetype/courier/Courier New.ttf", "/usr/share/fonts/TTF/Courier New.ttf",
         "/usr/share/fonts/courier-new/Courier New.ttf",
         /* Nimbus Mono */
         "/usr/share/fonts/truetype/nimbus-mono/NimbusMono-Regular.ttf",
         "/usr/share/fonts/urw-base35/NimbusMonoPS-Regular.otf",
         /* FreeMono */
-        "/usr/share/fonts/truetype/freefont/FreeMono.ttf",
-        "/usr/share/fonts/freefont/FreeMono.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeMono.ttf", "/usr/share/fonts/freefont/FreeMono.ttf",
         /* Last resort: check in X11 fonts */
-        "/usr/share/fonts/X11/misc/6x13.pcf.gz",
-        "/usr/share/fonts/X11/misc/fixed.pcf.gz",
-        NULL
-    };
-    const char *names[] = {
-        "Source Code Pro", "Liberation Mono", "Adwaita Mono",
-        "Noto Sans Mono", "Noto Sans Mono CJK",
-        "DejaVu Sans Mono", "DejaVu Sans Mono", "DejaVu Sans Mono",
-        "Liberation Mono", "Liberation Mono", "Liberation Mono",
-        "Noto Mono", "Noto Mono", "Noto Mono",
-        "Ubuntu Mono", "Ubuntu Mono",
-        "Courier New", "Courier New", "Courier New",
-        "Nimbus Mono", "Nimbus Mono PS",
-        "FreeMono", "FreeMono",
-        "Fixed", "Fixed",
-        NULL
-    };
+        "/usr/share/fonts/X11/misc/6x13.pcf.gz", "/usr/share/fonts/X11/misc/fixed.pcf.gz", NULL};
+    const char *names[] = {"Source Code Pro",
+                           "Liberation Mono",
+                           "Adwaita Mono",
+                           "Noto Sans Mono",
+                           "Noto Sans Mono CJK",
+                           "DejaVu Sans Mono",
+                           "DejaVu Sans Mono",
+                           "DejaVu Sans Mono",
+                           "Liberation Mono",
+                           "Liberation Mono",
+                           "Liberation Mono",
+                           "Noto Mono",
+                           "Noto Mono",
+                           "Noto Mono",
+                           "Ubuntu Mono",
+                           "Ubuntu Mono",
+                           "Courier New",
+                           "Courier New",
+                           "Courier New",
+                           "Nimbus Mono",
+                           "Nimbus Mono PS",
+                           "FreeMono",
+                           "FreeMono",
+                           "Fixed",
+                           "Fixed",
+                           NULL};
 
     for (int i = 0; fonts[i] != NULL; i++) {
         FILE *test = file_open(fonts[i], "rb");
