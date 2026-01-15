@@ -9,17 +9,46 @@
 #include "glyph_cache_directwrite.h"
 #endif
 
+/* Unified font loading with consistent logging */
+static TTF_Font *load_font_with_logging(const char *path, const char *font_type, 
+                                        int size, int hdpi, int vdpi, 
+                                        int hinting_mode, int enable_kerning) {
+    if (!path) {
+        fprintf(stderr, "SDL_ttf: No path provided for %s font\n", font_type);
+        return NULL;
+    }
+    
+    fprintf(stderr, "SDL_ttf: Loading %s font from: %s\n", font_type, path);
+    
+#if HAVE_SDL_TTF_DPI
+    TTF_Font *font = TTF_OpenFontDPI(path, size, hdpi, vdpi);
+#else
+    (void)hdpi;
+    (void)vdpi;
+    TTF_Font *font = TTF_OpenFont(path, size);
+#endif
+    
+    if (font) {
+        fprintf(stderr, "SDL_ttf: Successfully loaded %s font\n", font_type);
+        
+        /* Apply font settings */
+        TTF_SetFontHinting(font, hinting_mode);
+        TTF_SetFontKerning(font, enable_kerning ? 1 : 0);
+    } else {
+        fprintf(stderr, "SDL_ttf: Failed to load %s font: %s\n", font_type, TTF_GetError());
+    }
+    
+    return font;
+}
+
 /* Find first existing font from a NULL-terminated list of paths */
 static const char *find_first_existing_font(const char *fonts[]) {
     for (int i = 0; fonts[i] != NULL; i++) {
-        fprintf(stderr, "SDL_ttf: find_first_existing_font trying path [%d]: %s\n", i, fonts[i]);
         FILE *test = fopen(fonts[i], "rb");
         if (test) {
             fclose(test);
             fprintf(stderr, "SDL_ttf: find_first_existing_font found: %s\n", fonts[i]);
             return fonts[i];
-        } else {
-            fprintf(stderr, "SDL_ttf: find_first_existing_font path not found: %s\n", fonts[i]);
         }
     }
     return NULL;
@@ -138,13 +167,7 @@ static const char *find_symbol_font(void) {
     }
     
     /* If fc-match didn't find anything, use fallback paths */
-    const char *result = find_first_existing_font(fallback_paths);
-    if (result) {
-        fprintf(stderr, "SDL_ttf: find_symbol_font via fallback found: %s\n", result);
-    } else {
-        fprintf(stderr, "SDL_ttf: find_symbol_font found no symbol font\n");
-    }
-    return result;
+    return find_first_existing_font(fallback_paths);
 #endif
 }
 
@@ -223,13 +246,7 @@ static const char *find_emoji_font(void) {
     }
     
     /* If fc-match didn't find anything, use fallback paths */
-    const char *result = find_first_existing_font(fallback_paths);
-    if (result) {
-        fprintf(stderr, "SDL_ttf: find_emoji_font via fallback found: %s\n", result);
-    } else {
-        fprintf(stderr, "SDL_ttf: find_emoji_font found no emoji font\n");
-    }
-    return result;
+    return find_first_existing_font(fallback_paths);
 #endif
 }
 
@@ -340,20 +357,9 @@ static TTF_Font *load_emoji_font(const char *(*find_func)(void), const char *nam
         fprintf(stderr, "SDL_ttf: No path found for %s font\n", name);
         return NULL;
     }
-    fprintf(stderr, "SDL_ttf: Trying to load %s font from: %s\n", name, path);
-#if HAVE_SDL_TTF_DPI
-    TTF_Font *font = TTF_OpenFontDPI(path, size, hdpi, vdpi);
-#else
-    (void)hdpi; /* Not used when DPI support is not available */
-    (void)vdpi; /* Not used when DPI support is not available */
-    TTF_Font *font = TTF_OpenFont(path, size);
-#endif
-    if (font) {
-        fprintf(stderr, "SDL_ttf: Successfully loaded %s font\n", name);
-    } else {
-        fprintf(stderr, "SDL_ttf: Failed to load %s font: %s\n", name, TTF_GetError());
-    }
-    return font;
+    
+    /* Use the unified font loading function */
+    return load_font_with_logging(path, name, size, hdpi, vdpi, TTF_HINTING_NORMAL, 0);
 }
 
 GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, const char *font_name, int font_size,
@@ -367,34 +373,15 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
     cache->renderer = renderer;
 
     /* Try to load the requested font with DPI awareness if available */
-    fprintf(stderr, "SDL_ttf: Loading main font from: %s\n", font_path);
-#if HAVE_SDL_TTF_DPI
-    cache->font = TTF_OpenFontDPI(font_path, font_size, hdpi, vdpi);
+    cache->font = load_font_with_logging(font_path, "main", font_size, hdpi, vdpi, hinting_mode, 0);
     if (!cache->font) {
-        fprintf(stderr, "SDL_ttf: Failed to load font '%s': %s\n", font_path, TTF_GetError());
         free(cache);
         return NULL;
     }
-#else
-    /* Fallback to non-DPI version for older SDL_ttf */
-    cache->font = TTF_OpenFont(font_path, font_size);
-    if (!cache->font) {
-        fprintf(stderr, "SDL_ttf: Failed to load font '%s': %s\n", font_path, TTF_GetError());
-        free(cache);
-        return NULL;
-    }
-#endif
-    fprintf(stderr, "SDL_ttf: Successfully loaded main font\n");
 
     /* Store font path and name */
     cache->font_path = strdup(font_path);
     cache->font_name = strdup(font_name);
-
-    /* Set font rendering style - use provided hinting mode */
-    TTF_SetFontHinting(cache->font, hinting_mode);
-
-    /* Disable kerning for monospaced fonts to ensure uniform spacing */
-    TTF_SetFontKerning(cache->font, 0);
 
     /* Store scale mode for texture creation */
     cache->scale_mode = scale_mode;
@@ -429,18 +416,7 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
         char *bold_path = find_bold_font_path(font_path);
         if (bold_path) {
             fprintf(stderr, "SDL_ttf: Found bold font path: %s\n", bold_path);
-#if HAVE_SDL_TTF_DPI
-            cache->bold_font = TTF_OpenFontDPI(bold_path, font_size, hdpi, vdpi);
-#else
-            cache->bold_font = TTF_OpenFont(bold_path, font_size);
-#endif
-            if (cache->bold_font) {
-                fprintf(stderr, "SDL_ttf: Successfully loaded bold font\n");
-                TTF_SetFontHinting(cache->bold_font, hinting_mode);
-                TTF_SetFontKerning(cache->bold_font, 0);
-            } else {
-                fprintf(stderr, "SDL_ttf: Failed to load bold font: %s\n", TTF_GetError());
-            }
+            cache->bold_font = load_font_with_logging(bold_path, "bold", font_size, hdpi, vdpi, hinting_mode, 0);
             free(bold_path);
         } else {
             fprintf(stderr, "SDL_ttf: No bold font found for %s\n", font_path);
@@ -450,10 +426,13 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
         cache->emoji_font = load_emoji_font(find_emoji_font, "Emoji", font_size, hdpi, vdpi);
         cache->symbol_font = load_emoji_font(find_symbol_font, "Symbol", font_size, hdpi, vdpi);
         
-        fprintf(stderr, "SDL_ttf: Fallback fonts: bold=%s, emoji=%s, symbol=%s\n", 
-                cache->bold_font ? "yes" : "no",
-                cache->emoji_font ? "yes" : "no", 
-                cache->symbol_font ? "yes" : "no");
+        /* Log fallback font status */
+        if (cache->bold_font || cache->emoji_font || cache->symbol_font) {
+            fprintf(stderr, "SDL_ttf: Fallback fonts: bold=%s, emoji=%s, symbol=%s\n", 
+                    cache->bold_font ? "yes" : "no",
+                    cache->emoji_font ? "yes" : "no", 
+                    cache->symbol_font ? "yes" : "no");
+        }
     }
 
     return cache;
