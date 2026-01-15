@@ -51,11 +51,6 @@ static const char *find_font_via_fc_match(const char *pattern, const char *fallb
                     /* This is a variable font - try next pattern */
                     return NULL;
                 }
-                /* Also skip COLRv1 fonts if we have other options */
-                if (strstr(path, "COLRv1") != NULL) {
-                    /* For emoji patterns, we want to prefer non-COLRv1 */
-                    return NULL;
-                }
                 return path;
             }
         }
@@ -171,16 +166,16 @@ static const char *find_emoji_font(void) {
     return result;
 #else
     static const char *fallback_paths[] = {
-        /* Fedora-specific emoji fonts - prefer non-COLRv1 fonts */
-        "/usr/share/fonts/google-noto-emoji-fonts/NotoEmoji-Regular.ttf",
-        /* Look for Noto Color Emoji (COLRv0) */
+        /* Fedora-specific color emoji fonts - prioritize color over monochrome */
         "/usr/share/fonts/google-noto-color-emoji-fonts/NotoColorEmoji.ttf",
+        "/usr/share/fonts/google-noto-color-emoji-fonts/Noto-COLRv1.ttf",
+        /* Monochrome emoji fonts */
+        "/usr/share/fonts/google-noto-emoji-fonts/NotoEmoji-Regular.ttf",
+        /* Other color emoji fonts */
         "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
         "/usr/share/fonts/noto-emoji/NotoColorEmoji.ttf",
         "/usr/share/fonts/TTF/NotoColorEmoji.ttf",
         "/usr/share/fonts/google-noto-emoji/NotoColorEmoji.ttf",
-        /* COLRv1 as last resort */
-        "/usr/share/fonts/google-noto-color-emoji-fonts/Noto-COLRv1.ttf",
         /* EmojiOne */
         "/usr/share/fonts/truetype/emojione/EmojiOneColor-SVGinOT.ttf",
         "/usr/share/fonts/emojione/EmojiOneColor-SVGinOT.ttf",
@@ -201,12 +196,12 @@ static const char *find_emoji_font(void) {
         NULL
     };
     /* Try fc-match first for better results - try multiple patterns */
-    /* Prefer Noto Emoji (non-COLRv1) over Noto Color Emoji (COLRv1) */
+    /* Prioritize color emoji fonts */
     const char *emoji_patterns[] = {
-        "Noto Emoji:style=Regular",
-        "Noto Emoji",
         "Noto Color Emoji:style=Regular",
         "Noto Color Emoji",
+        "Noto Emoji:style=Regular",
+        "Noto Emoji",
         "emoji:style=Regular",
         "emoji",
         NULL
@@ -525,14 +520,23 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
             render_style |= TTF_STYLE_ITALIC;
         TTF_SetFontStyle(render_font, render_style);
 
+        /* For emoji rendering, use white foreground to preserve color if the font supports it */
+        SDL_Color render_color = fg_color;
+        if (is_emoji) {
+            /* Try white for color emojis */
+            render_color.r = 255;
+            render_color.g = 255;
+            render_color.b = 255;
+        }
+
         /* For BMP characters (< 0x10000), use glyph rendering */
         if (codepoint < 0x10000) {
-            surface = TTF_RenderGlyph_Blended(render_font, (uint16_t)codepoint, fg_color);
+            surface = TTF_RenderGlyph_Blended(render_font, (uint16_t)codepoint, render_color);
         } else {
             /* For higher codepoints, use UTF-8 rendering */
             char utf8[5];
             utf8_put_codepoint(codepoint, utf8);
-            surface = TTF_RenderUTF8_Blended(render_font, utf8, fg_color);
+            surface = TTF_RenderUTF8_Blended(render_font, utf8, render_color);
         }
 
         /* Reset font style */
@@ -549,7 +553,9 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
             TTF_SetFontStyle(cache->emoji_font, style);
             char utf8[5];
             utf8_put_codepoint(codepoint, utf8);
-            surface = TTF_RenderUTF8_Blended(cache->emoji_font, utf8, fg_color);
+            /* Use white for color emojis */
+            SDL_Color white = {255, 255, 255, 255};
+            surface = TTF_RenderUTF8_Blended(cache->emoji_font, utf8, white);
             TTF_SetFontStyle(cache->emoji_font, TTF_STYLE_NORMAL);
             used_emoji_font = 1;
         }
@@ -559,13 +565,21 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
     if (!surface && use_symbol_font && cache->symbol_font) {
         TTF_SetFontStyle(cache->symbol_font, style);
 
+        /* For emoji rendering, use white foreground */
+        SDL_Color render_color = fg_color;
+        if (is_emoji) {
+            render_color.r = 255;
+            render_color.g = 255;
+            render_color.b = 255;
+        }
+
         /* For BMP characters, use glyph rendering for tight bounds (like main font) */
         if (codepoint < 0x10000) {
-            surface = TTF_RenderGlyph_Blended(cache->symbol_font, (uint16_t)codepoint, fg_color);
+            surface = TTF_RenderGlyph_Blended(cache->symbol_font, (uint16_t)codepoint, render_color);
         } else {
             char utf8[5];
             utf8_put_codepoint(codepoint, utf8);
-            surface = TTF_RenderUTF8_Blended(cache->symbol_font, utf8, fg_color);
+            surface = TTF_RenderUTF8_Blended(cache->symbol_font, utf8, render_color);
         }
 
         TTF_SetFontStyle(cache->symbol_font, TTF_STYLE_NORMAL);
