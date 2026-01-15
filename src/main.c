@@ -645,39 +645,57 @@ static const char *find_system_monospace_font(const char **font_name_out) {
 #else
     /* First, try to use fc-match to find a monospace font */
     {
-        FILE *fp = popen("fc-match -f '%{file}\n' 'monospace:style=Regular' 2>/dev/null", "r");
-        if (fp) {
-            static char path[1024];
-            if (fgets(path, sizeof(path), fp)) {
-                /* Remove trailing newline */
-                size_t len = strlen(path);
-                if (len > 0 && path[len-1] == '\n') {
-                    path[len-1] = '\0';
+        /* Try multiple patterns to find a monospace font */
+        const char *patterns[] = {
+            "monospace:style=Regular",
+            "monospace",
+            "DejaVu Sans Mono:style=Book",
+            "Liberation Mono:style=Regular",
+            "Source Code Pro:style=Regular",
+            "Noto Sans Mono:style=Regular",
+            NULL
+        };
+        
+        for (int p = 0; patterns[p] != NULL; p++) {
+            char command[256];
+            snprintf(command, sizeof(command), "fc-match -f '%%{file}\n' '%s' 2>/dev/null", patterns[p]);
+            FILE *fp = popen(command, "r");
+            if (fp) {
+                static char path[1024];
+                if (fgets(path, sizeof(path), fp)) {
+                    /* Remove trailing newline */
+                    size_t len = strlen(path);
+                    if (len > 0 && path[len-1] == '\n') {
+                        path[len-1] = '\0';
+                    }
+                    pclose(fp);
+                    /* Check if the file exists */
+                    FILE *test = file_open(path, "rb");
+                    if (test) {
+                        fclose(test);
+                        /* Try to get font name using fc-match */
+                        char name_command[256];
+                        snprintf(name_command, sizeof(name_command), 
+                                 "fc-match -f '%%{family}\n' '%s' 2>/dev/null", patterns[p]);
+                        FILE *fp2 = popen(name_command, "r");
+                        if (fp2) {
+                            static char name[256];
+                            if (fgets(name, sizeof(name), fp2)) {
+                                len = strlen(name);
+                                if (len > 0 && name[len-1] == '\n') {
+                                    name[len-1] = '\0';
+                                }
+                                if (font_name_out) {
+                                    *font_name_out = name;
+                                }
+                            }
+                            pclose(fp2);
+                        }
+                        return path;
+                    }
                 }
                 pclose(fp);
-                /* Check if the file exists */
-                FILE *test = file_open(path, "rb");
-                if (test) {
-                    fclose(test);
-                    /* Try to get font name using fc-match */
-                    FILE *fp2 = popen("fc-match -f '%{family}\n' monospace:style=Regular 2>/dev/null", "r");
-                    if (fp2) {
-                        static char name[256];
-                        if (fgets(name, sizeof(name), fp2)) {
-                            len = strlen(name);
-                            if (len > 0 && name[len-1] == '\n') {
-                                name[len-1] = '\0';
-                            }
-                            if (font_name_out) {
-                                *font_name_out = name;
-                            }
-                        }
-                        pclose(fp2);
-                    }
-                    return path;
-                }
             }
-            pclose(fp);
         }
     }
     
