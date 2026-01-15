@@ -252,6 +252,7 @@ static int lisp_file_cb(struct argparse *self, const struct argparse_option *opt
     return 0;
 }
 
+#ifdef _WIN32
 /* Callback for font-backend option */
 static int font_backend_cb(struct argparse *self, const struct argparse_option *option) {
     (void)option; // Mark parameter as unused
@@ -259,15 +260,11 @@ static int font_backend_cb(struct argparse *self, const struct argparse_option *
     if (strcmp(value, "sdl") == 0 || strcmp(value, "sdl_ttf") == 0) {
         use_directwrite = 0;
     } else if (strcmp(value, "directwrite") == 0) {
-#ifdef _WIN32
         use_directwrite = 1;
-#else
-        fprintf(stderr, "Error: DirectWrite backend is only available on Windows\n");
-        return -1;
-#endif
     }
     return 0;
 }
+#endif
 
 /* Define argparse options */
 static struct argparse_option options[] = {
