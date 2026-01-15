@@ -314,10 +314,10 @@ static char *find_bold_font_path(const char *regular_path, const char *font_name
 
 #ifndef _WIN32
     /* On Linux, try fc-match first (more reliable) */
-    char *bold_path = find_bold_font_simple(regular_path, font_name);
-    if (bold_path) {
-        fprintf(stderr, "SDL_ttf: Found bold font via fc-match: %s\n", bold_path);
-        return bold_path;
+    char *fc_bold_path = find_bold_font_simple(regular_path, font_name);
+    if (fc_bold_path) {
+        fprintf(stderr, "SDL_ttf: Found bold font via fc-match: %s\n", fc_bold_path);
+        return fc_bold_path;
     }
 #else
     /* On Windows, font_name parameter is unused in filename pattern matching */
