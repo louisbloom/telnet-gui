@@ -166,11 +166,11 @@ static const char *find_emoji_font(void) {
     return result;
 #else
     static const char *fallback_paths[] = {
-        /* Fedora-specific color emoji fonts - prioritize color over monochrome */
+        /* Try monochrome emoji font first - SDL_ttf may handle it better */
+        "/usr/share/fonts/google-noto-emoji-fonts/NotoEmoji-Regular.ttf",
+        /* Then try color emoji fonts */
         "/usr/share/fonts/google-noto-color-emoji-fonts/NotoColorEmoji.ttf",
         "/usr/share/fonts/google-noto-color-emoji-fonts/Noto-COLRv1.ttf",
-        /* Monochrome emoji fonts */
-        "/usr/share/fonts/google-noto-emoji-fonts/NotoEmoji-Regular.ttf",
         /* Other color emoji fonts */
         "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
         "/usr/share/fonts/noto-emoji/NotoColorEmoji.ttf",
@@ -196,12 +196,12 @@ static const char *find_emoji_font(void) {
         NULL
     };
     /* Try fc-match first for better results - try multiple patterns */
-    /* Prioritize color emoji fonts */
+    /* Prioritize monochrome emoji fonts that SDL_ttf may handle better */
     const char *emoji_patterns[] = {
-        "Noto Color Emoji:style=Regular",
-        "Noto Color Emoji",
         "Noto Emoji:style=Regular",
         "Noto Emoji",
+        "Noto Color Emoji:style=Regular",
+        "Noto Color Emoji",
         "emoji:style=Regular",
         "emoji",
         NULL
@@ -546,18 +546,23 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
     /* Track if we used an emoji/symbol font (for scale mode selection) */
     int used_emoji_font = 0;
 
-    /* Try emoji font first for emoji and symbols, but only if it has the glyph */
+    /* Try emoji font first for emoji and symbols */
     if (!surface && use_emoji_font && cache->emoji_font) {
-        /* Check if emoji font actually has this glyph before trying to render */
-        if (TTF_GlyphIsProvided32(cache->emoji_font, codepoint)) {
-            TTF_SetFontStyle(cache->emoji_font, style);
-            char utf8[5];
-            utf8_put_codepoint(codepoint, utf8);
-            /* Use white for color emojis */
-            SDL_Color white = {255, 255, 255, 255};
-            surface = TTF_RenderUTF8_Blended(cache->emoji_font, utf8, white);
-            TTF_SetFontStyle(cache->emoji_font, TTF_STYLE_NORMAL);
+        /* For COLRv1 fonts, TTF_GlyphIsProvided32 may return false even if the font has the glyph.
+         * So we try to render directly and check if surface is NULL. */
+        TTF_SetFontStyle(cache->emoji_font, style);
+        char utf8[5];
+        utf8_put_codepoint(codepoint, utf8);
+        /* Use white for color emojis */
+        SDL_Color white = {255, 255, 255, 255};
+        surface = TTF_RenderUTF8_Blended(cache->emoji_font, utf8, white);
+        TTF_SetFontStyle(cache->emoji_font, TTF_STYLE_NORMAL);
+        if (surface) {
             used_emoji_font = 1;
+        } else {
+            /* If rendering failed, try with symbol font */
+            /* Reset surface to NULL to allow fallback */
+            surface = NULL;
         }
     }
 
