@@ -525,6 +525,33 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
         use_main_font = 0;
         use_symbol_font = 1;
         fprintf(stderr, "SDL_ttf: Symbol codepoint U+%04X detected, using symbol font\n", codepoint);
+        /* Immediately try symbol font, don't wait for main font to fail */
+        if (cache->symbol_font) {
+            TTF_SetFontStyle(cache->symbol_font, style);
+            SDL_Color render_color = fg_color;
+            if (is_emoji) {
+                render_color.r = 255;
+                render_color.g = 255;
+                render_color.b = 255;
+            }
+            if (codepoint < 0x10000) {
+                surface = TTF_RenderGlyph_Blended(cache->symbol_font, (uint16_t)codepoint, render_color);
+            } else {
+                char utf8[5];
+                utf8_put_codepoint(codepoint, utf8);
+                surface = TTF_RenderUTF8_Blended(cache->symbol_font, utf8, render_color);
+            }
+            TTF_SetFontStyle(cache->symbol_font, TTF_STYLE_NORMAL);
+            if (surface) {
+                fprintf(stderr, "SDL_ttf: Symbol font rendered U+%04X successfully\n", codepoint);
+                used_emoji_font = 1;
+            } else {
+                fprintf(stderr, "SDL_ttf: Symbol font failed to render U+%04X\n", codepoint);
+                /* Fall back to main font */
+                use_main_font = 1;
+                use_symbol_font = 0;
+            }
+        }
     }
 
     /* Check if main font provides this glyph */
