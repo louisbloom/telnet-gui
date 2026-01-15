@@ -12,14 +12,10 @@
 /* Find first existing font from a NULL-terminated list of paths */
 static const char *find_first_existing_font(const char *fonts[]) {
     for (int i = 0; fonts[i] != NULL; i++) {
-        fprintf(stderr, "SDL_ttf: find_first_existing_font trying path [%d]: %s\n", i, fonts[i]);
         FILE *test = fopen(fonts[i], "rb");
         if (test) {
             fclose(test);
-            fprintf(stderr, "SDL_ttf: find_first_existing_font found: %s\n", fonts[i]);
             return fonts[i];
-        } else {
-            fprintf(stderr, "SDL_ttf: find_first_existing_font path not found: %s\n", fonts[i]);
         }
     }
     return NULL;
@@ -72,22 +68,10 @@ static const char *find_font_via_fc_match(const char *pattern, const char *fallb
 static const char *find_symbol_font(void) {
 #ifdef _WIN32
     static const char *fonts[] = {"C:/Windows/Fonts/seguisym.ttf", "C:\\Windows\\Fonts\\seguisym.ttf", NULL};
-    const char *result = find_first_existing_font(fonts);
-    if (result) {
-        fprintf(stderr, "SDL_ttf: find_symbol_font found: %s\n", result);
-    } else {
-        fprintf(stderr, "SDL_ttf: find_symbol_font found no symbol font\n");
-    }
-    return result;
+    return find_first_existing_font(fonts);
 #elif defined(__APPLE__)
     static const char *fonts[] = {"/System/Library/Fonts/Apple Symbols.ttf", NULL};
-    const char *result = find_first_existing_font(fonts);
-    if (result) {
-        fprintf(stderr, "SDL_ttf: find_symbol_font found: %s\n", result);
-    } else {
-        fprintf(stderr, "SDL_ttf: find_symbol_font found no symbol font\n");
-    }
-    return result;
+    return find_first_existing_font(fonts);
 #else
     static const char *fallback_paths[] = {
         /* Fedora-specific symbol fonts - prefer non-variable fonts */
@@ -132,19 +116,12 @@ static const char *find_symbol_font(void) {
     for (int i = 0; symbol_patterns[i] != NULL; i++) {
         const char *result = find_font_via_fc_match(symbol_patterns[i], NULL);
         if (result) {
-            fprintf(stderr, "SDL_ttf: find_symbol_font via fc-match pattern '%s' found: %s\n", symbol_patterns[i], result);
             return result;
         }
     }
     
     /* If fc-match didn't find anything, use fallback paths */
-    const char *result = find_first_existing_font(fallback_paths);
-    if (result) {
-        fprintf(stderr, "SDL_ttf: find_symbol_font via fallback found: %s\n", result);
-    } else {
-        fprintf(stderr, "SDL_ttf: find_symbol_font found no symbol font\n");
-    }
-    return result;
+    return find_first_existing_font(fallback_paths);
 #endif
 }
 
@@ -152,22 +129,10 @@ static const char *find_symbol_font(void) {
 static const char *find_emoji_font(void) {
 #ifdef _WIN32
     static const char *fonts[] = {"C:/Windows/Fonts/seguiemj.ttf", "C:\\Windows\\Fonts\\seguiemj.ttf", NULL};
-    const char *result = find_first_existing_font(fonts);
-    if (result) {
-        fprintf(stderr, "SDL_ttf: find_emoji_font found: %s\n", result);
-    } else {
-        fprintf(stderr, "SDL_ttf: find_emoji_font found no emoji font\n");
-    }
-    return result;
+    return find_first_existing_font(fonts);
 #elif defined(__APPLE__)
     static const char *fonts[] = {"/System/Library/Fonts/Apple Color Emoji.ttc", NULL};
-    const char *result = find_first_existing_font(fonts);
-    if (result) {
-        fprintf(stderr, "SDL_ttf: find_emoji_font found: %s\n", result);
-    } else {
-        fprintf(stderr, "SDL_ttf: find_emoji_font found no emoji font\n");
-    }
-    return result;
+    return find_first_existing_font(fonts);
 #else
     static const char *fallback_paths[] = {
         /* Try monochrome emoji font first - SDL_ttf may handle it better */
@@ -217,19 +182,12 @@ static const char *find_emoji_font(void) {
     for (int i = 0; emoji_patterns[i] != NULL; i++) {
         const char *result = find_font_via_fc_match(emoji_patterns[i], NULL);
         if (result) {
-            fprintf(stderr, "SDL_ttf: find_emoji_font via fc-match pattern '%s' found: %s\n", emoji_patterns[i], result);
             return result;
         }
     }
     
     /* If fc-match didn't find anything, use fallback paths */
-    const char *result = find_first_existing_font(fallback_paths);
-    if (result) {
-        fprintf(stderr, "SDL_ttf: find_emoji_font via fallback found: %s\n", result);
-    } else {
-        fprintf(stderr, "SDL_ttf: find_emoji_font found no emoji font\n");
-    }
-    return result;
+    return find_first_existing_font(fallback_paths);
 #endif
 }
 
@@ -337,10 +295,8 @@ static int is_symbol_codepoint(uint32_t codepoint) {
 static TTF_Font *load_emoji_font(const char *(*find_func)(void), const char *name, int size, int hdpi, int vdpi) {
     const char *path = find_func();
     if (!path) {
-        fprintf(stderr, "SDL_ttf: No path found for %s font\n", name);
         return NULL;
     }
-    fprintf(stderr, "SDL_ttf: Trying to load %s font from: %s\n", name, path);
 #if HAVE_SDL_TTF_DPI
     TTF_Font *font = TTF_OpenFontDPI(path, size, hdpi, vdpi);
 #else
@@ -348,11 +304,6 @@ static TTF_Font *load_emoji_font(const char *(*find_func)(void), const char *nam
     (void)vdpi; /* Not used when DPI support is not available */
     TTF_Font *font = TTF_OpenFont(path, size);
 #endif
-    if (font) {
-        fprintf(stderr, "SDL_ttf: Successfully loaded %s font\n", name);
-    } else {
-        fprintf(stderr, "SDL_ttf: Failed to load %s font: %s\n", name, TTF_GetError());
-    }
     return font;
 }
 
@@ -421,14 +372,6 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
     /* Store font size for fallback font scaling */
     cache->font_size = font_size;
 
-#if HAVE_SDL_TTF_DPI
-    fprintf(stderr, "SDL_ttf: Loaded %s (cell %dx%d, DPI %dx%d)%s\n", font_name, cache->cell_w, cache->cell_h, hdpi,
-            vdpi, metrics_only ? " [metrics only]" : "");
-#else
-    fprintf(stderr, "SDL_ttf: Loaded %s (cell %dx%d, no DPI)%s\n", font_name, cache->cell_w, cache->cell_h,
-            metrics_only ? " [metrics only]" : "");
-#endif
-
     /* Skip loading fallback fonts if only metrics are needed */
     if (!metrics_only) {
         /* Load bold font if available */
@@ -449,9 +392,6 @@ GlyphCache *glyph_cache_create(SDL_Renderer *renderer, const char *font_path, co
         /* Load emoji/symbol fonts at same size as main font (renders at correct scale) */
         cache->emoji_font = load_emoji_font(find_emoji_font, "Emoji", font_size, hdpi, vdpi);
         cache->symbol_font = load_emoji_font(find_symbol_font, "Symbol", font_size, hdpi, vdpi);
-
-        fprintf(stderr, "SDL_ttf: Fallback fonts: bold=%s, emoji=%s, symbol=%s\n", cache->bold_font ? "yes" : "no",
-                cache->emoji_font ? "yes" : "no", cache->symbol_font ? "yes" : "no");
     }
 
     return cache;
@@ -527,7 +467,6 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
     if (is_symbol_codepoint(codepoint)) {
         use_main_font = 0;
         use_symbol_font = 1;
-        fprintf(stderr, "SDL_ttf: Symbol codepoint U+%04X detected, using symbol font\n", codepoint);
         /* Immediately try symbol font, don't wait for main font to fail */
         if (cache->symbol_font) {
             TTF_SetFontStyle(cache->symbol_font, style);
@@ -546,10 +485,8 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
             }
             TTF_SetFontStyle(cache->symbol_font, TTF_STYLE_NORMAL);
             if (surface) {
-                fprintf(stderr, "SDL_ttf: Symbol font rendered U+%04X successfully\n", codepoint);
                 used_emoji_font = 1;
             } else {
-                fprintf(stderr, "SDL_ttf: Symbol font failed to render U+%04X\n", codepoint);
                 /* Fall back to main font */
                 use_main_font = 1;
                 use_symbol_font = 0;
@@ -566,7 +503,6 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
             main_font_has_glyph = TTF_GlyphIsProvided(cache->font, (uint16_t)codepoint);
         }
 #endif
-        fprintf(stderr, "SDL_ttf: main_font_has_glyph for U+%04X: %s\n", codepoint, main_font_has_glyph ? "true" : "false");
         /* If main font doesn't have glyph, allow fallback to symbol font */
         if (!main_font_has_glyph) {
             use_symbol_font = 1;
@@ -607,7 +543,6 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
         /* Reset font style */
         TTF_SetFontStyle(render_font, TTF_STYLE_NORMAL);
         
-        fprintf(stderr, "SDL_ttf: Main font rendering for U+%04X: %s\n", codepoint, surface ? "success" : "failed");
         /* If main font claimed to have the glyph but rendering failed (surface is NULL),
          * allow fallback to symbol font */
         if (!surface) {
@@ -637,8 +572,6 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
 
     /* Fall back to symbol font if emoji font didn't have the glyph */
     if (!surface && use_symbol_font && cache->symbol_font) {
-        fprintf(stderr, "SDL_ttf: use_symbol_font=%d, cache->symbol_font=%p\n", use_symbol_font, (void*)cache->symbol_font);
-        fprintf(stderr, "SDL_ttf: Trying symbol font for U+%04X\n", codepoint);
         TTF_SetFontStyle(cache->symbol_font, style);
 
         /* For emoji rendering, use white foreground */
@@ -660,15 +593,11 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
 
         TTF_SetFontStyle(cache->symbol_font, TTF_STYLE_NORMAL);
         if (surface) {
-            fprintf(stderr, "SDL_ttf: Symbol font rendered U+%04X successfully\n", codepoint);
             used_emoji_font = 1;
-        } else {
-            fprintf(stderr, "SDL_ttf: Symbol font failed to render U+%04X\n", codepoint);
         }
         
         /* If symbol font also failed, try emoji font as a last resort (some symbols may be in emoji font) */
         if (!surface && cache->emoji_font) {
-            fprintf(stderr, "SDL_ttf: Trying emoji font as fallback for U+%04X\n", codepoint);
             TTF_SetFontStyle(cache->emoji_font, style);
             char utf8[5];
             utf8_put_codepoint(codepoint, utf8);
@@ -676,10 +605,7 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
             surface = TTF_RenderUTF8_Blended(cache->emoji_font, utf8, white);
             TTF_SetFontStyle(cache->emoji_font, TTF_STYLE_NORMAL);
             if (surface) {
-                fprintf(stderr, "SDL_ttf: Emoji font rendered U+%04X successfully\n", codepoint);
                 used_emoji_font = 1;
-            } else {
-                fprintf(stderr, "SDL_ttf: Emoji font also failed for U+%04X\n", codepoint);
             }
         }
     }
