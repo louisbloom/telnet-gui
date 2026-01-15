@@ -290,8 +290,7 @@ static int get_terminal_width(void) {
     /* Windows: use console info */
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    if (hStdOut != INVALID_HANDLE_VALUE && 
-        GetConsoleScreenBufferInfo(hStdOut, &csbi)) {
+    if (hStdOut != INVALID_HANDLE_VALUE && GetConsoleScreenBufferInfo(hStdOut, &csbi)) {
         int width = csbi.srWindow.Right - csbi.srWindow.Left + 1;
         return width;
     }
@@ -414,7 +413,7 @@ static void lineedit_refresh(LineEditState *state, const char *prompt) {
         /* Move cursor left by cursor_offset */
         printf("\033[%dD", cursor_offset);
     }
-    
+
     fflush(stdout);
 }
 
@@ -605,7 +604,7 @@ static void lineedit_complete(LineEditState *state, const char *prompt) {
 static int utf8_visual_width(const char *str) {
     int width = 0;
     unsigned char *p = (unsigned char *)str;
-    
+
     while (*p) {
         if ((*p & 0xC0) != 0x80) { /* Not a continuation byte */
             width++;
@@ -634,32 +633,35 @@ static void lineedit_show_completions(LineEditState *state, const char *prompt) 
 
     /* Calculate columns with minimum spacing */
     int col_width = max_len + 2; /* 2 spaces padding */
-    if (col_width < 4) col_width = 4; /* Minimum column width */
-    
+    if (col_width < 4)
+        col_width = 4; /* Minimum column width */
+
     int cols = term_width / col_width;
-    if (cols < 1) cols = 1;
-    if (cols > state->completion_count) cols = state->completion_count;
+    if (cols < 1)
+        cols = 1;
+    if (cols > state->completion_count)
+        cols = state->completion_count;
 
     /* Calculate rows needed */
     int rows = (state->completion_count + cols - 1) / cols;
-    
+
     /* Save cursor position (where prompt is) */
     printf(ANSI_SAVE_CURSOR);
-    
+
     /* Move to next line (below prompt) and clear it */
     printf("\n" ANSI_CLEAR_RIGHT);
-    
+
     /* Print completions with proper formatting */
     for (int row = 0; row < rows; row++) {
         /* Always start at beginning of line */
         printf("\r");
         for (int col = 0; col < cols; col++) {
-            int idx = row * cols + col;  /* Row-major order */
+            int idx = row * cols + col; /* Row-major order */
             if (idx < state->completion_count) {
                 /* Calculate padding for this column */
                 int visual_len = utf8_visual_width(state->completions[idx]);
                 int padding = col_width - visual_len;
-                
+
                 printf("%s", state->completions[idx]);
                 for (int p = 0; p < padding; p++) {
                     printf(" ");
@@ -676,17 +678,17 @@ static void lineedit_show_completions(LineEditState *state, const char *prompt) 
 
     /* Restore cursor position (back to prompt line) */
     printf(ANSI_RESTORE_CURSOR);
-    
+
     /* Clear the line and redraw prompt */
     printf("\r" ANSI_CLEAR_RIGHT);
     printf("%s%s", prompt, state->buf);
-    
+
     /* Move cursor to correct position */
     int cursor_offset = state->len - state->pos;
     if (cursor_offset > 0) {
         printf("\033[%dD", cursor_offset);
     }
-    
+
     fflush(stdout);
 }
 
@@ -766,7 +768,7 @@ char *lineedit_readline(LineEditState *state, const char *prompt) {
 
     /* Ensure we're at the beginning of the line before printing prompt */
     printf("\r");
-    
+
     /* Print prompt */
     printf("%s", prompt);
     fflush(stdout);
