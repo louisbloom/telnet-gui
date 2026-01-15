@@ -643,17 +643,89 @@ static const char *find_system_monospace_font(const char **font_name_out) {
         }
     }
 #else
-    /* Linux: Try common monospace fonts */
-    const char *fonts[] = {"/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-                           "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
-                           "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
-                           "/usr/share/fonts/TTF/LiberationMono-Regular.ttf",
-                           "/usr/share/fonts/truetype/liberation-mono/LiberationMono-Regular.ttf",
-                           "/usr/share/fonts/truetype/courier/Courier New.ttf",
-                           "/usr/share/fonts/TTF/Courier New.ttf",
-                           NULL};
-    const char *names[] = {"DejaVu Sans Mono", "DejaVu Sans Mono", "Liberation Mono", "Liberation Mono",
-                           "Liberation Mono",  "Courier New",      "Courier New",     NULL};
+    /* First, try to use fc-match to find a monospace font */
+    {
+        FILE *fp = popen("fc-match -f '%{file}\n' monospace:style=Regular 2>/dev/null", "r");
+        if (fp) {
+            static char path[1024];
+            if (fgets(path, sizeof(path), fp)) {
+                /* Remove trailing newline */
+                size_t len = strlen(path);
+                if (len > 0 && path[len-1] == '\n') {
+                    path[len-1] = '\0';
+                }
+                pclose(fp);
+                /* Check if the file exists */
+                FILE *test = file_open(path, "rb");
+                if (test) {
+                    fclose(test);
+                    /* Try to get font name using fc-match */
+                    FILE *fp2 = popen("fc-match -f '%{family}\n' monospace:style=Regular 2>/dev/null", "r");
+                    if (fp2) {
+                        static char name[256];
+                        if (fgets(name, sizeof(name), fp2)) {
+                            len = strlen(name);
+                            if (len > 0 && name[len-1] == '\n') {
+                                name[len-1] = '\0';
+                            }
+                            if (font_name_out) {
+                                *font_name_out = name;
+                            }
+                        }
+                        pclose(fp2);
+                    }
+                    return path;
+                }
+            }
+            pclose(fp);
+        }
+    }
+    
+    /* Fallback to hardcoded paths if fc-match fails */
+    const char *fonts[] = {
+        /* DejaVu fonts */
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+        "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
+        "/usr/share/fonts/dejavu-sans-mono/DejaVuSansMono.ttf",
+        /* Liberation fonts */
+        "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+        "/usr/share/fonts/TTF/LiberationMono-Regular.ttf",
+        "/usr/share/fonts/liberation-mono/LiberationMono-Regular.ttf",
+        /* Noto fonts */
+        "/usr/share/fonts/truetype/noto/NotoMono-Regular.ttf",
+        "/usr/share/fonts/noto-mono/NotoMono-Regular.ttf",
+        "/usr/share/fonts/TTF/NotoMono-Regular.ttf",
+        /* Ubuntu fonts */
+        "/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf",
+        "/usr/share/fonts/ubuntu-mono/UbuntuMono-R.ttf",
+        /* Fedora fonts */
+        "/usr/share/fonts/truetype/fedora/DejaVuSansMono.ttf",
+        "/usr/share/fonts/fedora-sans-mono/DejaVuSansMono.ttf",
+        /* Courier fonts */
+        "/usr/share/fonts/truetype/courier/Courier New.ttf",
+        "/usr/share/fonts/TTF/Courier New.ttf",
+        "/usr/share/fonts/courier-new/Courier New.ttf",
+        /* Nimbus Mono */
+        "/usr/share/fonts/truetype/nimbus-mono/NimbusMono-Regular.ttf",
+        /* FreeMono */
+        "/usr/share/fonts/truetype/freefont/FreeMono.ttf",
+        "/usr/share/fonts/freefont/FreeMono.ttf",
+        /* Last resort: check in X11 fonts */
+        "/usr/share/fonts/X11/misc/6x13.pcf.gz",
+        "/usr/share/fonts/X11/misc/fixed.pcf.gz",
+        NULL
+    };
+    const char *names[] = {
+        "DejaVu Sans Mono", "DejaVu Sans Mono", "DejaVu Sans Mono",
+        "Liberation Mono", "Liberation Mono", "Liberation Mono",
+        "Noto Mono", "Noto Mono", "Noto Mono",
+        "Ubuntu Mono", "Ubuntu Mono",
+        "DejaVu Sans Mono", "DejaVu Sans Mono",
+        "Courier New", "Courier New", "Courier New",
+        "Nimbus Mono", "FreeMono", "FreeMono",
+        "Fixed", "Fixed",
+        NULL
+    };
 
     for (int i = 0; fonts[i] != NULL; i++) {
         FILE *test = file_open(fonts[i], "rb");

@@ -21,31 +21,110 @@ static const char *find_first_existing_font(const char *fonts[]) {
     return NULL;
 }
 
+/* Try to find font using fc-match (fontconfig) - Linux only */
+static const char *find_font_via_fc_match(const char *pattern, const char *fallback_paths[]) {
+#ifndef _WIN32
+    /* Build command: fc-match -f "%{file}\n" pattern */
+    char command[256];
+    snprintf(command, sizeof(command), "fc-match -f '%%{file}\n' '%s' 2>/dev/null", pattern);
+    
+    FILE *fp = popen(command, "r");
+    if (fp) {
+        static char path[1024];
+        if (fgets(path, sizeof(path), fp)) {
+            /* Remove trailing newline */
+            size_t len = strlen(path);
+            if (len > 0 && path[len-1] == '\n') {
+                path[len-1] = '\0';
+            }
+            pclose(fp);
+            /* Check if the file exists */
+            FILE *test = fopen(path, "rb");
+            if (test) {
+                fclose(test);
+                return path;
+            }
+        }
+        pclose(fp);
+    }
+#endif
+    /* Fall back to hardcoded paths */
+    return find_first_existing_font(fallback_paths);
+}
+
 /* Try to find system symbol font for dingbats/symbols */
 static const char *find_symbol_font(void) {
 #ifdef _WIN32
     static const char *fonts[] = {"C:/Windows/Fonts/seguisym.ttf", "C:\\Windows\\Fonts\\seguisym.ttf", NULL};
+    return find_first_existing_font(fonts);
 #elif defined(__APPLE__)
     static const char *fonts[] = {"/System/Library/Fonts/Apple Symbols.ttf", NULL};
-#else
-    static const char *fonts[] = {"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                                  "/usr/share/fonts/TTF/DejaVuSans.ttf", NULL};
-#endif
     return find_first_existing_font(fonts);
+#else
+    static const char *fallback_paths[] = {
+        /* DejaVu Sans (contains many symbols) */
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        "/usr/share/fonts/dejavu-sans/DejaVuSans.ttf",
+        /* Noto Sans */
+        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+        "/usr/share/fonts/noto-sans/NotoSans-Regular.ttf",
+        "/usr/share/fonts/TTF/NotoSans-Regular.ttf",
+        /* Liberation Sans */
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/TTF/LiberationSans-Regular.ttf",
+        /* Ubuntu Sans */
+        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+        "/usr/share/fonts/ubuntu-sans/Ubuntu-R.ttf",
+        /* Symbol fonts */
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        "/usr/share/fonts/freefont/FreeSans.ttf",
+        /* Last resort: any sans-serif font */
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        NULL
+    };
+    /* Try fc-match first for better results */
+    return find_font_via_fc_match("sans-serif:style=Regular", fallback_paths);
+#endif
 }
 
 /* Try to find system emoji font for color emoji fallback */
 static const char *find_emoji_font(void) {
 #ifdef _WIN32
     static const char *fonts[] = {"C:/Windows/Fonts/seguiemj.ttf", "C:\\Windows\\Fonts\\seguiemj.ttf", NULL};
+    return find_first_existing_font(fonts);
 #elif defined(__APPLE__)
     static const char *fonts[] = {"/System/Library/Fonts/Apple Color Emoji.ttc", NULL};
-#else
-    static const char *fonts[] = {
-        "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf", "/usr/share/fonts/noto-emoji/NotoColorEmoji.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans.ttf", NULL};
-#endif
     return find_first_existing_font(fonts);
+#else
+    static const char *fallback_paths[] = {
+        /* Noto Color Emoji (most common) */
+        "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+        "/usr/share/fonts/noto-emoji/NotoColorEmoji.ttf",
+        "/usr/share/fonts/TTF/NotoColorEmoji.ttf",
+        "/usr/share/fonts/google-noto-emoji/NotoColorEmoji.ttf",
+        /* EmojiOne */
+        "/usr/share/fonts/truetype/emojione/EmojiOneColor-SVGinOT.ttf",
+        "/usr/share/fonts/emojione/EmojiOneColor-SVGinOT.ttf",
+        /* Twitter Color Emoji */
+        "/usr/share/fonts/truetype/twitter-color-emoji/TwitterColorEmoji-SVGinOT.ttf",
+        "/usr/share/fonts/twitter-color-emoji/TwitterColorEmoji-SVGinOT.ttf",
+        /* Other emoji fonts */
+        "/usr/share/fonts/truetype/ancient-scripts/Symbola_hint.ttf",
+        "/usr/share/fonts/truetype/unifont/unifont.ttf",
+        "/usr/share/fonts/truetype/unifont/unifont_upper.ttf",
+        /* Fallback to any font with emoji support */
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        "/usr/share/fonts/dejavu-sans/DejaVuSans.ttf",
+        /* Last resort: Noto Sans */
+        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+        "/usr/share/fonts/noto-sans/NotoSans-Regular.ttf",
+        NULL
+    };
+    /* Try fc-match first for better results */
+    return find_font_via_fc_match("emoji:style=Regular", fallback_paths);
+#endif
 }
 
 /* Derive bold font path from regular font path.
