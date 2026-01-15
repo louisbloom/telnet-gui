@@ -313,6 +313,26 @@ static char *find_bold_font_path(const char *regular_path) {
     return NULL;
 }
 
+/* Check if a codepoint is in symbol ranges */
+static int is_symbol_codepoint(uint32_t codepoint) {
+    /* Geometric Shapes */
+    if (codepoint >= 0x25A0 && codepoint <= 0x25FF)
+        return 1;
+    /* Miscellaneous Symbols */
+    if (codepoint >= 0x2600 && codepoint <= 0x26FF)
+        return 1;
+    /* Dingbats */
+    if (codepoint >= 0x2700 && codepoint <= 0x27BF)
+        return 1;
+    /* Supplemental Arrows-B, Miscellaneous Symbols and Arrows */
+    if (codepoint >= 0x2900 && codepoint <= 0x297F)
+        return 1;
+    /* Miscellaneous Technical */
+    if (codepoint >= 0x2300 && codepoint <= 0x23FF)
+        return 1;
+    return 0;
+}
+
 /* Load an emoji/symbol font at fixed size, returns NULL if not found or failed */
 static TTF_Font *load_emoji_font(const char *(*find_func)(void), const char *name, int size, int hdpi, int vdpi) {
     const char *path = find_func();
@@ -498,6 +518,12 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
         use_main_font = 0;
         use_emoji_font = 1;  /* Try emoji font first */
         use_symbol_font = 1; /* Fall back to symbol font if emoji doesn't have it */
+    }
+
+    /* Always use symbol font for symbol codepoints, and skip main font */
+    if (is_symbol_codepoint(codepoint)) {
+        use_main_font = 0;
+        use_symbol_font = 1;
     }
 
     /* Check if main font provides this glyph */
