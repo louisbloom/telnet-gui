@@ -134,6 +134,7 @@ static const char *hostname = NULL;
 static int port = 0;
 static const char *lisp_files[16];
 static int lisp_file_count = 0;
+static const char *lisp_file_value = NULL;
 static const char *font_value = NULL;
 static const char *hinting_value = NULL;
 static const char *antialiasing_value = NULL;
@@ -255,6 +256,10 @@ static int line_height_cb(struct argparse *self, const struct argparse_option *o
 static int lisp_file_cb(struct argparse *self, const struct argparse_option *option) {
     (void)option; // Mark parameter as unused
     const char *value = self->optvalue;
+    /* If self->optvalue is NULL, try to get value from lisp_file_value variable */
+    if (!value) {
+        value = lisp_file_value;
+    }
     if (!value) {
         fprintf(stderr, "Error: No value provided for lisp-file option\n");
         return -1;
@@ -302,7 +307,7 @@ static struct argparse_option options[] = {
     OPT_GROUP("Terminal Options:"),
     OPT_STRING('g', "geometry", &geometry_value, "Set terminal size in characters: COLSxROWS (e.g., 80x40)", geometry_cb, 0, 0),
     OPT_GROUP("Other Options:"),
-    OPT_STRING('l', "lisp-file", NULL, "Load and evaluate Lisp file on startup (can be specified multiple times)",
+    OPT_STRING('l', "lisp-file", &lisp_file_value, "Load and evaluate Lisp file on startup (can be specified multiple times)",
                lisp_file_cb, 0, 0),
     OPT_STRING(0, "line-height", &line_height_value, "Set line height multiplier (default: 1.0): 0.5 to 3.0", line_height_cb, 0, 0),
     OPT_BOOLEAN(0, "debug-exit", &debug_exit, "Exit after initialization (for debug output)", NULL, 0, 0),
