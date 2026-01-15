@@ -48,8 +48,11 @@ static const char *find_font_via_fc_match(const char *pattern, const char *fallb
         pclose(fp);
     }
 #endif
-    /* Fall back to hardcoded paths */
-    return find_first_existing_font(fallback_paths);
+    /* Fall back to hardcoded paths if provided */
+    if (fallback_paths) {
+        return find_first_existing_font(fallback_paths);
+    }
+    return NULL;
 }
 
 /* Try to find system symbol font for dingbats/symbols */
@@ -62,6 +65,10 @@ static const char *find_symbol_font(void) {
     return find_first_existing_font(fonts);
 #else
     static const char *fallback_paths[] = {
+        /* Fedora-specific symbol fonts */
+        "/usr/share/fonts/gdouros-symbola/Symbola.ttf",
+        "/usr/share/fonts/google-noto/NotoSansSymbols2-Regular.ttf",
+        "/usr/share/fonts/google-noto-vf/NotoSansSymbols[wght].ttf",
         /* DejaVu Sans (contains many symbols) */
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/TTF/DejaVuSans.ttf",
@@ -83,8 +90,24 @@ static const char *find_symbol_font(void) {
         "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
         NULL
     };
-    /* Try fc-match first for better results */
-    return find_font_via_fc_match("sans-serif:style=Regular", fallback_paths);
+    /* Try fc-match first for better results - try multiple patterns */
+    const char *symbol_patterns[] = {
+        "sans-serif:style=Regular",
+        "Symbola",
+        "Noto Sans Symbols",
+        "sans-serif",
+        NULL
+    };
+    
+    for (int i = 0; symbol_patterns[i] != NULL; i++) {
+        const char *result = find_font_via_fc_match(symbol_patterns[i], NULL);
+        if (result) {
+            return result;
+        }
+    }
+    
+    /* If fc-match didn't find anything, use fallback paths */
+    return find_first_existing_font(fallback_paths);
 #endif
 }
 
@@ -98,6 +121,9 @@ static const char *find_emoji_font(void) {
     return find_first_existing_font(fonts);
 #else
     static const char *fallback_paths[] = {
+        /* Fedora-specific emoji fonts */
+        "/usr/share/fonts/google-noto-color-emoji-fonts/Noto-COLRv1.ttf",
+        "/usr/share/fonts/google-noto-emoji-fonts/NotoEmoji-Regular.ttf",
         /* Noto Color Emoji (most common) */
         "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
         "/usr/share/fonts/noto-emoji/NotoColorEmoji.ttf",
@@ -122,8 +148,24 @@ static const char *find_emoji_font(void) {
         "/usr/share/fonts/noto-sans/NotoSans-Regular.ttf",
         NULL
     };
-    /* Try fc-match first for better results */
-    return find_font_via_fc_match("emoji:style=Regular", fallback_paths);
+    /* Try fc-match first for better results - try multiple patterns */
+    const char *emoji_patterns[] = {
+        "emoji:style=Regular",
+        "Noto Color Emoji",
+        "Noto Emoji",
+        "emoji",
+        NULL
+    };
+    
+    for (int i = 0; emoji_patterns[i] != NULL; i++) {
+        const char *result = find_font_via_fc_match(emoji_patterns[i], NULL);
+        if (result) {
+            return result;
+        }
+    }
+    
+    /* If fc-match didn't find anything, use fallback paths */
+    return find_first_existing_font(fallback_paths);
 #endif
 }
 

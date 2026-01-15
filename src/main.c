@@ -645,7 +645,7 @@ static const char *find_system_monospace_font(const char **font_name_out) {
 #else
     /* First, try to use fc-match to find a monospace font */
     {
-        FILE *fp = popen("fc-match -f '%{file}\n' monospace:style=Regular 2>/dev/null", "r");
+        FILE *fp = popen("fc-match -f '%{file}\n' 'monospace:style=Regular' 2>/dev/null", "r");
         if (fp) {
             static char path[1024];
             if (fgets(path, sizeof(path), fp)) {
@@ -683,6 +683,12 @@ static const char *find_system_monospace_font(const char **font_name_out) {
     
     /* Fallback to hardcoded paths if fc-match fails */
     const char *fonts[] = {
+        /* Fedora-specific paths */
+        "/usr/share/fonts/adobe-source-code-pro-fonts/SourceCodePro-Regular.otf",
+        "/usr/share/fonts/liberation-mono-fonts/LiberationMono-Regular.ttf",
+        "/usr/share/fonts/adwaita-mono-fonts/AdwaitaMono-Regular.ttf",
+        "/usr/share/fonts/google-noto-vf/NotoSansMono[wght].ttf",
+        "/usr/share/fonts/google-noto-sans-mono-cjk-vf-fonts/NotoSansMonoCJK-VF.ttc",
         /* DejaVu fonts */
         "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
         "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
@@ -698,15 +704,13 @@ static const char *find_system_monospace_font(const char **font_name_out) {
         /* Ubuntu fonts */
         "/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf",
         "/usr/share/fonts/ubuntu-mono/UbuntuMono-R.ttf",
-        /* Fedora fonts */
-        "/usr/share/fonts/truetype/fedora/DejaVuSansMono.ttf",
-        "/usr/share/fonts/fedora-sans-mono/DejaVuSansMono.ttf",
         /* Courier fonts */
         "/usr/share/fonts/truetype/courier/Courier New.ttf",
         "/usr/share/fonts/TTF/Courier New.ttf",
         "/usr/share/fonts/courier-new/Courier New.ttf",
         /* Nimbus Mono */
         "/usr/share/fonts/truetype/nimbus-mono/NimbusMono-Regular.ttf",
+        "/usr/share/fonts/urw-base35/NimbusMonoPS-Regular.otf",
         /* FreeMono */
         "/usr/share/fonts/truetype/freefont/FreeMono.ttf",
         "/usr/share/fonts/freefont/FreeMono.ttf",
@@ -716,13 +720,15 @@ static const char *find_system_monospace_font(const char **font_name_out) {
         NULL
     };
     const char *names[] = {
+        "Source Code Pro", "Liberation Mono", "Adwaita Mono",
+        "Noto Sans Mono", "Noto Sans Mono CJK",
         "DejaVu Sans Mono", "DejaVu Sans Mono", "DejaVu Sans Mono",
         "Liberation Mono", "Liberation Mono", "Liberation Mono",
         "Noto Mono", "Noto Mono", "Noto Mono",
         "Ubuntu Mono", "Ubuntu Mono",
-        "DejaVu Sans Mono", "DejaVu Sans Mono",
         "Courier New", "Courier New", "Courier New",
-        "Nimbus Mono", "FreeMono", "FreeMono",
+        "Nimbus Mono", "Nimbus Mono PS",
+        "FreeMono", "FreeMono",
         "Fixed", "Fixed",
         NULL
     };
