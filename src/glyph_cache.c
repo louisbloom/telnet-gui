@@ -264,7 +264,7 @@ static char *find_bold_font_simple(const char *regular_path, const char *font_na
                         pclose(fp);
                         continue;
                     }
-                    
+
                     /* Verify file exists */
                     FILE *test = fopen(bold_path, "rb");
                     if (test) {
