@@ -548,6 +548,12 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
 
         /* Reset font style */
         TTF_SetFontStyle(render_font, TTF_STYLE_NORMAL);
+        
+        /* If main font claimed to have the glyph but rendering failed (surface is NULL),
+         * allow fallback to symbol font */
+        if (!surface) {
+            use_symbol_font = 1;
+        }
     }
 
     /* Track if we used an emoji/symbol font (for scale mode selection) */
