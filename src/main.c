@@ -40,6 +40,7 @@
 void renderer_set_animation(Animation *anim);
 #endif
 #include "../telnet-lisp/include/file_utils.h"
+#include "vendor/argparse.h" // <-- Add this include
 
 /* High-resolution timing for profiling */
 #ifdef _WIN32
@@ -127,6 +128,174 @@ static int quit_requested = 0;
 
 /* Track previous input area height for resize detection */
 static int prev_input_visible_rows = 1;
+
+/* Command-line argument variables */
+static const char *hostname = NULL;
+static int port = 0;
+static const char *lisp_files[16];
+static int lisp_file_count = 0;
+static char font_choice =
+    's';                   /* Internal font code: s=system, m=cascadia, i=inconsolata, p=plex, d=dejavu, c=courier */
+static int font_size = 12; /* Default font size */
+static int terminal_cols = 80;       /* Default terminal columns */
+static int terminal_rows = 40;       /* Default terminal rows */
+static int debug_exit = 0;           /* Exit after initialization for debug output */
+static int profile_mode = 0;         /* Enable profiling (Lisp + C timing) */
+static int exit_on_disconnect = 0;   /* Exit when telnet connection closes */
+static float cli_line_height = 0.0f; /* CLI line height (0.0 means not set, use default) */
+#ifdef _WIN32
+static int use_directwrite = 1; /* Use DirectWrite font backend (Windows default) */
+static int use_cleartype = 0;   /* ClearType disabled by default (enable with --cleartype) */
+#else
+static int use_directwrite = 0; /* DirectWrite not available on non-Windows */
+static int use_cleartype = 0;   /* ClearType not available on non-Windows */
+#endif
+static int hinting_mode = TTF_HINTING_NONE;             /* Default: no hinting for crisp rendering */
+static SDL_ScaleMode scale_mode = SDL_ScaleModeNearest; /* Default: nearest (pixel-perfect) scaling */
+
+/* Callback for hinting mode option */
+static int hinting_cb(struct argparse *self, const struct argparse_option *option) {
+    const char *value = self->optvalue;
+    if (strcmp(value, "none") == 0) {
+        hinting_mode = TTF_HINTING_NONE;
+    } else if (strcmp(value, "light") == 0) {
+        hinting_mode = TTF_HINTING_LIGHT;
+    } else if (strcmp(value, "normal") == 0) {
+        hinting_mode = TTF_HINTING_NORMAL;
+    } else if (strcmp(value, "mono") == 0) {
+        hinting_mode = TTF_HINTING_MONO;
+    }
+    return 0;
+}
+
+/* Callback for antialiasing mode option */
+static int antialiasing_cb(struct argparse *self, const struct argparse_option *option) {
+    const char *value = self->optvalue;
+    if (strcmp(value, "nearest") == 0) {
+        scale_mode = SDL_ScaleModeNearest;
+    } else if (strcmp(value, "linear") == 0) {
+        scale_mode = SDL_ScaleModeLinear;
+    }
+    return 0;
+}
+
+/* Callback for font choice option */
+static int font_cb(struct argparse *self, const struct argparse_option *option) {
+    const char *value = self->optvalue;
+    if (strcmp(value, "system") == 0)
+        font_choice = 's';
+    else if (strcmp(value, "cascadia") == 0)
+        font_choice = 'm';
+    else if (strcmp(value, "inconsolata") == 0)
+        font_choice = 'i';
+    else if (strcmp(value, "plex") == 0)
+        font_choice = 'p';
+    else if (strcmp(value, "dejavu") == 0)
+        font_choice = 'd';
+    else if (strcmp(value, "courier") == 0)
+        font_choice = 'c';
+    return 0;
+}
+
+/* Callback for geometry option */
+static int geometry_cb(struct argparse *self, const struct argparse_option *option) {
+    const char *value = self->optvalue;
+    char *geom_copy = strdup(value);
+    if (!geom_copy) {
+        fprintf(stderr, "Error: Out of memory\n");
+        return -1;
+    }
+    char *x_pos = strchr(geom_copy, 'x');
+    if (!x_pos) {
+        fprintf(stderr, "Error: Invalid geometry format '%s'. Use COLSxROWS (e.g., 80x40)\n", value);
+        free(geom_copy);
+        return -1;
+    }
+    *x_pos = '\0';
+    terminal_cols = atoi(geom_copy);
+    terminal_rows = atoi(x_pos + 1);
+    free(geom_copy);
+
+    if (terminal_cols <= 0 || terminal_rows <= 0) {
+        fprintf(stderr, "Error: Invalid geometry dimensions. Columns and rows must be positive\n");
+        return -1;
+    }
+    return 0;
+}
+
+/* Callback for line-height option */
+static int line_height_cb(struct argparse *self, const struct argparse_option *option) {
+    const char *value = self->optvalue;
+    cli_line_height = (float)atof(value);
+    if (cli_line_height < 0.5f || cli_line_height > 3.0f) {
+        fprintf(stderr, "Error: Invalid line height '%s'. Must be between 0.5 and 3.0\n", value);
+        return -1;
+    }
+    return 0;
+}
+
+/* Callback for lisp-file option */
+static int lisp_file_cb(struct argparse *self, const struct argparse_option *option) {
+    const char *value = self->optvalue;
+    if (lisp_file_count < 16) {
+        lisp_files[lisp_file_count++] = value;
+    } else {
+        fprintf(stderr, "Error: Too many -l flags (maximum 16)\n");
+        return -1;
+    }
+    return 0;
+}
+
+/* Callback for font-backend option */
+static int font_backend_cb(struct argparse *self, const struct argparse_option *option) {
+    const char *value = self->optvalue;
+    if (strcmp(value, "sdl") == 0 || strcmp(value, "sdl_ttf") == 0) {
+        use_directwrite = 0;
+    } else if (strcmp(value, "directwrite") == 0) {
+#ifdef _WIN32
+        use_directwrite = 1;
+#else
+        fprintf(stderr, "Error: DirectWrite backend is only available on Windows\n");
+        return -1;
+#endif
+    }
+    return 0;
+}
+
+/* Define argparse options */
+static struct argparse_option options[] = {
+    OPT_HELP(),
+    OPT_GROUP("Font Options:"),
+    OPT_INTEGER('s', "font-size", &font_size, "Set font size in points (default: 12)", NULL, 0, 0),
+    OPT_STRING('f', "font", NULL, "Select font (default: system): system, cascadia, inconsolata, plex, dejavu, courier",
+               font_cb, 0, 0),
+    OPT_STRING(0, "hinting", NULL, "Set font hinting mode (default: none): none, light, normal, mono", hinting_cb, 0,
+               0),
+    OPT_STRING(0, "antialiasing", NULL, "Set anti-aliasing mode (default: nearest): nearest, linear", antialiasing_cb,
+               0, 0),
+#ifdef _WIN32
+    OPT_STRING(0, "font-backend", NULL, "Font rendering backend (default: directwrite): sdl, directwrite",
+               font_backend_cb, 0, 0),
+    OPT_BOOLEAN(0, "cleartype", &use_cleartype, "Enable ClearType subpixel rendering (default: off)", NULL, 0, 0),
+    OPT_BOOLEAN(0, "no-cleartype", NULL, "Disable ClearType subpixel rendering", NULL, 0, OPT_NONEG),
+#endif
+    OPT_GROUP("Terminal Options:"),
+    OPT_STRING('g', "geometry", NULL, "Set terminal size in characters: COLSxROWS (e.g., 80x40)", geometry_cb, 0, 0),
+    OPT_GROUP("Other Options:"),
+    OPT_STRING('l', "lisp-file", NULL, "Load and evaluate Lisp file on startup (can be specified multiple times)",
+               lisp_file_cb, 0, 0),
+    OPT_STRING(0, "line-height", NULL, "Set line height multiplier (default: 1.0): 0.5 to 3.0", line_height_cb, 0, 0),
+    OPT_BOOLEAN(0, "debug-exit", &debug_exit, "Exit after initialization (for debug output)", NULL, 0, 0),
+    OPT_BOOLEAN(0, "profile", &profile_mode, "Enable Lisp profiler and C timing instrumentation", NULL, 0, 0),
+    OPT_BOOLEAN(0, "exit-on-disconnect", &exit_on_disconnect, "Exit when telnet connection closes", NULL, 0, 0),
+    OPT_END(),
+};
+
+/* Usage strings */
+static const char *const usages[] = {
+    "telnet-gui [OPTIONS] [hostname] [port]",
+    NULL,
+};
 
 /* Clear terminal selection */
 static void clear_terminal_selection(Terminal *term) {
@@ -434,290 +603,58 @@ static const char *find_system_monospace_font(const char **font_name_out) {
     return NULL;
 }
 
-static void print_help(const char *program_name) {
-#ifdef _WIN32
-    /* Disable buffering for immediate output (console subsystem already has stdout/stderr) */
-    setvbuf(stdout, NULL, _IONBF, 0);
-    setvbuf(stderr, NULL, _IONBF, 0);
-#endif
-    printf("Usage: %s [OPTIONS] [hostname] [port]\n", program_name);
-    printf("\n");
-    printf("Options:\n");
-    printf("  -h, --help              Show this help message and exit\n");
-    printf("\n");
-    printf("  Font Options:\n");
-    printf("    -s, --font-size SIZE   Set font size in points (default: 12)\n");
-    printf("    -f, --font NAME        Select font (default: system):\n");
-    printf("                             system, cascadia, inconsolata, plex, dejavu, courier\n");
-    printf("    --hinting MODE         Set font hinting mode (default: none)\n");
-    printf("                             MODE can be: none, light, normal, mono\n");
-    printf("    --antialiasing MODE    Set anti-aliasing mode (default: nearest)\n");
-    printf("                             MODE can be: nearest, linear\n");
-#ifdef _WIN32
-    printf("    --font-backend BACKEND  Font rendering backend (default: directwrite)\n");
-    printf("                             sdl = SDL2_ttf (cross-platform)\n");
-    printf("                             directwrite = Windows DirectWrite (native, default)\n");
-    printf("    --cleartype             Enable ClearType subpixel rendering (default: off)\n");
-    printf("    --no-cleartype          Disable ClearType subpixel rendering\n");
-#endif
-    printf("\n");
-    printf("  Terminal Options:\n");
-    printf("    -g, --geometry GEOM     Set terminal size in characters\n");
-    printf("                            GEOM format: COLSxROWS (e.g., 80x40)\n");
-    printf("                            Default: 80x40\n");
-    printf("\n");
-    printf("  Other Options:\n");
-    printf("    -l, --lisp-file FILE   Load and evaluate Lisp file on startup\n");
-    printf("                            Can be specified multiple times (loads in order)\n");
-    printf("                            Used to customize completion hooks and scroll settings\n");
-    printf("    --line-height HEIGHT   Set line height multiplier (default: 1.0)\n");
-    printf("                            HEIGHT can be 0.5 to 3.0 (e.g., 1.5 for 50%% more spacing)\n");
-    printf("    --debug-exit           Exit after initialization (for debug output)\n");
-    printf("    --profile              Enable Lisp profiler and C timing instrumentation\n");
-    printf("    --exit-on-disconnect   Exit when telnet connection closes\n");
-    printf("\n");
-    printf("Arguments:\n");
-    printf("  hostname                 Telnet server hostname or IP address (optional)\n");
-    printf("  port                     Telnet server port number (optional)\n");
-    printf("\n");
-    printf("If hostname and port are not provided, starts in unconnected mode.\n");
-    printf("\n");
-    printf("Examples:\n");
-    printf("  %s\n", program_name);
-    printf("      Start in unconnected mode\n");
-    printf("  %s telnet-server 4449\n", program_name);
-    printf("      Connect to telnet-server on port 4449\n");
-    printf("  %s -s 20 telnet-server 4449\n", program_name);
-    printf("      Connect with 20pt font size\n");
-    printf("  %s -f inconsolata telnet-server 4449\n", program_name);
-    printf("      Connect using Inconsolata font\n");
-    printf("  %s -f plex telnet-server 4449\n", program_name);
-    printf("      Connect using IBM Plex Mono font\n");
-    printf("  %s -g 100x40 telnet-server 4449\n", program_name);
-    printf("      Connect with 100x40 terminal size\n");
-    printf("  %s -l completion.lisp telnet-server 4449\n", program_name);
-    printf("      Connect and load Lisp configuration file\n");
-    printf("  %s --line-height 1.5 telnet-server 4449\n", program_name);
-    printf("      Connect with 1.5x line height (50%% more spacing)\n");
-    printf("  %s -l tintin.lisp -l myconfig.lisp server 4449\n", program_name);
-    printf("      Load multiple Lisp files in order\n");
-    printf("\n");
-    fflush(stdout);
-}
-
 int main(int argc, char **argv) {
-    /* Default settings */
-    int hinting_mode = TTF_HINTING_NONE;             /* Default: no hinting for crisp rendering */
-    SDL_ScaleMode scale_mode = SDL_ScaleModeNearest; /* Default: nearest (pixel-perfect) scaling */
-    const char *hostname = NULL;
-    int port = 0;
-    const char *lisp_files[16]; /* Support up to 16 -l flags */
-    int lisp_file_count = 0;
-    char font_choice = 's'; /* Internal font code: s=system, m=cascadia, i=inconsolata, p=plex, d=dejavu, c=courier */
-    int font_size = 12;     /* Default font size */
-    int terminal_cols = 80; /* Default terminal columns */
-    int terminal_rows = 40; /* Default terminal rows */
-    int debug_exit = 0;     /* Exit after initialization for debug output */
-    int profile_mode = 0;   /* Enable profiling (Lisp + C timing) */
-    int exit_on_disconnect = 0;   /* Exit when telnet connection closes */
-    float cli_line_height = 0.0f; /* CLI line height (0.0 means not set, use default) */
-#ifdef _WIN32
-    int use_directwrite = 1; /* Use DirectWrite font backend (Windows default) */
-    int use_cleartype = 0;   /* ClearType disabled by default (enable with --cleartype) */
-#else
-    int use_directwrite = 0; /* DirectWrite not available on non-Windows */
-    int use_cleartype = 0;   /* ClearType not available on non-Windows */
-#endif
+    /* Initialize argparse */
+    struct argparse argparse;
+    argparse_init(&argparse, options, usages, 0);
+    argparse_describe(&argparse,
+                      "Telnet GUI client with Lisp scripting support.\n"
+                      "If hostname and port are not provided, starts in unconnected mode.",
+                      "\nExamples:\n"
+                      "  telnet-gui\n"
+                      "      Start in unconnected mode\n"
+                      "  telnet-gui telnet-server 4449\n"
+                      "      Connect to telnet-server on port 4449\n"
+                      "  telnet-gui -s 20 telnet-server 4449\n"
+                      "      Connect with 20pt font size\n"
+                      "  telnet-gui -f inconsolata telnet-server 4449\n"
+                      "      Connect using Inconsolata font\n"
+                      "  telnet-gui -g 100x40 telnet-server 4449\n"
+                      "      Connect with 100x40 terminal size\n"
+                      "  telnet-gui -l completion.lisp telnet-server 4449\n"
+                      "      Connect and load Lisp configuration file\n"
+                      "  telnet-gui --line-height 1.5 telnet-server 4449\n"
+                      "      Connect with 1.5x line height (50% more spacing)\n"
+                      "  telnet-gui -l tintin.lisp -l myconfig.lisp server 4449\n"
+                      "      Load multiple Lisp files in order");
 
-    /* Parse command-line arguments */
-    int arg_idx = 1;
-    while (arg_idx < argc) {
-        if (strcmp(argv[arg_idx], "-h") == 0 || strcmp(argv[arg_idx], "--help") == 0) {
-            print_help(argv[0]);
-            return 0;
-        } else if (strcmp(argv[arg_idx], "--hinting") == 0) {
-            if (arg_idx + 1 >= argc) {
-                fprintf(stderr, "Error: --hinting requires a mode (none, light, normal, mono)\n");
-                return 1;
-            }
-            arg_idx++;
-            if (strcmp(argv[arg_idx], "none") == 0) {
-                hinting_mode = TTF_HINTING_NONE;
-            } else if (strcmp(argv[arg_idx], "light") == 0) {
-                hinting_mode = TTF_HINTING_LIGHT;
-            } else if (strcmp(argv[arg_idx], "normal") == 0) {
-                hinting_mode = TTF_HINTING_NORMAL;
-            } else if (strcmp(argv[arg_idx], "mono") == 0) {
-                hinting_mode = TTF_HINTING_MONO;
-            } else {
-                fprintf(stderr, "Error: Invalid hinting mode '%s'. Use: none, light, normal, mono\n", argv[arg_idx]);
-                return 1;
-            }
-        } else if (strcmp(argv[arg_idx], "--antialiasing") == 0) {
-            if (arg_idx + 1 >= argc) {
-                fprintf(stderr, "Error: --antialiasing requires a mode (nearest, linear)\n");
-                return 1;
-            }
-            arg_idx++;
-            if (strcmp(argv[arg_idx], "nearest") == 0) {
-                scale_mode = SDL_ScaleModeNearest;
-            } else if (strcmp(argv[arg_idx], "linear") == 0) {
-                scale_mode = SDL_ScaleModeLinear;
-            } else {
-                fprintf(stderr, "Error: Invalid antialiasing mode '%s'. Use: nearest, linear\n", argv[arg_idx]);
-                return 1;
-            }
-        } else if (strcmp(argv[arg_idx], "-s") == 0 || strcmp(argv[arg_idx], "--font-size") == 0) {
-            if (arg_idx + 1 >= argc) {
-                fprintf(stderr, "Error: --font-size requires a size (positive integer)\n");
-                return 1;
-            }
-            arg_idx++;
-            font_size = atoi(argv[arg_idx]);
-            if (font_size <= 0 || font_size > 100) {
-                fprintf(stderr, "Error: Invalid font size '%s'. Must be between 1 and 100\n", argv[arg_idx]);
-                return 1;
-            }
-        } else if (strcmp(argv[arg_idx], "-f") == 0 || strcmp(argv[arg_idx], "--font") == 0) {
-            if (arg_idx + 1 >= argc) {
-                fprintf(stderr, "Error: --font requires a font name\n");
-                return 1;
-            }
-            arg_idx++;
-            if (strcmp(argv[arg_idx], "system") == 0)
-                font_choice = 's';
-            else if (strcmp(argv[arg_idx], "cascadia") == 0)
-                font_choice = 'm';
-            else if (strcmp(argv[arg_idx], "inconsolata") == 0)
-                font_choice = 'i';
-            else if (strcmp(argv[arg_idx], "plex") == 0)
-                font_choice = 'p';
-            else if (strcmp(argv[arg_idx], "dejavu") == 0)
-                font_choice = 'd';
-            else if (strcmp(argv[arg_idx], "courier") == 0)
-                font_choice = 'c';
-            else {
-                fprintf(stderr, "Error: Unknown font '%s'\n", argv[arg_idx]);
-                return 1;
-            }
-        } else if (strcmp(argv[arg_idx], "-g") == 0 || strcmp(argv[arg_idx], "--geometry") == 0) {
-            if (arg_idx + 1 >= argc) {
-                fprintf(stderr, "Error: --geometry requires a geometry string (COLSxROWS, e.g., 80x40)\n");
-                return 1;
-            }
-            arg_idx++;
-            /* Parse geometry string: COLSxROWS (e.g., 80x40) */
-            const char *geom = argv[arg_idx];
-            char *geom_copy = strdup(geom);
-            if (!geom_copy) {
-                fprintf(stderr, "Error: Out of memory\n");
-                return 1;
-            }
-            char *x_pos = strchr(geom_copy, 'x');
-            if (!x_pos) {
-                fprintf(stderr, "Error: Invalid geometry format '%s'. Use COLSxROWS (e.g., 80x40)\n", geom);
-                free(geom_copy);
-                return 1;
-            }
-            *x_pos = '\0';
-            terminal_cols = atoi(geom_copy);
-            terminal_rows = atoi(x_pos + 1);
-            free(geom_copy);
-            if (terminal_cols <= 0 || terminal_rows <= 0) {
-                fprintf(stderr, "Error: Invalid geometry dimensions. Columns and rows must be positive\n");
-                return 1;
-            }
-        } else if (strcmp(argv[arg_idx], "-l") == 0 || strcmp(argv[arg_idx], "--lisp-file") == 0) {
-            if (arg_idx + 1 >= argc) {
-                fprintf(stderr, "Error: --lisp-file requires a file path\n");
-                return 1;
-            }
-            arg_idx++;
-            if (lisp_file_count < 16) {
-                lisp_files[lisp_file_count++] = argv[arg_idx];
-            } else {
-                fprintf(stderr, "Error: Too many -l flags (maximum 16)\n");
-                return 1;
-            }
-        } else if (strcmp(argv[arg_idx], "--line-height") == 0) {
-            if (arg_idx + 1 >= argc) {
-                fprintf(stderr, "Error: --line-height requires a value (0.5 to 3.0)\n");
-                return 1;
-            }
-            arg_idx++;
-            cli_line_height = (float)atof(argv[arg_idx]);
-            if (cli_line_height < 0.5f || cli_line_height > 3.0f) {
-                fprintf(stderr, "Error: Invalid line height '%s'. Must be between 0.5 and 3.0\n", argv[arg_idx]);
-                return 1;
-            }
-        } else if (strcmp(argv[arg_idx], "--debug-exit") == 0) {
-            debug_exit = 1;
-        } else if (strcmp(argv[arg_idx], "--profile") == 0) {
-            profile_mode = 1;
-        } else if (strcmp(argv[arg_idx], "--exit-on-disconnect") == 0) {
-            exit_on_disconnect = 1;
-        } else if (strcmp(argv[arg_idx], "--font-backend") == 0) {
-            if (arg_idx + 1 >= argc) {
-                fprintf(stderr, "Error: --font-backend requires a backend name (sdl, directwrite)\n");
-                return 1;
-            }
-            arg_idx++;
-            if (strcmp(argv[arg_idx], "sdl") == 0 || strcmp(argv[arg_idx], "sdl_ttf") == 0) {
-                use_directwrite = 0;
-            } else if (strcmp(argv[arg_idx], "directwrite") == 0) {
-#ifdef _WIN32
-                use_directwrite = 1;
-#else
-                fprintf(stderr, "Error: DirectWrite backend is only available on Windows\n");
-                return 1;
-#endif
-            } else {
-                fprintf(stderr, "Error: Unknown font backend '%s'. Use: sdl, directwrite\n", argv[arg_idx]);
-                return 1;
-            }
-        } else if (strcmp(argv[arg_idx], "--cleartype") == 0) {
-#ifdef _WIN32
-            use_cleartype = 1;
-#else
-            fprintf(stderr, "Warning: --cleartype is only effective on Windows with DirectWrite backend\n");
-#endif
-        } else if (strcmp(argv[arg_idx], "--no-cleartype") == 0) {
-#ifdef _WIN32
-            use_cleartype = 0;
-#else
-            fprintf(stderr, "Warning: --no-cleartype is only effective on Windows with DirectWrite backend\n");
-#endif
-        } else {
-            /* Positional arguments: hostname and port */
-            if (hostname == NULL) {
-                hostname = argv[arg_idx];
-            } else if (port == 0) {
-                port = atoi(argv[arg_idx]);
-                if (port <= 0 || port > 65535) {
-                    fprintf(stderr, "Error: Invalid port number '%s'. Must be between 1 and 65535\n", argv[arg_idx]);
-                    return 1;
-                }
-            } else {
-                fprintf(stderr, "Error: Unexpected argument '%s'\n", argv[arg_idx]);
-                fprintf(stderr, "Use --help for usage information\n");
+    /* Parse arguments */
+    argc = argparse_parse(&argparse, argc, (const char **)argv);
+
+    /* Handle positional arguments (hostname and port) */
+    if (argc > 0) {
+        hostname = argv[0];
+        if (argc > 1) {
+            port = atoi(argv[1]);
+            if (port <= 0 || port > 65535) {
+                fprintf(stderr, "Error: Invalid port number '%s'. Must be between 1 and 65535\n", argv[1]);
                 return 1;
             }
         }
-        arg_idx++;
     }
 
-    /* Connection mode: if hostname and port provided, start in connected mode */
-    int connected_mode = (hostname != NULL && port != 0);
+    /* Validate hostname/port combination */
     if (hostname != NULL && port == 0) {
         fprintf(stderr, "Error: If hostname is provided, port must also be provided\n");
-        fprintf(stderr, "Use --help for usage information\n");
         return 1;
     }
     if (hostname == NULL && port != 0) {
         fprintf(stderr, "Error: If port is provided, hostname must also be provided\n");
-        fprintf(stderr, "Use --help for usage information\n");
         return 1;
     }
+
+    /* Connection mode: if hostname and port provided, start in connected mode */
+    int connected_mode = (hostname != NULL && port != 0);
 
     /* Set locale for UTF-8 support */
     setlocale(LC_ALL, "");
