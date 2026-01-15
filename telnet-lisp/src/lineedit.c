@@ -774,7 +774,6 @@ char *lineedit_readline(LineEditState *state, const char *prompt) {
     fflush(stdout);
 
     int done = 0;
-    int last_key = 0;
     char *result = NULL;
 
     while (!done) {
@@ -907,8 +906,6 @@ char *lineedit_readline(LineEditState *state, const char *prompt) {
             }
             break;
         }
-
-        last_key = c;
     }
 
     /* Disable raw mode */
