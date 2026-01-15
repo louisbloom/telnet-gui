@@ -135,6 +135,14 @@ static int port = 0;
 static const char *lisp_files[16];
 static int lisp_file_count = 0;
 static const char *lisp_file_value = NULL;
+static const char *font_value = NULL;
+static const char *hinting_value = NULL;
+static const char *antialiasing_value = NULL;
+static const char *geometry_value = NULL;
+static const char *line_height_value = NULL;
+#ifdef _WIN32
+static const char *font_backend_value = NULL;
+#endif
 static char font_choice =
     's';                   /* Internal font code: s=system, m=cascadia, i=inconsolata, p=plex, d=dejavu, c=courier */
 static int font_size = 12; /* Default font size */
@@ -280,24 +288,24 @@ static struct argparse_option options[] = {
     OPT_HELP(),
     OPT_GROUP("Font Options:"),
     OPT_INTEGER('s', "font-size", &font_size, "Set font size in points (default: 12)", NULL, 0, 0),
-    OPT_STRING('f', "font", NULL, "Select font (default: system): system, cascadia, inconsolata, plex, dejavu, courier",
+    OPT_STRING('f', "font", &font_value, "Select font (default: system): system, cascadia, inconsolata, plex, dejavu, courier",
                font_cb, 0, 0),
-    OPT_STRING(0, "hinting", NULL, "Set font hinting mode (default: none): none, light, normal, mono", hinting_cb, 0,
+    OPT_STRING(0, "hinting", &hinting_value, "Set font hinting mode (default: none): none, light, normal, mono", hinting_cb, 0,
                0),
-    OPT_STRING(0, "antialiasing", NULL, "Set anti-aliasing mode (default: nearest): nearest, linear", antialiasing_cb,
+    OPT_STRING(0, "antialiasing", &antialiasing_value, "Set anti-aliasing mode (default: nearest): nearest, linear", antialiasing_cb,
                0, 0),
 #ifdef _WIN32
-    OPT_STRING(0, "font-backend", NULL, "Font rendering backend (default: directwrite): sdl, directwrite",
+    OPT_STRING(0, "font-backend", &font_backend_value, "Font rendering backend (default: directwrite): sdl, directwrite",
                font_backend_cb, 0, 0),
     OPT_BOOLEAN(0, "cleartype", &use_cleartype, "Enable ClearType subpixel rendering (default: off)", NULL, 0, 0),
     OPT_BOOLEAN(0, "no-cleartype", NULL, "Disable ClearType subpixel rendering", NULL, 0, OPT_NONEG),
 #endif
     OPT_GROUP("Terminal Options:"),
-    OPT_STRING('g', "geometry", NULL, "Set terminal size in characters: COLSxROWS (e.g., 80x40)", geometry_cb, 0, 0),
+    OPT_STRING('g', "geometry", &geometry_value, "Set terminal size in characters: COLSxROWS (e.g., 80x40)", geometry_cb, 0, 0),
     OPT_GROUP("Other Options:"),
     OPT_STRING('l', "lisp-file", &lisp_file_value, "Load and evaluate Lisp file on startup (can be specified multiple times)",
                lisp_file_cb, 0, 0),
-    OPT_STRING(0, "line-height", NULL, "Set line height multiplier (default: 1.0): 0.5 to 3.0", line_height_cb, 0, 0),
+    OPT_STRING(0, "line-height", &line_height_value, "Set line height multiplier (default: 1.0): 0.5 to 3.0", line_height_cb, 0, 0),
     OPT_BOOLEAN(0, "debug-exit", &debug_exit, "Exit after initialization (for debug output)", NULL, 0, 0),
     OPT_BOOLEAN(0, "profile", &profile_mode, "Enable Lisp profiler and C timing instrumentation", NULL, 0, 0),
     OPT_BOOLEAN(0, "exit-on-disconnect", &exit_on_disconnect, "Exit when telnet connection closes", NULL, 0, 0),
