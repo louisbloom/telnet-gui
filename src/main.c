@@ -204,6 +204,10 @@ static int font_cb(struct argparse *self, const struct argparse_option *option) 
 static int geometry_cb(struct argparse *self, const struct argparse_option *option) {
     (void)option; // Mark parameter as unused
     const char *value = self->optvalue;
+    if (!value) {
+        fprintf(stderr, "Error: No value provided for geometry option\n");
+        return -1;
+    }
     char *geom_copy = strdup(value);
     if (!geom_copy) {
         fprintf(stderr, "Error: Out of memory\n");
@@ -633,12 +637,25 @@ int main(int argc, char **argv) {
                       "      Load multiple Lisp files in order");
 
     /* Parse arguments */
-    argc = argparse_parse(&argparse, argc, (const char **)argv);
+    int remaining = argparse_parse(&argparse, argc, (const char **)argv);
+    if (remaining < 0) {
+        // Error occurred during parsing
+        return 1;
+    }
+    argc = remaining;
 
     /* Handle positional arguments (hostname and port) */
     if (argc > 0) {
+        if (argv[0] == NULL) {
+            fprintf(stderr, "Error: Invalid argument parsing\n");
+            return 1;
+        }
         hostname = argv[0];
         if (argc > 1) {
+            if (argv[1] == NULL) {
+                fprintf(stderr, "Error: Invalid argument parsing\n");
+                return 1;
+            }
             port = atoi(argv[1]);
             if (port <= 0 || port > 65535) {
                 fprintf(stderr, "Error: Invalid port number '%s'. Must be between 1 and 65535\n", argv[1]);
