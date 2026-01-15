@@ -524,6 +524,7 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
     if (is_symbol_codepoint(codepoint)) {
         use_main_font = 0;
         use_symbol_font = 1;
+        fprintf(stderr, "SDL_ttf: Symbol codepoint U+%04X detected, using symbol font\n", codepoint);
     }
 
     /* Check if main font provides this glyph */
@@ -607,6 +608,7 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
 
     /* Fall back to symbol font if emoji font didn't have the glyph */
     if (!surface && use_symbol_font && cache->symbol_font) {
+        fprintf(stderr, "SDL_ttf: Trying symbol font for U+%04X\n", codepoint);
         TTF_SetFontStyle(cache->symbol_font, style);
 
         /* For emoji rendering, use white foreground */
@@ -627,10 +629,16 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
         }
 
         TTF_SetFontStyle(cache->symbol_font, TTF_STYLE_NORMAL);
-        used_emoji_font = 1;
+        if (surface) {
+            fprintf(stderr, "SDL_ttf: Symbol font rendered U+%04X successfully\n", codepoint);
+            used_emoji_font = 1;
+        } else {
+            fprintf(stderr, "SDL_ttf: Symbol font failed to render U+%04X\n", codepoint);
+        }
         
         /* If symbol font also failed, try emoji font as a last resort (some symbols may be in emoji font) */
         if (!surface && cache->emoji_font) {
+            fprintf(stderr, "SDL_ttf: Trying emoji font as fallback for U+%04X\n", codepoint);
             TTF_SetFontStyle(cache->emoji_font, style);
             char utf8[5];
             utf8_put_codepoint(codepoint, utf8);
@@ -638,8 +646,46 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
             surface = TTF_RenderUTF8_Blended(cache->emoji_font, utf8, white);
             TTF_SetFontStyle(cache->emoji_font, TTF_STYLE_NORMAL);
             if (surface) {
+                fprintf(stderr, "SDL_ttf: Emoji font rendered U+%04X successfully\n", codepoint);
                 used_emoji_font = 1;
+            } else {
+                fprintf(stderr, "SDL_ttf: Emoji font also failed for U+%04X\n", codepoint);
             }
+        }
+    }
+
+    /* If all else fails, try the main font even for symbols (some symbols might be in the main font) */
+    if (!surface && is_symbol_codepoint(codepoint)) {
+        fprintf(stderr, "SDL_ttf: All fallbacks failed for U+%04X, trying main font\n", codepoint);
+        /* Select font: use bold font file if available and bold requested, otherwise main font */
+        TTF_Font *render_font = (bold && cache->bold_font) ? cache->bold_font : cache->font;
+
+        /* Apply style: only use algorithmic bold if bold requested but no bold font file */
+        int render_style = TTF_STYLE_NORMAL;
+        if (bold && !cache->bold_font)
+            render_style |= TTF_STYLE_BOLD; /* Algorithmic fallback */
+        if (italic)
+            render_style |= TTF_STYLE_ITALIC;
+        TTF_SetFontStyle(render_font, render_style);
+
+        SDL_Color render_color = fg_color;
+
+        /* For BMP characters (< 0x10000), use glyph rendering */
+        if (codepoint < 0x10000) {
+            surface = TTF_RenderGlyph_Blended(render_font, (uint16_t)codepoint, render_color);
+        } else {
+            /* For higher codepoints, use UTF-8 rendering */
+            char utf8[5];
+            utf8_put_codepoint(codepoint, utf8);
+            surface = TTF_RenderUTF8_Blended(render_font, utf8, render_color);
+        }
+
+        /* Reset font style */
+        TTF_SetFontStyle(render_font, TTF_STYLE_NORMAL);
+        if (surface) {
+            fprintf(stderr, "SDL_ttf: Main font rendered symbol U+%04X successfully\n", codepoint);
+        } else {
+            fprintf(stderr, "SDL_ttf: Main font also failed for symbol U+%04X\n", codepoint);
         }
     }
 
