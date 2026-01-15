@@ -19,6 +19,8 @@
 #include <sys/ioctl.h>
 #endif
 
+#include "lineedit.h"
+
 /* Configuration */
 #define DEFAULT_HISTORY_SIZE 100
 #define DEFAULT_LINE_SIZE 4096
