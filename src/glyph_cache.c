@@ -686,7 +686,6 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
 
     /* If all else fails, try the main font even for symbols (some symbols might be in the main font) */
     if (!surface && is_symbol_codepoint(codepoint)) {
-        fprintf(stderr, "SDL_ttf: All fallbacks failed for U+%04X, trying main font\n", codepoint);
         /* Select font: use bold font file if available and bold requested, otherwise main font */
         TTF_Font *render_font = (bold && cache->bold_font) ? cache->bold_font : cache->font;
 
@@ -712,11 +711,6 @@ SDL_Texture *glyph_cache_get(GlyphCache *cache, uint32_t codepoint, SDL_Color fg
 
         /* Reset font style */
         TTF_SetFontStyle(render_font, TTF_STYLE_NORMAL);
-        if (surface) {
-            fprintf(stderr, "SDL_ttf: Main font rendered symbol U+%04X successfully\n", codepoint);
-        } else {
-            fprintf(stderr, "SDL_ttf: Main font also failed for symbol U+%04X\n", codepoint);
-        }
     }
 
     if (!surface)
