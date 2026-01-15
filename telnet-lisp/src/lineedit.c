@@ -637,14 +637,16 @@ static void lineedit_show_completions(LineEditState *state, const char *prompt) 
     /* Calculate rows needed */
     int rows = (state->completion_count + cols - 1) / cols;
     
-    /* Clear from cursor to end of screen first */
-    printf("\033[J");
+    /* Save cursor position */
+    printf(ANSI_SAVE_CURSOR);
+    
+    /* Move to next line and clear completions area */
+    printf("\n\033[J");
     
     /* Print completions with proper formatting */
-    printf("\n");
     for (int row = 0; row < rows; row++) {
         for (int col = 0; col < cols; col++) {
-            int idx = row + col * rows;
+            int idx = row * cols + col;  /* Row-major order */
             if (idx < state->completion_count) {
                 /* Calculate padding for this column */
                 int visual_len = utf8_visual_width(state->completions[idx]);
@@ -664,6 +666,9 @@ static void lineedit_show_completions(LineEditState *state, const char *prompt) 
         printf("\n");
     }
 
+    /* Restore cursor position */
+    printf(ANSI_RESTORE_CURSOR);
+    
     /* Redraw prompt and line */
     lineedit_refresh(state, prompt);
 }
