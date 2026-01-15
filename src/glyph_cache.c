@@ -46,6 +46,16 @@ static const char *find_font_via_fc_match(const char *pattern, const char *fallb
             FILE *test = fopen(path, "rb");
             if (test) {
                 fclose(test);
+                /* Skip variable fonts (contain '[') and COLRv1 fonts */
+                if (strstr(path, "[") != NULL) {
+                    /* This is a variable font - try next pattern */
+                    return NULL;
+                }
+                /* Also skip COLRv1 fonts if we have other options */
+                if (strstr(path, "COLRv1") != NULL) {
+                    /* For emoji patterns, we want to prefer non-COLRv1 */
+                    return NULL;
+                }
                 return path;
             }
         }
@@ -81,10 +91,12 @@ static const char *find_symbol_font(void) {
     return result;
 #else
     static const char *fallback_paths[] = {
-        /* Fedora-specific symbol fonts */
+        /* Fedora-specific symbol fonts - prefer non-variable fonts */
         "/usr/share/fonts/gdouros-symbola/Symbola.ttf",
         "/usr/share/fonts/google-noto/NotoSansSymbols2-Regular.ttf",
-        "/usr/share/fonts/google-noto-vf/NotoSansSymbols[wght].ttf",
+        /* Avoid variable fonts for SDL_ttf compatibility */
+        "/usr/share/fonts/google-noto/NotoSansSymbols-Regular.ttf",
+        "/usr/share/fonts/google-noto/NotoSansSymbols-Regular.ttf",
         /* DejaVu Sans (contains many symbols) */
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/TTF/DejaVuSans.ttf",
@@ -107,10 +119,13 @@ static const char *find_symbol_font(void) {
         NULL
     };
     /* Try fc-match first for better results - try multiple patterns */
+    /* Prefer Symbola and non-variable Noto Sans Symbols */
     const char *symbol_patterns[] = {
-        "sans-serif:style=Regular",
+        "Symbola:style=Regular",
         "Symbola",
+        "Noto Sans Symbols:style=Regular",
         "Noto Sans Symbols",
+        "sans-serif:style=Regular",
         "sans-serif",
         NULL
     };
@@ -156,14 +171,16 @@ static const char *find_emoji_font(void) {
     return result;
 #else
     static const char *fallback_paths[] = {
-        /* Fedora-specific emoji fonts */
-        "/usr/share/fonts/google-noto-color-emoji-fonts/Noto-COLRv1.ttf",
+        /* Fedora-specific emoji fonts - prefer non-COLRv1 fonts */
         "/usr/share/fonts/google-noto-emoji-fonts/NotoEmoji-Regular.ttf",
-        /* Noto Color Emoji (most common) */
+        /* Look for Noto Color Emoji (COLRv0) */
+        "/usr/share/fonts/google-noto-color-emoji-fonts/NotoColorEmoji.ttf",
         "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
         "/usr/share/fonts/noto-emoji/NotoColorEmoji.ttf",
         "/usr/share/fonts/TTF/NotoColorEmoji.ttf",
         "/usr/share/fonts/google-noto-emoji/NotoColorEmoji.ttf",
+        /* COLRv1 as last resort */
+        "/usr/share/fonts/google-noto-color-emoji-fonts/Noto-COLRv1.ttf",
         /* EmojiOne */
         "/usr/share/fonts/truetype/emojione/EmojiOneColor-SVGinOT.ttf",
         "/usr/share/fonts/emojione/EmojiOneColor-SVGinOT.ttf",
@@ -184,10 +201,13 @@ static const char *find_emoji_font(void) {
         NULL
     };
     /* Try fc-match first for better results - try multiple patterns */
+    /* Prefer Noto Emoji (non-COLRv1) over Noto Color Emoji (COLRv1) */
     const char *emoji_patterns[] = {
-        "emoji:style=Regular",
-        "Noto Color Emoji",
+        "Noto Emoji:style=Regular",
         "Noto Emoji",
+        "Noto Color Emoji:style=Regular",
+        "Noto Color Emoji",
+        "emoji:style=Regular",
         "emoji",
         NULL
     };
