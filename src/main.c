@@ -11,10 +11,6 @@
 #include <windows.h>
 #include <io.h>
 #include <fcntl.h>
-#else
-#include <sys/select.h>
-#include <sys/time.h>
-#include <errno.h>
 #endif
 
 #include <SDL2/SDL.h>
@@ -42,7 +38,7 @@ void renderer_set_animation(Animation *anim);
 #endif
 #include "../telnet-lisp/include/file_utils.h"
 #include "vendor/argparse.h"
-#include "display_fd.h"
+#include "event_wait.h"
 
 /* High-resolution timing for profiling */
 #ifdef _WIN32
@@ -1297,9 +1293,20 @@ int main(int argc, char **argv) {
     SDL_Event event;
     int mouse_x = 0, mouse_y = 0;
 
-    /* Get display file descriptor for blocking event loop */
-    int display_fd = get_display_fd(sdl_window);
-    int use_fd_wait = (display_fd >= 0);
+    /* Create event wait context for blocking event loop */
+    EventWaitCtx *wait_ctx = event_wait_create(sdl_window);
+    if (!wait_ctx) {
+        fprintf(stderr, "Error: Could not create event wait context\n");
+        telnet_destroy(telnet);
+        terminal_destroy(term);
+        renderer_destroy(rend);
+        glyph_cache_destroy(glyph_cache);
+        window_destroy(win);
+        return 1;
+    }
+    if (connected_mode) {
+        event_wait_set_socket(wait_ctx, telnet_get_socket(telnet));
+    }
 
     while (running && !quit_requested) {
         /* Check if animation is playing (affects timeout calculation) */
@@ -1314,49 +1321,10 @@ int main(int argc, char **argv) {
         /* Calculate timeout based on animations and timers */
         int timeout_ms = calculate_timeout_ms(animation_playing);
 
-        if (use_fd_wait) {
-            /* Build fd_set with display_fd and telnet socket */
-            fd_set readfds;
-            FD_ZERO(&readfds);
-            FD_SET(display_fd, &readfds);
-
-            int max_fd = display_fd;
-            if (connected_mode) {
-                int sock = telnet_get_socket(telnet);
-                if (sock >= 0) {
-                    FD_SET(sock, &readfds);
-                    if (sock > max_fd)
-                        max_fd = sock;
-                }
-            }
-
-            /* Set timeout */
-            struct timeval tv, *tvp = NULL;
-            if (timeout_ms >= 0) {
-                tv.tv_sec = timeout_ms / 1000;
-                tv.tv_usec = (timeout_ms % 1000) * 1000;
-                tvp = &tv;
-            }
-
-            /* Wayland: flush outgoing requests before blocking */
-            wayland_pre_wait(sdl_window);
-
-            /* Block until event or timeout */
-            int select_result = select(max_fd + 1, &readfds, NULL, NULL, tvp);
-
-            /* Wayland: dispatch any pending events after waking */
-            wayland_post_wait(sdl_window);
-
-            /* On select error (except EINTR), fall through to poll-based handling */
-            if (select_result < 0 && errno != EINTR) {
-                /* Error - fall back to single iteration */
-            }
-        } else {
-            /* Fallback: polling with delay (Windows or no display fd) */
-            int delay = (timeout_ms >= 0 && timeout_ms < 16) ? timeout_ms : 16;
-            if (delay > 0)
-                SDL_Delay(delay);
-        }
+        /* Wait for display/socket events or timeout */
+        event_wait_pre_wait(wait_ctx);
+        int wait_result = event_wait(wait_ctx, timeout_ms);
+        event_wait_post_wait(wait_ctx);
 
         /* Pump and poll SDL events */
         SDL_PumpEvents();
@@ -2092,81 +2060,57 @@ int main(int argc, char **argv) {
         /* Run timer callbacks */
         lisp_x_run_timers();
 
-        /* Read from socket (if connected) */
-        if (connected_mode) {
-            /* Use select() to check if data is available (avoid unnecessary recv() calls) */
-            int sock = telnet_get_socket(telnet);
-            if (sock >= 0) {
-                fd_set readfds, exceptfds;
-                struct timeval tv = {0, 0}; /* Non-blocking check */
-                FD_ZERO(&readfds);
-                FD_ZERO(&exceptfds);
-#ifdef _WIN32
-                FD_SET((SOCKET)sock, &readfds);
-                FD_SET((SOCKET)sock, &exceptfds);
-                int ready = select(0, &readfds, NULL, &exceptfds, &tv); /* First param ignored on Windows */
-                int has_read = ready > 0 && FD_ISSET((SOCKET)sock, &readfds);
-                int has_except = ready > 0 && FD_ISSET((SOCKET)sock, &exceptfds);
-#else
-                FD_SET(sock, &readfds);
-                FD_SET(sock, &exceptfds);
-                int ready = select(sock + 1, &readfds, NULL, &exceptfds, &tv);
-                int has_read = ready > 0 && FD_ISSET(sock, &readfds);
-                int has_except = ready > 0 && FD_ISSET(sock, &exceptfds);
-#endif
-                /* Check for socket exceptions (out-of-band data or errors) */
-                if (has_except) {
-                    fprintf(stderr, "select(): socket exception detected (OOB data or error)\n");
+        /* Read from socket (if connected and data is available) */
+        if (connected_mode && (wait_result & (EVENT_WAIT_SOCKET_READ | EVENT_WAIT_SOCKET_ERR))) {
+            /* Check for socket exceptions (out-of-band data or errors) */
+            if (wait_result & EVENT_WAIT_SOCKET_ERR) {
+                fprintf(stderr, "Socket exception detected (OOB data or error)\n");
+            }
+            /* Data is available, read it */
+            char recv_buf[4096];
+            uint64_t t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0;
+            if (profile_mode)
+                t0 = get_time_ns();
+            int received = telnet_receive(telnet, recv_buf, sizeof(recv_buf) - 1);
+            if (profile_mode)
+                t1 = get_time_ns();
+            if (received > 0) {
+                /* Call telnet-input-hook with received data (stripped of ANSI codes) */
+                lisp_x_call_telnet_input_hook(recv_buf, received);
+                if (profile_mode)
+                    t2 = get_time_ns();
+                /* Call telnet-input-filter-hook to transform data before displaying in terminal */
+                size_t filtered_len = 0;
+                const char *filtered_data = lisp_x_call_telnet_input_filter_hook(recv_buf, received, &filtered_len);
+                if (profile_mode)
+                    t3 = get_time_ns();
+                /* Feed filtered data to terminal */
+                terminal_feed_data(term, filtered_data, filtered_len);
+                if (profile_mode) {
+                    t4 = get_time_ns();
+                    /* Accumulate timing stats */
+                    profile_stats.telnet_receive_ns += (t1 - t0);
+                    profile_stats.telnet_input_hook_ns += (t2 - t1);
+                    profile_stats.telnet_input_filter_hook_ns += (t3 - t2);
+                    profile_stats.terminal_feed_data_ns += (t4 - t3);
+                    profile_stats.recv_count++;
                 }
-                /* Call recv() when readable OR exception - exception may indicate connection closure */
-                if (has_read || has_except) {
-                    /* Data is available, read it */
-                    char recv_buf[4096];
-                    uint64_t t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0;
-                    if (profile_mode)
-                        t0 = get_time_ns();
-                    int received = telnet_receive(telnet, recv_buf, sizeof(recv_buf) - 1);
-                    if (profile_mode)
-                        t1 = get_time_ns();
-                    if (received > 0) {
-                        /* Call telnet-input-hook with received data (stripped of ANSI codes) */
-                        lisp_x_call_telnet_input_hook(recv_buf, received);
-                        if (profile_mode)
-                            t2 = get_time_ns();
-                        /* Call telnet-input-filter-hook to transform data before displaying in terminal */
-                        size_t filtered_len = 0;
-                        const char *filtered_data =
-                            lisp_x_call_telnet_input_filter_hook(recv_buf, received, &filtered_len);
-                        if (profile_mode)
-                            t3 = get_time_ns();
-                        /* Feed filtered data to terminal */
-                        terminal_feed_data(term, filtered_data, filtered_len);
-                        if (profile_mode) {
-                            t4 = get_time_ns();
-                            /* Accumulate timing stats */
-                            profile_stats.telnet_receive_ns += (t1 - t0);
-                            profile_stats.telnet_input_hook_ns += (t2 - t1);
-                            profile_stats.telnet_input_filter_hook_ns += (t3 - t2);
-                            profile_stats.terminal_feed_data_ns += (t4 - t3);
-                            profile_stats.recv_count++;
-                        }
 
-                        /* Auto-scroll to bottom unless user has scrolled back */
-                        if (!terminal_is_scroll_locked(term)) {
-                            terminal_scroll_to_bottom(term);
-                        }
-                    } else if (received < 0) {
-                        /* Connection closed or error (telnet_receive returns -1 for both) */
-                        /* Note: telnet_receive() already called telnet_disconnect() internally */
-                        connected_mode = 0;
-                        terminal_feed_data(term, "\r\n*** Connection closed ***\r\n",
-                                           strlen("\r\n*** Connection closed ***\r\n"));
-                        dock_request_redraw(&dock); /* Trigger color update */
-                        /* Exit if --exit-on-disconnect was specified */
-                        if (exit_on_disconnect) {
-                            running = 0;
-                        }
-                    }
+                /* Auto-scroll to bottom unless user has scrolled back */
+                if (!terminal_is_scroll_locked(term)) {
+                    terminal_scroll_to_bottom(term);
+                }
+            } else if (received < 0) {
+                /* Connection closed or error (telnet_receive returns -1 for both) */
+                /* Note: telnet_receive() already called telnet_disconnect() internally */
+                connected_mode = 0;
+                event_wait_set_socket(wait_ctx, -1); /* Disable socket monitoring */
+                terminal_feed_data(term, "\r\n*** Connection closed ***\r\n",
+                                   strlen("\r\n*** Connection closed ***\r\n"));
+                dock_request_redraw(&dock); /* Trigger color update */
+                /* Exit if --exit-on-disconnect was specified */
+                if (exit_on_disconnect) {
+                    running = 0;
                 }
             }
         }
@@ -2297,7 +2241,7 @@ int main(int argc, char **argv) {
             }
         }
 
-        /* NOTE: No SDL_Delay() here - select() handles waiting now */
+        /* NOTE: No SDL_Delay() here - event_wait() handles waiting now */
     }
 
     /* Print profile reports if profiling was enabled */
@@ -2311,6 +2255,7 @@ int main(int argc, char **argv) {
 
     /* Cleanup */
     /* Animation objects are GC-managed and cleaned up automatically */
+    event_wait_destroy(wait_ctx);
     telnet_destroy(telnet);
     terminal_destroy(term);
     renderer_destroy(rend);

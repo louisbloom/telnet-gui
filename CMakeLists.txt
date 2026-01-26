@@ -223,6 +223,7 @@ set(GUI_SOURCES
     src/terminal_backend_vterm.c
     src/window.c
     src/display_fd.c
+    src/event_wait.c
     src/renderer.c
     src/renderer_backend_sdl.c
     src/glyph_cache.c
