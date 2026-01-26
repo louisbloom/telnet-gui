@@ -62,50 +62,12 @@ static uint64_t get_time_ns(void) {
 #endif
 
 /* Profiling statistics for C pipeline */
-typedef struct {
-    uint64_t telnet_receive_ns;
-    uint64_t telnet_input_hook_ns;
-    uint64_t telnet_input_filter_hook_ns;
-    uint64_t terminal_feed_data_ns;
-    int recv_count;
-} ProfileStats;
-
-static ProfileStats profile_stats = {0};
-
 /* Histograms for timing distributions (profile mode only) */
 static Histogram *hist_e2e = NULL;         /* end-to-end timing */
 static Histogram *hist_telnet_recv = NULL; /* raw socket read time */
 static Histogram *hist_telnet_input_hook = NULL;
 static Histogram *hist_telnet_filter_hook = NULL;
 static Histogram *hist_user_input_hook = NULL;
-
-static void profile_stats_reset(void) {
-    memset(&profile_stats, 0, sizeof(profile_stats));
-}
-
-static void profile_stats_print(void) {
-    if (profile_stats.recv_count == 0) {
-        printf("\n=== C Pipeline Timing (no RECV blocks) ===\n");
-        return;
-    }
-    printf("\n=== C Pipeline Timing (%d RECV blocks) ===\n", profile_stats.recv_count);
-    printf("telnet_receive:            avg %.3fms  total %.3fms\n",
-           (double)profile_stats.telnet_receive_ns / profile_stats.recv_count / 1e6,
-           (double)profile_stats.telnet_receive_ns / 1e6);
-    printf("telnet-input-hook:         avg %.3fms  total %.3fms\n",
-           (double)profile_stats.telnet_input_hook_ns / profile_stats.recv_count / 1e6,
-           (double)profile_stats.telnet_input_hook_ns / 1e6);
-    printf("telnet-input-filter-hook:  avg %.3fms  total %.3fms\n",
-           (double)profile_stats.telnet_input_filter_hook_ns / profile_stats.recv_count / 1e6,
-           (double)profile_stats.telnet_input_filter_hook_ns / 1e6);
-    printf("terminal_feed_data:        avg %.3fms  total %.3fms\n",
-           (double)profile_stats.terminal_feed_data_ns / profile_stats.recv_count / 1e6,
-           (double)profile_stats.terminal_feed_data_ns / 1e6);
-    uint64_t total_ns = profile_stats.telnet_receive_ns + profile_stats.telnet_input_hook_ns +
-                        profile_stats.telnet_input_filter_hook_ns + profile_stats.terminal_feed_data_ns;
-    printf("TOTAL:                     avg %.3fms  total %.3fms\n", (double)total_ns / profile_stats.recv_count / 1e6,
-           (double)total_ns / 1e6);
-}
 
 /* Calculate timeout for select() based on animation state and timers */
 static int calculate_timeout_ms(int animation_playing) {
@@ -1257,13 +1219,12 @@ int main(int argc, char **argv) {
     /* Start Lisp profiler if --profile was specified */
     if (profile_mode) {
         lisp_x_profile_start();
-        profile_stats_reset();
         /* Create histograms for timing distributions */
         hist_e2e = histogram_create("end-to-end", 100, 10);
-        hist_telnet_recv = histogram_create("telnet-recv", 100, 0);
-        hist_telnet_input_hook = histogram_create("telnet-input-hook", 100, 0);
-        hist_telnet_filter_hook = histogram_create("telnet-input-filter-hook", 100, 0);
-        hist_user_input_hook = histogram_create("user-input-hook", 100, 0);
+        hist_telnet_recv = histogram_create("telnet-recv", 100, 10);
+        hist_telnet_input_hook = histogram_create("telnet-input-hook", 100, 10);
+        hist_telnet_filter_hook = histogram_create("telnet-input-filter-hook", 100, 10);
+        hist_user_input_hook = histogram_create("user-input-hook", 100, 10);
         fprintf(stderr, "Profiling enabled: Lisp profiler + C timing instrumentation\n");
     }
 
@@ -2109,12 +2070,6 @@ int main(int argc, char **argv) {
                 terminal_feed_data(term, filtered_data, filtered_len);
                 if (profile_mode) {
                     t4 = get_time_ns();
-                    /* Accumulate timing stats */
-                    profile_stats.telnet_receive_ns += (t1 - t0);
-                    profile_stats.telnet_input_hook_ns += (t2 - t1);
-                    profile_stats.telnet_input_filter_hook_ns += (t3 - t2);
-                    profile_stats.terminal_feed_data_ns += (t4 - t3);
-                    profile_stats.recv_count++;
                     /* Record histogram samples */
                     histogram_record(hist_e2e, t4 - t0);
                     histogram_record(hist_telnet_recv, t1 - t0);
@@ -2272,8 +2227,6 @@ int main(int argc, char **argv) {
 
     /* Print profile reports if profiling was enabled */
     if (profile_mode) {
-        printf("\n");
-        profile_stats_print();
         printf("\n=== Histogram Statistics ===\n");
         histogram_print(hist_e2e);
         histogram_print(hist_telnet_recv);
