@@ -849,6 +849,9 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    /* Initialize event system (register custom event types for socket monitoring) */
+    event_wait_init();
+
 #ifdef _WIN32
     /* Initialize DirectWrite if requested */
     if (use_directwrite) {
@@ -1268,8 +1271,8 @@ int main(int argc, char **argv) {
     SDL_Event event;
     int mouse_x = 0, mouse_y = 0;
 
-    /* Create event wait context for blocking event loop */
-    EventWaitCtx *wait_ctx = event_wait_create(sdl_window);
+    /* Create event wait context for socket monitoring thread */
+    EventWaitCtx *wait_ctx = event_wait_create();
     if (!wait_ctx) {
         fprintf(stderr, "Error: Could not create event wait context\n");
         telnet_destroy(telnet);
@@ -1282,6 +1285,10 @@ int main(int argc, char **argv) {
     if (connected_mode) {
         event_wait_set_socket(wait_ctx, telnet_get_socket(telnet));
     }
+
+    /* Get custom event types for socket notifications */
+    Uint32 socket_read_event = event_wait_get_socket_read_event();
+    Uint32 socket_error_event = event_wait_get_socket_error_event();
 
     while (running && !quit_requested) {
         /* Check if animation is playing (affects timeout calculation) */
@@ -1296,516 +1303,598 @@ int main(int argc, char **argv) {
         /* Calculate timeout based on animations and timers */
         int timeout_ms = calculate_timeout_ms(animation_playing);
 
-        /* Wait for display/socket events or timeout */
-        event_wait_pre_wait(wait_ctx);
-        int wait_result = event_wait(wait_ctx, timeout_ms);
-        event_wait_post_wait(wait_ctx);
+        /* Wait for a single event or timeout
+         * This allows each keypress/repeat to be rendered individually */
+        int got_event = SDL_WaitEventTimeout(&event, timeout_ms);
 
-        /* Pump and poll SDL events */
-        SDL_PumpEvents();
-        while (SDL_PollEvent(&event)) {
-            switch (event.type) {
-            case SDL_QUIT:
-                running = 0;
-                break;
+        /* Track if we received socket events this iteration */
+        int socket_read_received = 0;
+        int socket_error_received = 0;
 
-            case SDL_WINDOWEVENT:
-                if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
-                    int new_width = event.window.data1;
-                    int new_height = event.window.data2;
+        /* Process the event if we got one */
+        if (got_event) {
+            /* Handle socket events first (custom SDL events from monitor thread) */
+            if (event.type == socket_read_event) {
+                socket_read_received = 1;
+            } else if (event.type == socket_error_event) {
+                socket_error_received = 1;
+            } else
+                switch (event.type) {
+                case SDL_QUIT:
+                    running = 0;
+                    break;
 
-                    /* Step 1: Calculate new columns from width */
-                    int available_width = new_width - 2 * PADDING_X;
-                    int new_cols = available_width / cell_w;
-                    if (new_cols < 10)
-                        new_cols = 10; /* Minimum width */
+                case SDL_WINDOWEVENT:
+                    if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+                        int new_width = event.window.data1;
+                        int new_height = event.window.data2;
 
-                    /* Step 2: Force recalculation of input area layout with new columns */
-                    /* This updates visible_rows based on new width */
-                    dock.needs_layout_recalc = 1;
-                    dock_recalculate_layout(&dock, new_cols);
+                        /* Step 1: Calculate new columns from width */
+                        int available_width = new_width - 2 * PADDING_X;
+                        int new_cols = available_width / cell_w;
+                        if (new_cols < 10)
+                            new_cols = 10; /* Minimum width */
 
-                    /* Step 3: Calculate terminal rows using updated input area height */
-                    int available_height = new_height - 2 * PADDING_Y;
+                        /* Step 2: Force recalculation of input area layout with new columns */
+                        /* This updates visible_rows based on new width */
+                        dock.needs_layout_recalc = 1;
+                        dock_recalculate_layout(&dock, new_cols);
+
+                        /* Step 3: Calculate terminal rows using updated input area height */
+                        int available_height = new_height - 2 * PADDING_Y;
+                        float line_height = lisp_x_get_terminal_line_height();
+                        int effective_cell_h = (int)(cell_h * line_height);
+                        int input_height_rows = dock_height_rows(dock_get_text_rows(&dock));
+                        int new_rows = (available_height / effective_cell_h) - input_height_rows;
+                        if (new_rows < 1)
+                            new_rows = 1; /* Minimum: 1 scrolling row */
+
+                        /* Step 4: Resize terminal and update */
+                        int input_visible_rows = dock_get_text_rows(&dock);
+
+                        /* Save cursor position before resize corrupts it */
+                        int saved_cursor_row, saved_cursor_col, saved_cursor_visible;
+                        terminal_get_cursor_info(term, &saved_cursor_row, &saved_cursor_col, &saved_cursor_visible);
+
+                        terminal_resize(term, new_rows, new_cols, input_visible_rows);
+
+                        /* Re-render input area immediately to update divider position */
+                        terminal_render_dock(term, &dock, new_cols);
+
+                        /* Restore cursor position using explicit CUP (avoids DECSC/DECRC nesting issue) */
+                        char cursor_pos_seq[16];
+                        ansi_format_cursor_pos(cursor_pos_seq, sizeof(cursor_pos_seq), saved_cursor_row + 1,
+                                               saved_cursor_col + 1);
+                        terminal_feed_data(term, cursor_pos_seq, strlen(cursor_pos_seq));
+
+                        /* Send NAWS to telnet server */
+                        telnet_set_terminal_size(telnet, new_cols, new_rows);
+
+                        /* Force a full redraw to clear any artifacts from the resize */
+                        /* Get actual window size to ensure we clear the entire window */
+                        int actual_win_width, actual_win_height;
+                        SDL_GetWindowSize(sdl_window, &actual_win_width, &actual_win_height);
+
+                        /* Clear entire renderer to terminal background color */
+                        int bg_r, bg_g, bg_b;
+                        lisp_x_get_terminal_bg_color(&bg_r, &bg_g, &bg_b);
+                        SDL_SetRenderDrawColor(renderer, bg_r, bg_g, bg_b, 255);
+                        SDL_RenderClear(renderer);
+
+                        /* Calculate terminal area bounds and fill any area beyond with background color */
+                        int terminal_width = new_cols * cell_w + 2 * PADDING_X;
+                        int terminal_height =
+                            (new_rows + dock_height_rows(input_visible_rows)) * effective_cell_h + 2 * PADDING_Y;
+
+                        /* Fill any area beyond the terminal content with background color */
+                        /* This handles cases where window is larger than terminal area */
+                        if (actual_win_width > terminal_width) {
+                            SDL_Rect right_fill = {terminal_width, 0, actual_win_width - terminal_width,
+                                                   actual_win_height};
+                            SDL_RenderFillRect(renderer, &right_fill);
+                        }
+                        if (actual_win_height > terminal_height) {
+                            SDL_Rect bottom_fill = {0, terminal_height, actual_win_width,
+                                                    actual_win_height - terminal_height};
+                            SDL_RenderFillRect(renderer, &bottom_fill);
+                        }
+
+                        /* Force terminal to redraw */
+                        terminal_request_redraw(term);
+                        dock_request_redraw(&dock);
+
+                        /* Render immediately to clear artifacts */
+                        char title[256];
+                        snprintf(title, sizeof(title), "Telnet: %s:%d", hostname ? hostname : "", port);
+                        renderer_render(rend, term, title, terminal_selection.active, terminal_selection.start_row,
+                                        terminal_selection.start_col, terminal_selection.start_viewport_offset,
+                                        terminal_selection.start_scrollback_size, terminal_selection.end_row,
+                                        terminal_selection.end_col, terminal_selection.end_viewport_offset,
+                                        terminal_selection.end_scrollback_size, &dock, new_cols);
+                        terminal_mark_drawn(term);
+                        dock_mark_drawn(&dock);
+
+                        /* Present the frame */
+                        SDL_RenderPresent(renderer);
+                    } else if (event.window.event == SDL_WINDOWEVENT_DISPLAY_CHANGED) {
+                        /* Window moved to a different display - check for DPI change */
+                        int display_idx = SDL_GetWindowDisplayIndex(sdl_window);
+                        float new_ddpi, new_hdpi, new_vdpi;
+
+                        if (SDL_GetDisplayDPI(display_idx, &new_ddpi, &new_hdpi, &new_vdpi) == 0) {
+                            fprintf(stderr, "Display changed to %d: DPI %.1f x %.1f\n", display_idx, new_hdpi,
+                                    new_vdpi);
+
+                            /* Check if DPI actually changed */
+                            if ((int)new_hdpi != (int)hdpi || (int)new_vdpi != (int)vdpi) {
+                                fprintf(stderr, "DPI changed from %.1f x %.1f to %.1f x %.1f - recreating fonts\n",
+                                        hdpi, vdpi, new_hdpi, new_vdpi);
+
+                                /* Update stored DPI values */
+                                hdpi = new_hdpi;
+                                vdpi = new_vdpi;
+
+                                /* Get current terminal size BEFORE recreating fonts */
+                                int current_rows, current_cols;
+                                terminal_get_size(term, &current_rows, &current_cols);
+
+                                /* Get font info from existing cache before destroying it */
+                                const char *current_font_path = glyph_cache_get_font_path(glyph_cache);
+                                const char *current_font_name = glyph_cache_get_font_name(glyph_cache);
+
+                                /* Make copies since the strings will be freed with the cache */
+                                char *font_path_copy = strdup(current_font_path);
+                                char *font_name_copy = strdup(current_font_name);
+
+                                /* Destroy old glyph cache */
+                                glyph_cache_destroy(glyph_cache);
+
+                                /* Create new glyph cache with new DPI */
+                                GlyphCacheBackendType backend3 =
+                                    use_directwrite ? GLYPH_CACHE_BACKEND_DIRECTWRITE : GLYPH_CACHE_BACKEND_SDL_TTF;
+                                glyph_cache = glyph_cache_create_with_backend(
+                                    backend3, renderer, font_path_copy, font_name_copy, font_size, hinting_mode,
+                                    scale_mode, (int)new_hdpi, (int)new_vdpi, use_cleartype, 0);
+
+                                free(font_path_copy);
+                                free(font_name_copy);
+
+                                if (glyph_cache) {
+                                    /* Update cell dimensions */
+                                    glyph_cache_get_cell_size(glyph_cache, &cell_w, &cell_h);
+                                    float line_height = lisp_x_get_terminal_line_height();
+                                    int effective_cell_h = (int)(cell_h * line_height);
+
+                                    /* Recreate renderer with new glyph cache */
+                                    renderer_destroy(rend);
+                                    rend = renderer_create(renderer, glyph_cache, cell_w, cell_h);
+
+                                    /* Calculate new window size to maintain same terminal dimensions */
+                                    int input_visible_rows = dock_get_text_rows(&dock);
+                                    int total_rows = current_rows + dock_height_rows(input_visible_rows);
+                                    int new_win_width = current_cols * cell_w + 2 * PADDING_X;
+                                    int new_win_height = total_rows * effective_cell_h + 2 * PADDING_Y;
+
+                                    /* Resize window to maintain terminal dimensions */
+                                    SDL_SetWindowSize(sdl_window, new_win_width, new_win_height);
+
+                                    /* Recalculate input area layout */
+                                    dock.needs_layout_recalc = 1;
+                                    dock_recalculate_layout(&dock, current_cols);
+                                    terminal_render_dock(term, &dock, current_cols);
+
+                                    /* Force full redraw */
+                                    terminal_request_redraw(term);
+                                    dock_request_redraw(&dock);
+
+                                    fprintf(stderr,
+                                            "DPI change complete: cell size %dx%d, window %dx%d, terminal %dx%d\n",
+                                            cell_w, cell_h, new_win_width, new_win_height, current_cols, current_rows);
+                                } else {
+                                    fprintf(stderr, "ERROR: Failed to recreate glyph cache after DPI change\n");
+                                }
+                            }
+                        }
+                    }
+                    break;
+
+                case SDL_MOUSEBUTTONDOWN: {
+                    /* Right-click is handled in MOUSEBUTTONUP for copy */
+                    if (event.button.button == SDL_BUTTON_RIGHT) {
+                        break;
+                    }
+                    /* Check if there was an active selection that needs clearing */
+                    int had_selection = terminal_selection.active;
+                    if (had_selection) {
+                        clear_terminal_selection(term);
+                    }
+
+                    mouse_x = event.button.x;
+                    mouse_y = event.button.y;
+                    /* Get window size to check bounds */
+                    int window_width, window_height;
+                    window_get_size(win, &window_width, &window_height);
+
+                    /* Get line height multiplier and calculate effective cell height */
                     float line_height = lisp_x_get_terminal_line_height();
                     int effective_cell_h = (int)(cell_h * line_height);
-                    int input_height_rows = dock_height_rows(dock_get_text_rows(&dock));
-                    int new_rows = (available_height / effective_cell_h) - input_height_rows;
-                    if (new_rows < 1)
-                        new_rows = 1; /* Minimum: 1 scrolling row */
 
-                    /* Step 4: Resize terminal and update */
-                    int input_visible_rows = dock_get_text_rows(&dock);
-
-                    /* Save cursor position before resize corrupts it */
-                    int saved_cursor_row, saved_cursor_col, saved_cursor_visible;
-                    terminal_get_cursor_info(term, &saved_cursor_row, &saved_cursor_col, &saved_cursor_visible);
-
-                    terminal_resize(term, new_rows, new_cols, input_visible_rows);
-
-                    /* Re-render input area immediately to update divider position */
-                    terminal_render_dock(term, &dock, new_cols);
-
-                    /* Restore cursor position using explicit CUP (avoids DECSC/DECRC nesting issue) */
-                    char cursor_pos_seq[16];
-                    ansi_format_cursor_pos(cursor_pos_seq, sizeof(cursor_pos_seq), saved_cursor_row + 1,
-                                           saved_cursor_col + 1);
-                    terminal_feed_data(term, cursor_pos_seq, strlen(cursor_pos_seq));
-
-                    /* Send NAWS to telnet server */
-                    telnet_set_terminal_size(telnet, new_cols, new_rows);
-
-                    /* Force a full redraw to clear any artifacts from the resize */
-                    /* Get actual window size to ensure we clear the entire window */
-                    int actual_win_width, actual_win_height;
-                    SDL_GetWindowSize(sdl_window, &actual_win_width, &actual_win_height);
-
-                    /* Clear entire renderer to terminal background color */
-                    int bg_r, bg_g, bg_b;
-                    lisp_x_get_terminal_bg_color(&bg_r, &bg_g, &bg_b);
-                    SDL_SetRenderDrawColor(renderer, bg_r, bg_g, bg_b, 255);
-                    SDL_RenderClear(renderer);
-
-                    /* Calculate terminal area bounds and fill any area beyond with background color */
-                    int terminal_width = new_cols * cell_w + 2 * PADDING_X;
-                    int terminal_height =
-                        (new_rows + dock_height_rows(input_visible_rows)) * effective_cell_h + 2 * PADDING_Y;
-
-                    /* Fill any area beyond the terminal content with background color */
-                    /* This handles cases where window is larger than terminal area */
-                    if (actual_win_width > terminal_width) {
-                        SDL_Rect right_fill = {terminal_width, 0, actual_win_width - terminal_width, actual_win_height};
-                        SDL_RenderFillRect(renderer, &right_fill);
+                    /* Handle clicks in terminal area (excluding padding) */
+                    if (mouse_x >= PADDING_X && mouse_x < window_width - PADDING_X && mouse_y >= PADDING_Y &&
+                        mouse_y < window_height - PADDING_Y) {
+                        /* Start selection only if no selection was cleared */
+                        if (event.button.button == SDL_BUTTON_LEFT && !had_selection) {
+                            /* Convert mouse coordinates to terminal cell coordinates, subtracting padding */
+                            int term_row = (mouse_y - PADDING_Y) / effective_cell_h;
+                            int term_col = (mouse_x - PADDING_X) / cell_w;
+                            /* Start selection and freeze viewport */
+                            start_terminal_selection(term, term_row, term_col);
+                        }
                     }
-                    if (actual_win_height > terminal_height) {
-                        SDL_Rect bottom_fill = {0, terminal_height, actual_win_width,
-                                                actual_win_height - terminal_height};
-                        SDL_RenderFillRect(renderer, &bottom_fill);
+                    break;
+                }
+
+                case SDL_KEYDOWN: {
+                    /* All keyboard input goes to input area, not terminal */
+                    SDL_Scancode scancode = event.key.keysym.scancode;
+                    SDL_Keymod mod = event.key.keysym.mod;
+
+                    /* Accept tab completion if active, except for TAB (cycles), ESC (cancels), and Ctrl+G (cancels) */
+                    if (lisp_x_is_tab_mode_active()) {
+                        if (scancode != SDL_SCANCODE_TAB && scancode != SDL_SCANCODE_ESCAPE &&
+                            !(scancode == SDL_SCANCODE_G && (mod & KMOD_CTRL))) {
+                            lisp_x_accept_tab_completion();
+                        }
                     }
 
-                    /* Force terminal to redraw */
-                    terminal_request_redraw(term);
-                    dock_request_redraw(&dock);
+                    /* Check for Ctrl+_ (undo) / Alt+_ (redo)
+                     * Use scancode for physical key consistency across keyboard layouts.
+                     * SDL_SCANCODE_MINUS targets the physical key that produces '-' and '_' on US/German layouts
+                     * regardless of whether the software layout is German, US, etc.
+                     * This ensures the shortcut stays in the same physical location, which is standard
+                     * for gaming and professional software. */
+                    if (scancode == SDL_SCANCODE_MINUS) {
+                        if ((mod & KMOD_CTRL) && (mod & KMOD_SHIFT)) {
+                            /* Captured Ctrl + Shift + _ (physically) */
+                            dock_undo(&dock);
+                            break;
+                        } else if ((mod & KMOD_ALT) && (mod & KMOD_SHIFT)) {
+                            /* Captured Alt + Shift + _ (physically) */
+                            dock_redo(&dock);
+                            break;
+                        }
+                    }
 
-                    /* Render immediately to clear artifacts */
-                    char title[256];
-                    snprintf(title, sizeof(title), "Telnet: %s:%d", hostname ? hostname : "", port);
-                    renderer_render(rend, term, title, terminal_selection.active, terminal_selection.start_row,
-                                    terminal_selection.start_col, terminal_selection.start_viewport_offset,
-                                    terminal_selection.start_scrollback_size, terminal_selection.end_row,
-                                    terminal_selection.end_col, terminal_selection.end_viewport_offset,
-                                    terminal_selection.end_scrollback_size, &dock, new_cols);
-                    terminal_mark_drawn(term);
-                    dock_mark_drawn(&dock);
+                    switch (scancode) {
+                    case SDL_SCANCODE_RETURN:
+                    case SDL_SCANCODE_KP_ENTER: {
+                        /* Send input area text to terminal and telnet */
+                        int length = dock_get_length(&dock);
+                        if (length > 0) {
+                            const char *text = dock_get_text(&dock);
+                            int cursor_pos = dock_get_cursor_pos(&dock);
 
-                    /* Present the frame */
-                    SDL_RenderPresent(renderer);
-                } else if (event.window.event == SDL_WINDOWEVENT_DISPLAY_CHANGED) {
-                    /* Window moved to a different display - check for DPI change */
-                    int display_idx = SDL_GetWindowDisplayIndex(sdl_window);
-                    float new_ddpi, new_hdpi, new_vdpi;
+                            /* Echo raw input FIRST for non-eval mode (eval mode has its own echo with >) */
+                            if (dock_get_mode(&dock) != DOCK_MODE_EVAL && dock.echo_buf) {
+                                char color_buf[32];
+                                int echo_r, echo_g, echo_b;
+                                lisp_x_get_user_input_echo_color(&echo_r, &echo_g, &echo_b);
+                                dynamic_buffer_clear(dock.echo_buf);
+                                ansi_format_fg_color_rgb(color_buf, sizeof(color_buf), echo_r, echo_g, echo_b);
+                                dynamic_buffer_append_str(dock.echo_buf, color_buf);
+                                if (dynamic_buffer_append_printf(dock.echo_buf, "%s\r\n", text) == 0) {
+                                    /* Reset color after text */
+                                    dynamic_buffer_append_str(dock.echo_buf, ANSI_SGR_RESET);
+                                    terminal_feed_data(term, dynamic_buffer_data(dock.echo_buf),
+                                                       dynamic_buffer_len(dock.echo_buf));
+                                }
+                            }
 
-                    if (SDL_GetDisplayDPI(display_idx, &new_ddpi, &new_hdpi, &new_vdpi) == 0) {
-                        fprintf(stderr, "Display changed to %d: DPI %.1f x %.1f\n", display_idx, new_hdpi, new_vdpi);
+                            /* Check if this is a special command starting with ':' */
+                            if (text[0] == ':') {
+                                /* Process command */
+                                process_command(text, telnet, term, &connected_mode, &dock, &quit_requested);
 
-                        /* Check if DPI actually changed */
-                        if ((int)new_hdpi != (int)hdpi || (int)new_vdpi != (int)vdpi) {
-                            fprintf(stderr, "DPI changed from %.1f x %.1f to %.1f x %.1f - recreating fonts\n", hdpi,
-                                    vdpi, new_hdpi, new_vdpi);
+                                /* Add to history and clear input area */
+                                dock_history_add(&dock);
+                                dock_clear(&dock);
+                            } else if (dock_get_mode(&dock) == DOCK_MODE_EVAL) {
+                                /* Eval mode - evaluate Lisp expression using shared eval logic */
+                                if (dock.eval_buf && lisp_x_eval_and_echo(text, dock.eval_buf) == 0) {
+                                    terminal_feed_data(term, dynamic_buffer_data(dock.eval_buf),
+                                                       dynamic_buffer_len(dock.eval_buf));
+                                }
 
-                            /* Update stored DPI values */
-                            hdpi = new_hdpi;
-                            vdpi = new_vdpi;
-
-                            /* Get current terminal size BEFORE recreating fonts */
-                            int current_rows, current_cols;
-                            terminal_get_size(term, &current_rows, &current_cols);
-
-                            /* Get font info from existing cache before destroying it */
-                            const char *current_font_path = glyph_cache_get_font_path(glyph_cache);
-                            const char *current_font_name = glyph_cache_get_font_name(glyph_cache);
-
-                            /* Make copies since the strings will be freed with the cache */
-                            char *font_path_copy = strdup(current_font_path);
-                            char *font_name_copy = strdup(current_font_name);
-
-                            /* Destroy old glyph cache */
-                            glyph_cache_destroy(glyph_cache);
-
-                            /* Create new glyph cache with new DPI */
-                            GlyphCacheBackendType backend3 =
-                                use_directwrite ? GLYPH_CACHE_BACKEND_DIRECTWRITE : GLYPH_CACHE_BACKEND_SDL_TTF;
-                            glyph_cache = glyph_cache_create_with_backend(
-                                backend3, renderer, font_path_copy, font_name_copy, font_size, hinting_mode, scale_mode,
-                                (int)new_hdpi, (int)new_vdpi, use_cleartype, 0);
-
-                            free(font_path_copy);
-                            free(font_name_copy);
-
-                            if (glyph_cache) {
-                                /* Update cell dimensions */
-                                glyph_cache_get_cell_size(glyph_cache, &cell_w, &cell_h);
-                                float line_height = lisp_x_get_terminal_line_height();
-                                int effective_cell_h = (int)(cell_h * line_height);
-
-                                /* Recreate renderer with new glyph cache */
-                                renderer_destroy(rend);
-                                rend = renderer_create(renderer, glyph_cache, cell_w, cell_h);
-
-                                /* Calculate new window size to maintain same terminal dimensions */
-                                int input_visible_rows = dock_get_text_rows(&dock);
-                                int total_rows = current_rows + dock_height_rows(input_visible_rows);
-                                int new_win_width = current_cols * cell_w + 2 * PADDING_X;
-                                int new_win_height = total_rows * effective_cell_h + 2 * PADDING_Y;
-
-                                /* Resize window to maintain terminal dimensions */
-                                SDL_SetWindowSize(sdl_window, new_win_width, new_win_height);
-
-                                /* Recalculate input area layout */
-                                dock.needs_layout_recalc = 1;
-                                dock_recalculate_layout(&dock, current_cols);
-                                terminal_render_dock(term, &dock, current_cols);
-
-                                /* Force full redraw */
-                                terminal_request_redraw(term);
-                                dock_request_redraw(&dock);
-
-                                fprintf(stderr, "DPI change complete: cell size %dx%d, window %dx%d, terminal %dx%d\n",
-                                        cell_w, cell_h, new_win_width, new_win_height, current_cols, current_rows);
+                                /* Add to history and clear input area */
+                                dock_history_add(&dock);
+                                dock_clear(&dock);
                             } else {
-                                fprintf(stderr, "ERROR: Failed to recreate glyph cache after DPI change\n");
-                            }
-                        }
-                    }
-                }
-                break;
+                                /* Normal text - call user-input-hook to transform text before sending */
+                                uint64_t t_uih_start = 0, t_uih_end = 0;
+                                if (profile_mode)
+                                    t_uih_start = get_time_ns();
+                                const char *transformed_text = lisp_x_call_user_input_hook(text, cursor_pos);
+                                if (profile_mode) {
+                                    t_uih_end = get_time_ns();
+                                    histogram_record(hist_user_input_hook, t_uih_end - t_uih_start);
+                                }
+                                int transformed_length = strlen(transformed_text);
 
-            case SDL_MOUSEBUTTONDOWN: {
-                /* Right-click is handled in MOUSEBUTTONUP for copy */
-                if (event.button.button == SDL_BUTTON_RIGHT) {
-                    break;
-                }
-                /* Check if there was an active selection that needs clearing */
-                int had_selection = terminal_selection.active;
-                if (had_selection) {
-                    clear_terminal_selection(term);
-                }
+                                /* Hook contract: non-string or empty string = hook handled everything */
+                                /* Proper way: return nil to indicate hook handled echo/send */
+                                /* If hook returns empty string, it means hook handled echo/send - don't send again */
 
-                mouse_x = event.button.x;
-                mouse_y = event.button.y;
-                /* Get window size to check bounds */
-                int window_width, window_height;
-                window_get_size(win, &window_width, &window_height);
+                                if (transformed_length > 0) {
+                                    /* DON'T echo again - raw input was already echoed above */
+                                    /* Send transformed text to telnet (unified function handles LF->CRLF, CRLF
+                                     * appending, and errors) */
+                                    send_to_telnet(telnet, term, &dock, &connected_mode, transformed_text,
+                                                   transformed_length, 1); /* append_crlf = 1 */
+                                }
+                                /* Empty string from hook - user_input_received already set by dock operations */
 
-                /* Get line height multiplier and calculate effective cell height */
-                float line_height = lisp_x_get_terminal_line_height();
-                int effective_cell_h = (int)(cell_h * line_height);
-
-                /* Handle clicks in terminal area (excluding padding) */
-                if (mouse_x >= PADDING_X && mouse_x < window_width - PADDING_X && mouse_y >= PADDING_Y &&
-                    mouse_y < window_height - PADDING_Y) {
-                    /* Start selection only if no selection was cleared */
-                    if (event.button.button == SDL_BUTTON_LEFT && !had_selection) {
-                        /* Convert mouse coordinates to terminal cell coordinates, subtracting padding */
-                        int term_row = (mouse_y - PADDING_Y) / effective_cell_h;
-                        int term_col = (mouse_x - PADDING_X) / cell_w;
-                        /* Start selection and freeze viewport */
-                        start_terminal_selection(term, term_row, term_col);
-                    }
-                }
-                break;
-            }
-
-            case SDL_KEYDOWN: {
-                /* All keyboard input goes to input area, not terminal */
-                SDL_Scancode scancode = event.key.keysym.scancode;
-                SDL_Keymod mod = event.key.keysym.mod;
-
-                /* Accept tab completion if active, except for TAB (cycles), ESC (cancels), and Ctrl+G (cancels) */
-                if (lisp_x_is_tab_mode_active()) {
-                    if (scancode != SDL_SCANCODE_TAB && scancode != SDL_SCANCODE_ESCAPE &&
-                        !(scancode == SDL_SCANCODE_G && (mod & KMOD_CTRL))) {
-                        lisp_x_accept_tab_completion();
-                    }
-                }
-
-                /* Check for Ctrl+_ (undo) / Alt+_ (redo)
-                 * Use scancode for physical key consistency across keyboard layouts.
-                 * SDL_SCANCODE_MINUS targets the physical key that produces '-' and '_' on US/German layouts
-                 * regardless of whether the software layout is German, US, etc.
-                 * This ensures the shortcut stays in the same physical location, which is standard
-                 * for gaming and professional software. */
-                if (scancode == SDL_SCANCODE_MINUS) {
-                    if ((mod & KMOD_CTRL) && (mod & KMOD_SHIFT)) {
-                        /* Captured Ctrl + Shift + _ (physically) */
-                        dock_undo(&dock);
-                        break;
-                    } else if ((mod & KMOD_ALT) && (mod & KMOD_SHIFT)) {
-                        /* Captured Alt + Shift + _ (physically) */
-                        dock_redo(&dock);
-                        break;
-                    }
-                }
-
-                switch (scancode) {
-                case SDL_SCANCODE_RETURN:
-                case SDL_SCANCODE_KP_ENTER: {
-                    /* Send input area text to terminal and telnet */
-                    int length = dock_get_length(&dock);
-                    if (length > 0) {
-                        const char *text = dock_get_text(&dock);
-                        int cursor_pos = dock_get_cursor_pos(&dock);
-
-                        /* Echo raw input FIRST for non-eval mode (eval mode has its own echo with >) */
-                        if (dock_get_mode(&dock) != DOCK_MODE_EVAL && dock.echo_buf) {
-                            char color_buf[32];
-                            int echo_r, echo_g, echo_b;
-                            lisp_x_get_user_input_echo_color(&echo_r, &echo_g, &echo_b);
-                            dynamic_buffer_clear(dock.echo_buf);
-                            ansi_format_fg_color_rgb(color_buf, sizeof(color_buf), echo_r, echo_g, echo_b);
-                            dynamic_buffer_append_str(dock.echo_buf, color_buf);
-                            if (dynamic_buffer_append_printf(dock.echo_buf, "%s\r\n", text) == 0) {
-                                /* Reset color after text */
-                                dynamic_buffer_append_str(dock.echo_buf, ANSI_SGR_RESET);
-                                terminal_feed_data(term, dynamic_buffer_data(dock.echo_buf),
-                                                   dynamic_buffer_len(dock.echo_buf));
-                            }
-                        }
-
-                        /* Check if this is a special command starting with ':' */
-                        if (text[0] == ':') {
-                            /* Process command */
-                            process_command(text, telnet, term, &connected_mode, &dock, &quit_requested);
-
-                            /* Add to history and clear input area */
-                            dock_history_add(&dock);
-                            dock_clear(&dock);
-                        } else if (dock_get_mode(&dock) == DOCK_MODE_EVAL) {
-                            /* Eval mode - evaluate Lisp expression using shared eval logic */
-                            if (dock.eval_buf && lisp_x_eval_and_echo(text, dock.eval_buf) == 0) {
-                                terminal_feed_data(term, dynamic_buffer_data(dock.eval_buf),
-                                                   dynamic_buffer_len(dock.eval_buf));
-                            }
-
-                            /* Add to history and clear input area */
-                            dock_history_add(&dock);
-                            dock_clear(&dock);
-                        } else {
-                            /* Normal text - call user-input-hook to transform text before sending */
-                            uint64_t t_uih_start = 0, t_uih_end = 0;
-                            if (profile_mode)
-                                t_uih_start = get_time_ns();
-                            const char *transformed_text = lisp_x_call_user_input_hook(text, cursor_pos);
-                            if (profile_mode) {
-                                t_uih_end = get_time_ns();
-                                histogram_record(hist_user_input_hook, t_uih_end - t_uih_start);
-                            }
-                            int transformed_length = strlen(transformed_text);
-
-                            /* Hook contract: non-string or empty string = hook handled everything */
-                            /* Proper way: return nil to indicate hook handled echo/send */
-                            /* If hook returns empty string, it means hook handled echo/send - don't send again */
-
-                            if (transformed_length > 0) {
-                                /* DON'T echo again - raw input was already echoed above */
-                                /* Send transformed text to telnet (unified function handles LF->CRLF, CRLF appending,
-                                 * and errors) */
-                                send_to_telnet(telnet, term, &dock, &connected_mode, transformed_text,
-                                               transformed_length, 1); /* append_crlf = 1 */
-                            }
-                            /* Empty string from hook - user_input_received already set by dock operations */
-
-                            /* Add to history and clear input area */
-                            dock_history_add(&dock);
-                            dock_clear(&dock);
-                        }
-                    } else {
-                        /* Even if input is empty, send CRLF for newline (unified function handles errors) */
-                        send_to_telnet(telnet, term, &dock, &connected_mode, "", 0, 1); /* append_crlf = 1 */
-                        /* Echo newline to terminal (vterm_feed_data will normalize LF to CRLF) */
-                        terminal_feed_data(term, "\n", 1);
-                    }
-                    break;
-                }
-                case SDL_SCANCODE_BACKSPACE: {
-                    dock_backspace(&dock);
-                    break;
-                }
-                case SDL_SCANCODE_DELETE: {
-                    dock_delete_char(&dock);
-                    break;
-                }
-                case SDL_SCANCODE_LEFT: {
-                    /* Start selection if Shift is pressed and no selection */
-                    if ((mod & KMOD_SHIFT) && !dock_has_selection(&dock)) {
-                        dock_start_selection(&dock);
-                    } else if (!(mod & KMOD_SHIFT)) {
-                        dock_clear_selection(&dock);
-                    }
-
-                    if (mod & KMOD_CTRL) {
-                        dock_move_cursor_word_left(&dock);
-                    } else {
-                        dock_move_cursor_left(&dock);
-                    }
-                    break;
-                }
-                case SDL_SCANCODE_RIGHT: {
-                    /* Start selection if Shift is pressed and no selection */
-                    if ((mod & KMOD_SHIFT) && !dock_has_selection(&dock)) {
-                        dock_start_selection(&dock);
-                    } else if (!(mod & KMOD_SHIFT)) {
-                        dock_clear_selection(&dock);
-                    }
-
-                    if (mod & KMOD_CTRL) {
-                        dock_move_cursor_word_right(&dock);
-                    } else {
-                        dock_move_cursor_right(&dock);
-                    }
-                    break;
-                }
-                case SDL_SCANCODE_UP: {
-                    /* Navigate lines in multi-line input, or history if at first line */
-                    int rows, cols;
-                    terminal_get_size(term, &rows, &cols);
-                    if (!dock_is_at_first_visual_line(&dock, cols)) {
-                        dock_move_cursor_up_line(&dock, cols);
-                    } else {
-                        dock_history_prev(&dock);
-                    }
-                    break;
-                }
-                case SDL_SCANCODE_DOWN: {
-                    /* Navigate lines in multi-line input, or history if at last line */
-                    int rows, cols;
-                    terminal_get_size(term, &rows, &cols);
-                    if (!dock_is_at_last_visual_line(&dock, cols)) {
-                        dock_move_cursor_down_line(&dock, cols);
-                    } else {
-                        dock_history_next(&dock);
-                    }
-                    break;
-                }
-                case SDL_SCANCODE_HOME: {
-                    /* Start selection if Shift is pressed and no selection */
-                    if ((mod & KMOD_SHIFT) && !dock_has_selection(&dock)) {
-                        dock_start_selection(&dock);
-                    } else if (!(mod & KMOD_SHIFT)) {
-                        dock_clear_selection(&dock);
-                    }
-
-                    dock_move_cursor_home(&dock);
-                    break;
-                }
-                case SDL_SCANCODE_END: {
-                    /* Start selection if Shift is pressed and no selection */
-                    if ((mod & KMOD_SHIFT) && !dock_has_selection(&dock)) {
-                        dock_start_selection(&dock);
-                    } else if (!(mod & KMOD_SHIFT)) {
-                        dock_clear_selection(&dock);
-                    }
-
-                    dock_move_cursor_end(&dock);
-                    break;
-                }
-                case SDL_SCANCODE_A: {
-                    if (mod & KMOD_CTRL) {
-                        dock_move_cursor_beginning(&dock);
-                    }
-                    break;
-                }
-                case SDL_SCANCODE_E: {
-                    if (mod & KMOD_CTRL) {
-                        dock_move_cursor_end_line(&dock);
-                    }
-                    break;
-                }
-                case SDL_SCANCODE_K: {
-                    if (mod & KMOD_CTRL) {
-                        dock_kill_to_end(&dock);
-                        /* Copy killed text to clipboard */
-                        const char *killed = dock_get_kill_ring(&dock);
-                        if (killed && killed[0] != '\0') {
-                            SDL_SetClipboardText(killed);
-                        }
-                    }
-                    break;
-                }
-                case SDL_SCANCODE_U: {
-                    if (mod & KMOD_CTRL) {
-                        dock_kill_from_start(&dock);
-                        /* Copy killed text to clipboard */
-                        const char *killed = dock_get_kill_ring(&dock);
-                        if (killed && killed[0] != '\0') {
-                            SDL_SetClipboardText(killed);
-                        }
-                    }
-                    break;
-                }
-                case SDL_SCANCODE_W: {
-                    if (mod & KMOD_CTRL) {
-                        dock_kill_word(&dock);
-                        /* Copy killed text to clipboard */
-                        const char *killed = dock_get_kill_ring(&dock);
-                        if (killed && killed[0] != '\0') {
-                            SDL_SetClipboardText(killed);
-                        }
-                    }
-                    break;
-                }
-                case SDL_SCANCODE_Y: {
-                    if (mod & KMOD_CTRL) {
-                        dock_yank(&dock);
-                    }
-                    break;
-                }
-                case SDL_SCANCODE_C: {
-                    if (mod & KMOD_CTRL) {
-                        /* Copy terminal selection if active */
-                        if (terminal_selection.active) {
-                            copy_terminal_selection(term);
-                            clear_terminal_selection(term); /* Clear selection after copy */
-                        }
-                        /* Copy input area selection or all text to clipboard */
-                        else if (dock_has_selection(&dock)) {
-                            char selection_buffer[DOCK_MAX_LENGTH];
-                            if (dock_copy_selection(&dock, selection_buffer, DOCK_MAX_LENGTH) > 0) {
-                                SDL_SetClipboardText(selection_buffer);
+                                /* Add to history and clear input area */
+                                dock_history_add(&dock);
+                                dock_clear(&dock);
                             }
                         } else {
-                            const char *text = dock_copy(&dock);
-                            if (text && text[0] != '\0') {
-                                SDL_SetClipboardText(text);
-                            }
+                            /* Even if input is empty, send CRLF for newline (unified function handles errors) */
+                            send_to_telnet(telnet, term, &dock, &connected_mode, "", 0, 1); /* append_crlf = 1 */
+                            /* Echo newline to terminal (vterm_feed_data will normalize LF to CRLF) */
+                            terminal_feed_data(term, "\n", 1);
                         }
+                        break;
                     }
-                    break;
-                }
-                case SDL_SCANCODE_D: {
-                    if (mod & KMOD_CTRL) {
-                        /* Ctrl+D: Delete character forward (like Emacs) */
+                    case SDL_SCANCODE_BACKSPACE: {
+                        dock_backspace(&dock);
+                        break;
+                    }
+                    case SDL_SCANCODE_DELETE: {
                         dock_delete_char(&dock);
+                        break;
                     }
-                    break;
-                }
-                case SDL_SCANCODE_V: {
-                    if (mod & KMOD_CTRL) {
-                        /* Paste text from clipboard */
-                        if (SDL_HasClipboardText()) {
-                            char *text = SDL_GetClipboardText();
-                            if (text) {
-                                dock_paste(&dock, text);
-                                SDL_free(text);
+                    case SDL_SCANCODE_LEFT: {
+                        /* Start selection if Shift is pressed and no selection */
+                        if ((mod & KMOD_SHIFT) && !dock_has_selection(&dock)) {
+                            dock_start_selection(&dock);
+                        } else if (!(mod & KMOD_SHIFT)) {
+                            dock_clear_selection(&dock);
+                        }
+
+                        if (mod & KMOD_CTRL) {
+                            dock_move_cursor_word_left(&dock);
+                        } else {
+                            dock_move_cursor_left(&dock);
+                        }
+                        break;
+                    }
+                    case SDL_SCANCODE_RIGHT: {
+                        /* Start selection if Shift is pressed and no selection */
+                        if ((mod & KMOD_SHIFT) && !dock_has_selection(&dock)) {
+                            dock_start_selection(&dock);
+                        } else if (!(mod & KMOD_SHIFT)) {
+                            dock_clear_selection(&dock);
+                        }
+
+                        if (mod & KMOD_CTRL) {
+                            dock_move_cursor_word_right(&dock);
+                        } else {
+                            dock_move_cursor_right(&dock);
+                        }
+                        break;
+                    }
+                    case SDL_SCANCODE_UP: {
+                        /* Navigate lines in multi-line input, or history if at first line */
+                        int rows, cols;
+                        terminal_get_size(term, &rows, &cols);
+                        if (!dock_is_at_first_visual_line(&dock, cols)) {
+                            dock_move_cursor_up_line(&dock, cols);
+                        } else {
+                            dock_history_prev(&dock);
+                        }
+                        break;
+                    }
+                    case SDL_SCANCODE_DOWN: {
+                        /* Navigate lines in multi-line input, or history if at last line */
+                        int rows, cols;
+                        terminal_get_size(term, &rows, &cols);
+                        if (!dock_is_at_last_visual_line(&dock, cols)) {
+                            dock_move_cursor_down_line(&dock, cols);
+                        } else {
+                            dock_history_next(&dock);
+                        }
+                        break;
+                    }
+                    case SDL_SCANCODE_HOME: {
+                        /* Start selection if Shift is pressed and no selection */
+                        if ((mod & KMOD_SHIFT) && !dock_has_selection(&dock)) {
+                            dock_start_selection(&dock);
+                        } else if (!(mod & KMOD_SHIFT)) {
+                            dock_clear_selection(&dock);
+                        }
+
+                        dock_move_cursor_home(&dock);
+                        break;
+                    }
+                    case SDL_SCANCODE_END: {
+                        /* Start selection if Shift is pressed and no selection */
+                        if ((mod & KMOD_SHIFT) && !dock_has_selection(&dock)) {
+                            dock_start_selection(&dock);
+                        } else if (!(mod & KMOD_SHIFT)) {
+                            dock_clear_selection(&dock);
+                        }
+
+                        dock_move_cursor_end(&dock);
+                        break;
+                    }
+                    case SDL_SCANCODE_A: {
+                        if (mod & KMOD_CTRL) {
+                            dock_move_cursor_beginning(&dock);
+                        }
+                        break;
+                    }
+                    case SDL_SCANCODE_E: {
+                        if (mod & KMOD_CTRL) {
+                            dock_move_cursor_end_line(&dock);
+                        }
+                        break;
+                    }
+                    case SDL_SCANCODE_K: {
+                        if (mod & KMOD_CTRL) {
+                            dock_kill_to_end(&dock);
+                            /* Copy killed text to clipboard */
+                            const char *killed = dock_get_kill_ring(&dock);
+                            if (killed && killed[0] != '\0') {
+                                SDL_SetClipboardText(killed);
                             }
                         }
+                        break;
                     }
-                    break;
-                }
-                case SDL_SCANCODE_G: {
-                    if (mod & KMOD_CTRL) {
-                        /* Ctrl+G: Cancel tab completion and revert */
-                        if (lisp_x_is_tab_mode_active()) {
+                    case SDL_SCANCODE_U: {
+                        if (mod & KMOD_CTRL) {
+                            dock_kill_from_start(&dock);
+                            /* Copy killed text to clipboard */
+                            const char *killed = dock_get_kill_ring(&dock);
+                            if (killed && killed[0] != '\0') {
+                                SDL_SetClipboardText(killed);
+                            }
+                        }
+                        break;
+                    }
+                    case SDL_SCANCODE_W: {
+                        if (mod & KMOD_CTRL) {
+                            dock_kill_word(&dock);
+                            /* Copy killed text to clipboard */
+                            const char *killed = dock_get_kill_ring(&dock);
+                            if (killed && killed[0] != '\0') {
+                                SDL_SetClipboardText(killed);
+                            }
+                        }
+                        break;
+                    }
+                    case SDL_SCANCODE_Y: {
+                        if (mod & KMOD_CTRL) {
+                            dock_yank(&dock);
+                        }
+                        break;
+                    }
+                    case SDL_SCANCODE_C: {
+                        if (mod & KMOD_CTRL) {
+                            /* Copy terminal selection if active */
+                            if (terminal_selection.active) {
+                                copy_terminal_selection(term);
+                                clear_terminal_selection(term); /* Clear selection after copy */
+                            }
+                            /* Copy input area selection or all text to clipboard */
+                            else if (dock_has_selection(&dock)) {
+                                char selection_buffer[DOCK_MAX_LENGTH];
+                                if (dock_copy_selection(&dock, selection_buffer, DOCK_MAX_LENGTH) > 0) {
+                                    SDL_SetClipboardText(selection_buffer);
+                                }
+                            } else {
+                                const char *text = dock_copy(&dock);
+                                if (text && text[0] != '\0') {
+                                    SDL_SetClipboardText(text);
+                                }
+                            }
+                        }
+                        break;
+                    }
+                    case SDL_SCANCODE_D: {
+                        if (mod & KMOD_CTRL) {
+                            /* Ctrl+D: Delete character forward (like Emacs) */
+                            dock_delete_char(&dock);
+                        }
+                        break;
+                    }
+                    case SDL_SCANCODE_V: {
+                        if (mod & KMOD_CTRL) {
+                            /* Paste text from clipboard */
+                            if (SDL_HasClipboardText()) {
+                                char *text = SDL_GetClipboardText();
+                                if (text) {
+                                    dock_paste(&dock, text);
+                                    SDL_free(text);
+                                }
+                            }
+                        }
+                        break;
+                    }
+                    case SDL_SCANCODE_G: {
+                        if (mod & KMOD_CTRL) {
+                            /* Ctrl+G: Cancel tab completion and revert */
+                            if (lisp_x_is_tab_mode_active()) {
+                                int cursor_pos = dock_get_cursor_pos(&dock);
+                                int length = dock_get_length(&dock);
+                                int needs_redraw = dock_needs_redraw(&dock);
+                                char *buffer = dock_get_buffer(&dock);
+                                lisp_x_cancel_tab_completion(buffer, DOCK_MAX_LENGTH, &cursor_pos, &length,
+                                                             &needs_redraw);
+                                dock_sync_state(&dock);
+                                dock_move_cursor(&dock, cursor_pos);
+                            }
+                        }
+                        break;
+                    }
+                    case SDL_SCANCODE_J: {
+                        if (mod & KMOD_CTRL) {
+                            /* Ctrl+J: Insert newline for multi-line input */
+                            dock_insert_text(&dock, "\n", 1);
+                        }
+                        break;
+                    }
+                    case SDL_SCANCODE_PAGEUP: {
+                        /* If Ctrl is pressed, scroll viewport */
+                        if (mod & KMOD_CTRL) {
+                            int rows, cols;
+                            terminal_get_size(term, &rows, &cols);
+                            terminal_scroll_up(term, rows);
+                        }
+                        break;
+                    }
+                    case SDL_SCANCODE_PAGEDOWN: {
+                        /* If Ctrl is pressed, scroll viewport */
+                        if (mod & KMOD_CTRL) {
+                            int rows, cols;
+                            terminal_get_size(term, &rows, &cols);
+                            terminal_scroll_down(term, rows);
+                        }
+                        break;
+                    }
+                    case SDL_SCANCODE_TAB: {
+                        /* Shift+Tab: Toggle input mode */
+                        if (mod & KMOD_SHIFT) {
+                            DockMode current = dock_get_mode(&dock);
+                            DockMode new_mode = (current == DOCK_MODE_NORMAL) ? DOCK_MODE_EVAL : DOCK_MODE_NORMAL;
+                            dock_set_mode(&dock, new_mode);
+                            break;
+                        }
+
+                        /* Tab in eval mode: do nothing */
+                        if (dock_get_mode(&dock) == DOCK_MODE_EVAL) {
+                            break;
+                        }
+
+                        /* Handle TAB completion via Lisp bridge */
+                        /* Note: lisp_handle_tab modifies buffer directly */
+                        int cursor_pos = dock_get_cursor_pos(&dock);
+                        int length = dock_get_length(&dock);
+                        int needs_redraw = dock_needs_redraw(&dock);
+                        char *buffer = dock_get_buffer(&dock);
+                        lisp_x_handle_tab(buffer, DOCK_MAX_LENGTH, &cursor_pos, &length, &needs_redraw);
+                        /* Sync state after external buffer modification */
+                        dock_sync_state(&dock);
+                        /* Update cursor position */
+                        dock_move_cursor(&dock, cursor_pos);
+                        break;
+                    }
+                    case SDL_SCANCODE_ESCAPE: {
+                        /* ESC: Clear terminal selection if active */
+                        if (terminal_selection.active) {
+                            clear_terminal_selection(term);
+                        }
+                        /* ESC: Cancel tab completion and revert */
+                        else if (lisp_x_is_tab_mode_active()) {
                             int cursor_pos = dock_get_cursor_pos(&dock);
                             int length = dock_get_length(&dock);
                             int needs_redraw = dock_needs_redraw(&dock);
@@ -1814,222 +1903,153 @@ int main(int argc, char **argv) {
                             dock_sync_state(&dock);
                             dock_move_cursor(&dock, cursor_pos);
                         }
-                    }
-                    break;
-                }
-                case SDL_SCANCODE_J: {
-                    if (mod & KMOD_CTRL) {
-                        /* Ctrl+J: Insert newline for multi-line input */
-                        dock_insert_text(&dock, "\n", 1);
-                    }
-                    break;
-                }
-                case SDL_SCANCODE_PAGEUP: {
-                    /* If Ctrl is pressed, scroll viewport */
-                    if (mod & KMOD_CTRL) {
-                        int rows, cols;
-                        terminal_get_size(term, &rows, &cols);
-                        terminal_scroll_up(term, rows);
-                    }
-                    break;
-                }
-                case SDL_SCANCODE_PAGEDOWN: {
-                    /* If Ctrl is pressed, scroll viewport */
-                    if (mod & KMOD_CTRL) {
-                        int rows, cols;
-                        terminal_get_size(term, &rows, &cols);
-                        terminal_scroll_down(term, rows);
-                    }
-                    break;
-                }
-                case SDL_SCANCODE_TAB: {
-                    /* Shift+Tab: Toggle input mode */
-                    if (mod & KMOD_SHIFT) {
-                        DockMode current = dock_get_mode(&dock);
-                        DockMode new_mode = (current == DOCK_MODE_NORMAL) ? DOCK_MODE_EVAL : DOCK_MODE_NORMAL;
-                        dock_set_mode(&dock, new_mode);
                         break;
                     }
-
-                    /* Tab in eval mode: do nothing */
-                    if (dock_get_mode(&dock) == DOCK_MODE_EVAL) {
+                    default:
+                        /* Other keys are handled by SDL_TEXTINPUT */
                         break;
                     }
-
-                    /* Handle TAB completion via Lisp bridge */
-                    /* Note: lisp_handle_tab modifies buffer directly */
-                    int cursor_pos = dock_get_cursor_pos(&dock);
-                    int length = dock_get_length(&dock);
-                    int needs_redraw = dock_needs_redraw(&dock);
-                    char *buffer = dock_get_buffer(&dock);
-                    lisp_x_handle_tab(buffer, DOCK_MAX_LENGTH, &cursor_pos, &length, &needs_redraw);
-                    /* Sync state after external buffer modification */
-                    dock_sync_state(&dock);
-                    /* Update cursor position */
-                    dock_move_cursor(&dock, cursor_pos);
                     break;
                 }
-                case SDL_SCANCODE_ESCAPE: {
-                    /* ESC: Clear terminal selection if active */
-                    if (terminal_selection.active) {
-                        clear_terminal_selection(term);
+
+                case SDL_TEXTINPUT: {
+                    const char *text = event.text.text;
+                    int text_len = strlen(text);
+
+                    /* Suppress underscore input if modifiers match undo/redo shortcut
+                     * This prevents underscore from being inserted when Alt+Shift+- is used for redo */
+                    if (text_len == 1 && text[0] == '_') {
+                        SDL_Keymod current_mod = SDL_GetModState();
+                        if (((current_mod & KMOD_CTRL) && (current_mod & KMOD_SHIFT)) ||
+                            ((current_mod & KMOD_ALT) && (current_mod & KMOD_SHIFT))) {
+                            /* Modifiers match shortcut, ignore this text input */
+                            break;
+                        }
                     }
-                    /* ESC: Cancel tab completion and revert */
-                    else if (lisp_x_is_tab_mode_active()) {
-                        int cursor_pos = dock_get_cursor_pos(&dock);
-                        int length = dock_get_length(&dock);
-                        int needs_redraw = dock_needs_redraw(&dock);
-                        char *buffer = dock_get_buffer(&dock);
-                        lisp_x_cancel_tab_completion(buffer, DOCK_MAX_LENGTH, &cursor_pos, &length, &needs_redraw);
-                        dock_sync_state(&dock);
-                        dock_move_cursor(&dock, cursor_pos);
+
+                    /* Accept tab completion if active (any text input exits tab mode) */
+                    if (lisp_x_is_tab_mode_active()) {
+                        lisp_x_accept_tab_completion();
                     }
+                    /* All text input goes to input area */
+                    dock_insert_text(&dock, text, text_len);
                     break;
                 }
-                default:
-                    /* Other keys are handled by SDL_TEXTINPUT */
-                    break;
-                }
-                break;
-            }
 
-            case SDL_TEXTINPUT: {
-                const char *text = event.text.text;
-                int text_len = strlen(text);
-
-                /* Suppress underscore input if modifiers match undo/redo shortcut
-                 * This prevents underscore from being inserted when Alt+Shift+- is used for redo */
-                if (text_len == 1 && text[0] == '_') {
-                    SDL_Keymod current_mod = SDL_GetModState();
-                    if (((current_mod & KMOD_CTRL) && (current_mod & KMOD_SHIFT)) ||
-                        ((current_mod & KMOD_ALT) && (current_mod & KMOD_SHIFT))) {
-                        /* Modifiers match shortcut, ignore this text input */
+                case SDL_MOUSEBUTTONUP: {
+                    /* Right-click copies terminal selection (like Ctrl+C) */
+                    if (event.button.button == SDL_BUTTON_RIGHT) {
+                        if (terminal_selection.active) {
+                            copy_terminal_selection(term);
+                            clear_terminal_selection(term);
+                        }
                         break;
                     }
-                }
-
-                /* Accept tab completion if active (any text input exits tab mode) */
-                if (lisp_x_is_tab_mode_active()) {
-                    lisp_x_accept_tab_completion();
-                }
-                /* All text input goes to input area */
-                dock_insert_text(&dock, text, text_len);
-                break;
-            }
-
-            case SDL_MOUSEBUTTONUP: {
-                /* Right-click copies terminal selection (like Ctrl+C) */
-                if (event.button.button == SDL_BUTTON_RIGHT) {
-                    if (terminal_selection.active) {
-                        copy_terminal_selection(term);
-                        clear_terminal_selection(term);
+                    /* Selection remains active after mouse button up - user can copy with Ctrl+C */
+                    /* Only handle mouse events for terminal if not in input area or padding */
+                    int win_width, win_height;
+                    window_get_size(win, &win_width, &win_height);
+                    float line_height = lisp_x_get_terminal_line_height();
+                    int effective_cell_h = (int)(cell_h * line_height);
+                    int dock_height = dock_height_rows(dock_get_text_rows(&dock)) * effective_cell_h;
+                    /* Check if click is within terminal area (excluding padding) and not in input area */
+                    if (event.button.x >= PADDING_X && event.button.x < win_width - PADDING_X &&
+                        event.button.y >= PADDING_Y && event.button.y < win_height - PADDING_Y &&
+                        event.button.y < win_height - dock_height - PADDING_Y) {
+                        input_handle_mouse(&event.button, NULL, terminal_get_vterm(term), cell_w, cell_h, 0);
                     }
                     break;
                 }
-                /* Selection remains active after mouse button up - user can copy with Ctrl+C */
-                /* Only handle mouse events for terminal if not in input area or padding */
-                int win_width, win_height;
-                window_get_size(win, &win_width, &win_height);
-                float line_height = lisp_x_get_terminal_line_height();
-                int effective_cell_h = (int)(cell_h * line_height);
-                int dock_height = dock_height_rows(dock_get_text_rows(&dock)) * effective_cell_h;
-                /* Check if click is within terminal area (excluding padding) and not in input area */
-                if (event.button.x >= PADDING_X && event.button.x < win_width - PADDING_X &&
-                    event.button.y >= PADDING_Y && event.button.y < win_height - PADDING_Y &&
-                    event.button.y < win_height - dock_height - PADDING_Y) {
-                    input_handle_mouse(&event.button, NULL, terminal_get_vterm(term), cell_w, cell_h, 0);
-                }
-                break;
-            }
 
-            case SDL_MOUSEMOTION:
-                /* Update selection if dragging in terminal area */
-                if (terminal_selection.active && (event.motion.state & SDL_BUTTON(SDL_BUTTON_LEFT))) {
+                case SDL_MOUSEMOTION:
+                    /* Update selection if dragging in terminal area */
+                    if (terminal_selection.active && (event.motion.state & SDL_BUTTON(SDL_BUTTON_LEFT))) {
+                        int motion_win_width, motion_win_height;
+                        window_get_size(win, &motion_win_width, &motion_win_height);
+                        float line_height = lisp_x_get_terminal_line_height();
+                        int effective_cell_h = (int)(cell_h * line_height);
+                        /* Check if motion is within terminal area (excluding padding) */
+                        if (event.motion.x >= PADDING_X && event.motion.x < motion_win_width - PADDING_X &&
+                            event.motion.y >= PADDING_Y && event.motion.y < motion_win_height - PADDING_Y) {
+                            /* Convert mouse coordinates to terminal cell coordinates, subtracting padding */
+                            int term_row = (event.motion.y - PADDING_Y) / effective_cell_h;
+                            int term_col = (event.motion.x - PADDING_X) / cell_w;
+                            /* Update selection end position */
+                            update_terminal_selection(term, term_row, term_col);
+                        }
+                    }
+                    /* Only handle mouse events for terminal if not in input area or padding */
                     int motion_win_width, motion_win_height;
                     window_get_size(win, &motion_win_width, &motion_win_height);
                     float line_height = lisp_x_get_terminal_line_height();
                     int effective_cell_h = (int)(cell_h * line_height);
-                    /* Check if motion is within terminal area (excluding padding) */
+                    int dock_height = dock_height_rows(dock_get_text_rows(&dock)) * effective_cell_h;
+                    /* Check if motion is within terminal area (excluding padding) and not in input area */
                     if (event.motion.x >= PADDING_X && event.motion.x < motion_win_width - PADDING_X &&
-                        event.motion.y >= PADDING_Y && event.motion.y < motion_win_height - PADDING_Y) {
-                        /* Convert mouse coordinates to terminal cell coordinates, subtracting padding */
-                        int term_row = (event.motion.y - PADDING_Y) / effective_cell_h;
-                        int term_col = (event.motion.x - PADDING_X) / cell_w;
-                        /* Update selection end position */
-                        update_terminal_selection(term, term_row, term_col);
+                        event.motion.y >= PADDING_Y && event.motion.y < motion_win_height - PADDING_Y &&
+                        event.motion.y < motion_win_height - dock_height - PADDING_Y) {
+                        input_handle_mouse(NULL, &event.motion, terminal_get_vterm(term), cell_w, cell_h, 0);
                     }
-                }
-                /* Only handle mouse events for terminal if not in input area or padding */
-                int motion_win_width, motion_win_height;
-                window_get_size(win, &motion_win_width, &motion_win_height);
-                float line_height = lisp_x_get_terminal_line_height();
-                int effective_cell_h = (int)(cell_h * line_height);
-                int dock_height = dock_height_rows(dock_get_text_rows(&dock)) * effective_cell_h;
-                /* Check if motion is within terminal area (excluding padding) and not in input area */
-                if (event.motion.x >= PADDING_X && event.motion.x < motion_win_width - PADDING_X &&
-                    event.motion.y >= PADDING_Y && event.motion.y < motion_win_height - PADDING_Y &&
-                    event.motion.y < motion_win_height - dock_height - PADDING_Y) {
-                    input_handle_mouse(NULL, &event.motion, terminal_get_vterm(term), cell_w, cell_h, 0);
-                }
-                break;
+                    break;
 
-            case SDL_MOUSEWHEEL: {
-                /* Get mouse position */
-                int mouse_x, mouse_y;
-                SDL_GetMouseState(&mouse_x, &mouse_y);
+                case SDL_MOUSEWHEEL: {
+                    /* Get mouse position */
+                    int mouse_x, mouse_y;
+                    SDL_GetMouseState(&mouse_x, &mouse_y);
 
-                /* Check if mouse is over terminal area (not input area or padding) */
-                int wheel_win_width, wheel_win_height;
-                window_get_size(win, &wheel_win_width, &wheel_win_height);
-                float line_height = lisp_x_get_terminal_line_height();
-                int effective_cell_h = (int)(cell_h * line_height);
-                int dock_height = dock_height_rows(dock_get_text_rows(&dock)) * effective_cell_h;
-                /* Check if mouse is within terminal area (excluding padding) and not in input area */
-                if (mouse_x >= PADDING_X && mouse_x < wheel_win_width - PADDING_X && mouse_y >= PADDING_Y &&
-                    mouse_y < wheel_win_height - PADDING_Y && mouse_y < wheel_win_height - dock_height - PADDING_Y) {
-                    /* Get scroll configuration from Lisp bridge */
-                    int lines_per_click = lisp_x_get_scroll_lines_per_click();
-                    int smooth_scrolling = lisp_x_get_smooth_scrolling_enabled();
+                    /* Check if mouse is over terminal area (not input area or padding) */
+                    int wheel_win_width, wheel_win_height;
+                    window_get_size(win, &wheel_win_width, &wheel_win_height);
+                    float line_height = lisp_x_get_terminal_line_height();
+                    int effective_cell_h = (int)(cell_h * line_height);
+                    int dock_height = dock_height_rows(dock_get_text_rows(&dock)) * effective_cell_h;
+                    /* Check if mouse is within terminal area (excluding padding) and not in input area */
+                    if (mouse_x >= PADDING_X && mouse_x < wheel_win_width - PADDING_X && mouse_y >= PADDING_Y &&
+                        mouse_y < wheel_win_height - PADDING_Y &&
+                        mouse_y < wheel_win_height - dock_height - PADDING_Y) {
+                        /* Get scroll configuration from Lisp bridge */
+                        int lines_per_click = lisp_x_get_scroll_lines_per_click();
+                        int smooth_scrolling = lisp_x_get_smooth_scrolling_enabled();
 
-                    /* Calculate scroll amount */
-                    float scroll_amount = 0.0f;
-                    if (smooth_scrolling && event.wheel.preciseY != 0.0f) {
-                        /* Use smooth scrolling for high-resolution trackpads */
-                        scroll_amount = event.wheel.preciseY * (float)lines_per_click;
-                    } else {
-                        /* Use discrete clicks */
-                        scroll_amount = (float)event.wheel.y * (float)lines_per_click;
-                    }
-
-                    /* Only scroll if there's actual movement */
-                    if (scroll_amount != 0.0f) {
-                        int scroll_lines = (int)scroll_amount;
-                        if (scroll_lines == 0) {
-                            /* For very small smooth scroll amounts, use at least 1 line */
-                            scroll_lines = scroll_amount > 0.0f ? 1 : -1;
-                        }
-
-                        /* Check if we can scroll in the requested direction */
-                        int viewport_offset = terminal_get_viewport_offset(term);
-                        int scrollback_size = terminal_get_scrollback_size(term);
-
-                        if (scroll_lines > 0) {
-                            /* Scroll up (view older content) */
-                            if (viewport_offset < scrollback_size) {
-                                terminal_scroll_up(term, scroll_lines);
-                            }
+                        /* Calculate scroll amount */
+                        float scroll_amount = 0.0f;
+                        if (smooth_scrolling && event.wheel.preciseY != 0.0f) {
+                            /* Use smooth scrolling for high-resolution trackpads */
+                            scroll_amount = event.wheel.preciseY * (float)lines_per_click;
                         } else {
-                            /* Scroll down (view newer content) */
-                            if (viewport_offset > 0) {
-                                terminal_scroll_down(term, -scroll_lines);
+                            /* Use discrete clicks */
+                            scroll_amount = (float)event.wheel.y * (float)lines_per_click;
+                        }
+
+                        /* Only scroll if there's actual movement */
+                        if (scroll_amount != 0.0f) {
+                            int scroll_lines = (int)scroll_amount;
+                            if (scroll_lines == 0) {
+                                /* For very small smooth scroll amounts, use at least 1 line */
+                                scroll_lines = scroll_amount > 0.0f ? 1 : -1;
+                            }
+
+                            /* Check if we can scroll in the requested direction */
+                            int viewport_offset = terminal_get_viewport_offset(term);
+                            int scrollback_size = terminal_get_scrollback_size(term);
+
+                            if (scroll_lines > 0) {
+                                /* Scroll up (view older content) */
+                                if (viewport_offset < scrollback_size) {
+                                    terminal_scroll_up(term, scroll_lines);
+                                }
+                            } else {
+                                /* Scroll down (view newer content) */
+                                if (viewport_offset > 0) {
+                                    terminal_scroll_down(term, -scroll_lines);
+                                }
                             }
                         }
                     }
+                    break;
                 }
-                break;
-            }
-            }
-        }
+                } /* end switch */
+        } /* end if (got_event) */
 
         /* Handle scroll-to-bottom on dock content change (unified handling) */
         if (dock.user_input_received) {
@@ -2043,9 +2063,9 @@ int main(int argc, char **argv) {
         lisp_x_run_timers();
 
         /* Read from socket (if connected and data is available) */
-        if (connected_mode && (wait_result & (EVENT_WAIT_SOCKET_READ | EVENT_WAIT_SOCKET_ERR))) {
+        if (connected_mode && (socket_read_received || socket_error_received)) {
             /* Check for socket exceptions (out-of-band data or errors) */
-            if (wait_result & EVENT_WAIT_SOCKET_ERR) {
+            if (socket_error_received) {
                 fprintf(stderr, "Socket exception detected (OOB data or error)\n");
             }
             /* Data is available, read it */

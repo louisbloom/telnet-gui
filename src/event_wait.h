@@ -1,8 +1,8 @@
-/* Platform-agnostic event waiting API
+/* Event waiting API using SDL's event queue with background socket monitoring
  *
- * Abstracts the platform-specific event waiting mechanism behind a clean
- * interface. On Unix, uses select() with display and socket file descriptors.
- * On Windows, uses MsgWaitForMultipleObjectsEx with WSA events.
+ * Uses SDL_WaitEventTimeout() in the main loop with a background thread
+ * that monitors sockets and pushes custom SDL events when data arrives.
+ * This allows proper handling of key repeats (each event rendered separately).
  */
 
 #ifndef EVENT_WAIT_H
@@ -10,36 +10,25 @@
 
 #include <SDL2/SDL.h>
 
-/* Result flags from event_wait() */
-#define EVENT_WAIT_TIMEOUT     0
-#define EVENT_WAIT_DISPLAY     (1 << 0)  /* Display/GUI events ready */
-#define EVENT_WAIT_SOCKET_READ (1 << 1)  /* Socket has data to read */
-#define EVENT_WAIT_SOCKET_ERR  (1 << 2)  /* Socket exception/error */
-
-/* Opaque context for event waiting */
+/* Opaque context for socket monitoring thread */
 typedef struct EventWaitCtx EventWaitCtx;
 
-/* Create event wait context
- * window: SDL window (for display fd on Unix)
- * Returns: context pointer, or NULL on error */
-EventWaitCtx *event_wait_create(SDL_Window *window);
+/* Initialize event system (registers SDL user events)
+ * Must be called after SDL_Init() */
+void event_wait_init(void);
 
-/* Destroy event wait context */
+/* Get SDL event types for socket notifications */
+Uint32 event_wait_get_socket_read_event(void);
+Uint32 event_wait_get_socket_error_event(void);
+
+/* Create event wait context */
+EventWaitCtx *event_wait_create(void);
+
+/* Destroy event wait context (stops monitoring thread) */
 void event_wait_destroy(EventWaitCtx *ctx);
 
-/* Set the socket to monitor (call when connection state changes)
- * sock: socket fd, or -1 to disable socket monitoring */
+/* Start/stop socket monitoring thread
+ * sock: socket fd to monitor, or -1 to stop monitoring */
 void event_wait_set_socket(EventWaitCtx *ctx, int sock);
-
-/* Wait for events
- * timeout_ms: timeout in milliseconds, -1 for infinite
- * Returns: bitmask of EVENT_WAIT_* flags */
-int event_wait(EventWaitCtx *ctx, int timeout_ms);
-
-/* Wayland-specific: call before blocking */
-void event_wait_pre_wait(EventWaitCtx *ctx);
-
-/* Wayland-specific: call after waking */
-void event_wait_post_wait(EventWaitCtx *ctx);
 
 #endif /* EVENT_WAIT_H */

@@ -98,7 +98,8 @@ static char **repl_completer(const char *buffer, int cursor_pos, void *userdata)
     char *prefix = malloc(prefix_len + 1);
     if (!prefix)
         return NULL;
-    strncpy(prefix, buffer + word_start, prefix_len);
+    if (prefix_len > 0)
+        memcpy(prefix, buffer + word_start, prefix_len);
     prefix[prefix_len] = '\0';
 
     /* Detect context */

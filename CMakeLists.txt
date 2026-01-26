@@ -222,7 +222,6 @@ set(GUI_SOURCES
     src/terminal.c
     src/terminal_backend_vterm.c
     src/window.c
-    src/display_fd.c
     src/event_wait.c
     src/renderer.c
     src/renderer_backend_sdl.c
@@ -407,13 +406,8 @@ install(PROGRAMS "${LOG2HTML_SRC}"
 pkg_check_modules(SDL2 REQUIRED sdl2)
 pkg_check_modules(SDL2_TTF REQUIRED SDL2_ttf)
 
-# Wayland client library (optional, for blocking event loop on Wayland)
-if(NOT WIN32)
-    pkg_check_modules(WAYLAND_CLIENT wayland-client)
-    if(WAYLAND_CLIENT_FOUND)
-        message(STATUS "Found wayland-client: ${WAYLAND_CLIENT_VERSION}")
-    endif()
-endif()
+# Note: wayland-client is no longer needed since we use SDL_WaitEventTimeout()
+# which handles Wayland internally
 
 # ============================================================================
 # Optional: rlottie for Lottie animation support
@@ -1339,12 +1333,6 @@ if(WIN32)
     # windowscodecs for WIC (proper alpha channel support in color emoji)
     # ole32 for COM initialization (CoCreateInstance)
     target_link_libraries(telnet-gui PRIVATE dwrite d2d1 gdi32 windowscodecs ole32)
-endif()
-
-# Link wayland-client if available (for blocking event loop on Wayland)
-if(WAYLAND_CLIENT_FOUND)
-    target_link_libraries(telnet-gui PRIVATE ${WAYLAND_CLIENT_LIBRARIES})
-    target_include_directories(telnet-gui PRIVATE ${WAYLAND_CLIENT_INCLUDE_DIRS})
 endif()
 
 # Include directories
