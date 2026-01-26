@@ -234,6 +234,7 @@ set(GUI_SOURCES
     src/path_utils.c
     src/dynamic_buffer.c
     src/ansi_sequences.c
+    src/histogram.c
     ${VENDOR_SOURCES}
 )
 

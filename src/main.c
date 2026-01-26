@@ -39,6 +39,7 @@ void renderer_set_animation(Animation *anim);
 #include "../telnet-lisp/include/file_utils.h"
 #include "vendor/argparse.h"
 #include "event_wait.h"
+#include "histogram.h"
 
 /* High-resolution timing for profiling */
 #ifdef _WIN32
@@ -70,6 +71,12 @@ typedef struct {
 } ProfileStats;
 
 static ProfileStats profile_stats = {0};
+
+/* Histograms for timing distributions (profile mode only) */
+static Histogram *hist_e2e = NULL; /* end-to-end timing */
+static Histogram *hist_telnet_input_hook = NULL;
+static Histogram *hist_telnet_filter_hook = NULL;
+static Histogram *hist_user_input_hook = NULL;
 
 static void profile_stats_reset(void) {
     memset(&profile_stats, 0, sizeof(profile_stats));
@@ -1250,6 +1257,11 @@ int main(int argc, char **argv) {
     if (profile_mode) {
         lisp_x_profile_start();
         profile_stats_reset();
+        /* Create histograms for timing distributions */
+        hist_e2e = histogram_create("end-to-end", 100, 10);
+        hist_telnet_input_hook = histogram_create("telnet-input-hook", 100, 0);
+        hist_telnet_filter_hook = histogram_create("telnet-input-filter-hook", 100, 0);
+        hist_user_input_hook = histogram_create("user-input-hook", 100, 0);
         fprintf(stderr, "Profiling enabled: Lisp profiler + C timing instrumentation\n");
     }
 
@@ -1617,7 +1629,14 @@ int main(int argc, char **argv) {
                             dock_clear(&dock);
                         } else {
                             /* Normal text - call user-input-hook to transform text before sending */
+                            uint64_t t_uih_start = 0, t_uih_end = 0;
+                            if (profile_mode)
+                                t_uih_start = get_time_ns();
                             const char *transformed_text = lisp_x_call_user_input_hook(text, cursor_pos);
+                            if (profile_mode) {
+                                t_uih_end = get_time_ns();
+                                histogram_record(hist_user_input_hook, t_uih_end - t_uih_start);
+                            }
                             int transformed_length = strlen(transformed_text);
 
                             /* Hook contract: non-string or empty string = hook handled everything */
@@ -2094,6 +2113,10 @@ int main(int argc, char **argv) {
                     profile_stats.telnet_input_filter_hook_ns += (t3 - t2);
                     profile_stats.terminal_feed_data_ns += (t4 - t3);
                     profile_stats.recv_count++;
+                    /* Record histogram samples */
+                    histogram_record(hist_e2e, t4 - t0);
+                    histogram_record(hist_telnet_input_hook, t2 - t1);
+                    histogram_record(hist_telnet_filter_hook, t3 - t2);
                 }
 
                 /* Auto-scroll to bottom unless user has scrolled back */
@@ -2248,6 +2271,15 @@ int main(int argc, char **argv) {
     if (profile_mode) {
         printf("\n");
         profile_stats_print();
+        printf("\n=== Histogram Statistics ===\n");
+        histogram_print(hist_e2e);
+        histogram_print(hist_telnet_input_hook);
+        histogram_print(hist_telnet_filter_hook);
+        histogram_print(hist_user_input_hook);
+        histogram_destroy(hist_e2e);
+        histogram_destroy(hist_telnet_input_hook);
+        histogram_destroy(hist_telnet_filter_hook);
+        histogram_destroy(hist_user_input_hook);
         printf("\n");
         lisp_x_profile_report();
         fflush(stdout);
