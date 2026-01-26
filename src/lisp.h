@@ -61,7 +61,11 @@ void lisp_x_call_telnet_input_hook(const char *text, size_t len);
 /* Run all due timers - calls (run-timers) in Lisp each frame */
 void lisp_x_run_timers(void);
 
-/* Call telnet-input-filter-hook with telnet data (with ANSI codes) before displaying in terminal (returns transformed text or original) */
+/* Get milliseconds until next timer fires (-1 if no timers) */
+int lisp_x_get_next_timer_timeout_ms(void);
+
+/* Call telnet-input-filter-hook with telnet data (with ANSI codes) before displaying in terminal (returns transformed
+ * text or original) */
 const char *lisp_x_call_telnet_input_filter_hook(const char *text, size_t len, size_t *out_len);
 
 /* Call user-input-hook with user input before sending to telnet (returns transformed text or original) */

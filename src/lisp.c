@@ -17,6 +17,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
+#ifndef _WIN32
+#include <time.h>
+#endif
 
 /* Version information - generated at build time */
 #include "telnet_gui_version.h"
@@ -2363,6 +2367,63 @@ void lisp_x_run_timers(void) {
             fprintf(stderr, "Error in run-timers: %s\n", err_str);
         }
     }
+}
+
+/* Get milliseconds until next timer fires (-1 if no timers) */
+int lisp_x_get_next_timer_timeout_ms(void) {
+    if (!lisp_env)
+        return -1;
+
+    /* Look up *timer-list* */
+    LispObject *timer_list = env_lookup(lisp_env, "*timer-list*");
+    if (!timer_list || timer_list == NIL || timer_list->type != LISP_CONS)
+        return -1; /* No timers - block indefinitely */
+
+    /* Get current time using same method as Lisp's current-time-ms */
+#ifdef _WIN32
+    long long now_ms = (long long)GetTickCount64();
+#else
+    struct timespec ts;
+    long long now_ms;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+        now_ms = (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+    } else {
+        now_ms = (long long)time(NULL) * 1000;
+    }
+#endif
+
+    /* Walk timer list to find minimum fire-time
+     * Timer format: (id fire-time-ms repeat-ms callback args) */
+    long long min_fire_time = -1;
+    LispObject *cursor = timer_list;
+    while (cursor && cursor != NIL && cursor->type == LISP_CONS) {
+        LispObject *timer = lisp_car(cursor);
+        if (timer && timer->type == LISP_CONS) {
+            /* Get fire-time-ms (second element) */
+            LispObject *rest = lisp_cdr(timer);
+            if (rest && rest->type == LISP_CONS) {
+                LispObject *fire_time_obj = lisp_car(rest);
+                if (fire_time_obj && fire_time_obj->type == LISP_INTEGER) {
+                    long long fire_time = fire_time_obj->value.integer;
+                    if (min_fire_time < 0 || fire_time < min_fire_time) {
+                        min_fire_time = fire_time;
+                    }
+                }
+            }
+        }
+        cursor = lisp_cdr(cursor);
+    }
+
+    if (min_fire_time < 0)
+        return -1; /* No valid timers */
+
+    /* Calculate milliseconds until next timer */
+    long long delta = min_fire_time - now_ms;
+    if (delta <= 0)
+        return 0; /* Timer is due now */
+    if (delta > INT_MAX)
+        return INT_MAX;
+    return (int)delta;
 }
 
 const char *lisp_x_call_user_input_hook(const char *text, int cursor_pos) {

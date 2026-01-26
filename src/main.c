@@ -14,6 +14,7 @@
 #else
 #include <sys/select.h>
 #include <sys/time.h>
+#include <errno.h>
 #endif
 
 #include <SDL2/SDL.h>
@@ -40,7 +41,8 @@
 void renderer_set_animation(Animation *anim);
 #endif
 #include "../telnet-lisp/include/file_utils.h"
-#include "vendor/argparse.h" // <-- Add this include
+#include "vendor/argparse.h"
+#include "display_fd.h"
 
 /* High-resolution timing for profiling */
 #ifdef _WIN32
@@ -99,6 +101,19 @@ static void profile_stats_print(void) {
                         profile_stats.telnet_input_filter_hook_ns + profile_stats.terminal_feed_data_ns;
     printf("TOTAL:                     avg %.3fms  total %.3fms\n", (double)total_ns / profile_stats.recv_count / 1e6,
            (double)total_ns / 1e6);
+}
+
+/* Calculate timeout for select() based on animation state and timers */
+static int calculate_timeout_ms(int animation_playing) {
+    if (animation_playing)
+        return 16; /* ~60 FPS for animations */
+
+    int next_timer_ms = lisp_x_get_next_timer_timeout_ms();
+    if (next_timer_ms < 0)
+        return -1; /* Block indefinitely */
+    if (next_timer_ms < 1)
+        return 1; /* Minimum 1ms */
+    return next_timer_ms;
 }
 
 /* Padding around terminal area (including input area) - must match renderer.c */
@@ -1110,6 +1125,7 @@ int main(int argc, char **argv) {
     SDL_DestroyWindow(hidden_window);
 
     /* Create the real window with the exact calculated size */
+    /* Create window */
     Window *win = window_create("Telnet GUI", precise_width, precise_height);
     if (!win) {
         fprintf(stderr, "Failed to create window\n");
@@ -1281,8 +1297,69 @@ int main(int argc, char **argv) {
     SDL_Event event;
     int mouse_x = 0, mouse_y = 0;
 
+    /* Get display file descriptor for blocking event loop */
+    int display_fd = get_display_fd(sdl_window);
+    int use_fd_wait = (display_fd >= 0);
+
     while (running && !quit_requested) {
-        /* Poll events */
+        /* Check if animation is playing (affects timeout calculation) */
+        int animation_playing = 0;
+#if HAVE_RLOTTIE
+        Animation *anim_check = lisp_x_get_active_animation();
+        if (anim_check && animation_is_loaded(anim_check) && animation_is_playing(anim_check)) {
+            animation_playing = 1;
+        }
+#endif
+
+        /* Calculate timeout based on animations and timers */
+        int timeout_ms = calculate_timeout_ms(animation_playing);
+
+        if (use_fd_wait) {
+            /* Build fd_set with display_fd and telnet socket */
+            fd_set readfds;
+            FD_ZERO(&readfds);
+            FD_SET(display_fd, &readfds);
+
+            int max_fd = display_fd;
+            if (connected_mode) {
+                int sock = telnet_get_socket(telnet);
+                if (sock >= 0) {
+                    FD_SET(sock, &readfds);
+                    if (sock > max_fd)
+                        max_fd = sock;
+                }
+            }
+
+            /* Set timeout */
+            struct timeval tv, *tvp = NULL;
+            if (timeout_ms >= 0) {
+                tv.tv_sec = timeout_ms / 1000;
+                tv.tv_usec = (timeout_ms % 1000) * 1000;
+                tvp = &tv;
+            }
+
+            /* Wayland: flush outgoing requests before blocking */
+            wayland_pre_wait(sdl_window);
+
+            /* Block until event or timeout */
+            int select_result = select(max_fd + 1, &readfds, NULL, NULL, tvp);
+
+            /* Wayland: dispatch any pending events after waking */
+            wayland_post_wait(sdl_window);
+
+            /* On select error (except EINTR), fall through to poll-based handling */
+            if (select_result < 0 && errno != EINTR) {
+                /* Error - fall back to single iteration */
+            }
+        } else {
+            /* Fallback: polling with delay (Windows or no display fd) */
+            int delay = (timeout_ms >= 0 && timeout_ms < 16) ? timeout_ms : 16;
+            if (delay > 0)
+                SDL_Delay(delay);
+        }
+
+        /* Pump and poll SDL events */
+        SDL_PumpEvents();
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
             case SDL_QUIT:
@@ -2220,7 +2297,7 @@ int main(int argc, char **argv) {
             }
         }
 
-        SDL_Delay(16); /* Cap at ~60 FPS */
+        /* NOTE: No SDL_Delay() here - select() handles waiting now */
     }
 
     /* Print profile reports if profiling was enabled */
