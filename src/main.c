@@ -73,7 +73,8 @@ typedef struct {
 static ProfileStats profile_stats = {0};
 
 /* Histograms for timing distributions (profile mode only) */
-static Histogram *hist_e2e = NULL; /* end-to-end timing */
+static Histogram *hist_e2e = NULL;         /* end-to-end timing */
+static Histogram *hist_telnet_recv = NULL; /* raw socket read time */
 static Histogram *hist_telnet_input_hook = NULL;
 static Histogram *hist_telnet_filter_hook = NULL;
 static Histogram *hist_user_input_hook = NULL;
@@ -1259,6 +1260,7 @@ int main(int argc, char **argv) {
         profile_stats_reset();
         /* Create histograms for timing distributions */
         hist_e2e = histogram_create("end-to-end", 100, 10);
+        hist_telnet_recv = histogram_create("telnet-recv", 100, 0);
         hist_telnet_input_hook = histogram_create("telnet-input-hook", 100, 0);
         hist_telnet_filter_hook = histogram_create("telnet-input-filter-hook", 100, 0);
         hist_user_input_hook = histogram_create("user-input-hook", 100, 0);
@@ -2115,6 +2117,7 @@ int main(int argc, char **argv) {
                     profile_stats.recv_count++;
                     /* Record histogram samples */
                     histogram_record(hist_e2e, t4 - t0);
+                    histogram_record(hist_telnet_recv, t1 - t0);
                     histogram_record(hist_telnet_input_hook, t2 - t1);
                     histogram_record(hist_telnet_filter_hook, t3 - t2);
                 }
@@ -2273,10 +2276,12 @@ int main(int argc, char **argv) {
         profile_stats_print();
         printf("\n=== Histogram Statistics ===\n");
         histogram_print(hist_e2e);
+        histogram_print(hist_telnet_recv);
         histogram_print(hist_telnet_input_hook);
         histogram_print(hist_telnet_filter_hook);
         histogram_print(hist_user_input_hook);
         histogram_destroy(hist_e2e);
+        histogram_destroy(hist_telnet_recv);
         histogram_destroy(hist_telnet_input_hook);
         histogram_destroy(hist_telnet_filter_hook);
         histogram_destroy(hist_user_input_hook);
