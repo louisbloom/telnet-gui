@@ -22,6 +22,14 @@
 
 (define *tintin-action-executing* #f)
 
+;; Performance caches (invalidated when highlights change)
+(define *tintin-pattern-cache* (make-hash-table))    ; pattern string → compiled regex
+(define *tintin-sorted-highlights-cache* nil)        ; cached sorted highlight list
+(define *tintin-highlights-dirty* #t)                ; flag to invalidate sorted cache
+
+;; String containing all regex special characters for fast lookup via string-index
+(define *regex-special-chars* ".*+?[]{}()|\\^$")
+
 (defvar *tintin-speedwalk-enabled* #t
   "When non-nil, enable speedwalk expansion (e.g., 3n2e → n;n;n;e;e).
 
@@ -506,10 +514,7 @@ Maps attribute names to their ANSI SGR codes.")
 ;; ============================================================================
 ;; Check if character needs regex escaping
 (defun tintin-regex-special-char? (ch)
-  (or (char=? ch #\.) (char=? ch #\*) (char=? ch #\+) (char=? ch #\?)
-      (char=? ch #\[) (char=? ch #\]) (char=? ch #\{) (char=? ch #\})
-      (char=? ch #\() (char=? ch #\)) (char=? ch #\|) (char=? ch #\\)
-      (char=? ch #\^) (char=? ch #\$)))
+  (string-index *regex-special-chars* (char->string ch)))
 
 ;; Convert TinTin++ pattern to PCRE2 regex
 ;; Pattern translation:
@@ -725,7 +730,13 @@ Maps attribute names to their ANSI SGR codes.")
   - `tintin-trigger-actions-for-line` - Execute actions using pattern matching"
   (if (or (not (string? pattern)) (not (string? text)))
     #f
-    (let ((regex-pattern (tintin-pattern-to-regex pattern)))
+    ;; Use cached regex if available, otherwise compute and cache
+    (let ((regex-pattern (hash-ref *tintin-pattern-cache* pattern)))
+      (if (not regex-pattern)
+        ;; Cache miss - compute and store
+        (progn
+          (set! regex-pattern (tintin-pattern-to-regex pattern))
+          (hash-set! *tintin-pattern-cache* pattern regex-pattern)))
       (if (string=? regex-pattern "")
         #f
         ;; Use regex-match? to test if pattern matches
@@ -1271,22 +1282,26 @@ Maps attribute names to their ANSI SGR codes.")
   - `#highlight` command - Define highlight patterns"
   (if (or (not (string? line)) (= (hash-count *tintin-highlights*) 0))
     line
-    ;; Get all highlights sorted by priority (highest first)
-    (let ((highlight-entries (hash-entries *tintin-highlights*)))
-      (let ((sorted (tintin-sort-highlights-by-priority highlight-entries)))
-        ;; Try all patterns and apply all that match
-        (let ((result line))
-          (do ((i 0 (+ i 1))) ((>= i (length sorted)) result)
-            (let* ((entry (list-ref sorted i))
-                   (pattern (car entry))
-                   (data (cdr entry))
-                   (fg-color (car data))
-                   (bg-color (cadr data)))
-              ;; Check if pattern matches the current result
-              (if (tintin-match-highlight-pattern pattern result)
-                ;; Apply highlight to current result (allows multiple highlights)
-                (set! result
-                 (tintin-wrap-match result pattern fg-color bg-color))))))))))
+    ;; Use cached sorted highlights, re-sort only if dirty
+    (progn
+      (if *tintin-highlights-dirty*
+        (progn
+          (set! *tintin-sorted-highlights-cache*
+           (tintin-sort-highlights-by-priority (hash-entries *tintin-highlights*)))
+          (set! *tintin-highlights-dirty* #f)))
+      ;; Try all patterns and apply all that match
+      (let ((result line))
+        (do ((i 0 (+ i 1))) ((>= i (length *tintin-sorted-highlights-cache*)) result)
+          (let* ((entry (list-ref *tintin-sorted-highlights-cache* i))
+                 (pattern (car entry))
+                 (data (cdr entry))
+                 (fg-color (car data))
+                 (bg-color (cadr data)))
+            ;; Check if pattern matches the current result
+            (if (tintin-match-highlight-pattern pattern result)
+              ;; Apply highlight to current result (allows multiple highlights)
+              (set! result
+               (tintin-wrap-match result pattern fg-color bg-color)))))))))
 
 ;; Main entry point: Apply highlights to incoming text
 ;; Splits text into lines, highlights each line, returns transformed text
@@ -4868,6 +4883,11 @@ Maps attribute names to their ANSI SGR codes.")
        (let ((parts (tintin-split-fg-bg color-spec)))
          (let ((fg-part (list-ref parts 0))
                (bg-part (list-ref parts 1)))
+           ;; Pre-compile and cache the regex pattern
+           (let ((compiled-regex (tintin-pattern-to-regex pattern)))
+             (hash-set! *tintin-pattern-cache* pattern compiled-regex))
+           ;; Invalidate sorted highlights cache
+           (set! *tintin-highlights-dirty* #t)
            ;; Store as (fg-color bg-color priority)
            (hash-set! *tintin-highlights* pattern
             (list (if (string=? fg-part "") nil fg-part) bg-part priority))
@@ -4884,7 +4904,11 @@ Maps attribute names to their ANSI SGR codes.")
 (defun tintin-handle-unhighlight (args)
   (let ((pattern (tintin-strip-braces (list-ref args 0))))
     (if (hash-ref *tintin-highlights* pattern)
-      (progn (hash-remove! *tintin-highlights* pattern)
+      (progn
+        (hash-remove! *tintin-highlights* pattern)
+        ;; Remove from pattern cache and invalidate sorted cache
+        (hash-remove! *tintin-pattern-cache* pattern)
+        (set! *tintin-highlights-dirty* #t)
         (tintin-echo (concat "Highlight '" pattern "' removed\r\n"))
         "")
       (progn (tintin-echo (concat "Highlight '" pattern "' not found\r\n")) ""))))
